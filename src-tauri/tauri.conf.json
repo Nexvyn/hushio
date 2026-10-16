@@ -1,24 +1,35 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "hushio",
-  "version": "0.1.0",
+  "productName": "Hushio",
+  "version": "1.1.1",
   "identifier": "com.hushio.app",
   "build": {
-    "beforeDevCommand": "pnpm dev",
-    "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeDevCommand": "pnpm dev:renderer",
+    "beforeBuildCommand": "pnpm build:web",
     "frontendDist": "../dist"
   },
   "app": {
+    "withGlobalTauri": false,
     "windows": [
       {
-        "title": "hushio",
-        "width": 800,
-        "height": 600
+        "label": "main",
+        "title": "Hushio",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 1000,
+        "minHeight": 640,
+        "resizable": true,
+        "backgroundColor": "#0a0a0a",
+        "visible": false
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: asset: http://asset.localhost; media-src 'self' blob: https: http://127.0.0.1:* asset: http://asset.localhost; connect-src 'self' ipc: http://ipc.localhost https: http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; font-src 'self' data:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'",
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["$AUDIO/**", "$DOWNLOAD/**", "$MUSIC/**", "$APPDATA/**", "$APPCACHE/**"]
+      }
     }
   },
   "bundle": {
