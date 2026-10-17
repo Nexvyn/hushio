@@ -1,51 +1,105 @@
-import { useEffect, useState } from "react";
-import { Search01Icon } from "@hugeicons/core-free-icons";
-import { motion, useReducedMotion } from "motion/react";
-import { Button } from "./components/Button";
-import { Icon } from "./components/Icon";
-import { gate, glide } from "./lib/motion";
-import { applyTheme, type ThemeMode } from "./lib/theme";
+import { useLayoutEffect } from "react";
+import { PlayerBar } from "./components/PlayerBar";
+import { RightRail } from "./components/RightRail";
+import { Sidebar } from "./components/Sidebar";
+import { TopBar } from "./components/TopBar";
+import { useNavigation, type View } from "./stores/navigation";
+import { AlbumView } from "./views/AlbumView";
+import { ArtistView } from "./views/ArtistView";
+import { DownloadsView } from "./views/DownloadsView";
+import { ExploreView } from "./views/ExploreView";
+import { FolderView } from "./views/FolderView";
+import { HomeView } from "./views/HomeView";
+import { LibraryView } from "./views/LibraryView";
+import { LocalMusicView } from "./views/LocalMusicView";
+import { MatchedPlaylistView } from "./views/MatchedPlaylistView";
+import { MoodView } from "./views/MoodView";
+import { PlaylistView } from "./views/PlaylistView";
+import { PodcastsView } from "./views/PodcastsView";
+import { PodcastView } from "./views/PodcastView";
+import { RemotePlaylistView } from "./views/RemotePlaylistView";
+import { ReplayView } from "./views/ReplayView";
+import { SearchView } from "./views/SearchView";
+import { SettingsView } from "./views/SettingsView";
 
-const modes: ThemeMode[] = ["dark", "light", "system"];
+function CurrentView({ view }: { view: View }) {
+  switch (view.name) {
+    case "home":
+      return <HomeView />;
+    case "explore":
+      return <ExploreView />;
+    case "search":
+      return <SearchView />;
+    case "library":
+    case "playlists":
+      return <LibraryView />;
+    case "playlist":
+      return <PlaylistView />;
+    case "folder":
+      return <FolderView />;
+    case "ytplaylist":
+      return <RemotePlaylistView />;
+    case "import":
+      return <MatchedPlaylistView />;
+    case "album":
+      return <AlbumView />;
+    case "artist":
+      return <ArtistView />;
+    case "downloads":
+      return <DownloadsView />;
+    case "local":
+      return <LocalMusicView />;
+    case "replay":
+      return <ReplayView />;
+    case "podcast":
+      return view.param ? <PodcastView /> : null;
+    case "podcasts":
+      return <PodcastsView />;
+    case "mood":
+      return view.param ? <MoodView /> : null;
+    case "settings":
+      return <SettingsView />;
+  }
+}
 
 export default function App() {
-  const [mode, setMode] = useState<ThemeMode>("dark");
-  const [moved, setMoved] = useState(false);
-  const reduce = useReducedMotion();
+  const view = useNavigation((state) => state.view);
+  const pendingScroll = useNavigation((state) => state.pendingScroll);
+  const viewReloadNonce = useNavigation((state) => state.viewReloadNonce);
+  const clearPendingScroll = useNavigation((state) => state.clearPendingScroll);
 
-  useEffect(() => {
-    applyTheme(mode);
-  }, [mode]);
+  useLayoutEffect(() => {
+    if (pendingScroll === null) return;
+    const scroller = document.getElementById("view-scroll");
+    if (scroller) scroller.scrollTop = pendingScroll;
+    clearPendingScroll();
+  }, [pendingScroll, clearPendingScroll]);
 
   return (
-    <main spellCheck={false} className="flex min-h-screen flex-col items-center justify-center gap-6">
-      <div className="flex items-center gap-2">
-        {modes.map((value) => (
-          <Button
-            key={value}
-            variant={value === mode ? "primary" : "secondary"}
-            aria-pressed={value === mode}
-            onClick={() => setMode(value)}
-          >
-            {value[0].toUpperCase() + value.slice(1)}
-          </Button>
-        ))}
+    <div
+      spellCheck={false}
+      className="flex h-screen select-none flex-col overflow-hidden bg-base text-ink-1"
+    >
+      <TopBar />
+
+      <div className="flex min-h-0 flex-1 gap-2 px-2 pb-1">
+        <Sidebar />
+
+        <main className="relative min-w-0 flex-1 overflow-hidden rounded-2xl border border-card-edge/[0.08] bg-surface shadow-[var(--shadow-card)]">
+          <div id="view-scroll" className="no-scrollbar h-full overflow-y-auto">
+            <div
+              key={`${viewReloadNonce}:${view.name}:${view.param ?? ""}`}
+              className="px-10 pb-6 pt-5"
+            >
+              <CurrentView view={view} />
+            </div>
+          </div>
+        </main>
+
+        <RightRail />
       </div>
 
-      <div className="flex items-center gap-3">
-        <Button aria-label="Search" className="h-9 w-9 p-0">
-          <Icon icon={Search01Icon} />
-        </Button>
-        <Button onClick={() => setMoved((value) => !value)}>Toggle glide</Button>
-      </div>
-
-      <div className="relative h-1 w-48 rounded-full bg-wash">
-        <motion.span
-          className="absolute top-0 h-1 w-6 rounded-full bg-ink-1"
-          animate={{ x: moved ? 168 : 0 }}
-          transition={gate(Boolean(reduce), glide)}
-        />
-      </div>
-    </main>
+      <PlayerBar />
+    </div>
   );
 }
