@@ -1,9 +1,16 @@
-import { useLayoutEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
+import { Dialog } from "./components/Dialog";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PlayerBar } from "./components/PlayerBar";
 import { RightRail } from "./components/RightRail";
 import { Sidebar } from "./components/Sidebar";
+import { SwipeArrow } from "./components/SwipeArrow";
+import { Toasts } from "./components/Toasts";
 import { TopBar } from "./components/TopBar";
+import { watchFullScreen } from "./lib/bridge";
+import { useKeyboardShortcuts, useSwipeNavigation } from "./lib/shortcuts";
 import { useNavigation, type View } from "./stores/navigation";
+import { useUI } from "./stores/ui";
 import { AlbumView } from "./views/AlbumView";
 import { ArtistView } from "./views/ArtistView";
 import { DownloadsView } from "./views/DownloadsView";
@@ -67,6 +74,25 @@ export default function App() {
   const pendingScroll = useNavigation((state) => state.pendingScroll);
   const viewReloadNonce = useNavigation((state) => state.viewReloadNonce);
   const clearPendingScroll = useNavigation((state) => state.clearPendingScroll);
+  const setOsFullscreen = useUI((state) => state.setOsFullscreen);
+
+  useKeyboardShortcuts();
+  useSwipeNavigation();
+
+  useEffect(() => {
+    let stop: (() => void) | undefined;
+    let live = true;
+    void watchFullScreen(setOsFullscreen)
+      .then((unlisten) => {
+        if (live) stop = unlisten;
+        else unlisten();
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+      stop?.();
+    };
+  }, [setOsFullscreen]);
 
   useLayoutEffect(() => {
     if (pendingScroll === null) return;
@@ -91,15 +117,23 @@ export default function App() {
               key={`${viewReloadNonce}:${view.name}:${view.param ?? ""}`}
               className="px-10 pb-6 pt-5"
             >
-              <CurrentView view={view} />
+              <ErrorBoundary
+                scope="view"
+                resetKey={`${viewReloadNonce}:${view.name}`}
+              >
+                <CurrentView view={view} />
+              </ErrorBoundary>
             </div>
           </div>
+          <SwipeArrow />
         </main>
 
         <RightRail />
       </div>
 
       <PlayerBar />
+      <Toasts />
+      <Dialog />
     </div>
   );
 }

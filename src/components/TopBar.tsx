@@ -1,4 +1,4 @@
-import { ArrowLeft01Icon, ArrowRight01Icon, Compass01Icon } from "@hugeicons/core-free-icons";
+import { ArrowLeft01Icon, ArrowRight01Icon, Compass01Icon, Search01Icon } from "@hugeicons/core-free-icons";
 import { Icon } from "./Icon";
 import { useNavigation } from "../stores/navigation";
 
@@ -59,6 +59,20 @@ export function TopBar() {
       >
         <Icon icon={Compass01Icon} />
       </button>
+
+      <div className="relative ml-2 min-w-0 max-w-[420px] flex-1">
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-2">
+          <Icon icon={Search01Icon} />
+        </span>
+        <input
+          id="global-search"
+          type="search"
+          aria-label="Search"
+          placeholder="Search"
+          spellCheck={false}
+          className="h-9 w-full rounded-full border border-separator bg-surface pl-10 pr-3 text-[13px] text-ink-1 placeholder:text-ink-2"
+        />
+      </div>
     </header>
   );
 }

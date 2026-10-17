@@ -33,3 +33,25 @@ export function showMainWindow(): Promise<void> {
 export function appVersion(): Promise<string> {
   return getVersion();
 }
+
+export function setFullScreen(enabled: boolean): Promise<void> {
+  return getCurrentWindow().setFullscreen(enabled);
+}
+
+export async function watchFullScreen(onChange: (value: boolean) => void): Promise<() => void> {
+  const current = getCurrentWindow();
+  const update = () => {
+    void current.isFullscreen().then(onChange);
+  };
+  const unlisten = await current.onResized(update);
+  update();
+  return unlisten;
+}
+
+export async function naturalScrollDirection(): Promise<boolean | null> {
+  try {
+    return await call<boolean | null>("os_scroll_direction");
+  } catch {
+    return null;
+  }
+}

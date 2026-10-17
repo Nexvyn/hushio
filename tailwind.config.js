@@ -2,6 +2,15 @@ export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      fontFamily: {
+        display: [
+          '"Segoe UI Variable Display"',
+          '"Segoe UI Variable Text"',
+          '"Segoe UI"',
+          "system-ui",
+          "sans-serif",
+        ],
+      },
       colors: {
         base: "rgb(var(--base) / <alpha-value>)",
         surface: "rgb(var(--surface) / <alpha-value>)",

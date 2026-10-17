@@ -1,0 +1,162 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Alert02Icon,
+  Cancel01Icon,
+  InformationCircleIcon,
+  Tick02Icon,
+} from "@hugeicons/core-free-icons";
+import type { IconSvgElement } from "@hugeicons/react";
+import { Icon } from "./Icon";
+import { DEFAULT_TOAST_MS, useUI, type Toast } from "../stores/ui";
+
+const RING_C = 2 * Math.PI * 16.75;
+
+type KindStyle = {
+  icon: IconSvgElement;
+  tint: string;
+  badge: string;
+  ring: string;
+  glow: string;
+};
+
+const KIND_STYLES: Record<Toast["kind"], KindStyle> = {
+  info: {
+    icon: InformationCircleIcon,
+    tint: "text-ink-1",
+    badge: "bg-ink-1/[0.14]",
+    ring: "rgb(var(--ink-1) / 0.75)",
+    glow: "--ink-1",
+  },
+  success: {
+    icon: Tick02Icon,
+    tint: "text-safe",
+    badge: "bg-safe/[0.16]",
+    ring: "rgb(var(--safe) / 0.9)",
+    glow: "--safe",
+  },
+  error: {
+    icon: Cancel01Icon,
+    tint: "text-danger-text",
+    badge: "bg-danger/[0.16]",
+    ring: "rgb(var(--danger) / 0.9)",
+    glow: "--danger",
+  },
+  warning: {
+    icon: Alert02Icon,
+    tint: "text-warn",
+    badge: "bg-warn/[0.16]",
+    ring: "rgb(var(--warn) / 0.9)",
+    glow: "--warn",
+  },
+};
+
+function ToastCard({ toast }: { toast: Toast }) {
+  const dismissToast = useUI((state) => state.dismissToast);
+  const duration = toast.duration && toast.duration > 0 ? toast.duration : DEFAULT_TOAST_MS;
+  const [paused, setPaused] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const remaining = useRef(duration);
+  const closing = useRef(false);
+  const style = KIND_STYLES[toast.kind];
+
+  const close = useCallback(() => {
+    if (closing.current) return;
+    closing.current = true;
+    setLeaving(true);
+    setTimeout(() => dismissToast(toast.id), 340);
+  }, [dismissToast, toast.id]);
+
+  useEffect(() => {
+    if (paused || closing.current) return;
+    const startedAt = performance.now();
+    const timer = setTimeout(close, Math.max(0, remaining.current));
+    return () => {
+      clearTimeout(timer);
+      remaining.current = Math.max(0, remaining.current - (performance.now() - startedAt));
+    };
+  }, [paused, close]);
+
+  return (
+    <div
+      role="status"
+      className={`group pointer-events-auto relative ${leaving ? "toast-lift" : "toast-drop"} ${
+        toast.kind === "error" && !leaving ? "toast-shake" : ""
+      }`}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocusCapture={() => setPaused(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setPaused(false);
+      }}
+    >
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -inset-5 rounded-full blur-lg transition-opacity duration-500"
+        style={{
+          background: `radial-gradient(closest-side, rgb(var(${style.glow}) / 0.20), transparent)`,
+          opacity: paused ? 1 : 0.5,
+        }}
+      />
+      <div className="toast-beacon relative flex min-w-[320px] max-w-[440px] items-center gap-3 overflow-hidden rounded-full py-1.5 pl-1.5 pr-2 motion-safe:transition-transform motion-safe:duration-300 motion-safe:hover:scale-[1.015]">
+        <span className="toast-sheen pointer-events-none absolute inset-y-0 left-0 w-1/3" />
+        <span className="relative h-9 w-9 shrink-0">
+          <svg viewBox="0 0 36 36" className="h-9 w-9 -rotate-90">
+            <circle
+              cx="18"
+              cy="18"
+              r="16.75"
+              fill="none"
+              stroke="rgba(255,255,255,0.09)"
+              strokeWidth="1.5"
+            />
+            <circle
+              cx="18"
+              cy="18"
+              r="16.75"
+              fill="none"
+              stroke={style.ring}
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeDasharray={RING_C}
+              className="toast-ring"
+              style={{
+                animationDuration: `${duration}ms`,
+                animationPlayState: paused ? "paused" : "running",
+              }}
+            />
+          </svg>
+          <span
+            className={`absolute inset-[6px] grid place-items-center rounded-full ${style.badge} ${style.tint}`}
+          >
+            <Icon icon={style.icon} />
+          </span>
+        </span>
+        <p className="select-none pr-0.5 text-[13px] font-medium leading-snug text-ink-1">
+          {toast.message}
+        </p>
+        <button
+          type="button"
+          title="Dismiss"
+          aria-label="Dismiss notification"
+          onClick={close}
+          className="relative ml-auto grid h-6 w-6 shrink-0 place-items-center rounded-full text-ink-2 opacity-0 transition-all duration-200 hover:bg-ink-1/10 hover:text-ink-1 focus:opacity-100 group-hover:opacity-100"
+        >
+          <Icon icon={Cancel01Icon} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function Toasts() {
+  const toasts = useUI((state) => state.toasts);
+  if (toasts.length === 0) return null;
+
+  return (
+    <div className="pointer-events-none fixed left-1/2 top-[78px] z-[110] flex -translate-x-1/2 flex-col items-center gap-2.5">
+      {[...toasts].reverse().map((toast) => (
+        <ToastCard key={toast.id} toast={toast} />
+      ))}
+    </div>
+  );
+}
