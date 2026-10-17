@@ -1,0 +1,218 @@
+/* tokens.css. Colour and motion for Hushio (28A).
+   Values are R G B triplets. Hex in comments is the same colour as the table in 28A.3.1.
+   Dark is the default. */
+
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --base: 19 19 19;                 /* #131313 */
+  --surface: 28 28 28;              /* #1C1C1C */
+  --panel: 28 28 28;                /* = surface */
+  --elevated: 28 28 28;             /* = surface; depth comes from shadow */
+
+  /* Ink */
+  --ink-1: 237 237 237;             /* #EDEDED */
+  --ink-2: 148 148 148;             /* #949494 */
+  --ink-3: 82 82 82;                /* #525252 (decorative only) */
+  --ink-4: 148 148 148;             /* placeholder, proposal = ink-2 */
+
+  /* Lines and fills */
+  --separator: 51 51 51;            /* #333333 */
+  --wash: 45 45 45;                 /* #2D2D2D */
+  --selected: 45 45 45;             /* = wash */
+  --hover: 38 38 38;                /* #262626 */
+  --pressed: 54 54 54;              /* #363636 (proposal) */
+
+  /* Frame (sidebar column) */
+  --sidebar-hover: 33 33 33;        /* #212121 */
+  --sidebar-selected: 40 40 40;     /* #282828 */
+  --sidebar-tile: 29 29 29;         /* #1D1D1D */
+  --sidebar-selected-pinned: 48 48 48; /* #303030 */
+
+  /* Accent (= ink) and focus */
+  --accent: 237 237 237;
+  --on-accent: 28 28 28;
+  --primary: 237 237 237;
+  --on-primary: 28 28 28;
+  --focus: 237 237 237;
+  --disabled-opacity: 0.3;
+
+  /* Status */
+  --safe: 74 222 128;               /* #4ADE80 */
+  --warn: 250 191 36;               /* #FABF24 */
+  --danger: 255 69 58;              /* #FF453A */
+  --danger-text: 255 69 58;         /* #FF453A (5.0 : 1 on surface) */
+
+  /* Edges and scrims */
+  --card-edge: 255 255 255;         /* used at alpha 0.08 */
+  --card-edge-alpha: 0.08;
+  --menu-edge: 255 255 255;
+  --menu-edge-alpha: 0.18;
+  --menu-fill: 40 40 40;            /* approximation, see 28A.5 */
+  --menu-fill-alpha: 0.85;
+  --scrim: 0 0 0;
+  --scrim-alpha: 0.10;
+  --scrim-peek-alpha: 0.22;
+
+  /* Shadows (black in both themes) */
+  --shadow-card: 0 1px 6px rgba(0, 0, 0, 0.07);
+  --shadow-popover: 0 3px 12px rgba(0, 0, 0, 0.08);
+  --shadow-chip: 0 3px 10px rgba(0, 0, 0, 0.10);
+  --shadow-plate: 0 12px 34px rgba(0, 0, 0, 0.16);
+  --shadow-toast: 0 6px 18px rgba(0, 0, 0, 0.10);
+  --shadow-menu: 0 8px 28px rgba(0, 0, 0, 0.22);       /* approximation, see 28A.5 */
+  --shadow-held: 0 3px 10px rgba(0, 0, 0, 0.16);
+  --shadow-held-pill: 0 4px 12px rgba(0, 0, 0, 0.14);
+  --shadow-disc: 0 6px 16px rgba(0, 0, 0, 0.12);
+  --shadow-download: 0 5px 14px rgba(0, 0, 0, 0.16);
+  --shadow-list: 0 6px 20px rgba(0, 0, 0, 0.07);
+
+  /* Artwork tint, set at runtime from the cover. Used only on Now Playing and PiP (28A.4) */
+  --art: 0 0 0;
+  --art-alpha: 0.06;
+
+  /* Easing and durations (28A.8) */
+  --ease-out: cubic-bezier(0, 0, 0.58, 1);
+  --ease-in-out: cubic-bezier(0.42, 0, 0.58, 1);
+  --dur-quick: 140ms;
+  --dur-fade: 120ms;
+  --dur-swap: 220ms;
+  --dur-reading: 150ms;
+  --dur-sheen: 1300ms;
+  --dur-spin: 850ms;
+  --dur-breath: 2600ms;
+  --dur-pulse: 300ms;
+  --dur-hold: 1700ms;
+  --ease-glide: linear(0, 0.06, 0.194, 0.353, 0.507, 0.643, 0.754, 0.84, 0.903, 0.947, 0.976, 0.994, 1.004, 1.009, 1.011, 1.011, 1.009, 1.008, 1.006, 1.004, 1.003, 1.002, 1.001, 1.001, 1);
+  --ease-settle: linear(0, 0.074, 0.231, 0.407, 0.568, 0.701, 0.803, 0.877, 0.928, 0.962, 0.983, 0.995, 1.001, 1.004, 1.005, 1.005, 1.004, 1.003, 1.002, 1.002, 1.001, 1.001, 1, 1, 1);
+  --ease-fold-out: linear(0, 0.078, 0.241, 0.421, 0.584, 0.717, 0.818, 0.889, 0.938, 0.969, 0.987, 0.998, 1.003, 1.005, 1.005, 1.004, 1.004, 1.003, 1.002, 1.001, 1.001, 1);
+  --ease-fold-in: linear(0, 0.085, 0.252, 0.425, 0.576, 0.695, 0.785, 0.851, 0.898, 0.931, 0.954, 0.969, 0.979, 0.986, 0.991, 0.994, 0.996, 0.998, 0.998, 0.999, 0.999, 1);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --base: 244 244 244;              /* #F4F4F4 */
+  --surface: 255 255 255;           /* #FFFFFF */
+  --panel: 255 255 255;
+  --elevated: 255 255 255;
+
+  --ink-1: 23 23 23;                /* #171717 */
+  --ink-2: 107 107 107;             /* #6B6B6B (AA contrast; #8C8C8C gives 3.4 : 1) */
+  --ink-3: 212 212 212;             /* #D4D4D4 (decorative only) */
+  --ink-4: 107 107 107;             /* placeholder, proposal = ink-2 */
+
+  --separator: 232 232 232;         /* #E8E8E8 */
+  --wash: 239 239 239;              /* #EFEFEF */
+  --selected: 239 239 239;
+  --hover: 246 246 246;             /* #F6F6F6 */
+  --pressed: 230 230 230;           /* #E6E6E6 (proposal) */
+
+  --sidebar-hover: 233 233 233;     /* #E9E9E9 */
+  --sidebar-selected: 228 228 228;  /* #E4E4E4 */
+  --sidebar-tile: 236 236 236;      /* #ECECEC */
+  --sidebar-selected-pinned: 219 219 219; /* #DBDBDB */
+
+  --accent: 23 23 23;
+  --on-accent: 255 255 255;
+  --primary: 23 23 23;
+  --on-primary: 255 255 255;
+  --focus: 23 23 23;
+
+  --safe: 20 128 61;                /* #14803D */
+  --warn: 181 84 10;                /* #B5540A */
+  --danger: 255 59 48;              /* #FF3B30 */
+  --danger-text: 215 0 21;          /* #D70015 (proposal, 5.4 : 1) */
+
+  --card-edge: 0 0 0;
+  --card-edge-alpha: 0.08;
+  --menu-edge: 0 0 0;
+  --menu-edge-alpha: 0.26;
+  --menu-fill: 246 246 246;
+  --menu-fill-alpha: 0.85;
+  --scrim: 0 0 0;
+  --scrim-alpha: 0.10;
+  --scrim-peek-alpha: 0.22;
+
+  --shadow-card: 0 1px 6px rgba(0, 0, 0, 0.07);
+  --shadow-popover: 0 3px 12px rgba(0, 0, 0, 0.08);
+  --shadow-chip: 0 3px 10px rgba(0, 0, 0, 0.10);
+  --shadow-plate: 0 12px 34px rgba(0, 0, 0, 0.16);
+  --shadow-toast: 0 6px 18px rgba(0, 0, 0, 0.10);
+  --shadow-menu: 0 8px 28px rgba(0, 0, 0, 0.22);
+  --shadow-held: 0 3px 10px rgba(0, 0, 0, 0.16);
+  --shadow-held-pill: 0 4px 12px rgba(0, 0, 0, 0.14);
+  --shadow-disc: 0 6px 16px rgba(0, 0, 0, 0.12);
+  --shadow-download: 0 5px 14px rgba(0, 0, 0, 0.16);
+  --shadow-list: 0 6px 20px rgba(0, 0, 0, 0.07);
+}
+
+/* System: the light look, only while the OS is light */
+@media (prefers-color-scheme: light) {
+  :root[data-theme="system"] {
+    color-scheme: light;
+
+    --base: 244 244 244;
+    --surface: 255 255 255;
+    --panel: 255 255 255;
+    --elevated: 255 255 255;
+
+    --ink-1: 23 23 23;
+    --ink-2: 107 107 107;
+    --ink-3: 212 212 212;
+    --ink-4: 107 107 107;
+
+    --separator: 232 232 232;
+    --wash: 239 239 239;
+    --selected: 239 239 239;
+    --hover: 246 246 246;
+    --pressed: 230 230 230;
+
+    --sidebar-hover: 233 233 233;
+    --sidebar-selected: 228 228 228;
+    --sidebar-tile: 236 236 236;
+    --sidebar-selected-pinned: 219 219 219;
+
+    --accent: 23 23 23;
+    --on-accent: 255 255 255;
+    --primary: 23 23 23;
+    --on-primary: 255 255 255;
+    --focus: 23 23 23;
+
+    --safe: 20 128 61;
+    --warn: 181 84 10;
+    --danger: 255 59 48;
+    --danger-text: 215 0 21;
+
+    --card-edge: 0 0 0;
+    --card-edge-alpha: 0.08;
+    --menu-edge: 0 0 0;
+    --menu-edge-alpha: 0.26;
+    --menu-fill: 246 246 246;
+    --menu-fill-alpha: 0.85;
+    --scrim: 0 0 0;
+    --scrim-alpha: 0.10;
+    --scrim-peek-alpha: 0.22;
+
+    --shadow-card: 0 1px 6px rgba(0, 0, 0, 0.07);
+    --shadow-popover: 0 3px 12px rgba(0, 0, 0, 0.08);
+    --shadow-chip: 0 3px 10px rgba(0, 0, 0, 0.10);
+    --shadow-plate: 0 12px 34px rgba(0, 0, 0, 0.16);
+    --shadow-toast: 0 6px 18px rgba(0, 0, 0, 0.10);
+    --shadow-menu: 0 8px 28px rgba(0, 0, 0, 0.22);
+    --shadow-held: 0 3px 10px rgba(0, 0, 0, 0.16);
+    --shadow-held-pill: 0 4px 12px rgba(0, 0, 0, 0.14);
+    --shadow-disc: 0 6px 16px rgba(0, 0, 0, 0.12);
+    --shadow-download: 0 5px 14px rgba(0, 0, 0, 0.16);
+    --shadow-list: 0 6px 20px rgba(0, 0, 0, 0.07);
+  }
+}
+
+/* Reduce Motion: one switch for CSS. Set by the app when the OS
+   setting or Hushio's own setting is on (adds class reduce-motion to <html>). */
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-quick: 0ms; --dur-fade: 0ms; --dur-swap: 0ms; --dur-reading: 0ms; --dur-sheen: 0ms; --dur-pulse: 0ms; }
+}
+:root.reduce-motion { --dur-quick: 0ms; --dur-fade: 0ms; --dur-swap: 0ms; --dur-reading: 0ms; --dur-sheen: 0ms; --dur-pulse: 0ms; }
