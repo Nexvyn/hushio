@@ -70,6 +70,14 @@ export async function watchFullScreen(onChange: (value: boolean) => void): Promi
   return unlisten;
 }
 
+export function persistRead<T>(name: string, owner: string): Promise<T | null> {
+  return call<T | null>("persist_read", { name, owner });
+}
+
+export function persistWrite(name: string, data: unknown, owner: string): Promise<boolean> {
+  return call<boolean>("persist_write", { name, data, owner });
+}
+
 export async function naturalScrollDirection(): Promise<boolean | null> {
   try {
     return await call<boolean | null>("os_scroll_direction");
