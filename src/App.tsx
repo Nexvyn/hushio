@@ -114,7 +114,7 @@ export default function App() {
         <main className="relative min-w-0 flex-1 overflow-hidden rounded-2xl border border-card-edge/[0.08] bg-surface shadow-[var(--shadow-card)]">
           <div id="view-scroll" className="no-scrollbar h-full overflow-y-auto">
             <div
-              key={`${viewReloadNonce}:${view.name}:${view.param ?? ""}`}
+              key={`${viewReloadNonce}:${view.name}:${view.name === "settings" ? "" : (view.param ?? "")}`}
               className="px-10 pb-6 pt-5"
             >
               <ErrorBoundary

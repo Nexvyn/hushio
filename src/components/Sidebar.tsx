@@ -6,6 +6,7 @@ import {
   MusicNote01Icon,
   MusicNote03Icon,
   ReplayIcon,
+  Settings02Icon,
 } from "@hugeicons/core-free-icons";
 import { Icon } from "./Icon";
 import { useNavigation, type View } from "../stores/navigation";
@@ -103,6 +104,22 @@ export function Sidebar() {
           })}
         </ul>
       </nav>
+
+      <div className="px-2 pb-2">
+        <button
+          type="button"
+          aria-current={view.name === "settings" ? "page" : undefined}
+          onClick={() => navigate({ name: "settings" })}
+          className={`flex w-full items-center gap-3 rounded-[9px] p-2 text-left text-[14px] font-semibold transition-colors ${
+            view.name === "settings"
+              ? "bg-ink-1/[0.08] text-ink-1"
+              : "text-ink-2 hover:bg-ink-1/[0.05] hover:text-ink-1"
+          }`}
+        >
+          <Icon icon={Settings02Icon} />
+          Settings
+        </button>
+      </div>
     </aside>
   );
 }

@@ -257,8 +257,20 @@ body {
 :root.reduce-motion .toast-shake,
 :root.reduce-motion .toast-ring,
 :root.reduce-motion .swipe-arrow.is-on .swipe-arrow__bubble,
-:root.reduce-motion .swipe-arrow.is-armed .swipe-arrow__ring {
+:root.reduce-motion .swipe-arrow.is-armed .swipe-arrow__ring,
+:root.reduce-motion .settings-pane {
   animation: none;
+}
+
+@keyframes settings-pane-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.settings-pane {
+  animation: settings-pane-rise 220ms cubic-bezier(0, 0, 0.58, 1) backwards;
 }
 
 :root.reduce-motion .toast-drop,
@@ -275,7 +287,8 @@ body {
   .toast-shake,
   .toast-ring,
   .swipe-arrow.is-on .swipe-arrow__bubble,
-  .swipe-arrow.is-armed .swipe-arrow__ring {
+  .swipe-arrow.is-armed .swipe-arrow__ring,
+  .settings-pane {
     animation: none;
   }
 

@@ -42,6 +42,7 @@ type NavigationState = {
   pendingScroll: number | null;
   viewReloadNonce: number;
   navigate: (view: View) => void;
+  replaceView: (view: View) => void;
   goBack: () => void;
   goForward: () => void;
   clearPendingScroll: () => void;
@@ -66,6 +67,9 @@ export const useNavigation = create<NavigationState>()((set) => ({
         pendingScroll: 0,
       };
     }),
+
+  replaceView: (next) =>
+    set((state) => (sameView(state.view, next) ? state : { view: next })),
 
   goBack: () =>
     set((state) => {
