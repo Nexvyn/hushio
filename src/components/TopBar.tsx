@@ -1,5 +1,7 @@
 import { ArrowLeft01Icon, ArrowRight01Icon, Compass01Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { CaptionButtons } from "./CaptionButtons";
 import { Icon } from "./Icon";
+import { platform } from "../lib/bridge";
 import { useNavigation } from "../stores/navigation";
 
 const circleButton =
@@ -73,6 +75,8 @@ export function TopBar() {
           className="h-9 w-full rounded-full border border-separator bg-surface pl-10 pr-3 text-[13px] text-ink-1 placeholder:text-ink-2"
         />
       </div>
+
+      {platform === "windows" || platform === "linux" ? <CaptionButtons /> : null}
     </header>
   );
 }

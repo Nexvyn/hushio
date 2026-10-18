@@ -38,6 +38,28 @@ export function setFullScreen(enabled: boolean): Promise<void> {
   return getCurrentWindow().setFullscreen(enabled);
 }
 
+export function minimizeWindow(): Promise<void> {
+  return getCurrentWindow().minimize();
+}
+
+export function toggleMaximizeWindow(): Promise<void> {
+  return getCurrentWindow().toggleMaximize();
+}
+
+export function closeWindow(): Promise<void> {
+  return getCurrentWindow().close();
+}
+
+export async function watchWindowMaximized(onChange: (value: boolean) => void): Promise<() => void> {
+  const current = getCurrentWindow();
+  const update = () => {
+    void current.isMaximized().then(onChange);
+  };
+  const unlisten = await current.onResized(update);
+  update();
+  return unlisten;
+}
+
 export async function watchFullScreen(onChange: (value: boolean) => void): Promise<() => void> {
   const current = getCurrentWindow();
   const update = () => {
