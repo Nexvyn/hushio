@@ -1,0 +1,128 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const storage = vi.hoisted(() => {
+  if (!window.matchMedia) {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: (query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }),
+    });
+  }
+  return { value: null as unknown };
+});
+
+vi.mock("../lib/persist", () => ({
+  persistStorage: () => ({
+    getItem: async () => storage.value,
+    setItem: async (_name: string, value: unknown) => {
+      storage.value = value;
+    },
+    removeItem: async () => {
+      storage.value = null;
+    },
+  }),
+}));
+
+import {
+  applyAppearance,
+  clampLyricsOffset,
+  DEVICE_SETTINGS_KEYS,
+  syncableSettings,
+  useSettings,
+} from "./settings";
+
+const initial = useSettings.getState();
+
+beforeEach(() => {
+  storage.value = null;
+  useSettings.setState(initial, true);
+  document.documentElement.removeAttribute("data-theme");
+  document.documentElement.className = "";
+});
+
+describe("defaults", () => {
+  it("uses the PRD defaults for appearance", () => {
+    expect(initial.theme).toBe("system");
+    expect(initial.reduceAnimation).toBe(false);
+    expect(initial.reduceDynamicBlur).toBe(false);
+  });
+
+  it("uses the PRD defaults for the device keys", () => {
+    expect(initial.downloadDir).toBeNull();
+    expect(initial.localMusicFolder).toBeNull();
+    expect(initial.audioSinkId).toBe("");
+    expect(initial.lyricsOffset).toBe(0);
+    expect(initial.closeToTray).toBe(true);
+  });
+});
+
+describe("device settings", () => {
+  it("lists exactly the five device-only keys", () => {
+    expect([...DEVICE_SETTINGS_KEYS].sort()).toEqual(
+      ["audioSinkId", "closeToTray", "downloadDir", "localMusicFolder", "lyricsOffset"].sort(),
+    );
+  });
+
+  it("leaves the device keys out of the synced payload", () => {
+    const synced = syncableSettings(useSettings.getState());
+    for (const key of DEVICE_SETTINGS_KEYS) {
+      expect(synced).not.toHaveProperty(key);
+    }
+    expect(synced).toHaveProperty("theme", "system");
+    expect(synced).toHaveProperty("reduceAnimation", false);
+    expect(synced).toHaveProperty("reduceDynamicBlur", false);
+  });
+
+  it("clamps and rounds the lyrics offset to 0.05 seconds", () => {
+    expect(clampLyricsOffset(5)).toBe(3);
+    expect(clampLyricsOffset(-9)).toBe(-3);
+    expect(clampLyricsOffset(0.12)).toBe(0.1);
+    expect(clampLyricsOffset(0.15)).toBe(0.15);
+    useSettings.getState().setLyricsOffset(1.337);
+    expect(useSettings.getState().lyricsOffset).toBe(1.35);
+  });
+});
+
+describe("persistence", () => {
+  it("writes changes to the settings store", () => {
+    useSettings.getState().setTheme("light");
+    expect(storage.value).toMatchObject({ state: { theme: "light" } });
+  });
+
+  it("restores the stored theme on hydrate", async () => {
+    storage.value = { state: { theme: "system", reduceAnimation: true }, version: 0 };
+    await useSettings.persist.rehydrate();
+    expect(useSettings.getState().theme).toBe("system");
+    expect(useSettings.getState().reduceAnimation).toBe(true);
+    expect(useSettings.getState().reduceDynamicBlur).toBe(false);
+  });
+});
+
+describe("appearance", () => {
+  it("applies the stored theme to the page", () => {
+    applyAppearance({ theme: "light", reduceAnimation: false, reduceDynamicBlur: false });
+    expect(document.documentElement.dataset.theme).toBe("light");
+  });
+
+  it("updates the page as soon as a setting changes", () => {
+    const unsubscribe = useSettings.subscribe(applyAppearance);
+    try {
+      useSettings.getState().setReduceAnimation(true);
+      useSettings.getState().setReduceDynamicBlur(true);
+      expect(document.documentElement.classList.contains("reduce-motion")).toBe(true);
+      expect(document.documentElement.classList.contains("reduce-blur")).toBe(true);
+
+      useSettings.getState().setTheme("light");
+      expect(document.documentElement.dataset.theme).toBe("light");
+
+      useSettings.getState().setReduceAnimation(false);
+      expect(document.documentElement.classList.contains("reduce-motion")).toBe(false);
+    } finally {
+      unsubscribe();
+    }
+  });
+});
