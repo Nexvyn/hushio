@@ -231,4 +231,133 @@ mod tests {
             Err("Store is larger than 16 MiB".to_string())
         );
     }
+
+    fn store_dir(root: &Path, owner: &str, name: &str) -> PathBuf {
+        store_path(root, owner, name)
+            .parent()
+            .expect("parent")
+            .to_path_buf()
+    }
+
+    #[tokio::test]
+    async fn second_write_replaces_first() {
+        let root = temp_root();
+        write(root.path(), "guest", "player", &json!({ "volume": 0.2 }))
+            .await
+            .expect("first write");
+        write(root.path(), "guest", "player", &json!({ "volume": 0.9 }))
+            .await
+            .expect("second write");
+        assert_eq!(
+            read(root.path(), "guest", "player").await,
+            Some(json!({ "volume": 0.9 }))
+        );
+        assert!(temp_files(&store_dir(root.path(), "guest", "player")).is_empty());
+    }
+
+    #[tokio::test]
+    async fn repeated_writes_leave_only_the_store_file() {
+        let root = temp_root();
+        for index in 0..5 {
+            write(root.path(), "guest", "library", &json!({ "index": index }))
+                .await
+                .expect("write");
+        }
+        let names: Vec<String> = std::fs::read_dir(store_dir(root.path(), "guest", "library"))
+            .expect("read dir")
+            .map(|entry| entry.expect("entry").file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(names, vec!["library.json".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn truncated_json_reads_as_none_without_panicking() {
+        let root = temp_root();
+        let path = store_path(root.path(), "guest", "player");
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dirs");
+        std::fs::write(&path, br#"{"state":{"volume":0.4"#).expect("write");
+        assert_eq!(read(root.path(), "guest", "player").await, None);
+    }
+
+    #[tokio::test]
+    async fn write_after_corrupt_file_recovers_the_store() {
+        let root = temp_root();
+        let path = store_path(root.path(), "guest", "player");
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dirs");
+        std::fs::write(&path, b"not json").expect("write");
+        assert_eq!(read(root.path(), "guest", "player").await, None);
+
+        let value = json!({ "volume": 0.7 });
+        write(root.path(), "guest", "player", &value)
+            .await
+            .expect("write");
+        assert_eq!(read(root.path(), "guest", "player").await, Some(value));
+    }
+
+    #[test]
+    fn guest_and_account_owners_get_their_own_folder() {
+        let root = Path::new("root");
+        assert_eq!(
+            store_path(root, "guest", "library"),
+            root.join("data").join("guest").join("library.json")
+        );
+        assert_eq!(
+            store_path(root, "1234567890", "library"),
+            root.join("data").join("1234567890").join("library.json")
+        );
+    }
+
+    #[test]
+    fn empty_owner_falls_back_to_guest_folder() {
+        let root = Path::new("root");
+        let guest = root.join("data").join("guest").join("library.json");
+        assert_eq!(store_path(root, "", "library"), guest);
+        assert_eq!(store_path(root, "@@@", "library"), guest);
+    }
+
+    #[test]
+    fn empty_name_falls_back_to_store() {
+        let root = Path::new("root");
+        assert_eq!(
+            store_path(root, "guest", "..."),
+            root.join("data").join("guest").join("store.json")
+        );
+    }
+
+    #[test]
+    fn traversal_stays_inside_the_data_folder() {
+        let root = Path::new("root");
+        let data = root.join("data");
+        for (owner, name) in [
+            ("..", ".."),
+            ("../../evil", "../../secret"),
+            ("a/b\\c", "d/e"),
+            (".", "/absolute"),
+        ] {
+            let path = store_path(root, owner, name);
+            assert!(path.starts_with(&data), "{path:?} escaped the data folder");
+            assert_eq!(path.parent().and_then(Path::parent), Some(data.as_path()));
+            assert_eq!(
+                path.file_name().and_then(|name| name.to_str()).map(|name| name.ends_with(".json")),
+                Some(true)
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn traversal_write_lands_in_the_data_folder() {
+        let root = temp_root();
+        write(root.path(), "../..", "../escape", &json!({ "ok": true }))
+            .await
+            .expect("write");
+        let entries: Vec<String> = std::fs::read_dir(root.path())
+            .expect("read dir")
+            .map(|entry| entry.expect("entry").file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(entries, vec!["data".to_string()]);
+        assert_eq!(
+            read(root.path(), "../..", "../escape").await,
+            Some(json!({ "ok": true }))
+        );
+    }
 }

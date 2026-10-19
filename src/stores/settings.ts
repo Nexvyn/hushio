@@ -97,6 +97,10 @@ export function applyAppearance(
   root.classList.toggle("reduce-blur", settings.reduceDynamicBlur);
 }
 
+function isThemeMode(value: unknown): value is ThemeMode {
+  return value === "dark" || value === "light" || value === "system";
+}
+
 export const useSettings = create<SettingsState>()(
   persist(
     (set) => ({
@@ -141,6 +145,11 @@ export const useSettings = create<SettingsState>()(
     {
       name: "settings",
       storage: persistStorage<SettingsState>("settings"),
+      merge: (persisted, current) => {
+        const stored = persisted as Partial<SettingsValues>;
+        const theme = isThemeMode(stored.theme) ? stored.theme : current.theme;
+        return { ...current, ...stored, theme };
+      },
     },
   ),
 );
