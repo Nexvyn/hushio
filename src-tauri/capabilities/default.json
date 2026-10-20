@@ -12,6 +12,10 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
     "opener:default",
-    "store:default"
+    "store:default",
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://www.youtube.com/*" }, { "url": "https://music.youtube.com/*" }]
+    }
   ]
 }
