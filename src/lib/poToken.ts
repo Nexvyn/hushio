@@ -1,4 +1,4 @@
-import { fetch } from "@tauri-apps/plugin-http";
+import { ytFetch as fetch } from "./ytFetch";
 import { BotGuardClient } from "bgutils-js/botguard";
 import type { IntegrityTokenData, WebPoSignalOutput } from "bgutils-js/shared-types";
 import { buildURL, parseLooseJSON } from "bgutils-js/utils";

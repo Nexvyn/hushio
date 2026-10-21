@@ -15,7 +15,15 @@
     "store:default",
     {
       "identifier": "http:default",
-      "allow": [{ "url": "https://www.youtube.com/*" }, { "url": "https://music.youtube.com/*" }]
+      "allow": [
+        { "url": "https://www.youtube.com/*" },
+        { "url": "https://music.youtube.com/*" },
+        { "url": "https://*.googlevideo.com/*" },
+        { "url": "https://jnn-pa.googleapis.com/*" },
+        { "url": "https://pipedapi.kavin.rocks/*" },
+        { "url": "https://pipedapi.adminforge.de/*" },
+        { "url": "https://api.piped.private.coffee/*" }
+      ]
     }
   ]
 }

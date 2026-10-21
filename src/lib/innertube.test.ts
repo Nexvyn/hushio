@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { create, pluginFetch } = vi.hoisted(() => ({
+const { create, pluginFetch, getPoToken, invalidatePoToken } = vi.hoisted(() => ({
   create: vi.fn(),
   pluginFetch: vi.fn(),
+  getPoToken: vi.fn(),
+  invalidatePoToken: vi.fn(),
 }));
 
 vi.mock("youtubei.js", () => ({ Innertube: { create } }));
 vi.mock("@tauri-apps/plugin-http", () => ({ fetch: pluginFetch }));
+vi.mock("./poToken", () => ({ getPoToken, invalidatePoToken }));
 
 type Innertube = typeof import("./innertube");
 
@@ -27,34 +30,40 @@ describe("innertube session", () => {
       config.visitor_data === undefined ? bootstrapClient("visitor-1") : { id: config.visitor_data },
     );
     pluginFetch.mockReset();
+    getPoToken.mockReset();
+    getPoToken.mockResolvedValue("po-token-1");
+    invalidatePoToken.mockReset();
     vi.spyOn(console, "info").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
   });
 
-  it("bootstraps without a player, then creates the session with visitor data and the plugin fetch", async () => {
+  it("bootstraps without a player, mints a PO token, then creates the session with visitor data and the plugin fetch", async () => {
     await lib.getSession(market);
 
     expect(create).toHaveBeenCalledTimes(2);
+    expect(getPoToken).toHaveBeenCalledWith("visitor-1");
     expect(create.mock.calls[0][0]).toEqual({
       retrieve_player: false,
       enable_session_cache: false,
       location: "US",
       lang: "en",
-      fetch: pluginFetch,
+      fetch: expect.any(Function),
     });
     expect(create.mock.calls[1][0]).toEqual({
       retrieve_player: true,
       enable_session_cache: false,
       visitor_data: "visitor-1",
+      po_token: "po-token-1",
       location: "US",
       lang: "en",
-      fetch: pluginFetch,
+      fetch: expect.any(Function),
     });
   });
 
-  it("returns the session context with no PO token yet", async () => {
+  it("returns the session context with the minted PO token", async () => {
     await expect(lib.getSessionContext(market)).resolves.toEqual({
       visitorData: "visitor-1",
-      poToken: null,
+      poToken: "po-token-1",
       gl: "US",
       hl: "en",
     });
@@ -69,6 +78,20 @@ describe("innertube session", () => {
 
     expect(context.visitorData).toBe("");
     expect(create.mock.calls[1][0].visitor_data).toBe("");
+    expect(getPoToken).not.toHaveBeenCalled();
+    expect(context.poToken).toBeNull();
+  });
+
+  it("continues without a PO token when minting fails and logs the reason", async () => {
+    getPoToken.mockRejectedValueOnce(new Error("botguard down"));
+
+    const { context } = await lib.getSession(market);
+
+    expect(context.poToken).toBeNull();
+    expect(create.mock.calls[1][0].po_token).toBeUndefined();
+    expect(console.warn).toHaveBeenCalledWith(
+      "[hushio] PO token minting failed, continuing without: botguard down",
+    );
   });
 
   it("memoizes one session across calls", async () => {
@@ -93,6 +116,14 @@ describe("innertube session", () => {
 
     expect(second).not.toBe(first);
     expect(create).toHaveBeenCalledTimes(4);
+  });
+
+  it("resetSession invalidates the cached PO token before minting a new one", async () => {
+    await lib.getSession(market);
+    await lib.resetSession(market);
+
+    expect(invalidatePoToken).toHaveBeenCalledTimes(1);
+    expect(getPoToken).toHaveBeenCalledTimes(2);
   });
 
   it("logs the market without any stream URL", async () => {
