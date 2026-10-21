@@ -78,6 +78,10 @@ export function persistWrite(name: string, data: unknown, owner: string): Promis
   return call<boolean>("persist_write", { name, data, owner });
 }
 
+export function streamProxyPort(): Promise<number> {
+  return call<number>("stream_proxy_port");
+}
+
 export async function naturalScrollDirection(): Promise<boolean | null> {
   try {
     return await call<boolean | null>("os_scroll_direction");

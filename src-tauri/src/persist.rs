@@ -265,7 +265,13 @@ mod tests {
         }
         let names: Vec<String> = std::fs::read_dir(store_dir(root.path(), "guest", "library"))
             .expect("read dir")
-            .map(|entry| entry.expect("entry").file_name().to_string_lossy().into_owned())
+            .map(|entry| {
+                entry
+                    .expect("entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
             .collect();
         assert_eq!(names, vec!["library.json".to_string()]);
     }
@@ -338,7 +344,9 @@ mod tests {
             assert!(path.starts_with(&data), "{path:?} escaped the data folder");
             assert_eq!(path.parent().and_then(Path::parent), Some(data.as_path()));
             assert_eq!(
-                path.file_name().and_then(|name| name.to_str()).map(|name| name.ends_with(".json")),
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .map(|name| name.ends_with(".json")),
                 Some(true)
             );
         }
@@ -352,7 +360,13 @@ mod tests {
             .expect("write");
         let entries: Vec<String> = std::fs::read_dir(root.path())
             .expect("read dir")
-            .map(|entry| entry.expect("entry").file_name().to_string_lossy().into_owned())
+            .map(|entry| {
+                entry
+                    .expect("entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
             .collect();
         assert_eq!(entries, vec!["data".to_string()]);
         assert_eq!(

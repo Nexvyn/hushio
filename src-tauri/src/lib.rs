@@ -1,4 +1,5 @@
 mod persist;
+mod stream;
 
 use std::path::PathBuf;
 
@@ -159,6 +160,13 @@ fn os_scroll_direction() -> Option<bool> {
     }
 }
 
+#[tauri::command]
+async fn stream_proxy_port(
+    state: State<'_, stream::StreamProxy<stream::NoUpstream>>,
+) -> Result<u16, String> {
+    state.start().await.map_err(|error| error.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt()
@@ -173,12 +181,16 @@ pub fn run() {
         .setup(|app| {
             let root = prepare_data_dir(app.handle())?;
             app.manage(DataPaths { root });
+            let proxy = stream::StreamProxy::new(stream::NoUpstream);
+            tauri::async_runtime::block_on(proxy.start())?;
+            app.manage(proxy);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             os_scroll_direction,
             persist_read,
-            persist_write
+            persist_write,
+            stream_proxy_port
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
