@@ -162,9 +162,18 @@ fn os_scroll_direction() -> Option<bool> {
 
 #[tauri::command]
 async fn stream_proxy_port(
-    state: State<'_, stream::StreamProxy<stream::NoUpstream>>,
+    state: State<'_, stream::StreamProxy<stream::Registry>>,
 ) -> Result<u16, String> {
     state.start().await.map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn stream_register(
+    state: State<'_, stream::Registry>,
+    id: String,
+    url: String,
+) -> Result<(), String> {
+    state.register(&id, &url).map_err(str::to_owned)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -181,7 +190,9 @@ pub fn run() {
         .setup(|app| {
             let root = prepare_data_dir(app.handle())?;
             app.manage(DataPaths { root });
-            let proxy = stream::StreamProxy::new(stream::NoUpstream);
+            let registry = stream::Registry::default();
+            app.manage(registry.clone());
+            let proxy = stream::StreamProxy::new(registry);
             tauri::async_runtime::block_on(proxy.start())?;
             app.manage(proxy);
             Ok(())
@@ -190,7 +201,8 @@ pub fn run() {
             os_scroll_direction,
             persist_read,
             persist_write,
-            stream_proxy_port
+            stream_proxy_port,
+            stream_register
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

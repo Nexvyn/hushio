@@ -33,16 +33,36 @@ pub trait Upstream: Send + Sync + 'static {
     ) -> impl Future<Output = Option<String>> + Send;
 }
 
-pub struct NoUpstream;
+#[derive(Clone, Default)]
+pub struct Registry {
+    urls: Arc<Mutex<HashMap<String, String>>>,
+}
 
-impl Upstream for NoUpstream {
+impl Registry {
+    pub fn register(&self, id: &str, url: &str) -> Result<(), &'static str> {
+        if id.is_empty() {
+            return Err("missing id");
+        }
+        if !url.starts_with("https://") {
+            return Err("stream url must be https");
+        }
+        self.urls
+            .lock()
+            .expect("registry lock")
+            .insert(id.to_owned(), url.to_owned());
+        Ok(())
+    }
+}
+
+impl Upstream for Registry {
     fn resolve(
         &self,
-        _id: &str,
+        id: &str,
         _refresh: bool,
         _max_kbps: Option<u32>,
     ) -> impl Future<Output = Option<String>> + Send {
-        std::future::ready(None)
+        let url = self.urls.lock().expect("registry lock").get(id).cloned();
+        std::future::ready(url)
     }
 }
 
@@ -606,7 +626,7 @@ mod tests {
 
     #[tokio::test]
     async fn unresolvable_track_is_a_bad_gateway() {
-        let proxy = start_proxy(NoUpstream).await;
+        let proxy = start_proxy(Registry::default()).await;
 
         let response = client()
             .get(format!("http://{proxy}/?id=abc"))
@@ -619,8 +639,58 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn registered_stream_plays_through_the_proxy() {
+        let upstream = spawn_upstream().await;
+        let registry = Registry::default();
+        registry
+            .urls
+            .lock()
+            .unwrap()
+            .insert("abc".to_owned(), format!("{upstream}?itag=251"));
+        let proxy = start_proxy(registry).await;
+
+        let response = client()
+            .get(format!("http://{proxy}/?id=abc"))
+            .header(header::RANGE, "bytes=0-100")
+            .send()
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+        assert_eq!(response.bytes().await.unwrap().len(), 101);
+    }
+
+    #[tokio::test]
+    async fn registry_resolves_only_registered_ids() {
+        let registry = Registry::default();
+        registry.register("abc", "https://media.example/a").unwrap();
+        registry.register("abc", "https://media.example/b").unwrap();
+
+        assert_eq!(
+            registry.resolve("abc", false, None).await.as_deref(),
+            Some("https://media.example/b")
+        );
+        assert_eq!(registry.resolve("other", false, None).await, None);
+    }
+
+    #[test]
+    fn registry_rejects_empty_ids_and_non_https_urls() {
+        let registry = Registry::default();
+
+        assert_eq!(registry.register("", "https://media.example/a"), Err("missing id"));
+        assert_eq!(
+            registry.register("abc", "http://media.example/a"),
+            Err("stream url must be https")
+        );
+        assert_eq!(
+            registry.register("abc", "file:///etc/passwd"),
+            Err("stream url must be https")
+        );
+    }
+
+    #[tokio::test]
     async fn start_is_idempotent_and_binds_loopback() {
-        let proxy = StreamProxy::new(NoUpstream);
+        let proxy = StreamProxy::new(Registry::default());
         let first = proxy.start().await.unwrap();
         let second = proxy.start().await.unwrap();
 
