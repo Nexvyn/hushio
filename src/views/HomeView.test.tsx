@@ -13,6 +13,7 @@ vi.mock("../lib/audio", () => ({
   playStream,
   seekTo,
   TEST_SONG_ID: "test-song-id",
+  TEST_SONG_TITLE: "Test song",
 }));
 
 import { HomeView } from "./HomeView";
@@ -39,7 +40,7 @@ describe("HomeView", () => {
 
     await user.click(screen.getByRole("button", { name: "Play test song" }));
 
-    expect(playStream).toHaveBeenCalledWith("test-song-id");
+    expect(playStream).toHaveBeenCalledWith("test-song-id", "Test song");
   });
 
   it("shows an error toast when the test song fails to play", async () => {

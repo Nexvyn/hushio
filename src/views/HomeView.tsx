@@ -3,7 +3,7 @@ import { PlayIcon } from "@hugeicons/core-free-icons";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { Slider } from "../components/Slider";
-import { audio, playStream, seekTo, TEST_SONG_ID } from "../lib/audio";
+import { audio, playStream, seekTo, TEST_SONG_ID, TEST_SONG_TITLE } from "../lib/audio";
 import { useUI } from "../stores/ui";
 
 function describeError(error: unknown): string {
@@ -31,7 +31,7 @@ export function HomeView() {
   const play = async () => {
     setBusy(true);
     try {
-      await playStream(TEST_SONG_ID);
+      await playStream(TEST_SONG_ID, TEST_SONG_TITLE);
     } catch (error) {
       useUI.getState().toast(`Could not play the test song: ${describeError(error)}`, "error");
     } finally {
