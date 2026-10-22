@@ -2,13 +2,65 @@ import { useEffect, useRef } from "react";
 import { naturalScrollDirection, setFullScreen } from "./bridge";
 import { createSwipeNav, scrollsSideways, SWIPE_LIFT_MS, type SwipeDir, type SwipeUpdate } from "./swipe";
 import { useNavigation } from "../stores/navigation";
+import { usePlayer } from "../stores/player";
 import { useUI } from "../stores/ui";
 import { swipeArrow } from "../components/SwipeArrow";
 
+const NON_TEXT_INPUTS = new Set(["range", "checkbox", "radio", "button", "submit", "reset", "color", "file"]);
+const SEEK_STEP_S = 5;
+const VOLUME_STEP = 0.05;
+
 function isTyping(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
-  if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return true;
+  if (target instanceof HTMLInputElement) return !NON_TEXT_INPUTS.has(target.type);
+  if (target.tagName === "TEXTAREA") return true;
   return target.isContentEditable;
+}
+
+function playbackKey(event: KeyboardEvent): boolean {
+  const player = usePlayer.getState();
+  const ui = useUI.getState();
+  switch (event.code) {
+    case "Space":
+      player.toggle();
+      return true;
+    case "ArrowLeft":
+      if (event.shiftKey) player.prev();
+      else player.seek(player.position - SEEK_STEP_S);
+      return true;
+    case "ArrowRight":
+      if (event.shiftKey) player.next(true);
+      else player.seek(player.position + SEEK_STEP_S);
+      return true;
+    case "ArrowUp":
+      if (event.altKey) return false;
+      player.setVolume(player.volume + VOLUME_STEP);
+      return true;
+    case "ArrowDown":
+      if (event.altKey) return false;
+      player.setVolume(player.volume - VOLUME_STEP);
+      return true;
+    case "KeyM":
+      player.toggleMute();
+      return true;
+    case "KeyS":
+      player.toggleShuffle();
+      return true;
+    case "KeyR":
+      player.cycleRepeat();
+      return true;
+    case "KeyQ":
+      ui.toggleQueue();
+      return true;
+    case "KeyL":
+      ui.toggleLyrics();
+      return true;
+    case "KeyN":
+      ui.toggleNowPlaying();
+      return true;
+    default:
+      return false;
+  }
 }
 
 function focusSearch() {
@@ -84,7 +136,10 @@ export function useKeyboardShortcuts() {
       if (event.altKey && event.code === "ArrowRight") {
         event.preventDefault();
         nav.goForward();
+        return;
       }
+
+      if (playbackKey(event)) event.preventDefault();
     }
 
     function onMouseUp(event: MouseEvent) {

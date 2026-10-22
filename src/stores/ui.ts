@@ -40,6 +40,9 @@ type UIState = {
   toast: (message: string, kind?: ToastKind, duration?: number) => void;
   dismissToast: (id: number) => void;
   setOsFullscreen: (value: boolean) => void;
+  setRightPanel: (panel: "details" | "queue") => void;
+  toggleQueue: () => void;
+  toggleLyrics: () => void;
   toggleNowPlaying: () => void;
   closePanels: () => void;
   openDialog: (request: DialogRequest) => void;
@@ -78,6 +81,13 @@ export const useUI = create<UIState>()((set) => ({
     }),
 
   setOsFullscreen: (value) => set({ osFullscreen: value }),
+
+  setRightPanel: (panel) => set({ rightPanel: panel }),
+
+  toggleQueue: () =>
+    set((state) => ({ rightPanel: state.rightPanel === "queue" ? "details" : "queue" })),
+
+  toggleLyrics: () => set((state) => ({ lyricsCenter: !state.lyricsCenter })),
 
   toggleNowPlaying: () => set((state) => ({ nowPlayingOpen: !state.nowPlayingOpen })),
 

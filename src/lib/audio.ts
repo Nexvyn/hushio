@@ -122,6 +122,10 @@ export function setVolume(value: number): void {
   audio.volume = Math.min(1, Math.max(0, value));
 }
 
+export function setMuted(value: boolean): void {
+  audio.muted = value;
+}
+
 async function loadStream(id: string, refresh: boolean, seq: number): Promise<void> {
   const stream = await resolveStream(id, refresh);
   const port = await streamProxyPort();

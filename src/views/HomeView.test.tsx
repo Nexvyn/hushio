@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const { audio, playStream, seekTo } = vi.hoisted(() => ({
@@ -11,29 +11,39 @@ const { audio, playStream, seekTo } = vi.hoisted(() => ({
 vi.mock("../lib/audio", () => ({
   audio,
   playStream,
+  play: vi.fn(),
+  pause: vi.fn(),
   seekTo,
+  setVolume: vi.fn(),
+  setMuted: vi.fn(),
   TEST_SONG_ID: "test-song-id",
   TEST_SONG_TITLE: "Test song",
 }));
 
+vi.mock("../lib/persist", () => ({
+  persistStorage: () => ({
+    getItem: async () => null,
+    setItem: async () => {},
+    removeItem: async () => {},
+  }),
+}));
+
 import { HomeView } from "./HomeView";
+import { usePlayer } from "../stores/player";
 import { useUI } from "../stores/ui";
 
-function setMediaTimes(duration: number, currentTime: number) {
-  Object.defineProperty(audio, "duration", { value: duration, configurable: true });
-  Object.defineProperty(audio, "currentTime", { value: currentTime, configurable: true });
-}
+const initialPlayer = usePlayer.getState();
 
 describe("HomeView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    setMediaTimes(Number.NaN, 0);
+    usePlayer.setState(initialPlayer, true);
     useUI.setState({ toasts: [], pendingToasts: [] });
   });
 
   afterEach(cleanup);
 
-  it("plays the test song when the play button is pressed", async () => {
+  it("plays the test song through the queue when the play button is pressed", async () => {
     playStream.mockResolvedValue(undefined);
     const user = userEvent.setup();
     render(<HomeView />);
@@ -41,6 +51,8 @@ describe("HomeView", () => {
     await user.click(screen.getByRole("button", { name: "Play test song" }));
 
     expect(playStream).toHaveBeenCalledWith("test-song-id", "Test song");
+    expect(usePlayer.getState().queue.map((item) => item.id)).toEqual(["test-song-id"]);
+    expect(usePlayer.getState().playing).toBe(true);
   });
 
   it("shows an error toast when the test song fails to play", async () => {
@@ -53,30 +65,8 @@ describe("HomeView", () => {
     await waitFor(() => expect(useUI.getState().toasts).toHaveLength(1));
     expect(useUI.getState().toasts[0]).toMatchObject({
       kind: "error",
-      message: "Could not play the test song: No Piped mirror had a playable stream",
+      message: "Couldn't play \"Test song\"",
     });
-  });
-
-  it("keeps the seek slider disabled until the song duration is known", () => {
-    render(<HomeView />);
-
-    expect(screen.getByRole<HTMLInputElement>("slider", { name: "Seek" }).disabled).toBe(true);
-  });
-
-  it("follows the playhead and seeks when the slider moves", async () => {
-    render(<HomeView />);
-
-    setMediaTimes(200, 0);
-    fireEvent(audio, new Event("loadedmetadata"));
-    const slider = screen.getByRole<HTMLInputElement>("slider", { name: "Seek" });
-    expect(slider.disabled).toBe(false);
-    expect(slider.max).toBe("200");
-
-    setMediaTimes(200, 42);
-    fireEvent(audio, new Event("timeupdate"));
-    expect(slider.value).toBe("42");
-
-    fireEvent.change(slider, { target: { value: "30" } });
-    expect(seekTo).toHaveBeenCalledWith(30);
+    expect(seekTo).not.toHaveBeenCalled();
   });
 });
