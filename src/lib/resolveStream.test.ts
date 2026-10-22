@@ -25,6 +25,7 @@ type Fmt = {
   is_original?: boolean;
   loudness_db?: number;
   track_absolute_loudness_lkfs?: number;
+  signature_cipher?: string;
   decipher?(player?: unknown): Promise<string>;
 };
 
@@ -237,6 +238,66 @@ describe("resolveStream", () => {
     expect(getBasicInfo).toHaveBeenCalledTimes(3);
   });
 
+  it("caches each song id separately", async () => {
+    getBasicInfo.mockResolvedValue(info([fmt({ itag: 251 })]));
+
+    await lib.resolveStream("abcdefgh");
+    await lib.resolveStream("ijklmnop");
+    await lib.resolveStream("abcdefgh");
+
+    expect(getBasicInfo).toHaveBeenCalledTimes(2);
+  });
+
+  it("refetches at the exact expiry instant, not one millisecond before", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const now = new Date("2026-11-01T12:00:00Z").getTime();
+    vi.setSystemTime(now);
+    const expire = Math.floor(now / 1000) + 3600;
+    getBasicInfo.mockResolvedValue(info([fmt({ itag: 251, url: `${GOOGLEVIDEO}?expire=${expire}` })]));
+
+    await lib.resolveStream("abcdefgh");
+    vi.setSystemTime(now + 55 * 60 * 1000 - 1);
+    await lib.resolveStream("abcdefgh");
+    expect(getBasicInfo).toHaveBeenCalledTimes(1);
+
+    vi.setSystemTime(now + 55 * 60 * 1000);
+    await lib.resolveStream("abcdefgh");
+    expect(getBasicInfo).toHaveBeenCalledTimes(2);
+  });
+
+  it("evicts the oldest cached stream once more than 500 are held", async () => {
+    getBasicInfo.mockResolvedValue(info([fmt({ itag: 251 })]));
+
+    for (let i = 0; i <= 500; i++) await lib.resolveStream(`track${i}`);
+    expect(getBasicInfo).toHaveBeenCalledTimes(501);
+
+    await lib.resolveStream("track500");
+    expect(getBasicInfo).toHaveBeenCalledTimes(501);
+
+    await lib.resolveStream("track0");
+    expect(getBasicInfo).toHaveBeenCalledTimes(502);
+  });
+
+  it("logs the playability and format summary for each client", async () => {
+    getBasicInfo.mockResolvedValue({
+      playability_status: { status: "OK" },
+      streaming_data: {
+        adaptive_formats: [
+          fmt({ itag: 251, url: `${GOOGLEVIDEO}?a=1` }),
+          fmt({ itag: 140, url: undefined, signature_cipher: "s=1" }),
+          fmt({ itag: 249, has_video: true }),
+        ],
+        hls_manifest_url: "https://example.test/hls.m3u8",
+      },
+    });
+
+    await lib.resolveStream("abcdefgh");
+
+    expect(console.info).toHaveBeenCalledWith(
+      "[hushio] stream VISIONOS: playability=OK audio=2 plainUrl=1 sig=1 hls=y",
+    );
+  });
+
   it("aborts a probe that times out and tries the next client", async () => {
     vi.spyOn(AbortSignal, "timeout").mockImplementation(() => {
       const controller = new AbortController();
@@ -430,6 +491,42 @@ describe("pickAudio", () => {
 
   it("returns nothing without streaming data", async () => {
     expect(await lib.pickAudio(undefined, PLAYER, undefined, false)).toBeNull();
+  });
+
+  it("ranks the whole audio ladder 141, 251, 140, 250, 249, 139 regardless of bitrate", async () => {
+    const ladder = [141, 251, 140, 250, 249, 139];
+    for (let i = 0; i < ladder.length - 1; i++) {
+      const picked = await lib.pickAudio(
+        streaming([fmt({ itag: ladder[i + 1], bitrate: 999_000 }), fmt({ itag: ladder[i], bitrate: 1 })]),
+        PLAYER,
+        undefined,
+        false,
+      );
+      expect(picked?.itag).toBe(ladder[i]);
+    }
+  });
+
+  it("keeps a rendition exactly at the headroom ceiling and drops one above it", async () => {
+    const picked = await lib.pickAudio(
+      streaming([fmt({ itag: 140, average_bitrate: 70_500 }), fmt({ itag: 139, average_bitrate: 70_400 })]),
+      PLAYER,
+      64,
+      false,
+    );
+
+    expect(picked?.itag).toBe(139);
+  });
+
+  it("pins by itag alone when no length is pinned", async () => {
+    const picked = await lib.pickAudio(
+      streaming([fmt({ itag: 141, content_length: 5000 }), fmt({ itag: 251, content_length: 4000 })]),
+      PLAYER,
+      undefined,
+      false,
+      { itag: 251 },
+    );
+
+    expect(picked?.itag).toBe(251);
   });
 });
 

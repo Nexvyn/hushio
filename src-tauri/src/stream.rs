@@ -386,6 +386,16 @@ mod tests {
         if uri.query().is_some_and(|query| query.contains("expired")) {
             return status_only(StatusCode::FORBIDDEN);
         }
+        if headers
+            .get(header::RANGE)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|range| range.strip_prefix("bytes="))
+            .and_then(|range| range.split('-').next())
+            .and_then(|start| start.parse::<usize>().ok())
+            .is_some_and(|start| start >= MEDIA_LEN)
+        {
+            return status_only(StatusCode::RANGE_NOT_SATISFIABLE);
+        }
         let (start, end) = headers
             .get(header::RANGE)
             .and_then(|value| value.to_str().ok())
@@ -486,6 +496,21 @@ mod tests {
             "bytes 500-999/1000"
         );
         assert_eq!(response.bytes().await.unwrap().len(), 500);
+    }
+
+    #[tokio::test]
+    async fn range_past_the_end_is_passed_through_as_416() {
+        let upstream = spawn_upstream().await;
+        let proxy = start_proxy(Fixed::new(&format!("{upstream}?itag=251"))).await;
+
+        let response = client()
+            .get(format!("http://{proxy}/?id=abc"))
+            .header(header::RANGE, "bytes=1000-")
+            .send()
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
     }
 
     #[tokio::test]
@@ -718,6 +743,17 @@ mod tests {
     }
 
     #[test]
+    fn served_map_keeps_every_key_at_the_cap() {
+        let mut served = Served::default();
+        for index in 0..SERVED_CAP {
+            served.set(format!("/?id=track{index}"), "251:1".to_owned());
+        }
+
+        assert_eq!(served.identities.len(), SERVED_CAP);
+        assert_eq!(served.get("/?id=track0"), Some("251:1"));
+    }
+
+    #[test]
     fn served_map_keeps_the_first_identity_for_a_key() {
         let mut served = Served::default();
         served.set("k".to_owned(), "251:1".to_owned());
@@ -803,6 +839,23 @@ mod tests {
     }
 
     #[test]
+    fn gate_refuses_non_ascii_host_and_origin_headers() {
+        let mut host = HeaderMap::new();
+        host.insert(
+            header::HOST,
+            HeaderValue::from_bytes(b"127.0.0.1\xff").unwrap(),
+        );
+        assert!(!gate_allows(&host));
+
+        let mut origin = HeaderMap::new();
+        origin.insert(
+            header::ORIGIN,
+            HeaderValue::from_bytes(b"tauri://localhost\xff").unwrap(),
+        );
+        assert!(!gate_allows(&origin));
+    }
+
+    #[test]
     fn kbps_is_floored_and_only_positive_finite_values_count() {
         assert_eq!(parse_kbps("128.9"), Some(128));
         assert_eq!(parse_kbps("64"), Some(64));
@@ -820,5 +873,14 @@ mod tests {
             Some("251")
         );
         assert_eq!(itag("https://host/videoplayback?expire=1"), None);
+    }
+
+    #[test]
+    fn itag_ignores_params_that_only_end_in_itag() {
+        assert_eq!(
+            itag("https://host/videoplayback?xitag=251&itag=140"),
+            Some("140")
+        );
+        assert_eq!(itag("https://host/videoplayback?xitag=251"), None);
     }
 }

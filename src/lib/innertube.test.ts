@@ -102,6 +102,29 @@ describe("innertube session", () => {
     expect(create).toHaveBeenCalledTimes(2);
   });
 
+  it("shares one creation between concurrent callers", async () => {
+    const [first, second] = await Promise.all([lib.getSession(market), lib.getSession(market)]);
+
+    expect(second).toBe(first);
+    expect(create).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries the whole creation when the player session fails after the PO token step", async () => {
+    let failOnce = true;
+    create.mockImplementation(async (config: { visitor_data?: string }) => {
+      if (config.visitor_data === undefined) return bootstrapClient("visitor-1");
+      if (failOnce) {
+        failOnce = false;
+        throw new Error("player failed");
+      }
+      return { id: config.visitor_data };
+    });
+
+    await expect(lib.getSession(market)).rejects.toThrow("player failed");
+    await expect(lib.getSession(market)).resolves.toMatchObject({ context: { poToken: "po-token-1" } });
+    expect(getPoToken).toHaveBeenCalledTimes(2);
+  });
+
   it("clears the memo on failure so the next call retries", async () => {
     create.mockRejectedValueOnce(new Error("offline"));
 
