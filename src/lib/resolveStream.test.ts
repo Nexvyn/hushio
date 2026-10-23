@@ -8,7 +8,7 @@ const { pluginFetch, getBasicInfo, getSession, resetSession } = vi.hoisted(() =>
 }));
 
 vi.mock("@tauri-apps/plugin-http", () => ({ fetch: pluginFetch }));
-vi.mock("./innertube", () => ({ getSession, resetSession }));
+vi.mock("./innertube", () => ({ getSession, resetSession, MARKET: { location: "US", lang: "en" } }));
 
 type ResolveStream = typeof import("./resolveStream");
 

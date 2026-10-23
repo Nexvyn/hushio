@@ -2,3 +2,10 @@ Object.defineProperty(globalThis, "navigator", {
   value: { userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36" },
   writable: true,
 });
+
+if (!window.matchMedia) {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: (query: string) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {} }),
+  });
+}
