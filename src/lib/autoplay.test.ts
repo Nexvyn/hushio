@@ -222,3 +222,16 @@ describe("fetchSuggestions", () => {
     expect(getRadio).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("seed exclusion in radio", () => {
+  beforeEach(() => {
+    getRadio.mockReset();
+  });
+
+  it("never returns the seed song from its own radio", async () => {
+    getRadio.mockResolvedValueOnce({ items: [item(0), item(1)], seed: null, continuation: null });
+    const exclusions = exclusionsFor([{ id: vid(0), title: "Song 0", artist: "Artist 0", thumb: null }]);
+
+    expect(ids(await fetchSuggestions([vid(0)], exclusions, 10))).toEqual([vid(1)]);
+  });
+});

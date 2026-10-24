@@ -421,3 +421,17 @@ describe("startMediaSession cleanup", () => {
     expect(session.setActionHandler).not.toHaveBeenCalled();
   });
 });
+
+describe("startMediaSession redundant presses", () => {
+  it("ignores a single play press while playback is already running", () => {
+    stop = startMediaSession();
+    state().playQueue(list(2), 0);
+
+    invoke(session, "play");
+    vi.advanceTimersByTime(MEDIA_KEY_DOUBLE_TAP_MS);
+
+    expect(state().playing).toBe(true);
+    expect(pause).not.toHaveBeenCalled();
+    expect(play).not.toHaveBeenCalled();
+  });
+});

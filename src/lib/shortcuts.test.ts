@@ -213,3 +213,76 @@ describe("typing and layers", () => {
     expect(pause).not.toHaveBeenCalled();
   });
 });
+
+describe("search, escape and layers", () => {
+  function searchBox(id: string) {
+    const input = document.createElement("input");
+    input.id = id;
+    document.body.appendChild(input);
+    return input;
+  }
+
+  it("Ctrl+F and / focus and select the global search", () => {
+    const search = searchBox("global-search");
+
+    const ctrl = press("KeyF", { key: "f", ctrlKey: true });
+    expect(ctrl.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(search);
+
+    search.blur();
+    const slash = press("Slash", { key: "/" });
+
+    expect(slash.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(search);
+    search.remove();
+  });
+
+  it("Ctrl+F stays off while a context menu is open", () => {
+    const search = searchBox("global-search");
+    useUI.setState({ contextMenu: { x: 0, y: 0 } });
+
+    const event = press("KeyF", { key: "f", ctrlKey: true });
+    search.remove();
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(document.activeElement).not.toBe(search);
+  });
+
+  it("Escape closes Now Playing first and then the queue panel", () => {
+    useUI.setState({ rightPanel: "queue", nowPlayingOpen: true });
+
+    press("Escape", { key: "Escape" });
+    expect(useUI.getState().nowPlayingOpen).toBe(false);
+    expect(useUI.getState().rightPanel).toBe("queue");
+
+    press("Escape", { key: "Escape" });
+    expect(useUI.getState().rightPanel).toBe("details");
+  });
+
+  it("a held Shift+Arrow does not skip songs again and again", () => {
+    startPlaying(3, 0);
+    press("ArrowRight", { shiftKey: true, repeat: true });
+    expect(usePlayer.getState().index).toBe(0);
+  });
+
+  it("leaves Alt with Up to the system", () => {
+    startPlaying();
+    usePlayer.setState({ volume: 0.5 });
+    const event = press("ArrowUp", { altKey: true });
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(usePlayer.getState().volume).toBe(0.5);
+  });
+
+  it("Space still plays or pauses while a checkbox has focus", () => {
+    startPlaying();
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    document.body.appendChild(box);
+
+    press("Space", {}, box);
+    box.remove();
+
+    expect(pause).toHaveBeenCalled();
+  });
+});

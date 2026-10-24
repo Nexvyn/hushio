@@ -217,3 +217,31 @@ describe("playArtistMix", () => {
     expect(state().queue).toEqual([]);
   });
 });
+
+describe("AutoPlay refill timing", () => {
+  it("asks radio only once one of its own songs is left to play", async () => {
+    state().playQueue([song(1), song(2), song(3), seed]);
+    expect(getRadio).not.toHaveBeenCalled();
+
+    state().jumpTo(2);
+    expect(getRadio).toHaveBeenCalledWith(seed.id, undefined);
+    await vi.waitFor(() => expect(state().error).not.toBeNull());
+  });
+
+  it("leaves out songs played earlier in the session", async () => {
+    usePlayer.setState({ history: [song(5)] });
+    getRadio.mockResolvedValueOnce(radioPage([5, 6]));
+    state().playQueue([seed]);
+
+    await vi.waitFor(() => expect(state().autoplayCount).toBe(1));
+    expect(queueIds()).toEqual([seed.id, vid(6)]);
+  });
+
+  it("asks radio with the clicked song as the seed", async () => {
+    getRadio.mockResolvedValueOnce(radioPage([1, 2]));
+    await state().startRadio(seed);
+
+    expect(getRadio).toHaveBeenNthCalledWith(1, seed.id, undefined);
+    expect(queueIds()).toEqual([seed.id, vid(1), vid(2)]);
+  });
+});

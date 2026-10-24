@@ -427,3 +427,69 @@ describe("transport", () => {
     expect(state().index).toBe(1);
   });
 });
+
+describe("queue edits and shuffle passes", () => {
+  it("plays every song once in a shuffled pass before the pass starts again", () => {
+    usePlayer.setState({ shuffle: true });
+    state().playQueue(list(6), 0);
+    const pass = [currentId()];
+    for (let step = 1; step < 6; step++) {
+      state().next(true);
+      pass.push(currentId());
+    }
+    expect(pass.slice().sort()).toEqual(list(6).map((item) => item.id));
+
+    const last = currentId();
+    state().next(true);
+    expect(state().index).toBe(0);
+    expect(currentId()).not.toBe(last);
+    expect(queueIds().slice().sort()).toEqual(list(6).map((item) => item.id));
+  });
+
+  it("keeps a play-next song after the current song when shuffle is turned off", () => {
+    usePlayer.setState({ shuffle: true });
+    state().playQueue(list(4), 0);
+    state().addToQueue([track(9)], true);
+    state().toggleShuffle();
+
+    expect(queueIds()).toEqual(["t0", "t9", "t1", "t2", "t3"]);
+  });
+
+  it("moves to the first song on a manual next even when repeat is one", () => {
+    usePlayer.setState({ repeat: "one" });
+    state().playQueue(list(3), 2);
+    state().next(true);
+
+    expect(currentId()).toBe("t0");
+  });
+
+  it("plays the new last song when the playing last song is removed", () => {
+    state().playQueue(list(3), 2);
+    playStream.mockClear();
+    state().removeAt(2);
+
+    expect(state().index).toBe(1);
+    expect(playStream).toHaveBeenLastCalledWith("t1", "Track 1");
+  });
+
+  it("moves to the next song without playing when the current song is removed while paused", () => {
+    state().playQueue(list(3), 1);
+    state().toggle();
+    playStream.mockClear();
+    state().removeAt(1);
+
+    expect(currentId()).toBe("t2");
+    expect(state().playing).toBe(false);
+    expect(playStream).not.toHaveBeenCalled();
+  });
+
+  it("drops a removed song from the user's order so turning shuffle off restores the rest", () => {
+    state().playQueue(list(4), 0);
+    state().toggleShuffle();
+    const removed = queueIds()[2];
+    state().removeAt(2);
+    state().toggleShuffle();
+
+    expect(queueIds()).toEqual(list(4).map((item) => item.id).filter((id) => id !== removed));
+  });
+});

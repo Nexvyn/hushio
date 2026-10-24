@@ -455,3 +455,28 @@ describe("Web Audio graph", () => {
     expect(created[0].ctx.resume).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("retry limits", () => {
+  it("does not retry a failure that comes exactly 30 s after the last retry", async () => {
+    setMediaTimes(200, 10);
+    await playStream(TEST_SONG_ID, TEST_SONG_TITLE);
+    audio.dispatchEvent(new Event("error"));
+    await vi.waitFor(() => expect(playSpy).toHaveBeenCalledTimes(2));
+
+    setMediaTimes(200, 40);
+    audio.dispatchEvent(new Event("error"));
+    await settle();
+
+    expect(resolveStream).toHaveBeenCalledTimes(2);
+    expect(useUI.getState().toasts).toHaveLength(1);
+  });
+
+  it("gives up after one retry when play() keeps rejecting", async () => {
+    playSpy.mockRejectedValue(new Error("NotSupportedError"));
+    await playStream(TEST_SONG_ID, TEST_SONG_TITLE);
+
+    expect(resolveStream).toHaveBeenCalledTimes(2);
+    expect(playSpy).toHaveBeenCalledTimes(2);
+    expect(useUI.getState().toasts).toHaveLength(1);
+  });
+});
