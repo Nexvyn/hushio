@@ -2,13 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RadioItem, RadioPage } from "./innertube";
 import type { Track } from "../types";
 
-const { getRadio } = vi.hoisted(() => ({ getRadio: vi.fn() }));
+const { getRadio, homeTracks } = vi.hoisted(() => ({ getRadio: vi.fn(), homeTracks: vi.fn() }));
 
 vi.mock("./innertube", () => ({ getRadio }));
+vi.mock("./home", () => ({ homeTracks }));
 
 import {
   artistKey,
   exclusionsFor,
+  fetchRefill,
   fetchSuggestions,
   isRadioSeed,
   normalizeTitle,
@@ -233,5 +235,58 @@ describe("seed exclusion in radio", () => {
     const exclusions = exclusionsFor([{ id: vid(0), title: "Song 0", artist: "Artist 0", thumb: null }]);
 
     expect(ids(await fetchSuggestions([vid(0)], exclusions, 10))).toEqual([vid(1)]);
+  });
+});
+
+describe("fetchRefill home fallback", () => {
+  const homePool = (count: number): Track[] =>
+    Array.from({ length: count }, (_, n) => ({ id: vid(100 + n), title: `Home ${n}`, artist: `Home artist ${n}`, thumb: null }));
+
+  beforeEach(() => {
+    getRadio.mockReset();
+    homeTracks.mockReset();
+    homeTracks.mockResolvedValue([]);
+  });
+
+  it("keeps radio picks and skips Home when radio has songs", async () => {
+    getRadio.mockResolvedValueOnce({ items: [item(1)], seed: null, continuation: null });
+
+    expect(ids(await fetchRefill([vid(0)], NO_EXCLUSIONS, 10))).toEqual([vid(1)]);
+    expect(homeTracks).not.toHaveBeenCalled();
+  });
+
+  it("fills from the Home songs when radio is empty, at most ten", async () => {
+    getRadio.mockResolvedValueOnce({ items: [], seed: null, continuation: null });
+    homeTracks.mockResolvedValue(homePool(15));
+
+    const picks = await fetchRefill([vid(0)], NO_EXCLUSIONS, 25);
+
+    expect(picks).toHaveLength(10);
+    const poolIds = new Set(homePool(15).map((track) => track.id));
+    expect(picks.every((track) => poolIds.has(track.id))).toBe(true);
+  });
+
+  it("respects the session exclusions when using Home songs", async () => {
+    getRadio.mockResolvedValueOnce(null);
+    const pool = homePool(4);
+    homeTracks.mockResolvedValue([...pool, { id: vid(200), title: "Played", artist: "Someone", thumb: null }]);
+    const exclusions = { excludeIds: new Set([pool[0]!.id, pool[1]!.id]), excludeKeys: new Set<string>() };
+
+    const picked = ids(await fetchRefill([vid(0)], exclusions, 10));
+    expect(picked.sort()).toEqual([pool[2]!.id, pool[3]!.id, vid(200)].sort());
+  });
+
+  it("returns nothing when radio and Home are both empty", async () => {
+    getRadio.mockResolvedValueOnce(null);
+
+    expect(await fetchRefill([vid(0)], NO_EXCLUSIONS, 10)).toEqual([]);
+  });
+
+  it("does not use Home for start radio", async () => {
+    getRadio.mockResolvedValueOnce(null);
+    homeTracks.mockResolvedValue(homePool(5));
+
+    expect(await fetchSuggestions([vid(0)], NO_EXCLUSIONS, 10)).toEqual([]);
+    expect(homeTracks).not.toHaveBeenCalled();
   });
 });

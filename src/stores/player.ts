@@ -13,6 +13,7 @@ import { persistStorage } from "../lib/persist";
 import {
   AUTOPLAY_EMPTY_MESSAGE,
   exclusionsFor,
+  fetchRefill,
   fetchSuggestions,
   isRadioSeed,
   LOW_WATER,
@@ -176,7 +177,7 @@ function refillIfNeeded() {
   const exclusions = exclusionsFor([...state.queue, ...state.history]);
   const limit = MAX_TAIL - state.autoplayCount;
   const context = state.contextId;
-  void fetchSuggestions(seeds, exclusions, limit).then(
+  void fetchRefill(seeds, exclusions, limit).then(
     (batch) => settleRefill(context, batch),
     (error: unknown) => {
       console.warn(`[hushio] AutoPlay refill failed: ${describeError(error)}`);

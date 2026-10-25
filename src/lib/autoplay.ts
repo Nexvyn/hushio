@@ -1,4 +1,6 @@
+import { homeTracks } from "./home";
 import { getRadio, type RadioItem, type RadioSeed } from "./innertube";
+import { randomSeed, seededShuffle } from "./queue";
 import type { Track } from "../types";
 
 export const MAX_TAIL = 25;
@@ -7,6 +9,7 @@ export const RETRY_AFTER_MS = 60_000;
 export const AUTOPLAY_EMPTY_MESSAGE = "AutoPlay couldn't find more songs right now";
 
 const MAX_PAGES = 3;
+const HOME_FALLBACK_MAX = 10;
 const PER_ARTIST = 2;
 const SEED_ARTIST_CAP = 3;
 const MIN_SONG_S = 60;
@@ -114,6 +117,12 @@ async function radioPicks(seedId: string, exclusions: Exclusions, limit: number)
   return [];
 }
 
+async function homePicks(exclusions: Exclusions, limit: number): Promise<Track[]> {
+  const pool = seededShuffle(await homeTracks(), randomSeed());
+  const candidates = pool.map((track) => ({ ...track, artistId: null, duration: 0, explicit: false, videoType: "song" as const }));
+  return pickSuggestions(candidates, { ...exclusions, limit: Math.min(limit, HOME_FALLBACK_MAX), seed: null });
+}
+
 export async function fetchSuggestions(seedIds: readonly string[], exclusions: Exclusions, limit: number): Promise<Track[]> {
   for (const seedId of new Set(seedIds)) {
     if (!isRadioSeed(seedId)) continue;
@@ -121,4 +130,9 @@ export async function fetchSuggestions(seedIds: readonly string[], exclusions: E
     if (picks.length > 0) return picks;
   }
   return [];
+}
+
+export async function fetchRefill(seedIds: readonly string[], exclusions: Exclusions, limit: number): Promise<Track[]> {
+  const picks = await fetchSuggestions(seedIds, exclusions, limit);
+  return picks.length > 0 ? picks : homePicks(exclusions, limit);
 }
