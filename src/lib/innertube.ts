@@ -90,7 +90,7 @@ export type RadioPage = {
   continuation: string | null;
 };
 
-type Json = Record<string, unknown>;
+export type Json = Record<string, unknown>;
 
 const MUSIC_VIDEO_TYPES: Record<string, VideoType> = {
   MUSIC_VIDEO_TYPE_ATV: "song",
@@ -100,15 +100,15 @@ const MUSIC_VIDEO_TYPES: Record<string, VideoType> = {
 const DURATION = /^\d+(?::\d{2}){1,2}$/;
 const BULLET = "•";
 
-function isRecord(value: unknown): value is Json {
+export function isRecord(value: unknown): value is Json {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function asArray(value: unknown): unknown[] {
+export function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-function at(value: unknown, ...path: string[]): unknown {
+export function at(value: unknown, ...path: string[]): unknown {
   let current = value;
   for (const key of path) {
     if (!isRecord(current)) return undefined;
@@ -117,7 +117,7 @@ function at(value: unknown, ...path: string[]): unknown {
   return current;
 }
 
-function text(value: unknown): string {
+export function text(value: unknown): string {
   const simple = at(value, "simpleText");
   if (typeof simple === "string") return simple;
   return asArray(at(value, "runs"))
@@ -125,7 +125,7 @@ function text(value: unknown): string {
     .join("");
 }
 
-function collect(root: unknown, key: string): Json[] {
+export function collect(root: unknown, key: string): Json[] {
   const found: Json[] = [];
   const visit = (node: unknown) => {
     if (Array.isArray(node)) {
@@ -237,7 +237,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function withRetry<T>(run: () => Promise<T>, attempts = 2, delayMs = 600): Promise<T> {
+export async function withRetry<T>(run: () => Promise<T>, attempts = 2, delayMs = 600): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try {
       return await run();

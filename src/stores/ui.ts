@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { SearchFilter } from "../lib/searchParse";
 
 export type ToastKind = "info" | "success" | "error" | "warning";
 
@@ -37,6 +38,10 @@ type UIState = {
   contextMenu: unknown;
   playlistPicker: unknown;
   dialog: DialogRequest | null;
+  searchQuery: string;
+  searchFilter: SearchFilter;
+  setSearchQuery: (query: string) => void;
+  setSearchFilter: (filter: SearchFilter) => void;
   toast: (message: string, kind?: ToastKind, duration?: number) => void;
   dismissToast: (id: number) => void;
   setOsFullscreen: (value: boolean) => void;
@@ -59,6 +64,12 @@ export const useUI = create<UIState>()((set) => ({
   contextMenu: null,
   playlistPicker: null,
   dialog: null,
+  searchQuery: "",
+  searchFilter: "all",
+
+  setSearchQuery: (query) => set({ searchQuery: query }),
+
+  setSearchFilter: (filter) => set({ searchFilter: filter }),
 
   toast: (message, kind = "info", duration = DEFAULT_TOAST_MS) =>
     set((state) => {
