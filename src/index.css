@@ -86,6 +86,21 @@ body {
   animation: fade-in 120ms var(--ease-out);
 }
 
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 240ms var(--ease-out) backwards;
+}
+
+:root.reduce-motion .animate-slide-up {
+  animation: none;
+}
+
 .toast-beacon {
   background: rgb(var(--elevated));
   border: 1px solid rgb(var(--separator));
@@ -282,6 +297,7 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .animate-pop-in,
   .animate-fade-in,
+  .animate-slide-up,
   .toast-drop,
   .toast-lift,
   .toast-shake,

@@ -7,3 +7,10 @@ export function fmtTime(seconds: number): string {
   if (hours > 0) return `${hours}:${String(minutes).padStart(2, "0")}:${secs}`;
   return `${minutes}:${secs}`;
 }
+
+export const PAGE_TITLE_SIZE = ["text-[34px]", "text-[28px]", "text-[24px]"] as const;
+
+export function titleStep(name: string): 0 | 1 | 2 {
+  if (name.length <= 26) return 0;
+  return name.length <= 48 ? 1 : 2;
+}

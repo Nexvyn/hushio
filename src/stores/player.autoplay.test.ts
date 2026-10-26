@@ -237,6 +237,17 @@ describe("AutoPlay refill timing", () => {
     expect(queueIds()).toEqual([seed.id, vid(6)]);
   });
 
+  it("does not continue after a podcast episode", async () => {
+    getRadio.mockResolvedValue(radioPage([1, 2]));
+    state().playQueue([{ ...seed, episode: true }]);
+    state().handleEnded();
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(getRadio).not.toHaveBeenCalled();
+    expect(queueIds()).toEqual([seed.id]);
+    expect(state().error).toBeNull();
+  });
+
   it("asks radio with the clicked song as the seed", async () => {
     getRadio.mockResolvedValueOnce(radioPage([1, 2]));
     await state().startRadio(seed);

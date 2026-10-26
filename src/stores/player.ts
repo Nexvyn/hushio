@@ -118,7 +118,13 @@ function describeError(error: unknown): string {
 
 function autoplayEligible(state: PlayerValues): boolean {
   const last = state.queue.at(-1);
-  return useSettings.getState().autoplay && state.repeat === "off" && last !== undefined && isRadioSeed(last.id);
+  return (
+    useSettings.getState().autoplay &&
+    state.repeat === "off" &&
+    last !== undefined &&
+    !last.episode &&
+    isRadioSeed(last.id)
+  );
 }
 
 function wantsMore(state: PlayerValues): boolean {

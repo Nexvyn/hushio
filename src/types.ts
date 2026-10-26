@@ -3,4 +3,5 @@ export type Track = {
   title: string;
   artist: string;
   thumb: string | null;
+  episode?: true;
 };

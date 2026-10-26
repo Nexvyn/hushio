@@ -10,6 +10,13 @@ const { loadMoods, freshMoods, getMoodCovers } = vi.hoisted(() => ({
 
 vi.mock("../lib/explore", () => ({ loadMoods, freshMoods, getMoodCovers }));
 
+const { loadPodcasts, freshPodcasts } = vi.hoisted(() => ({
+  loadPodcasts: vi.fn(),
+  freshPodcasts: vi.fn(),
+}));
+
+vi.mock("../lib/podcasts", () => ({ loadPodcasts, freshPodcasts }));
+
 vi.mock("../lib/persist", () => ({
   persistStorage: () => ({
     getItem: async () => null,
@@ -49,6 +56,8 @@ beforeEach(() => {
     },
   );
   freshMoods.mockReturnValue(null);
+  freshPodcasts.mockReturnValue(null);
+  loadPodcasts.mockResolvedValue([]);
   useExploreCovers.setState({ byKey: {} });
   useNavigation.setState({ view: { name: "explore" }, navPast: [], navFuture: [] });
   useUI.setState({ searchQuery: "", searchFilter: "all" });
@@ -110,5 +119,21 @@ describe("ExploreView", () => {
     render(<ExploreView />);
     await userEvent.click(screen.getByRole("button", { name: /Podcasts/ }));
     expect(useNavigation.getState().view).toEqual({ name: "podcasts" });
+  });
+
+  it("fans the first three show thumbnails onto the banner", async () => {
+    loadMoods.mockReturnValue(new Promise(() => {}));
+    const show = (n: number) => ({ id: `MPSP${n}`, title: `Show ${n}`, thumb: `${COVER}${n}`, author: null });
+    loadPodcasts.mockResolvedValue([
+      { title: "Shows", shows: [show(1), { ...show(2), thumb: null }, show(3), show(4), show(5)], episodes: [] },
+    ]);
+    render(<ExploreView />);
+    const banner = screen.getByRole("button", { name: /Podcasts/ });
+    await waitFor(() => expect(banner.querySelectorAll("img")).toHaveLength(3));
+    expect(Array.from(banner.querySelectorAll("img"), (img) => img.getAttribute("src"))).toEqual([
+      `${COVER}1`,
+      `${COVER}3`,
+      `${COVER}4`,
+    ]);
   });
 });
