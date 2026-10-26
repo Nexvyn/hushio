@@ -1,6 +1,7 @@
-import { Cancel01Icon, MusicNote01Icon } from "@hugeicons/core-free-icons";
+import { Cancel01Icon, MusicNote01Icon, ThumbsDownIcon } from "@hugeicons/core-free-icons";
 import { Icon } from "./Icon";
 import { upgradeArtwork } from "../lib/artwork";
+import { useLibrary } from "../stores/library";
 import { currentTrack, usePlayer } from "../stores/player";
 import { useUI } from "../stores/ui";
 import type { Track } from "../types";
@@ -38,13 +39,17 @@ function SongDetails() {
   );
 }
 
+const ICON_BUTTON =
+  "grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink-2 motion-safe:transition-colors hover:text-ink-1";
+
 type TrackRowProps = {
   track: Track;
   onPlay: () => void;
-  onRemove?: () => void;
+  remove?: { label: string; onRemove: () => void };
+  onDontPlay?: () => void;
 };
 
-function TrackRow({ track, onPlay, onRemove }: TrackRowProps) {
+function TrackRow({ track, onPlay, remove, onDontPlay }: TrackRowProps) {
   return (
     <li className="flex items-center gap-1 rounded-lg hover:bg-hover">
       <button type="button" onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1.5 text-left">
@@ -54,13 +59,18 @@ function TrackRow({ track, onPlay, onRemove }: TrackRowProps) {
           <span className="block truncate text-[12px] text-ink-2">{track.artist}</span>
         </span>
       </button>
-      {onRemove && (
+      {onDontPlay && (
+        <button type="button" title="Don't play this" aria-label="Don't play this" onClick={onDontPlay} className={ICON_BUTTON}>
+          <Icon icon={ThumbsDownIcon} />
+        </button>
+      )}
+      {remove && (
         <button
           type="button"
-          title="Remove from queue"
-          aria-label="Remove from queue"
-          onClick={onRemove}
-          className="mr-1 grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink-2 motion-safe:transition-colors hover:text-ink-1"
+          title={remove.label}
+          aria-label={remove.label}
+          onClick={remove.onRemove}
+          className={`mr-1 ${ICON_BUTTON}`}
         >
           <Icon icon={Cancel01Icon} />
         </button>
@@ -72,14 +82,19 @@ function TrackRow({ track, onPlay, onRemove }: TrackRowProps) {
 function QueuePanel() {
   const queue = usePlayer((state) => state.queue);
   const index = usePlayer((state) => state.index);
-  const history = usePlayer((state) => state.history);
+  const autoplayCount = usePlayer((state) => state.autoplayCount);
   const jumpTo = usePlayer((state) => state.jumpTo);
   const removeAt = usePlayer((state) => state.removeAt);
+  const dontPlay = usePlayer((state) => state.dontPlay);
   const clearUpcoming = usePlayer((state) => state.clearUpcoming);
   const playTrack = usePlayer((state) => state.playTrack);
+  const history = useLibrary((state) => state.history);
+  const removeFromHistory = useLibrary((state) => state.removeFromHistory);
+  const clearHistory = useLibrary((state) => state.clearHistory);
   const current = queue[index];
   const upcoming = queue.slice(index + 1);
   const recent = history.filter((track) => track.id !== current?.id);
+  const autoplayStart = queue.length - autoplayCount;
 
   return (
     <div className="flex flex-col gap-5">
@@ -109,7 +124,8 @@ function QueuePanel() {
                   key={`${at}:${track.id}`}
                   track={track}
                   onPlay={() => jumpTo(at)}
-                  onRemove={() => removeAt(at)}
+                  remove={{ label: "Remove from queue", onRemove: () => removeAt(at) }}
+                  onDontPlay={at >= autoplayStart ? () => dontPlay(at) : undefined}
                 />
               );
             })}
@@ -117,18 +133,39 @@ function QueuePanel() {
         )}
       </section>
 
-      {recent.length > 0 && (
-        <section aria-labelledby="recent-heading">
-          <h2 id="recent-heading" className="px-0.5 text-[12.5px] font-semibold text-ink-2">
+      <section aria-labelledby="recent-heading">
+        <div className="flex items-center justify-between px-0.5">
+          <h2 id="recent-heading" className="text-[12.5px] font-semibold text-ink-2">
             Recently played
           </h2>
+          {recent.length > 0 && (
+            <button
+              type="button"
+              aria-label="Clear recently played"
+              onClick={clearHistory}
+              className="text-[12px] text-ink-2 motion-safe:transition-colors hover:text-ink-1"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        {recent.length === 0 ? (
+          <p className="mt-2 px-0.5 text-[13px] text-ink-3">
+            Nothing here yet — tracks you play land in Recently played.
+          </p>
+        ) : (
           <ul className="mt-2 flex flex-col gap-0.5">
             {recent.map((track) => (
-              <TrackRow key={track.id} track={track} onPlay={() => playTrack(track)} />
+              <TrackRow
+                key={track.id}
+                track={track}
+                onPlay={() => playTrack(track)}
+                remove={{ label: "Remove from Recently played", onRemove: () => removeFromHistory(track.id) }}
+              />
             ))}
           </ul>
-        </section>
-      )}
+        )}
+      </section>
     </div>
   );
 }

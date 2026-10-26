@@ -8,6 +8,15 @@ export function fmtTime(seconds: number): string {
   return `${minutes}:${secs}`;
 }
 
+export function fmtTotal(seconds: number): string {
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours === 0) return `${rest} min`;
+  if (rest === 0) return `${hours} hr`;
+  return `${hours} hr ${rest} min`;
+}
+
 export const PAGE_TITLE_SIZE = ["text-[34px]", "text-[28px]", "text-[24px]"] as const;
 
 export function titleStep(name: string): 0 | 1 | 2 {

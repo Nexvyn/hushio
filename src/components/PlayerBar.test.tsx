@@ -46,6 +46,7 @@ vi.mock("../lib/persist", () => ({
 }));
 
 import { PlayerBar } from "./PlayerBar";
+import { useLibrary } from "../stores/library";
 import { usePlayer } from "../stores/player";
 import { useSettings } from "../stores/settings";
 import { useUI } from "../stores/ui";
@@ -55,6 +56,7 @@ const track = (i: number): Track => ({ id: `t${i}`, title: `Track ${i}`, artist:
 const initialPlayer = usePlayer.getState();
 const initialUI = useUI.getState();
 const initialSettings = useSettings.getState();
+const initialLibrary = useLibrary.getState();
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -62,6 +64,7 @@ beforeEach(() => {
   usePlayer.setState(initialPlayer, true);
   useUI.setState(initialUI, true);
   useSettings.setState(initialSettings, true);
+  useLibrary.setState(initialLibrary, true);
 });
 
 afterEach(cleanup);
@@ -192,5 +195,28 @@ describe("PlayerBar with a queue", () => {
 
     await user.click(screen.getByRole("button", { name: "Queue" }));
     expect(useUI.getState().rightPanel).toBe("queue");
+  });
+
+  it("likes the playing song from the like button and unlikes it on the next press", async () => {
+    const user = userEvent.setup();
+    render(<PlayerBar />);
+
+    const like = screen.getByRole("button", { name: "Like" });
+    expect(like.getAttribute("aria-pressed")).toBe("false");
+    await user.click(like);
+    expect(useLibrary.getState().liked.map((item) => item.id)).toEqual(["t0"]);
+    expect(screen.getByRole("button", { name: "Like" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "Like" }).getAttribute("title")).toBe("Remove from Liked Songs");
+
+    await user.click(screen.getByRole("button", { name: "Like" }));
+    expect(useLibrary.getState().liked).toEqual([]);
+    expect(screen.getByRole("button", { name: "Like" }).getAttribute("title")).toBe("Add to Liked Songs");
+  });
+
+  it("keeps the like button in place and disabled with nothing playing", () => {
+    usePlayer.setState({ queue: [], index: 0 });
+    render(<PlayerBar />);
+
+    expect((screen.getByRole("button", { name: "Like" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

@@ -30,6 +30,7 @@ vi.mock("../lib/persist", () => ({
   }),
 }));
 
+import { useLibrary } from "./library";
 import { currentTrack, playFromRow, usePlayer } from "./player";
 import { useUI } from "./ui";
 import type { Track } from "../types";
@@ -56,7 +57,16 @@ describe("playQueue and starting playback", () => {
     expect(state().playing).toBe(true);
     expect(state().playingFrom).toBe("album-1");
     expect(playStream).toHaveBeenLastCalledWith("t1", "Track 1");
-    expect(state().history.map((item) => item.id)).toEqual(["t1"]);
+    expect(state().played.map((item) => item.id)).toEqual(["t1"]);
+    expect(useLibrary.getState().history[0]?.id).toBe("t1");
+  });
+
+  it("drops a song marked Don't play this from the queue and remembers it", () => {
+    state().playQueue(list(3), 0);
+    state().dontPlay(1);
+
+    expect(queueIds()).toEqual(["t0", "t2"]);
+    expect(state().blocked.map((item) => item.id)).toEqual(["t1"]);
   });
 
   it("ignores an empty list", () => {

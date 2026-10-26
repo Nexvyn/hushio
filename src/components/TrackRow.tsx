@@ -3,6 +3,7 @@ import { ActionMenu, type MenuItem } from "./ActionMenu";
 import { EqBars } from "./EqBars";
 import { ExplicitBadge } from "./ExplicitBadge";
 import { Icon } from "./Icon";
+import { LikeButton } from "./LikeButton";
 import { Artwork } from "./SearchRows";
 import { fmtTime } from "../lib/format";
 import type { SearchSong } from "../lib/searchParse";
@@ -82,6 +83,7 @@ export function TrackRow({
           </span>
         )}
       </button>
+      <LikeButton track={song} className="h-11 w-11" />
       <ActionMenu items={menu} label={`More options for ${song.title}`} />
     </li>
   );

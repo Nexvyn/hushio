@@ -101,6 +101,26 @@ body {
   animation: none;
 }
 
+@keyframes cover-wall-drift {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.cover-wall-row {
+  animation: cover-wall-drift linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cover-wall-row {
+    animation: none;
+  }
+}
+
+:root.reduce-motion .cover-wall-row {
+  animation: none;
+}
+
 .toast-beacon {
   background: rgb(var(--elevated));
   border: 1px solid rgb(var(--separator));

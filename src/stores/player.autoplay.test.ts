@@ -34,6 +34,7 @@ vi.mock("../lib/persist", () => ({
 }));
 
 import type { RadioItem, RadioPage } from "../lib/innertube";
+import { useLibrary } from "./library";
 import { usePlayer } from "./player";
 import { useSettings } from "./settings";
 import { useUI } from "./ui";
@@ -65,6 +66,7 @@ const radioPage = (numbers: number[], seedInfo: RadioPage["seed"] = null): Radio
 const state = () => usePlayer.getState();
 const queueIds = () => state().queue.map((track) => track.id);
 const initial = usePlayer.getState();
+const initialLibrary = useLibrary.getState();
 let clock = 1_000_000_000;
 
 beforeEach(() => {
@@ -76,7 +78,8 @@ beforeEach(() => {
   playStream.mockReset();
   playStream.mockResolvedValue(undefined);
   usePlayer.setState(initial, true);
-  useSettings.setState({ autoplay: true });
+  useLibrary.setState(initialLibrary, true);
+  useSettings.setState({ autoplay: true, dontRepeatSuggestions: false });
   useUI.setState({ toasts: [], pendingToasts: [] });
 });
 
@@ -229,7 +232,26 @@ describe("AutoPlay refill timing", () => {
   });
 
   it("leaves out songs played earlier in the session", async () => {
-    usePlayer.setState({ history: [song(5)] });
+    usePlayer.setState({ played: [song(5)] });
+    getRadio.mockResolvedValueOnce(radioPage([5, 6]));
+    state().playQueue([seed]);
+
+    await vi.waitFor(() => expect(state().autoplayCount).toBe(1));
+    expect(queueIds()).toEqual([seed.id, vid(6)]);
+  });
+
+  it("leaves out songs marked Don't play this", async () => {
+    usePlayer.setState({ blocked: [song(5)] });
+    getRadio.mockResolvedValueOnce(radioPage([5, 6]));
+    state().playQueue([seed]);
+
+    await vi.waitFor(() => expect(state().autoplayCount).toBe(1));
+    expect(queueIds()).toEqual([seed.id, vid(6)]);
+  });
+
+  it("leaves out songs in Recently played when Don't repeat suggestions is on", async () => {
+    useSettings.setState({ dontRepeatSuggestions: true });
+    useLibrary.setState({ history: [{ ...song(5), album: null, duration: 0, explicit: false }] });
     getRadio.mockResolvedValueOnce(radioPage([5, 6]));
     state().playQueue([seed]);
 

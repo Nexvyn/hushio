@@ -64,7 +64,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   playStream.mockResolvedValue(undefined);
   useNavigation.setState({ view: { name: "podcast", param: "MPSPa" }, navPast: [], navFuture: [] });
-  usePlayer.setState({ queue: [], index: 0, playing: false, history: [] });
+  usePlayer.setState({ queue: [], index: 0, playing: false, played: [] });
 });
 
 afterEach(() => {

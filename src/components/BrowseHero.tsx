@@ -3,10 +3,10 @@ import { PlayIcon, ShuffleIcon } from "@hugeicons/core-free-icons";
 import { ActionMenu, type MenuItem } from "./ActionMenu";
 import { Icon } from "./Icon";
 
-const ROUND =
-  "flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-black/45 text-white backdrop-blur-md hover:bg-black/60 disabled:opacity-[var(--disabled-opacity)] motion-safe:transition-colors";
-const PILL =
-  "inline-flex h-11 items-center gap-2 rounded-full bg-white px-6 text-[14.5px] font-semibold text-black hover:opacity-90 disabled:opacity-[var(--disabled-opacity)] motion-safe:transition-opacity";
+export const ROUND =
+  "flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-black/45 text-white backdrop-blur-md hover:bg-black/60 disabled:opacity-[var(--disabled-opacity)] motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+export const PILL =
+  "inline-flex h-11 items-center gap-2 rounded-full bg-white px-6 text-[14.5px] font-semibold text-black hover:opacity-90 disabled:opacity-[var(--disabled-opacity)] motion-safe:transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
 type BrowseHeroProps = {
   cover: string | null;

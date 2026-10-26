@@ -21,7 +21,9 @@ import { artistTitleSize, heroCover, listenersChip, subscriberChip } from "../li
 import { useBrowseLoad } from "../lib/useBrowseLoad";
 import { useBrowsePlayback } from "../lib/useBrowsePlayback";
 import { rememberArtist } from "../stores/artistMeta";
+import { useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
+import { useUI } from "../stores/ui";
 
 const MAX_ARTIST_SONGS = 20;
 
@@ -57,6 +59,9 @@ function ArtistContent({ page }: { page: ArtistPage }) {
   const { artist } = page;
   const top = page.songs.slice(0, MAX_ARTIST_SONGS);
   const { current, playing, playAt, shuffle } = useBrowsePlayback(top, artist.id);
+  const followed = useLibrary((state) => state.followedArtists.some((item) => item.id === artist.id));
+  const followArtist = useLibrary((state) => state.followArtist);
+  const unfollowArtist = useLibrary((state) => state.unfollowArtist);
   const subscribers = subscriberChip(page.subscriberCount);
   const listeners = listenersChip(page.monthlyListeners);
 
@@ -71,7 +76,20 @@ function ArtistContent({ page }: { page: ArtistPage }) {
       disabled: top.length === 0,
       onSelect: () => queueAll(top, addedMessage(top.length)),
     },
-    { label: "Follow artist", icon: FavouriteIcon, disabled: true, separatorBefore: true },
+    {
+      label: followed ? "Unfollow artist" : "Follow artist",
+      icon: FavouriteIcon,
+      separatorBefore: true,
+      onSelect: () => {
+        if (followed) {
+          unfollowArtist(artist.id);
+          useUI.getState().toast("Removed from your library", "info");
+          return;
+        }
+        followArtist({ id: artist.id, name: artist.name, thumb: artist.thumb ?? undefined });
+        useUI.getState().toast("Added to your library", "info");
+      },
+    },
   ];
 
   return (

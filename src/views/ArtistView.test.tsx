@@ -28,6 +28,7 @@ import { ArtistView } from "./ArtistView";
 import type { ArtistPage } from "../lib/browseParse";
 import type { SearchSong } from "../lib/searchParse";
 import { useArtistMeta } from "../stores/artistMeta";
+import { useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
 import { usePlayer } from "../stores/player";
 import { useUI } from "../stores/ui";
@@ -160,13 +161,20 @@ describe("ArtistView", () => {
     expect(useUI.getState().toasts.map((toast) => toast.message)).toContain("Added 3 songs to queue");
   });
 
-  it("keeps Follow artist disabled until the library exists", async () => {
+  it("follows the artist from the More menu and unfollows from the same menu", async () => {
     const user = userEvent.setup();
+    useLibrary.setState({ followedArtists: [] });
     renderArtist(artistPage());
 
     await user.click(await screen.findByRole("button", { name: "More options" }));
+    await user.click(screen.getByRole("button", { name: "Follow artist" }));
+    expect(useLibrary.getState().followedArtists.map((artist) => artist.id)).toEqual(["UCnova"]);
+    expect(useUI.getState().toasts.map((toast) => toast.message)).toContain("Added to your library");
 
-    expect((screen.getByRole("button", { name: "Follow artist" }) as HTMLButtonElement).disabled).toBe(true);
+    await user.click(screen.getByRole("button", { name: "More options" }));
+    await user.click(screen.getByRole("button", { name: "Unfollow artist" }));
+    expect(useLibrary.getState().followedArtists).toEqual([]);
+    expect(useUI.getState().toasts.map((toast) => toast.message)).toContain("Removed from your library");
   });
 
   it("remembers the artist name and id", async () => {

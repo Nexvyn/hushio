@@ -18,6 +18,7 @@ import { ExploreView } from "./views/ExploreView";
 import { FolderView } from "./views/FolderView";
 import { HomeView } from "./views/HomeView";
 import { LibraryView } from "./views/LibraryView";
+import { LikedView } from "./views/LikedView";
 import { LocalMusicView } from "./views/LocalMusicView";
 import { MatchedPlaylistView } from "./views/MatchedPlaylistView";
 import { MoodView } from "./views/MoodView";
@@ -38,6 +39,7 @@ function CurrentView({ view }: { view: View }) {
     case "search":
       return <SearchView />;
     case "library":
+      return view.param === "liked" ? <LikedView /> : <LibraryView />;
     case "playlists":
       return <LibraryView />;
     case "playlist":

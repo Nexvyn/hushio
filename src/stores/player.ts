@@ -13,6 +13,7 @@ import { persistStorage } from "../lib/persist";
 import {
   AUTOPLAY_EMPTY_MESSAGE,
   exclusionsFor,
+  type Exclusions,
   fetchRefill,
   fetchSuggestions,
   isRadioSeed,
@@ -32,12 +33,13 @@ import {
   shuffleUpcoming,
 } from "../lib/queue";
 import type { Track } from "../types";
+import { useLibrary } from "./library";
 import { useSettings } from "./settings";
 import { useUI } from "./ui";
 
 export type { RepeatMode };
 
-const HISTORY_LIMIT = 200;
+const PLAYED_LIMIT = 200;
 const HISTORY_KEEP = 100;
 const ARTIST_MIX_SIZE = 30;
 const DEFAULT_VOLUME = 0.8;
@@ -57,7 +59,8 @@ type PlayerValues = {
   repeat: RepeatMode;
   unshuffled: string[] | null;
   playingFrom: string | null;
-  history: Track[];
+  played: Track[];
+  blocked: Track[];
   autoplayCount: number;
   awaitingAutoplay: boolean;
   error: string | null;
@@ -74,7 +77,6 @@ type PlayerPersisted = Pick<
   | "repeat"
   | "unshuffled"
   | "playingFrom"
-  | "history"
   | "autoplayCount"
 >;
 
@@ -86,6 +88,7 @@ export type PlayerState = PlayerValues & {
   jumpTo: (index: number) => void;
   addToQueue: (tracks: Track[], playNext?: boolean) => number;
   removeAt: (index: number) => void;
+  dontPlay: (index: number) => void;
   clearUpcoming: () => void;
   next: (manual?: boolean) => void;
   prev: () => void;
@@ -175,12 +178,19 @@ function settleRefill(context: number, batch: Track[]) {
   else appendAutoplay(batch);
 }
 
+function exclusionsNow(state: PlayerValues): Exclusions {
+  const exclusions = exclusionsFor([...state.queue, ...state.played, ...state.blocked]);
+  if (!useSettings.getState().dontRepeatSuggestions) return exclusions;
+  const libraryIds = useLibrary.getState().history.map((track) => track.id);
+  return { ...exclusions, excludeIds: new Set([...exclusions.excludeIds, ...libraryIds]) };
+}
+
 function refillIfNeeded() {
   const state = usePlayer.getState();
   if (refilling || !wantsMore(state)) return;
   refilling = true;
   const seeds = [state.queue.at(-1), state.queue[state.index]].flatMap((track) => (track ? [track.id] : []));
-  const exclusions = exclusionsFor([...state.queue, ...state.history]);
+  const exclusions = exclusionsNow(state);
   const limit = MAX_TAIL - state.autoplayCount;
   const context = state.contextId;
   void fetchRefill(seeds, exclusions, limit).then(
@@ -193,7 +203,7 @@ function refillIfNeeded() {
 }
 
 function startCurrent() {
-  const { queue, index, history } = usePlayer.getState();
+  const { queue, index, played } = usePlayer.getState();
   const track = queue[index];
   if (!track) return;
   usePlayer.setState({
@@ -201,8 +211,9 @@ function startCurrent() {
     position: 0,
     error: null,
     awaitingAutoplay: false,
-    history: [track, ...history.filter((item) => item.id !== track.id)].slice(0, HISTORY_LIMIT),
+    played: [track, ...played.filter((item) => item.id !== track.id)].slice(0, PLAYED_LIMIT),
   });
+  useLibrary.getState().pushHistory(track);
   load(track);
   refillIfNeeded();
 }
@@ -236,7 +247,8 @@ export const usePlayer = create<PlayerState>()(
       repeat: "off",
       unshuffled: null,
       playingFrom: null,
-      history: [],
+      played: [],
+      blocked: [],
       autoplayCount: 0,
       awaitingAutoplay: false,
       error: null,
@@ -368,6 +380,13 @@ export const usePlayer = create<PlayerState>()(
         if (playing) startCurrent();
       },
 
+      dontPlay: (target) => {
+        const track = get().queue[target];
+        if (!track) return;
+        set((state) => ({ blocked: [...state.blocked, track] }));
+        get().removeAt(target);
+      },
+
       clearUpcoming: () => {
         const { queue, index, unshuffled } = get();
         const kept = queue.slice(0, index + 1);
@@ -481,7 +500,6 @@ export const usePlayer = create<PlayerState>()(
         repeat: state.repeat,
         unshuffled: state.unshuffled,
         playingFrom: state.playingFrom,
-        history: state.history,
         autoplayCount: state.autoplayCount,
       }),
       onRehydrateStorage: () => (state) => {

@@ -67,7 +67,7 @@ beforeEach(() => {
   freshPodcasts.mockReturnValue(null);
   playStream.mockResolvedValue(undefined);
   useNavigation.setState({ view: { name: "podcasts" }, navPast: [], navFuture: [] });
-  usePlayer.setState({ queue: [], index: 0, playing: false, history: [] });
+  usePlayer.setState({ queue: [], index: 0, playing: false, played: [] });
 });
 
 afterEach(() => {

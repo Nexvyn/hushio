@@ -14,6 +14,7 @@ import {
   VolumeOffIcon,
 } from "@hugeicons/core-free-icons";
 import { Icon } from "./Icon";
+import { LikeButton } from "./LikeButton";
 import { upgradeArtwork } from "../lib/artwork";
 import { fmtTime } from "../lib/format";
 import { currentTrack, usePlayer, type RepeatMode } from "../stores/player";
@@ -75,6 +76,7 @@ function NowPlaying({ track }: { track: Track | null }) {
           {track?.artist ?? "Search for something to play"}
         </p>
       </div>
+      <LikeButton track={track} className="ml-1 h-8 w-8" />
     </div>
   );
 }
