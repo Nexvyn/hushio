@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { PlayIcon, ShuffleIcon } from "@hugeicons/core-free-icons";
+import { EqBars } from "../components/EqBars";
 import { Icon } from "../components/Icon";
 import { Artwork } from "../components/SearchRows";
 import { Turntable } from "../components/Turntable";
@@ -59,20 +60,6 @@ function listsOf(page: MoodPage | null | undefined): Lists {
       (card) => card.id,
     ),
   };
-}
-
-function EqBars({ playing }: { playing: boolean }) {
-  return (
-    <span role="img" aria-label="Playing" className="inline-flex h-3.5 items-end gap-[2px]">
-      {["h-2", "h-3.5", "h-1.5"].map((height, bar) => (
-        <span
-          key={bar}
-          style={{ animationDelay: `${bar * 150}ms` }}
-          className={`w-[3px] rounded-[1px] bg-accent ${height} ${playing ? "motion-safe:animate-pulse" : ""}`}
-        />
-      ))}
-    </span>
-  );
 }
 
 function BrowseCard({ item, round = false, onOpen }: { item: MoodCardItem; round?: boolean; onOpen: () => void }) {
