@@ -4,41 +4,16 @@ import { EmptyState } from "../components/EmptyState";
 import { Icon } from "../components/Icon";
 import { PILL, ROUND } from "../components/BrowseHero";
 import { TrackRow } from "../components/TrackRow";
-import { upgradeArtwork } from "../lib/artwork";
+import { coversOf, topArtist } from "../lib/collections";
+import { playCollection, toSong } from "../lib/collectionActions";
 import { songMenu } from "../lib/browseActions";
 import { fmtTotal } from "../lib/format";
 import { plural } from "../lib/plural";
-import type { SearchSong } from "../lib/searchParse";
-import { type LibraryTrack, useLibrary } from "../stores/library";
+import { useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
 import { playFromRow, usePlayer } from "../stores/player";
 
 const LIKED_SOURCE = "__liked__";
-
-function asSong(track: LibraryTrack): SearchSong {
-  return { ...track, artistId: null, albumId: null, isVideo: false };
-}
-
-function mostLikedArtist(tracks: LibraryTrack[]): string | null {
-  const counts = new Map<string, number>();
-  for (const track of tracks) counts.set(track.artist, (counts.get(track.artist) ?? 0) + 1);
-  let best: string | null = null;
-  let bestCount = 0;
-  for (const [artist, count] of counts) {
-    if (count > bestCount) {
-      best = artist;
-      bestCount = count;
-    }
-  }
-  return best;
-}
-
-function playLiked(tracks: LibraryTrack[], shuffle: boolean) {
-  if (tracks.length === 0) return;
-  if (shuffle) usePlayer.setState({ shuffle: true });
-  const start = shuffle ? Math.floor(Math.random() * tracks.length) : 0;
-  usePlayer.getState().playQueue(tracks, start, LIKED_SOURCE);
-}
 
 export function LikedView() {
   const liked = useLibrary((state) => state.liked);
@@ -46,12 +21,9 @@ export function LikedView() {
   const playing = usePlayer((state) => state.playing);
   const navigate = useNavigation((state) => state.navigate);
   const empty = liked.length === 0;
-  const top = mostLikedArtist(liked);
+  const top = topArtist(liked);
   const total = liked.reduce((sum, track) => sum + track.duration, 0);
-  const covers = liked.flatMap((track) => {
-    const art = upgradeArtwork(track.thumb);
-    return art ? [art] : [];
-  });
+  const covers = coversOf(liked);
 
   const facts = (
     <>
@@ -72,7 +44,7 @@ export function LikedView() {
           type="button"
           aria-label="Play Liked Songs"
           disabled={empty}
-          onClick={() => playLiked(liked, false)}
+          onClick={() => playCollection(liked, LIKED_SOURCE, false)}
           className={PILL}
         >
           <Icon icon={PlayIcon} />
@@ -83,7 +55,7 @@ export function LikedView() {
           aria-label="Shuffle"
           title="Shuffle"
           disabled={empty}
-          onClick={() => playLiked(liked, true)}
+          onClick={() => playCollection(liked, LIKED_SOURCE, true)}
           className={ROUND}
         >
           <Icon icon={ShuffleIcon} />
@@ -101,7 +73,7 @@ export function LikedView() {
         ) : (
           <ol>
             {liked.map((track, index) => {
-              const song = asSong(track);
+              const song = toSong(track);
               return (
                 <TrackRow
                   key={`${track.id}-${index}`}

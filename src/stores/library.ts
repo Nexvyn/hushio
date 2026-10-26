@@ -8,11 +8,12 @@ import {
   readDeletionSync,
   recordDeletionChanges,
 } from "../lib/deletionSync";
+import { moveKey } from "../lib/libraryOrder";
 import { persistStorage } from "../lib/persist";
 import type { Track } from "../types";
 
 export const HISTORY_LIMIT = 200;
-const LIBRARY_VERSION = 1;
+const LIBRARY_VERSION = 2;
 
 export type LibraryTrack = Track & { album: string | null; duration: number; explicit: boolean };
 export type LikeInput = Track & Partial<Pick<LibraryTrack, "album" | "duration" | "explicit">>;
@@ -38,11 +39,24 @@ export const DEFAULT_PINS: PinnedSingles = {
   v2: true,
 };
 
+export type Playlist = {
+  id: string;
+  name: string;
+  folderId: string | null;
+  pinned: boolean;
+  tracks: LibraryTrack[];
+};
+
+export type Folder = { id: string; name: string };
+
 type LibraryValues = {
   liked: LibraryTrack[];
   history: LibraryTrack[];
   followedArtists: FollowedArtist[];
   pinnedSingles: PinnedSingles;
+  playlists: Playlist[];
+  folders: Folder[];
+  libraryOrder: string[] | undefined;
   deletionSync: DeletionSync | undefined;
 };
 
@@ -53,6 +67,19 @@ type LibraryState = LibraryValues & {
   removeFromHistory: (id: string) => void;
   followArtist: (artist: ArtistInput) => boolean;
   unfollowArtist: (id: string) => void;
+  createPlaylist: (name: string) => string;
+  renamePlaylist: (id: string, name: string) => void;
+  deletePlaylist: (id: string) => void;
+  togglePinPlaylist: (id: string) => void;
+  addToPlaylist: (playlistId: string, track: LikeInput) => boolean;
+  removeFromPlaylist: (playlistId: string, trackId: string) => void;
+  moveInPlaylist: (playlistId: string, from: number, to: number) => void;
+  setPlaylistFolder: (playlistId: string, folderId: string | null) => void;
+  createFolder: (name: string) => string;
+  renameFolder: (id: string, name: string) => void;
+  deleteFolder: (id: string) => void;
+  togglePinSingle: (key: keyof PinnedSingles) => void;
+  setLibraryOrder: (keys: string[]) => void;
 };
 
 type Update = (state: LibraryValues) => Partial<LibraryValues>;
@@ -62,8 +89,19 @@ const DEFAULTS: LibraryValues = {
   history: [],
   followedArtists: [],
   pinnedSingles: DEFAULT_PINS,
+  playlists: [],
+  folders: [],
+  libraryOrder: undefined,
   deletionSync: undefined,
 };
+
+function newId(): string {
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function trackKey(playlistId: string, trackId: string): string {
+  return `${playlistId}:${trackId}`;
+}
 
 function toLibraryTrack(track: LikeInput): LibraryTrack {
   return {
@@ -82,6 +120,11 @@ function liveKeys(state: LibraryValues): Set<string> {
     ...state.liked.map((track) => deletionKey("liked", track.id)),
     ...state.history.map((track) => deletionKey("history", track.id)),
     ...state.followedArtists.map((artist) => deletionKey("followedArtists", artist.id)),
+    ...state.playlists.map((playlist) => deletionKey("playlists", playlist.id)),
+    ...state.playlists.flatMap((playlist) =>
+      playlist.tracks.map((track) => deletionKey("tracks", trackKey(playlist.id, track.id))),
+    ),
+    ...state.folders.map((folder) => deletionKey("folders", folder.id)),
   ]);
 }
 
@@ -122,6 +165,148 @@ function historyUpdate(track: LikeInput): Update {
   };
 }
 
+function mapPlaylist(state: LibraryValues, id: string, change: (playlist: Playlist) => Playlist): Playlist[] {
+  return state.playlists.map((playlist) => (playlist.id === id ? change(playlist) : playlist));
+}
+
+function hasFolder(state: LibraryValues, folderId: string | null): boolean {
+  return folderId === null || state.folders.some((folder) => folder.id === folderId);
+}
+
+function createPlaylistUpdate(id: string, name: string): Update {
+  return (state) =>
+    commit(
+      state,
+      {
+        playlists: [{ id, name: name.trim(), folderId: null, pinned: false, tracks: [] }, ...state.playlists],
+      },
+      [{ kind: "add", group: "playlists", id }],
+    );
+}
+
+function renamePlaylistUpdate(id: string, name: string): Update {
+  return (state) => {
+    const trimmed = name.trim();
+    if (!trimmed || !state.playlists.some((playlist) => playlist.id === id)) return {};
+    return commit(
+      state,
+      { playlists: mapPlaylist(state, id, (playlist) => ({ ...playlist, name: trimmed })) },
+      [{ kind: "edit", group: "playlists", id }],
+    );
+  };
+}
+
+function deletePlaylistUpdate(id: string): Update {
+  return (state) => {
+    if (!state.playlists.some((playlist) => playlist.id === id)) return {};
+    return commit(state, { playlists: state.playlists.filter((playlist) => playlist.id !== id) }, [
+      { kind: "delete", group: "playlists", id },
+    ]);
+  };
+}
+
+function addTrackUpdate(playlistId: string, track: LikeInput): Update {
+  return (state) => {
+    const playlist = state.playlists.find((item) => item.id === playlistId);
+    if (!playlist || playlist.tracks.some((item) => item.id === track.id)) return {};
+    return commit(
+      state,
+      {
+        playlists: mapPlaylist(state, playlistId, (item) => ({
+          ...item,
+          tracks: [...item.tracks, toLibraryTrack(track)],
+        })),
+      },
+      [{ kind: "add", group: "tracks", id: trackKey(playlistId, track.id) }],
+    );
+  };
+}
+
+function removeTrackUpdate(playlistId: string, trackId: string): Update {
+  return (state) => {
+    const playlist = state.playlists.find((item) => item.id === playlistId);
+    if (!playlist || !playlist.tracks.some((item) => item.id === trackId)) return {};
+    return commit(
+      state,
+      {
+        playlists: mapPlaylist(state, playlistId, (item) => ({
+          ...item,
+          tracks: item.tracks.filter((track) => track.id !== trackId),
+        })),
+      },
+      [{ kind: "delete", group: "tracks", id: trackKey(playlistId, trackId) }],
+    );
+  };
+}
+
+function movePlaylistTrackUpdate(playlistId: string, from: number, to: number): Update {
+  return (state) => {
+    const playlist = state.playlists.find((item) => item.id === playlistId);
+    if (!playlist || to < 0 || to >= playlist.tracks.length || from === to) return {};
+    return commit(
+      state,
+      {
+        playlists: mapPlaylist(state, playlistId, (item) => ({
+          ...item,
+          tracks: moveKey(item.tracks, from, to),
+        })),
+      },
+      [{ kind: "edit", group: "playlists", id: playlistId }],
+    );
+  };
+}
+
+function setPlaylistFolderUpdate(playlistId: string, folderId: string | null): Update {
+  return (state) => {
+    const playlist = state.playlists.find((item) => item.id === playlistId);
+    if (!playlist || playlist.folderId === folderId || !hasFolder(state, folderId)) return {};
+    return commit(
+      state,
+      { playlists: mapPlaylist(state, playlistId, (item) => ({ ...item, folderId })) },
+      [{ kind: "edit", group: "playlists", id: playlistId }],
+    );
+  };
+}
+
+function createFolderUpdate(id: string, name: string): Update {
+  return (state) =>
+    commit(state, { folders: [{ id, name: name.trim() }, ...state.folders] }, [
+      { kind: "add", group: "folders", id },
+    ]);
+}
+
+function renameFolderUpdate(id: string, name: string): Update {
+  return (state) => {
+    const trimmed = name.trim();
+    if (!trimmed || !state.folders.some((folder) => folder.id === id)) return {};
+    return commit(
+      state,
+      { folders: state.folders.map((folder) => (folder.id === id ? { ...folder, name: trimmed } : folder)) },
+      [{ kind: "edit", group: "folders", id }],
+    );
+  };
+}
+
+function deleteFolderUpdate(id: string): Update {
+  return (state) => {
+    if (!state.folders.some((folder) => folder.id === id)) return {};
+    const moved = state.playlists.filter((playlist) => playlist.folderId === id);
+    return commit(
+      state,
+      {
+        folders: state.folders.filter((folder) => folder.id !== id),
+        playlists: state.playlists.map((playlist) =>
+          playlist.folderId === id ? { ...playlist, folderId: null } : playlist,
+        ),
+      },
+      [
+        { kind: "delete", group: "folders", id },
+        ...moved.map((playlist): DeletionChange => ({ kind: "edit", group: "playlists", id: playlist.id })),
+      ],
+    );
+  };
+}
+
 function migrateLibrary(persisted: unknown, version: number): LibraryValues {
   const stored = (typeof persisted === "object" && persisted !== null ? persisted : {}) as Partial<LibraryValues>;
   return {
@@ -129,6 +314,9 @@ function migrateLibrary(persisted: unknown, version: number): LibraryValues {
     history: stored.history ?? [],
     followedArtists: stored.followedArtists ?? [],
     pinnedSingles: version < 1 || stored.pinnedSingles == null ? DEFAULT_PINS : stored.pinnedSingles,
+    playlists: stored.playlists ?? [],
+    folders: stored.folders ?? [],
+    libraryOrder: stored.libraryOrder ?? undefined,
     deletionSync: stored.deletionSync == null ? undefined : readDeletionSync(stored.deletionSync),
   };
 }
@@ -174,6 +362,36 @@ export const useLibrary = create<LibraryState>()(
               [{ kind: "delete", group: "followedArtists", id }],
             ),
           ),
+        createPlaylist: (name) => {
+          const id = newId();
+          apply(createPlaylistUpdate(id, name));
+          return id;
+        },
+        renamePlaylist: (id, name) => apply(renamePlaylistUpdate(id, name)),
+        deletePlaylist: (id) => apply(deletePlaylistUpdate(id)),
+        togglePinPlaylist: (id) =>
+          apply((state) => ({
+            playlists: mapPlaylist(state, id, (playlist) => ({ ...playlist, pinned: !playlist.pinned })),
+          })),
+        addToPlaylist: (playlistId, track) => {
+          const playlist = get().playlists.find((item) => item.id === playlistId);
+          if (!playlist || playlist.tracks.some((item) => item.id === track.id)) return false;
+          apply(addTrackUpdate(playlistId, track));
+          return true;
+        },
+        removeFromPlaylist: (playlistId, trackId) => apply(removeTrackUpdate(playlistId, trackId)),
+        moveInPlaylist: (playlistId, from, to) => apply(movePlaylistTrackUpdate(playlistId, from, to)),
+        setPlaylistFolder: (playlistId, folderId) => apply(setPlaylistFolderUpdate(playlistId, folderId)),
+        createFolder: (name) => {
+          const id = newId();
+          apply(createFolderUpdate(id, name));
+          return id;
+        },
+        renameFolder: (id, name) => apply(renameFolderUpdate(id, name)),
+        deleteFolder: (id) => apply(deleteFolderUpdate(id)),
+        togglePinSingle: (key) =>
+          apply((state) => ({ pinnedSingles: { ...state.pinnedSingles, [key]: !state.pinnedSingles[key] } })),
+        setLibraryOrder: (keys) => apply(() => ({ libraryOrder: [...keys] })),
       };
     },
     {
@@ -185,6 +403,9 @@ export const useLibrary = create<LibraryState>()(
         history: state.history,
         followedArtists: state.followedArtists,
         pinnedSingles: state.pinnedSingles,
+        playlists: state.playlists,
+        folders: state.folders,
+        libraryOrder: state.libraryOrder,
         deletionSync: state.deletionSync,
       }),
       migrate: migrateLibrary,

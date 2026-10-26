@@ -15,12 +15,24 @@ type ActionMenuProps = {
   items: MenuItem[];
   label: string;
   triggerClass?: string;
+  icon?: IconSvgElement;
+  triggerText?: string;
+  disabled?: boolean;
+  placement?: "up" | "down";
 };
 
 const TRIGGER =
   "flex h-11 w-11 items-center justify-center rounded-full text-ink-2 hover:bg-hover hover:text-ink-1 motion-safe:transition-colors";
 
-export function ActionMenu({ items, label, triggerClass = TRIGGER }: ActionMenuProps) {
+export function ActionMenu({
+  items,
+  label,
+  triggerClass = TRIGGER,
+  icon = MoreHorizontalIcon,
+  triggerText,
+  disabled = false,
+  placement = "down",
+}: ActionMenuProps) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -50,18 +62,22 @@ export function ActionMenu({ items, label, triggerClass = TRIGGER }: ActionMenuP
         title={label}
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
+        disabled={disabled}
         onClick={() => setOpen((value) => !value)}
-        className={triggerClass}
+        className={`${triggerClass} disabled:opacity-[var(--disabled-opacity)]`}
       >
-        <Icon icon={MoreHorizontalIcon} />
+        <Icon icon={icon} />
+        {triggerText}
       </button>
       {open && (
         <ul
           id={menuId}
-          className="absolute right-0 z-30 mt-1 min-w-[200px] overflow-hidden rounded-[11px] bg-panel py-1 shadow-[var(--shadow-card)]"
+          className={`absolute right-0 z-30 min-w-[200px] overflow-hidden rounded-[11px] bg-panel py-1 shadow-[var(--shadow-card)] ${
+            placement === "up" ? "bottom-full mb-1" : "mt-1"
+          }`}
         >
-          {items.map((item) => (
-            <li key={item.label} className={item.separatorBefore ? "mt-1 border-t border-card-edge/[0.08] pt-1" : ""}>
+          {items.map((item, index) => (
+            <li key={`${index}:${item.label}`} className={item.separatorBefore ? "mt-1 border-t border-card-edge/[0.08] pt-1" : ""}>
               <button
                 type="button"
                 disabled={item.disabled}

@@ -5,6 +5,8 @@ import {
   NextIcon,
   PauseIcon,
   PlayIcon,
+  PlayListAddIcon,
+  PlayListIcon,
   PreviousIcon,
   Queue01Icon,
   RepeatIcon,
@@ -13,10 +15,13 @@ import {
   VolumeHighIcon,
   VolumeOffIcon,
 } from "@hugeicons/core-free-icons";
+import { ActionMenu, type MenuItem } from "./ActionMenu";
 import { Icon } from "./Icon";
 import { LikeButton } from "./LikeButton";
 import { upgradeArtwork } from "../lib/artwork";
+import { addTrackToPlaylist, openCreatePlaylist } from "../lib/collectionActions";
 import { fmtTime } from "../lib/format";
+import { useLibrary } from "../stores/library";
 import { currentTrack, usePlayer, type RepeatMode } from "../stores/player";
 import { useSettings } from "../stores/settings";
 import { useUI } from "../stores/ui";
@@ -56,6 +61,35 @@ function TransportButton({ label, icon, active = false, pressed, disabled = fals
   );
 }
 
+function AddToPlaylist({ track }: { track: Track | null }) {
+  const playlists = useLibrary((state) => state.playlists);
+  const items: MenuItem[] = [
+    ...playlists.map((playlist) => ({
+      label: playlist.name,
+      icon: PlayListIcon,
+      onSelect: () => {
+        if (track) addTrackToPlaylist(playlist.id, track);
+      },
+    })),
+    {
+      label: "Create playlist",
+      icon: PlayListAddIcon,
+      separatorBefore: playlists.length > 0,
+      onSelect: openCreatePlaylist,
+    },
+  ];
+  return (
+    <ActionMenu
+      items={items}
+      label="Add to playlist"
+      icon={PlayListAddIcon}
+      disabled={track === null}
+      placement="up"
+      triggerClass="grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink-2 hover:text-ink-1 disabled:opacity-[var(--disabled-opacity)] motion-safe:transition-colors"
+    />
+  );
+}
+
 function NowPlaying({ track }: { track: Track | null }) {
   const toggleNowPlaying = useUI((state) => state.toggleNowPlaying);
   const art = upgradeArtwork(track?.thumb);
@@ -77,6 +111,7 @@ function NowPlaying({ track }: { track: Track | null }) {
         </p>
       </div>
       <LikeButton track={track} className="ml-1 h-8 w-8" />
+      <AddToPlaylist track={track} />
     </div>
   );
 }

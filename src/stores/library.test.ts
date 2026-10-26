@@ -121,14 +121,14 @@ describe("followed artists", () => {
 });
 
 describe("version metadata and migration", () => {
-  it("persists under the library key at version 1 with the whole state", () => {
+  it("persists under the library key at version 2 with the whole state", () => {
     const options = useLibrary.persist.getOptions();
     expect(options.name).toBe("library");
-    expect(options.version).toBe(1);
+    expect(options.version).toBe(2);
 
     useLibrary.getState().toggleLike(track(1));
     expect(storage.writes.at(-1)).toMatchObject({
-      version: 1,
+      version: 2,
       state: { liked: [{ id: "t1" }], pinnedSingles: DEFAULT_PINS },
     });
   });
