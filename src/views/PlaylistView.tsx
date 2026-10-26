@@ -1,6 +1,9 @@
+import { useRef } from "react";
 import {
   ArrowDown01Icon,
+  ArrowDownDoubleIcon,
   ArrowUp01Icon,
+  ArrowUpDoubleIcon,
   Delete02Icon,
   PlayIcon,
   PlayListAddIcon,
@@ -14,10 +17,12 @@ import { EmptyState } from "../components/EmptyState";
 import { Icon } from "../components/Icon";
 import { TrackRow } from "../components/TrackRow";
 import { coversOf, topArtist } from "../lib/collections";
-import { playCollection, playlistMenuItems, toSong } from "../lib/collectionActions";
+import { dropTrackOnTarget, playCollection, playlistMenuItems, toSong } from "../lib/collectionActions";
 import { songMenu } from "../lib/browseActions";
 import { fmtTotal } from "../lib/format";
 import { plural } from "../lib/plural";
+import { sortKeys } from "../lib/sortable";
+import { useSortable } from "../lib/useSortable";
 import { type LibraryTrack, useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
 import { playFromRow, usePlayer } from "../stores/player";
@@ -25,27 +30,35 @@ import { useUI } from "../stores/ui";
 
 function trackMenu(playlistId: string, tracks: LibraryTrack[], index: number): MenuItem[] {
   const track = tracks[index];
+  const last = tracks.length - 1;
+  const moveTo = (to: number) => () => useLibrary.getState().moveInPlaylist(playlistId, index, to);
+  const moves: MenuItem[] =
+    tracks.length < 2
+      ? []
+      : [
+          { label: "Move up", icon: ArrowUp01Icon, disabled: index === 0, separatorBefore: true, onSelect: moveTo(index - 1) },
+          { label: "Move down", icon: ArrowDown01Icon, disabled: index === last, onSelect: moveTo(index + 1) },
+          { label: "Move to top", icon: ArrowUpDoubleIcon, disabled: index === 0, onSelect: moveTo(0) },
+          { label: "Move to bottom", icon: ArrowDownDoubleIcon, disabled: index === last, onSelect: moveTo(last) },
+        ];
+  const songItems = songMenu(toSong(track)).map((item, position) =>
+    position === 0 ? { ...item, separatorBefore: true } : item,
+  );
   return [
-    ...songMenu(toSong(track)),
+    ...moves,
     {
-      label: "Move up",
-      icon: ArrowUp01Icon,
-      disabled: index === 0,
-      separatorBefore: true,
-      onSelect: () => useLibrary.getState().moveInPlaylist(playlistId, index, index - 1),
-    },
-    {
-      label: "Move down",
-      icon: ArrowDown01Icon,
-      disabled: index === tracks.length - 1,
-      onSelect: () => useLibrary.getState().moveInPlaylist(playlistId, index, index + 1),
-    },
-    {
-      label: "Remove from playlist",
+      label: "Remove from this playlist",
       icon: Delete02Icon,
-      separatorBefore: true,
-      onSelect: () => useLibrary.getState().removeFromPlaylist(playlistId, track.id),
+      separatorBefore: moves.length > 0,
+      onSelect: () => {
+        useLibrary.getState().removeFromPlaylist(playlistId, track.id);
+        useUI.getState().toast("Removed from playlist", "info", undefined, {
+          label: "Undo",
+          run: () => useLibrary.getState().restoreTrackInPlaylist(playlistId, track, index),
+        });
+      },
     },
+    ...songItems,
   ];
 }
 
@@ -60,6 +73,22 @@ export function PlaylistView() {
   const navigate = useNavigation((state) => state.navigate);
   const currentId = usePlayer((state) => state.queue[state.index]?.id);
   const playing = usePlayer((state) => state.playing);
+  const listRef = useRef<HTMLOListElement>(null);
+  const tracks = playlist?.tracks ?? [];
+  const keys = sortKeys(tracks.map((track) => track.id));
+  const sortable = useSortable({
+    keys,
+    listRef,
+    onMove: (from, to) => {
+      if (playlist) useLibrary.getState().moveInPlaylist(playlist.id, from, to);
+    },
+    canDropOn: (_key, targetId) =>
+      targetId === "liked" || (targetId.startsWith("playlist:") && targetId !== `playlist:${playlist?.id}`),
+    onDropOn: (key, targetId) => {
+      const track = tracks[keys.indexOf(key)];
+      if (track) dropTrackOnTarget(targetId, track);
+    },
+  });
 
   if (!playlist) {
     return (
@@ -71,7 +100,6 @@ export function PlaylistView() {
     );
   }
 
-  const tracks = playlist.tracks;
   const empty = tracks.length === 0;
   const total = tracks.reduce((sum, track) => sum + track.duration, 0);
   const top = topArtist(tracks);
@@ -139,10 +167,10 @@ export function PlaylistView() {
             secondaryAction={{ label: "Browse Explore", onClick: () => navigate({ name: "explore" }) }}
           />
         ) : (
-          <ol>
+          <ol ref={listRef} {...sortable.listProps}>
             {tracks.map((track, index) => (
               <TrackRow
-                key={`${track.id}-${index}`}
+                key={keys[index]}
                 index={index}
                 song={toSong(track)}
                 current={track.id === currentId}
@@ -151,6 +179,7 @@ export function PlaylistView() {
                 onPlay={() => playFromRow(tracks, index, playlist.id)}
                 artwork
                 showAlbum
+                rowProps={sortable.bind(keys[index])}
               />
             ))}
           </ol>

@@ -73,6 +73,7 @@ type LibraryState = LibraryValues & {
   togglePinPlaylist: (id: string) => void;
   addToPlaylist: (playlistId: string, track: LikeInput) => boolean;
   removeFromPlaylist: (playlistId: string, trackId: string) => void;
+  restoreTrackInPlaylist: (playlistId: string, track: LibraryTrack, index: number) => void;
   moveInPlaylist: (playlistId: string, from: number, to: number) => void;
   setPlaylistFolder: (playlistId: string, folderId: string | null) => void;
   createFolder: (name: string) => string;
@@ -239,6 +240,24 @@ function removeTrackUpdate(playlistId: string, trackId: string): Update {
   };
 }
 
+function restoreTrackUpdate(playlistId: string, track: LibraryTrack, index: number): Update {
+  return (state) => {
+    const playlist = state.playlists.find((item) => item.id === playlistId);
+    if (!playlist || playlist.tracks.some((item) => item.id === track.id)) return {};
+    return commit(
+      state,
+      {
+        playlists: mapPlaylist(state, playlistId, (item) => {
+          const tracks = [...item.tracks];
+          tracks.splice(Math.min(Math.max(index, 0), tracks.length), 0, track);
+          return { ...item, tracks };
+        }),
+      },
+      [{ kind: "add", group: "tracks", id: trackKey(playlistId, track.id) }],
+    );
+  };
+}
+
 function movePlaylistTrackUpdate(playlistId: string, from: number, to: number): Update {
   return (state) => {
     const playlist = state.playlists.find((item) => item.id === playlistId);
@@ -380,6 +399,8 @@ export const useLibrary = create<LibraryState>()(
           return true;
         },
         removeFromPlaylist: (playlistId, trackId) => apply(removeTrackUpdate(playlistId, trackId)),
+        restoreTrackInPlaylist: (playlistId, track, index) =>
+          apply(restoreTrackUpdate(playlistId, track, index)),
         moveInPlaylist: (playlistId, from, to) => apply(movePlaylistTrackUpdate(playlistId, from, to)),
         setPlaylistFolder: (playlistId, folderId) => apply(setPlaylistFolderUpdate(playlistId, folderId)),
         createFolder: (name) => {

@@ -32,12 +32,19 @@ vi.mock("../lib/persist", () => ({
 }));
 
 import { PlaylistView } from "./PlaylistView";
+import { Toasts } from "../components/Toasts";
 import { deletionKey } from "../lib/deletionSync";
 import { fmtTotal } from "../lib/format";
 import { type LibraryTrack, type Playlist, useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
 import { usePlayer } from "../stores/player";
 import { useUI } from "../stores/ui";
+
+function pointer(target: Element | Window, type: string, at: { x: number; y: number; pointerType?: string }) {
+  const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX: at.x, clientY: at.y, button: 0 });
+  Object.defineProperty(event, "pointerType", { value: at.pointerType ?? "mouse" });
+  target.dispatchEvent(event);
+}
 
 const song = (i: number, duration: number, artist = "Artist A"): LibraryTrack => ({
   id: `s${i}`,
@@ -155,10 +162,89 @@ describe("Playlist page with songs", () => {
     render(<PlaylistView />);
 
     fireEvent.click(screen.getByRole("button", { name: "More options for Song 2" }));
-    fireEvent.click(screen.getByRole("button", { name: "Remove from playlist" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove from this playlist" }));
 
     expect(useLibrary.getState().playlists[0].tracks.map((item) => item.id)).toEqual(["s1", "s3"]);
     expect(useLibrary.getState().deletionSync?.deletes[deletionKey("tracks", "p1:s2")]).toBeGreaterThan(0);
+  });
+
+  it("moves a song to the top and to the bottom from the row menu", () => {
+    render(<PlaylistView />);
+
+    fireEvent.click(screen.getByRole("button", { name: "More options for Song 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "Move to top" }));
+    expect(useLibrary.getState().playlists[0].tracks.map((item) => item.id)).toEqual(["s2", "s1", "s3"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "More options for Song 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "Move to bottom" }));
+    expect(useLibrary.getState().playlists[0].tracks.map((item) => item.id)).toEqual(["s1", "s3", "s2"]);
+  });
+
+  it("disables Move to top on the first song and Move to bottom on the last", () => {
+    render(<PlaylistView />);
+
+    fireEvent.click(screen.getByRole("button", { name: "More options for Song 1" }));
+    expect((screen.getByRole("button", { name: "Move to top" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Move to bottom" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("restores a removed song at its place when Undo is pressed", () => {
+    render(
+      <>
+        <PlaylistView />
+        <Toasts />
+      </>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "More options for Song 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove from this playlist" }));
+    expect(useLibrary.getState().playlists[0].tracks.map((item) => item.id)).toEqual(["s1", "s3"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(useLibrary.getState().playlists[0].tracks.map((item) => item.id)).toEqual(["s1", "s2", "s3"]);
+  });
+
+  it("moves a song with Alt+ArrowDown and keeps focus on its row", () => {
+    render(<PlaylistView />);
+
+    const first = screen.getByText("Song 1").closest("li") as HTMLElement;
+    const button = first.querySelector("button") as HTMLButtonElement;
+    button.focus();
+    fireEvent.keyDown(button, { key: "ArrowDown", altKey: true });
+
+    expect(useLibrary.getState().playlists[0].tracks.map((item) => item.id)).toEqual(["s2", "s1", "s3"]);
+    const moved = screen.getByText("Song 1").closest("li") as HTMLElement;
+    expect(document.activeElement).toBe(moved.querySelector("button"));
+  });
+
+  it("drops a dragged song onto Liked Songs and leaves the playlist order alone", () => {
+    const liked = document.createElement("button");
+    liked.dataset.dropTarget = "liked";
+    document.body.appendChild(liked);
+    const original = Object.getOwnPropertyDescriptor(document, "elementFromPoint");
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => liked });
+    const rect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: HTMLElement) {
+        const index = Array.from(document.querySelectorAll("[data-row-key]")).indexOf(this);
+        const top = index * 60;
+        return { top, bottom: top + 50, height: 50, left: 0, right: 0, width: 0, x: 0, y: top, toJSON: () => ({}) } as DOMRect;
+      });
+
+    render(<PlaylistView />);
+    const row = screen.getByText("Song 2").closest("li") as HTMLElement;
+    pointer(row, "pointerdown", { x: 0, y: 70 });
+    pointer(window, "pointermove", { x: 0, y: 100 });
+    pointer(window, "pointerup", { x: 0, y: 100 });
+
+    expect(useLibrary.getState().liked.map((item) => item.id)).toEqual(["s2"]);
+    expect(useLibrary.getState().playlists[0].tracks.map((item) => item.id)).toEqual(["s1", "s2", "s3"]);
+    expect(useUI.getState().toasts.map((toast) => toast.message)).toEqual(["Added “Song 2” to Liked Songs"]);
+
+    rect.mockRestore();
+    liked.remove();
+    if (original) Object.defineProperty(document, "elementFromPoint", original);
+    else Reflect.deleteProperty(document, "elementFromPoint");
   });
 
   it("adds every song to the queue from the header menu", () => {

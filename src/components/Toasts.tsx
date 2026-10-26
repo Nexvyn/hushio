@@ -134,6 +134,18 @@ function ToastCard({ toast }: { toast: Toast }) {
         <p className="select-none pr-0.5 text-[13px] font-medium leading-snug text-ink-1">
           {toast.message}
         </p>
+        {toast.action && (
+          <button
+            type="button"
+            onClick={() => {
+              toast.action?.run();
+              close();
+            }}
+            className="relative grid h-10 shrink-0 place-items-center rounded-full px-3 text-[13px] font-semibold text-ink-1 hover:bg-ink-1/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          >
+            {toast.action.label}
+          </button>
+        )}
         <button
           type="button"
           title="Dismiss"

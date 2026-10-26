@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo, useRef } from "react";
 import type { IconSvgElement } from "@hugeicons/react";
 import {
   Download01Icon,
@@ -17,9 +17,10 @@ import {
 import { ActionMenu } from "./ActionMenu";
 import { Icon } from "./Icon";
 import { coversOf, libraryRows, type RowEntry, type SingleRow } from "../lib/collections";
-import { createMenuItems } from "../lib/collectionActions";
+import { createMenuItems, dropPlaylistOnFolder } from "../lib/collectionActions";
 import { moveKey } from "../lib/libraryOrder";
 import { plural } from "../lib/plural";
+import { useSortable } from "../lib/useSortable";
 import { useLibrary } from "../stores/library";
 import { type View, useNavigation } from "../stores/navigation";
 
@@ -79,6 +80,19 @@ function describe(entry: RowEntry, likedCount: number): RowInfo {
   }
 }
 
+function dropTargetOf(entry: RowEntry): string | undefined {
+  switch (entry.kind) {
+    case "playlist":
+      return `playlist:${entry.playlist.id}`;
+    case "folder":
+      return `folder:${entry.folder.id}`;
+    case "single":
+      return entry.single === "liked" ? "liked" : undefined;
+    case "artist":
+      return undefined;
+  }
+}
+
 function isOpen(view: View, target: View): boolean {
   return view.name === target.name && (target.param === undefined || view.param === target.param);
 }
@@ -94,31 +108,21 @@ export function Sidebar() {
   const likedCount = useLibrary((state) => state.liked.length);
   const setLibraryOrder = useLibrary((state) => state.setLibraryOrder);
   const listRef = useRef<HTMLUListElement>(null);
-  const focusKey = useRef<string | null>(null);
 
   const { fixed, movable } = useMemo(
     () => libraryRows({ playlists, folders, followedArtists, pinnedSingles, libraryOrder }),
     [playlists, folders, followedArtists, pinnedSingles, libraryOrder],
   );
 
-  useEffect(() => {
-    const key = focusKey.current;
-    if (!key) return;
-    focusKey.current = null;
-    const row = Array.from(listRef.current?.querySelectorAll<HTMLElement>("[data-row-key]") ?? []).find(
-      (item) => item.dataset.rowKey === key,
-    );
-    row?.focus();
+  const movableKeys = movable.map((entry) => entry.key);
+  const sortable = useSortable({
+    keys: movableKeys,
+    listRef,
+    onMove: (from, to) => setLibraryOrder(moveKey(movableKeys, from, to)),
+    canDropOn: (key, targetId) => key.startsWith("playlist:") && targetId.startsWith("folder:"),
+    onDropOn: (key, targetId) =>
+      dropPlaylistOnFolder(key.slice("playlist:".length), targetId.slice("folder:".length)),
   });
-
-  function moveRow(key: string, direction: -1 | 1) {
-    const keys = movable.map((entry) => entry.key);
-    const from = keys.indexOf(key);
-    const to = from + direction;
-    if (from < 0 || to < 0 || to >= keys.length) return;
-    focusKey.current = key;
-    setLibraryOrder(moveKey(keys, from, to));
-  }
 
   function renderRow(entry: RowEntry, pinned: boolean) {
     const info = describe(entry, likedCount);
@@ -127,16 +131,11 @@ export function Sidebar() {
       <li key={entry.key}>
         <button
           type="button"
-          data-row-key={entry.key}
+          {...sortable.bind(entry.key)}
+          data-drop-target={dropTargetOf(entry)}
           aria-current={current ? "page" : undefined}
           onClick={() => navigate(info.view)}
-          onKeyDown={(event) => {
-            if (pinned || !event.altKey) return;
-            if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
-            event.preventDefault();
-            moveRow(entry.key, event.key === "ArrowUp" ? -1 : 1);
-          }}
-          className={`flex w-full items-center gap-3 rounded-[9px] p-2 text-left motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+          className={`flex w-full items-center gap-3 rounded-[9px] p-2 text-left motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus data-[drop-hover=true]:bg-ink-1/[0.1] ${
             current ? "bg-ink-1/[0.08]" : "hover:bg-ink-1/[0.05] active:bg-ink-1/[0.1]"
           }`}
         >
@@ -178,7 +177,7 @@ export function Sidebar() {
       </div>
 
       <nav aria-label="Library" className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-2 pb-2 pt-1">
-        <ul ref={listRef} className="space-y-0.5">
+        <ul ref={listRef} className="space-y-0.5" {...sortable.listProps}>
           {fixed.map((entry) => renderRow(entry, true))}
           {movable.map((entry) => renderRow(entry, false))}
         </ul>

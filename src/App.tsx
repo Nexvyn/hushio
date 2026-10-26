@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect } from "react";
 import { Dialog } from "./components/Dialog";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PlayerBar } from "./components/PlayerBar";
+import { PlaylistPicker } from "./components/PlaylistPicker";
 import { RightRail } from "./components/RightRail";
 import { Sidebar } from "./components/Sidebar";
 import { SwipeArrow } from "./components/SwipeArrow";
@@ -136,6 +137,7 @@ export default function App() {
       <PlayerBar />
       <Toasts />
       <Dialog />
+      <PlaylistPicker />
     </div>
   );
 }

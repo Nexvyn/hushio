@@ -7,6 +7,7 @@ import { LikeButton } from "./LikeButton";
 import { Artwork } from "./SearchRows";
 import { fmtTime } from "../lib/format";
 import type { SearchSong } from "../lib/searchParse";
+import type { SortableRowProps } from "../lib/useSortable";
 
 type TrackRowProps = {
   index: number;
@@ -18,6 +19,7 @@ type TrackRowProps = {
   artwork?: boolean;
   showAlbum?: boolean;
   dividerInset?: string;
+  rowProps?: SortableRowProps;
 };
 
 export function TrackRow({
@@ -30,9 +32,11 @@ export function TrackRow({
   artwork = false,
   showAlbum = false,
   dividerInset = "after:left-[112px]",
+  rowProps,
 }: TrackRowProps) {
   return (
     <li
+      {...rowProps}
       className={`group relative isolate flex h-16 items-center gap-1 rounded-[10px] pr-2 motion-safe:transition-colors after:absolute after:bottom-0 after:right-3 after:h-px after:bg-card-edge/[0.06] last:after:hidden ${dividerInset} ${current ? "bg-hover" : "[@media(hover:hover)]:hover:bg-wash"}`}
     >
       {artwork && song.thumb && (
@@ -83,8 +87,10 @@ export function TrackRow({
           </span>
         )}
       </button>
-      <LikeButton track={song} className="h-11 w-11" />
-      <ActionMenu items={menu} label={`More options for ${song.title}`} />
+      <span data-no-drag className="contents">
+        <LikeButton track={song} className="h-11 w-11" />
+        <ActionMenu items={menu} label={`More options for ${song.title}`} />
+      </span>
     </li>
   );
 }

@@ -51,3 +51,10 @@ export function runShake(set: (px: number) => void) {
 export function gate<T extends Transition>(reduced: boolean, t: T): Transition {
   return reduced ? instant : t;
 }
+
+export function reducedMotion(): boolean {
+  return (
+    document.documentElement.classList.contains("reduce-motion") ||
+    (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false)
+  );
+}

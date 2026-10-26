@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 vi.mock("../lib/persist", () => ({
   persistStorage: () => ({
@@ -12,6 +12,7 @@ vi.mock("../lib/persist", () => ({
 import { Sidebar } from "./Sidebar";
 import { DEFAULT_PINS, type Playlist, useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
+import { useUI } from "../stores/ui";
 
 const initialLibrary = useLibrary.getState();
 const initialNavigation = useNavigation.getState();
@@ -100,5 +101,57 @@ describe("Your Library sidebar", () => {
     expect(screen.getByText("Playlist · 1 track")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Liked Songs/ }));
     expect(useNavigation.getState().view).toEqual({ name: "library", param: "liked" });
+  });
+});
+
+function pointer(target: Element | Window, type: string, at: { x: number; y: number }) {
+  const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX: at.x, clientY: at.y, button: 0 });
+  Object.defineProperty(event, "pointerType", { value: "mouse" });
+  target.dispatchEvent(event);
+}
+
+describe("Your Library drag and drop", () => {
+  beforeEach(() => {
+    useLibrary.setState({ ...initialLibrary, pinnedSingles: DEFAULT_PINS, libraryOrder: undefined, playlists: [], folders: [] }, true);
+    useUI.setState({ toasts: [] });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const index = Array.from(document.querySelectorAll("[data-row-key]")).indexOf(this);
+      const top = index < 0 ? 0 : index * 60;
+      return { top, bottom: top + 50, height: 50, left: 0, right: 0, width: 0, x: 0, y: top, toJSON: () => ({}) } as DOMRect;
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(document, "elementFromPoint");
+  });
+
+  it("reorders unpinned rows by dragging and saves the whole order", async () => {
+    useLibrary.setState({ playlists: [playlist("a")] });
+    render(<Sidebar />);
+
+    const downloads = screen.getByRole("button", { name: /Downloads/ });
+    pointer(downloads, "pointerdown", { x: 0, y: 25 });
+    pointer(window, "pointermove", { x: 0, y: 95 });
+    pointer(window, "pointerup", { x: 0, y: 95 });
+
+    await waitFor(() =>
+      expect(useLibrary.getState().libraryOrder).toEqual(["single:local", "single:downloads", "playlist:a"]),
+    );
+  });
+
+  it("files a dragged playlist into a folder when it is dropped on the folder row", () => {
+    useLibrary.setState({ playlists: [playlist("a")], folders: [{ id: "f1", name: "Road" }] });
+    render(<Sidebar />);
+    const folder = screen.getByRole("button", { name: /Road/ });
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => folder });
+
+    pointer(screen.getByRole("button", { name: /Mix a/ }), "pointerdown", { x: 0, y: 25 });
+    pointer(window, "pointermove", { x: 0, y: 95 });
+    pointer(window, "pointerup", { x: 0, y: 95 });
+
+    expect(useLibrary.getState().playlists[0].folderId).toBe("f1");
+    expect(useLibrary.getState().libraryOrder).toBeUndefined();
+    expect(useUI.getState().toasts.map((toast) => toast.message)).toEqual(['Moved “Mix a” into the folder']);
   });
 });

@@ -1,13 +1,17 @@
 import { create } from "zustand";
 import type { SearchFilter } from "../lib/searchParse";
+import type { Track } from "../types";
 
 export type ToastKind = "info" | "success" | "error" | "warning";
+
+export type ToastAction = { label: string; run: () => void };
 
 export type Toast = {
   id: number;
   message: string;
   kind: ToastKind;
   duration?: number;
+  action?: ToastAction;
 };
 
 export type DialogRequest = {
@@ -36,13 +40,13 @@ type UIState = {
   toasts: Toast[];
   pendingToasts: Toast[];
   contextMenu: unknown;
-  playlistPicker: unknown;
+  playlistPicker: Track[] | null;
   dialog: DialogRequest | null;
   searchQuery: string;
   searchFilter: SearchFilter;
   setSearchQuery: (query: string) => void;
   setSearchFilter: (filter: SearchFilter) => void;
-  toast: (message: string, kind?: ToastKind, duration?: number) => void;
+  toast: (message: string, kind?: ToastKind, duration?: number, action?: ToastAction) => void;
   dismissToast: (id: number) => void;
   setOsFullscreen: (value: boolean) => void;
   setRightPanel: (panel: "details" | "queue") => void;
@@ -52,6 +56,8 @@ type UIState = {
   closePanels: () => void;
   openDialog: (request: DialogRequest) => void;
   closeDialog: () => void;
+  openPlaylistPicker: (tracks: Track[]) => void;
+  closePlaylistPicker: () => void;
 };
 
 export const useUI = create<UIState>()((set) => ({
@@ -71,9 +77,9 @@ export const useUI = create<UIState>()((set) => ({
 
   setSearchFilter: (filter) => set({ searchFilter: filter }),
 
-  toast: (message, kind = "info", duration = DEFAULT_TOAST_MS) =>
+  toast: (message, kind = "info", duration = DEFAULT_TOAST_MS, action) =>
     set((state) => {
-      const next = { id: nextToastId++, message, kind, duration };
+      const next = { id: nextToastId++, message, kind, duration, action };
       if (state.toasts.length < TOAST_LIMIT) {
         return { toasts: [...state.toasts, next] };
       }
@@ -108,4 +114,10 @@ export const useUI = create<UIState>()((set) => ({
   openDialog: (request) => set({ dialog: request }),
 
   closeDialog: () => set({ dialog: null }),
+
+  openPlaylistPicker: (tracks) => {
+    if (tracks.length > 0) set({ playlistPicker: tracks });
+  },
+
+  closePlaylistPicker: () => set({ playlistPicker: null }),
 }));

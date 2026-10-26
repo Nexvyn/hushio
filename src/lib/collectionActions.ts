@@ -8,6 +8,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import type { MenuItem } from "../components/ActionMenu";
 import { shortTitle } from "./browseText";
+import { addSongsToPlaylists } from "./devicePlaylists";
 import type { SearchSong } from "./searchParse";
 import { type LibraryTrack, type LikeInput, useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
@@ -133,13 +134,30 @@ export function folderMenuItems(id: string): MenuItem[] {
   ];
 }
 
-export function addTrackToPlaylist(playlistId: string, track: LikeInput) {
+export function dropTrackOnTarget(targetId: string, track: LikeInput) {
+  const title = shortTitle(track.title);
+  const ui = useUI.getState();
+  if (targetId === "liked") {
+    if (useLibrary.getState().liked.some((item) => item.id === track.id)) {
+      ui.toast(`“${title}” is already in your Liked Songs`);
+      return;
+    }
+    useLibrary.getState().toggleLike(track);
+    ui.toast(`Added “${title}” to Liked Songs`, "success");
+    return;
+  }
+  const playlist = useLibrary.getState().playlists.find((item) => `playlist:${item.id}` === targetId);
+  if (!playlist) return;
+  if (addSongsToPlaylists([playlist.id], [track]) > 0) {
+    ui.toast(`Added “${title}” to “${playlist.name}”`, "success");
+  } else {
+    ui.toast(`“${title}” is already in “${playlist.name}”`);
+  }
+}
+
+export function dropPlaylistOnFolder(playlistId: string, folderId: string) {
   const playlist = useLibrary.getState().playlists.find((item) => item.id === playlistId);
   if (!playlist) return;
-  const title = shortTitle(track.title);
-  if (useLibrary.getState().addToPlaylist(playlistId, track)) {
-    useUI.getState().toast(`Added "${title}" to "${playlist.name}"`, "success");
-  } else {
-    useUI.getState().toast(`"${title}" is already in "${playlist.name}"`);
-  }
+  useLibrary.getState().setPlaylistFolder(playlistId, folderId);
+  useUI.getState().toast(`Moved “${playlist.name}” into the folder`);
 }
