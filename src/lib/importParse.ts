@@ -68,25 +68,46 @@ export function csvCells(line: string): string[] {
   return cells;
 }
 
-export function csvRows(text: string): string[][] {
-  const rows: string[][] = [];
-  let pending = "";
-  for (const line of text.split(/\r?\n/)) {
-    pending = pending ? `${pending}\n${line}` : line;
-    if (pending.split('"').length % 2 === 0) continue;
-    if (pending.trim()) rows.push(csvCells(pending));
-    pending = "";
+function quoteParity(line: string): number {
+  let quotes = 0;
+  for (const char of line) {
+    if (char === '"') quotes += 1;
   }
-  if (pending.trim()) rows.push(csvCells(pending));
-  return rows;
+  return quotes % 2;
 }
+
+export function csvRows(text: string): { rows: string[][]; malformed: number } {
+  const lines = text.split(/\r?\n/);
+  const rows: string[][] = [];
+  let malformed = 0;
+  let start = 0;
+  while (start < lines.length) {
+    let open = quoteParity(lines[start]);
+    let end = start;
+    while (open === 1 && end + 1 < lines.length) {
+      end += 1;
+      open ^= quoteParity(lines[end]);
+    }
+    if (open === 1) {
+      malformed += 1;
+      start += 1;
+      continue;
+    }
+    const row = lines.slice(start, end + 1).join("\n");
+    if (row.trim()) rows.push(csvCells(row));
+    start = end + 1;
+  }
+  return { rows, malformed };
+}
+
+export type ParsedSongs = { songs: ImportSong[]; malformed: number };
 
 function column(header: string[], patterns: RegExp[]): number {
   return header.findIndex((cell) => patterns.some((pattern) => pattern.test(cell)));
 }
 
-function parseCsv(body: string): ImportSong[] | null {
-  const rows = csvRows(body);
+function parseCsv(body: string): ParsedSongs | null {
+  const { rows, malformed } = csvRows(body);
   const [headerRow = [], ...data] = rows;
   const header = headerRow.map((cell) => cell.toLowerCase());
   const titleIndex = column(header, TITLE_HEADERS);
@@ -111,7 +132,7 @@ function parseCsv(body: string): ImportSong[] | null {
     songs.push({ title, artist, ...(album ? { album } : {}), duration: durationOf(seconds) });
     if (songs.length === MAX_SONGS) break;
   }
-  return songs;
+  return { songs, malformed };
 }
 
 function parseText(body: string): ImportSong[] {
@@ -129,13 +150,17 @@ function parseText(body: string): ImportSong[] {
   return songs;
 }
 
-export function parseSongList(input: string): ImportSong[] {
+export function parseSongListReport(input: string): ParsedSongs {
   const body = input.replace(/^\uFEFF/, "").trim();
-  if (!body) return [];
+  if (!body) return { songs: [], malformed: 0 };
   const [firstLine = ""] = body.split(/\r?\n/);
   if (firstLine.toLowerCase().includes(",")) {
     const csv = parseCsv(body);
     if (csv) return csv;
   }
-  return parseText(body);
+  return { songs: parseText(body), malformed: 0 };
+}
+
+export function parseSongList(input: string): ImportSong[] {
+  return parseSongListReport(input).songs;
 }

@@ -85,7 +85,7 @@ describe("playlists", () => {
     expect(addToPlaylist(id, track(1))).toBe(false);
     expect(addToPlaylist("missing", track(2))).toBe(false);
     expect(playlistNamed("Mix")?.tracks.map((item) => item.id)).toEqual(["t1"]);
-    expect(useLibrary.getState().deletionSync?.adds[deletionKey("tracks", `${id}:t1`)]).toBeGreaterThan(0);
+    expect(useLibrary.getState().deletionSync?.adds[deletionKey("tracks", "t1", id)]).toBeGreaterThan(0);
   });
 
   it("removes a song from a playlist with a tracks tombstone", () => {
@@ -94,7 +94,7 @@ describe("playlists", () => {
     useLibrary.getState().removeFromPlaylist(id, "t1");
 
     expect(playlistNamed("Mix")?.tracks).toEqual([]);
-    expect(useLibrary.getState().deletionSync?.deletes[deletionKey("tracks", `${id}:t1`)]).toBeGreaterThan(0);
+    expect(useLibrary.getState().deletionSync?.deletes[deletionKey("tracks", "t1", id)]).toBeGreaterThan(0);
   });
 
   it("moves a song inside its playlist and ignores moves past either end", () => {
@@ -173,7 +173,7 @@ describe("persistence and versioning", () => {
     useLibrary.getState().setLibraryOrder(["folder:" + folderId]);
 
     expect(storage.writes.at(-1)).toMatchObject({
-      version: 2,
+      version: 3,
       state: {
         playlists: [{ id: playlistId, name: "Evening", folderId: null, pinned: false, tracks: [] }],
         folders: [{ id: folderId, name: "Chill" }],
@@ -211,5 +211,105 @@ describe("persistence and versioning", () => {
       folders: [],
       libraryOrder: undefined,
     });
+  });
+});
+
+describe("song restore, removal and tombstones", () => {
+  it("puts a restored song back at its index and clamps indexes past either end", () => {
+    const id = useLibrary.getState().createPlaylist("Mix");
+    const { addToPlaylist, removeFromPlaylist, restoreTrackInPlaylist } = useLibrary.getState();
+    addToPlaylist(id, track(1));
+    addToPlaylist(id, track(2));
+    addToPlaylist(id, track(3));
+    const ids = () => playlistNamed("Mix")?.tracks.map((item) => item.id);
+
+    removeFromPlaylist(id, "t2");
+    restoreTrackInPlaylist(id, library(2), 1);
+    expect(ids()).toEqual(["t1", "t2", "t3"]);
+
+    removeFromPlaylist(id, "t2");
+    restoreTrackInPlaylist(id, library(2), 99);
+    expect(ids()).toEqual(["t1", "t3", "t2"]);
+
+    removeFromPlaylist(id, "t2");
+    restoreTrackInPlaylist(id, library(2), -5);
+    expect(ids()).toEqual(["t2", "t1", "t3"]);
+    expect(useLibrary.getState().deletionSync?.adds[deletionKey("tracks", "t2", id)]).toBeGreaterThan(0);
+  });
+
+  it("ignores a restore of a song that is already in the playlist", () => {
+    const id = useLibrary.getState().createPlaylist("Mix");
+    useLibrary.getState().addToPlaylist(id, track(1));
+    const before = useLibrary.getState().deletionSync?.clock;
+
+    useLibrary.getState().restoreTrackInPlaylist(id, library(1), 0);
+    expect(playlistNamed("Mix")?.tracks).toHaveLength(1);
+    expect(useLibrary.getState().deletionSync?.clock).toBe(before);
+  });
+
+  it("records nothing when removing a song that is not in the playlist", () => {
+    const id = useLibrary.getState().createPlaylist("Mix");
+    useLibrary.getState().removeFromPlaylist(id, "t9");
+    expect(useLibrary.getState().deletionSync?.deletes[deletionKey("tracks", "t9", id)]).toBeUndefined();
+  });
+
+  it("drops the add stamps of the songs in a deleted playlist", () => {
+    const id = useLibrary.getState().createPlaylist("Mix");
+    useLibrary.getState().addToPlaylist(id, track(1));
+    const key = deletionKey("tracks", "t1", id);
+    expect(useLibrary.getState().deletionSync?.adds[key]).toBeGreaterThan(0);
+
+    useLibrary.getState().deletePlaylist(id);
+    expect(useLibrary.getState().deletionSync?.adds[key]).toBeUndefined();
+  });
+
+  it("ignores deleting a playlist that does not exist", () => {
+    const before = useLibrary.getState().deletionSync?.clock;
+    useLibrary.getState().deletePlaylist("missing");
+    expect(useLibrary.getState().deletionSync?.deletes[deletionKey("playlists", "missing")]).toBeUndefined();
+    expect(useLibrary.getState().deletionSync?.clock).toBe(before);
+  });
+});
+
+describe("folder moves and tombstones", () => {
+  it("moves a playlist back to the library root with null", () => {
+    const folderId = useLibrary.getState().createFolder("Chill");
+    const playlistId = useLibrary.getState().createPlaylist("Evening");
+    useLibrary.getState().setPlaylistFolder(playlistId, folderId);
+    useLibrary.getState().setPlaylistFolder(playlistId, null);
+    expect(playlistNamed("Evening")?.folderId).toBeNull();
+  });
+
+  it("does not stamp anything when a playlist is moved into the folder it is already in", () => {
+    const folderId = useLibrary.getState().createFolder("Chill");
+    const playlistId = useLibrary.getState().createPlaylist("Evening");
+    useLibrary.getState().setPlaylistFolder(playlistId, folderId);
+    const before = useLibrary.getState().deletionSync?.clock;
+
+    useLibrary.getState().setPlaylistFolder(playlistId, folderId);
+    expect(useLibrary.getState().deletionSync?.clock).toBe(before);
+  });
+
+  it("ignores renaming a folder to a blank name or renaming one that does not exist", () => {
+    const folderId = useLibrary.getState().createFolder("Chill");
+    const before = useLibrary.getState().deletionSync?.clock;
+
+    useLibrary.getState().renameFolder(folderId, "   ");
+    useLibrary.getState().renameFolder("missing", "Calm");
+    expect(useLibrary.getState().folders).toEqual([{ id: folderId, name: "Chill" }]);
+    expect(useLibrary.getState().deletionSync?.clock).toBe(before);
+  });
+
+  it("ignores deleting a folder that does not exist", () => {
+    useLibrary.getState().deleteFolder("missing");
+    expect(useLibrary.getState().deletionSync?.deletes[deletionKey("folders", "missing")]).toBeUndefined();
+  });
+
+  it("drops the add stamp of a folder that is deleted but keeps its tombstone", () => {
+    const folderId = useLibrary.getState().createFolder("Chill");
+    useLibrary.getState().deleteFolder(folderId);
+    const sync = useLibrary.getState().deletionSync;
+    expect(sync?.adds[deletionKey("folders", folderId)]).toBeUndefined();
+    expect(sync?.deletes[deletionKey("folders", folderId)]).toBeGreaterThan(0);
   });
 });

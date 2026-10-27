@@ -166,7 +166,7 @@ describe("Playlist page with songs", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Remove from this playlist" }));
 
     expect(useLibrary.getState().playlists[0].tracks.map((item) => item.id)).toEqual(["s1", "s3"]);
-    expect(useLibrary.getState().deletionSync?.deletes[deletionKey("tracks", "p1:s2")]).toBeGreaterThan(0);
+    expect(useLibrary.getState().deletionSync?.deletes[deletionKey("tracks", "s2", "p1")]).toBeGreaterThan(0);
   });
 
   it("moves a song to the top and to the bottom from the row menu", () => {

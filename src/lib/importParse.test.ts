@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { clock, csvCells, csvRows, durationOf, isPlaylistLink, MAX_SONGS, parseSongList } from "./importParse";
+import {
+  clock,
+  csvCells,
+  csvRows,
+  durationOf,
+  isPlaylistLink,
+  MAX_SONGS,
+  parseSongList,
+  parseSongListReport,
+} from "./importParse";
 
 describe("parseSongList text mode", () => {
   it("splits Artist - Title lines and drops numbering and comments", () => {
@@ -64,10 +73,23 @@ describe("parseSongList CSV mode", () => {
   });
 
   it("joins multi-line quoted fields and skips blank rows", () => {
-    expect(csvRows('title,artist\n\n"line one\nline two",X\n')).toEqual([
-      ["title", "artist"],
-      ["line one\nline two", "X"],
-    ]);
+    expect(csvRows('title,artist\n\n"line one\nline two",X\n')).toEqual({
+      rows: [
+        ["title", "artist"],
+        ["line one\nline two", "X"],
+      ],
+      malformed: 0,
+    });
+  });
+
+  it("keeps an unclosed quote to its own row and counts that row as malformed", () => {
+    const songs = parseSongListReport('title,artist\n"Broken,Nobody\nReal,Someone\nAlso,Real');
+    expect(songs.songs.map((song) => song.title)).toEqual(["Real", "Also"]);
+    expect(songs.malformed).toBe(1);
+  });
+
+  it("reports nothing as malformed when every quote closes", () => {
+    expect(parseSongListReport('title,artist\n"A, B",C').malformed).toBe(0);
   });
 
   it("skips rows with an empty title", () => {
@@ -107,5 +129,58 @@ describe("helpers", () => {
 
   it("splits CSV cells and trims them", () => {
     expect(csvCells(' a , "b,c" ,d')).toEqual(["a", "b,c", "d"]);
+  });
+});
+
+describe("CSV edge cases", () => {
+  it("reads a CSV header that sits behind a byte order mark", () => {
+    expect(parseSongList("\uFEFFTitle,Artist\nA,B")).toEqual([{ title: "A", artist: "B", duration: 0 }]);
+  });
+
+  it("handles CRLF line endings without leaving carriage returns in cells", () => {
+    expect(parseSongList("title,artist,album\r\nA,B,C\r\nD,E,F\r\n")).toEqual([
+      { title: "A", artist: "B", album: "C", duration: 0 },
+      { title: "D", artist: "E", album: "F", duration: 0 },
+    ]);
+  });
+
+  it("keeps a row with an empty artist cell instead of dropping it", () => {
+    expect(parseSongList("title,artist\nNo artist,\nC,D")).toEqual([
+      { title: "No artist", artist: "", duration: 0 },
+      { title: "C", artist: "D", duration: 0 },
+    ]);
+  });
+
+  it("keeps a short row and leaves the missing fields empty", () => {
+    expect(parseSongList("title,artist,album,duration (ms)\nSolo")).toEqual([
+      { title: "Solo", artist: "", duration: 0 },
+    ]);
+  });
+
+  it("keeps commas inside a quoted album and joins semicolon artists", () => {
+    expect(parseSongList('title,artist,album\n"Song","A; B","Hits, Vol. 1"')).toEqual([
+      { title: "Song", artist: "A, B", album: "Hits, Vol. 1", duration: 0 },
+    ]);
+  });
+
+  it("reads a quoted cell that ends in a comma as one cell", () => {
+    expect(csvCells('a,"b,"')).toEqual(["a", "b,"]);
+  });
+
+  it("reads the millisecond column in preference to a clock column", () => {
+    expect(parseSongList("Title,Length,Track duration (ms)\nA,9:00,61500")).toEqual([
+      { title: "A", artist: "", duration: 62 },
+    ]);
+  });
+
+  it("gives no duration to a millisecond cell that is not a number", () => {
+    expect(parseSongList("Title,Duration (ms)\nA,soon")).toEqual([{ title: "A", artist: "", duration: 0 }]);
+  });
+
+  it("splits text lines written with CRLF endings", () => {
+    expect(parseSongList("A - B\r\n# note\r\nC - D")).toEqual([
+      { artist: "A", title: "B", duration: 0 },
+      { artist: "C", title: "D", duration: 0 },
+    ]);
   });
 });

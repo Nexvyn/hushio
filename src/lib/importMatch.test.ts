@@ -213,3 +213,38 @@ describe("matchSong", () => {
     expect(searchPage).not.toHaveBeenCalled();
   });
 });
+
+describe("preference order", () => {
+  it("picks the same title and artist over a live or remix version", () => {
+    const best = bestMatch(target({ duration: 200 }), [
+      candidate("live", "Blinding Lights (Live)", "The Weeknd", { duration: 200 }),
+      candidate("remix", "Blinding Lights - Remix", "The Weeknd", { duration: 200 }),
+      candidate("plain", "Blinding Lights", "The Weeknd", { duration: 200 }),
+    ], "");
+    expect(best?.id).toBe("plain");
+  });
+
+  it("keeps a remix target on the remix by the same artist", () => {
+    const best = bestMatch(target({ title: "Blinding Lights (Remix)", duration: 200 }), [
+      candidate("other", "Blinding Lights (Remix)", "Someone Else", { duration: 200 }),
+      candidate("live-remix", "Blinding Lights (Live Remix)", "The Weeknd", { duration: 200 }),
+      candidate("same", "Blinding Lights (Remix)", "The Weeknd", { duration: 200 }),
+    ], "");
+    expect(best?.id).toBe("same");
+  });
+
+  it("gives more credit when more of the target's artists match", () => {
+    const pick = target({ artist: "Alice, Bob", duration: 200 });
+    expect(matchScore(pick, candidate("1", "Blinding Lights", "Alice", { duration: 200 }), "")).toBe(155);
+    expect(matchScore(pick, candidate("2", "Blinding Lights", "Alice, Bob", { duration: 200 }), "")).toBe(160);
+  });
+
+  it("splits the first artist at x and feat", () => {
+    expect(searchQueries(target({ artist: "Alpha x Beta", title: "Duo" }))).toEqual(["Duo Alpha", "Duo"]);
+    expect(searchQueries(target({ artist: "Dua Lipa feat Someone", title: "Duo" }))).toEqual(["Duo Dua Lipa", "Duo"]);
+  });
+
+  it("keeps a version word from a dash tail in the first query", () => {
+    expect(searchQueries(target({ artist: "A", title: "Song - Live" }))).toEqual(["Song Live A", "Song - Live"]);
+  });
+});

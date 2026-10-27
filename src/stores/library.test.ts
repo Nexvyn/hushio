@@ -124,11 +124,11 @@ describe("version metadata and migration", () => {
   it("persists under the library key at version 2 with the whole state", () => {
     const options = useLibrary.persist.getOptions();
     expect(options.name).toBe("library");
-    expect(options.version).toBe(2);
+    expect(options.version).toBe(3);
 
     useLibrary.getState().toggleLike(track(1));
     expect(storage.writes.at(-1)).toMatchObject({
-      version: 2,
+      version: 3,
       state: { liked: [{ id: "t1" }], pinnedSingles: DEFAULT_PINS },
     });
   });
@@ -145,6 +145,25 @@ describe("version metadata and migration", () => {
     const migrated = migrate?.({ deletionSync: { schema: 2, clock: 99 } }, 1);
 
     expect(migrated).toMatchObject({ pinnedSingles: DEFAULT_PINS, deletionSync: { schema: 1, clock: 0 } });
+  });
+
+  it("moves version 2 playlist track tombstones to the three-part key", () => {
+    const migrate = useLibrary.persist.getOptions().migrate;
+    const migrated = migrate?.(
+      {
+        deletionSync: {
+          schema: 1,
+          clock: 10,
+          deletes: { '["tracks","p1:t1"]': 10 },
+          adds: { '["tracks","p1:t2"]': 4 },
+        },
+      },
+      2,
+    );
+
+    expect(migrated).toMatchObject({
+      deletionSync: { deletes: { '["tracks","p1","t1"]': 10 }, adds: { '["tracks","p1","t2"]': 4 } },
+    });
   });
 });
 

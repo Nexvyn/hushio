@@ -111,3 +111,55 @@ describe("trackFrom", () => {
     expect(trackFrom(ID_A, "t", "a", 0)).not.toHaveProperty("album");
   });
 });
+
+describe("parsePlaylistFile local files and optional fields", () => {
+  it("skips local paths in an M3U8 file and does not pass their EXTINF data on", () => {
+    const text = [
+      "#EXTM3U",
+      "#EXTINF:200,Artist - Local",
+      "C:\Music\local.mp3",
+      "file:///home/me/track.flac",
+      "..\relative\song.m4a",
+      `https://music.youtube.com/watch?v=${ID_A}`,
+    ].join("\n");
+    const parsed = parsePlaylistFile(text, "x");
+    expect(parsed.skipped).toBe(3);
+    expect(parsed.tracks).toEqual([
+      expect.objectContaining({ id: ID_A, title: "Unknown title", artist: "Unknown artist", duration: 0 }),
+    ]);
+  });
+
+  it("reads M3U8 lines that end in CRLF", () => {
+    const parsed = parsePlaylistFile(`#EXTM3U\r\n#PLAYLIST:Win\r\n#EXTINF:100,A - B\r\nhttps://youtu.be/${ID_A}\r\n`, "x");
+    expect(parsed.name).toBe("Win");
+    expect(parsed.tracks).toEqual([expect.objectContaining({ id: ID_A, title: "B", artist: "A", duration: 100 })]);
+  });
+
+  it("cuts a long #PLAYLIST name at 200 characters", () => {
+    expect(parsePlaylistFile(`#PLAYLIST:${"n".repeat(250)}`, "x").name).toHaveLength(200);
+  });
+
+  it("leaves out an empty album and reads a numeric string duration", () => {
+    const parsed = parsePlaylistFile(
+      JSON.stringify({
+        format: "hushio-playlist",
+        tracks: [
+          { id: ID_A, title: "A", artist: "B", album: "", duration: "61" },
+          { id: ID_B, title: "C", artist: "D" },
+        ],
+      }),
+      "x",
+    );
+    expect(parsed.tracks[0]).not.toHaveProperty("album");
+    expect(parsed.tracks[0].duration).toBe(61);
+    expect(parsed.tracks[1]).toMatchObject({ duration: 0 });
+    expect(parsed.tracks[1]).not.toHaveProperty("album");
+  });
+
+  it("cuts a long JSON name at 200 characters and falls back for a blank or non-text name", () => {
+    const named = (name: unknown) => JSON.stringify({ format: "hushio-playlist", name, tracks: [] });
+    expect(parsePlaylistFile(named("m".repeat(250)), "x").name).toHaveLength(200);
+    expect(parsePlaylistFile(named("   "), "fallback").name).toBe("fallback");
+    expect(parsePlaylistFile(named(12), "fallback").name).toBe("fallback");
+  });
+});

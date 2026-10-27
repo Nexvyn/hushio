@@ -7,13 +7,14 @@ import {
   emptyDeletionSync,
   readDeletionSync,
   recordDeletionChanges,
+  rekeyPlaylistTracks,
 } from "../lib/deletionSync";
 import { moveKey } from "../lib/libraryOrder";
 import { persistStorage } from "../lib/persist";
 import type { Track } from "../types";
 
 export const HISTORY_LIMIT = 200;
-export const LIBRARY_VERSION = 2;
+export const LIBRARY_VERSION = 3;
 
 export type LibraryTrack = Track & { album: string | null; duration: number; explicit: boolean };
 export type LikeInput = Track & Partial<Pick<LibraryTrack, "album" | "duration" | "explicit">>;
@@ -100,10 +101,6 @@ function newId(): string {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function trackKey(playlistId: string, trackId: string): string {
-  return `${playlistId}:${trackId}`;
-}
-
 function toLibraryTrack(track: LikeInput): LibraryTrack {
   return {
     id: track.id,
@@ -123,7 +120,7 @@ function liveKeys(state: LibraryValues): Set<string> {
     ...state.followedArtists.map((artist) => deletionKey("followedArtists", artist.id)),
     ...state.playlists.map((playlist) => deletionKey("playlists", playlist.id)),
     ...state.playlists.flatMap((playlist) =>
-      playlist.tracks.map((track) => deletionKey("tracks", trackKey(playlist.id, track.id))),
+      playlist.tracks.map((track) => deletionKey("tracks", track.id, playlist.id)),
     ),
     ...state.folders.map((folder) => deletionKey("folders", folder.id)),
   ]);
@@ -218,7 +215,7 @@ function addTrackUpdate(playlistId: string, track: LikeInput): Update {
           tracks: [...item.tracks, toLibraryTrack(track)],
         })),
       },
-      [{ kind: "add", group: "tracks", id: trackKey(playlistId, track.id) }],
+      [{ kind: "add", group: "tracks", id: track.id, parent: playlistId }],
     );
   };
 }
@@ -235,7 +232,7 @@ function removeTrackUpdate(playlistId: string, trackId: string): Update {
           tracks: item.tracks.filter((track) => track.id !== trackId),
         })),
       },
-      [{ kind: "delete", group: "tracks", id: trackKey(playlistId, trackId) }],
+      [{ kind: "delete", group: "tracks", id: trackId, parent: playlistId }],
     );
   };
 }
@@ -253,7 +250,7 @@ function restoreTrackUpdate(playlistId: string, track: LibraryTrack, index: numb
           return { ...item, tracks };
         }),
       },
-      [{ kind: "add", group: "tracks", id: trackKey(playlistId, track.id) }],
+      [{ kind: "add", group: "tracks", id: track.id, parent: playlistId }],
     );
   };
 }
@@ -336,7 +333,7 @@ function migrateLibrary(persisted: unknown, version: number): LibraryValues {
     playlists: stored.playlists ?? [],
     folders: stored.folders ?? [],
     libraryOrder: stored.libraryOrder ?? undefined,
-    deletionSync: stored.deletionSync == null ? undefined : readDeletionSync(stored.deletionSync),
+    deletionSync: stored.deletionSync == null ? undefined : rekeyPlaylistTracks(readDeletionSync(stored.deletionSync)),
   };
 }
 

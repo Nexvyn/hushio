@@ -78,6 +78,11 @@ describe("importFromText", () => {
     expect(staged?.songs.map((item) => item.title)).toEqual(["One", "Two"]);
   });
 
+  it("stages the count of CSV rows that could not be read", async () => {
+    const id = await importFromText('title,artist\n"Broken,Nobody\nReal,Someone', "Road");
+    expect(pendingImport(id ?? "")).toMatchObject({ malformed: 1, total: 1 });
+  });
+
   it("reports text with no songs", async () => {
     expect(await importFromText("# only a comment")).toBeNull();
     expect(toast).toHaveBeenCalledWith(

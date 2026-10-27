@@ -4,6 +4,7 @@ import {
   emptyDeletionSync,
   readDeletionSync,
   recordDeletionChanges,
+  rekeyPlaylistTracks,
   TOMBSTONE_LIMIT,
 } from "./deletionSync";
 
@@ -12,6 +13,32 @@ const none = new Set<string>();
 describe("deletion keys", () => {
   it("builds a stable key from the group and id", () => {
     expect(deletionKey("liked", "abc")).toBe('["liked","abc"]');
+  });
+
+  it("puts the playlist before the track in a playlist track key", () => {
+    expect(deletionKey("tracks", "t1", "p1")).toBe('["tracks","p1","t1"]');
+  });
+
+  it("records a playlist track change under the three-part key", () => {
+    const added = recordDeletionChanges(
+      emptyDeletionSync(),
+      [{ kind: "delete", group: "tracks", id: "t1", parent: "p1" }],
+      none,
+      7,
+    );
+    expect(added.deletes).toEqual({ '["tracks","p1","t1"]': 7 });
+  });
+
+  it("rekeys legacy playlist track tombstones and leaves other keys alone", () => {
+    const rekeyed = rekeyPlaylistTracks({
+      ...emptyDeletionSync(),
+      deletes: { '["tracks","p1:t1"]': 5, '["liked","x"]': 6 },
+      adds: { '["tracks","p2:t-_9"]': 3 },
+      edits: { '["playlists","p1"]': 4 },
+    });
+    expect(rekeyed.deletes).toEqual({ '["tracks","p1","t1"]': 5, '["liked","x"]': 6 });
+    expect(rekeyed.adds).toEqual({ '["tracks","p2","t-_9"]': 3 });
+    expect(rekeyed.edits).toEqual({ '["playlists","p1"]': 4 });
   });
 });
 
@@ -84,5 +111,31 @@ describe("reading stored deletion data", () => {
     const meta = readDeletionSync({ schema: 1, clock: "soon", adds: { a: 1.5, b: 2 } });
     expect(meta.clock).toBe(2);
     expect(meta.adds).toEqual({ b: 2 });
+  });
+});
+
+describe("edits and inputs", () => {
+  it("stamps an edit and drops it once the item is deleted", () => {
+    const live = new Set([deletionKey("playlists", "p")]);
+    const edited = recordDeletionChanges(emptyDeletionSync(), [{ kind: "edit", group: "playlists", id: "p" }], live, 40);
+    expect(edited.edits[deletionKey("playlists", "p")]).toBe(40);
+
+    const gone = recordDeletionChanges(edited, [{ kind: "delete", group: "playlists", id: "p" }], none, 50);
+    expect(gone.edits).toEqual({});
+    expect(gone.deletes[deletionKey("playlists", "p")]).toBe(50);
+  });
+
+  it("does not change the metadata it was given", () => {
+    const meta = emptyDeletionSync();
+    recordDeletionChanges(meta, [{ kind: "add", group: "liked", id: "a" }], new Set([deletionKey("liked", "a")]), 9);
+    expect(meta).toEqual(emptyDeletionSync());
+  });
+
+  it("lifts the clock above the floor and above stored clear times", () => {
+    expect(readDeletionSync({ schema: 1, clock: 5, floor: 80 }).clock).toBe(80);
+    expect(readDeletionSync({ schema: 1, clock: 5, clears: { history: 30 } })).toMatchObject({
+      clock: 30,
+      clears: { history: 30 },
+    });
   });
 });

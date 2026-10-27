@@ -10,7 +10,7 @@ export type DeletionGroup =
   | "searches";
 
 export type DeletionChange =
-  | { kind: "add" | "delete" | "edit"; group: DeletionGroup; id: string }
+  | { kind: "add" | "delete" | "edit"; group: DeletionGroup; id: string; parent?: string }
   | { kind: "clear"; group: "history" | "searches" };
 
 type TimeMap = Record<string, number>;
@@ -29,8 +29,21 @@ export function emptyDeletionSync(): DeletionSync {
   return { schema: 1, clock: 0, floor: 0, adds: {}, deletes: {}, edits: {}, clears: {} };
 }
 
-export function deletionKey(group: DeletionGroup, id: string): string {
-  return JSON.stringify([group, id]);
+export function deletionKey(group: DeletionGroup, id: string, parent?: string): string {
+  return JSON.stringify(parent === undefined ? [group, id] : [group, parent, id]);
+}
+
+const LEGACY_TRACK_KEY = /^\["tracks","([^":]*):([^"]*)"\]$/;
+
+export function rekeyPlaylistTracks(meta: DeletionSync): DeletionSync {
+  const rekey = (map: TimeMap): TimeMap =>
+    Object.fromEntries(
+      Object.entries(map).map(([key, time]) => {
+        const legacy = LEGACY_TRACK_KEY.exec(key);
+        return [legacy ? deletionKey("tracks", legacy[2], legacy[1]) : key, time];
+      }),
+    );
+  return { ...meta, adds: rekey(meta.adds), deletes: rekey(meta.deletes), edits: rekey(meta.edits) };
 }
 
 export function recordDeletionChanges(
@@ -54,7 +67,7 @@ export function recordDeletionChanges(
       continue;
     }
     const map = change.kind === "add" ? next.adds : change.kind === "delete" ? next.deletes : next.edits;
-    map[deletionKey(change.group, change.id)] = at;
+    map[deletionKey(change.group, change.id, change.parent)] = at;
   }
   return compactDeletionSync(next, live);
 }

@@ -1,7 +1,7 @@
 import { APP_SLUG } from "./app";
 import { clip, durationOf, MAX_SONGS } from "./importParse";
 
-const YT_ID = /^[A-Za-z0-9_-]{11}$/;
+export const YT_ID = /^[A-Za-z0-9_-]{11}$/;
 const VIDEO_ID = /(?:[?&]v=|youtu\.be\/|\/shorts\/)([A-Za-z0-9_-]{11})/;
 const EXTINF = /^#EXTINF:(-?\d+)[^,]*,(.*)$/;
 const NAME_MAX = 200;

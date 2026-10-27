@@ -165,6 +165,12 @@ function MatchedContent({ playlist, prefer, attempt, onRetry }: MatchedContentPr
           </p>
         )}
 
+        {(playlist.malformed ?? 0) > 0 && (
+          <p className="px-3 pb-2 text-[13px] text-ink-2">
+            {`${plural(playlist.malformed ?? 0, "row", "rows")} could not be read because a quote is never closed.`}
+          </p>
+        )}
+
         {done && failed > 0 && (
           <div className="px-3 pb-2">
             <Button variant="secondary" onClick={onRetry}>

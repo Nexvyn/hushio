@@ -1,4 +1,4 @@
-import { isPlaylistLink, parseSongList, type ImportSong } from "./importParse";
+import { isPlaylistLink, parseSongListReport, type ImportSong } from "./importParse";
 import { parsePlaylistFile, type PlaylistTrack } from "./importPlaylistFile";
 import { readPublicPlaylist } from "./importSpotify";
 import { plural } from "./plural";
@@ -17,6 +17,7 @@ export type StagedImport = {
   thumb?: string | null;
   songs: ImportSong[];
   total: number;
+  malformed?: number;
   fromSpotify: boolean;
 };
 
@@ -55,12 +56,12 @@ export async function importFromText(text: string, name = DEFAULT_NAME): Promise
     }
   }
 
-  const songs = parseSongList(body);
+  const { songs, malformed } = parseSongListReport(body);
   if (songs.length === 0) {
     toast(NO_SONGS, "error");
     return null;
   }
-  return stageImport({ name, songs, total: songs.length, fromSpotify: false });
+  return stageImport({ name, songs, total: songs.length, malformed, fromSpotify: false });
 }
 
 export function saveImportedPlaylist(name: string, songs: SearchSong[]): string {
