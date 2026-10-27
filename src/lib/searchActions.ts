@@ -1,10 +1,29 @@
+import { Cancel01Icon, Search01Icon } from "@hugeicons/core-free-icons";
 import { APP_NAME } from "./app";
 import type { BrowseItem, SuggestionRow } from "./searchParse";
 import { useNavigation, type View } from "../stores/navigation";
 import { usePlayer } from "../stores/player";
 import { useRecentItems, useRecents, type RecentItem } from "../stores/recents";
-import { useUI } from "../stores/ui";
+import { type MenuItem, useUI } from "../stores/ui";
 import type { Track } from "../types";
+
+export function recentSearchMenuItems(query: string): MenuItem[] {
+  return [
+    { label: `Search "${query}"`, icon: Search01Icon, onSelect: () => submitSearch(query) },
+    {
+      label: "Remove from recent searches",
+      icon: Cancel01Icon,
+      separatorBefore: true,
+      onSelect: () => {
+        useRecents.getState().removeSearch(query);
+        useUI.getState().toast("Removed from recent searches", "info", undefined, {
+          label: "Undo",
+          run: () => useRecents.getState().pushSearch(query),
+        });
+      },
+    },
+  ];
+}
 
 export function submitSearch(text: string): void {
   const query = text.trim();

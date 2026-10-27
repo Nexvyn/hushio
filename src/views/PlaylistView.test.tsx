@@ -1,3 +1,4 @@
+import { ContextMenu } from "../components/ContextMenu";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
@@ -83,7 +84,7 @@ afterEach(cleanup);
 describe("Playlist page for a missing playlist", () => {
   it("explains that the playlist no longer exists", () => {
     useNavigation.setState({ view: { name: "playlist", param: "gone" } });
-    render(<PlaylistView />);
+    render(<><PlaylistView /><ContextMenu /></>);
 
     expect(screen.getByRole("heading", { name: "This playlist no longer exists" })).toBeTruthy();
   });
@@ -95,7 +96,7 @@ describe("Playlist page when empty", () => {
   });
 
   it("offers search and Explore from the empty state", () => {
-    render(<PlaylistView />);
+    render(<><PlaylistView /><ContextMenu /></>);
 
     expect(screen.getByRole("heading", { name: "Let's find something for your playlist" })).toBeTruthy();
     expect(screen.getByText("No songs yet")).toBeTruthy();
@@ -104,7 +105,7 @@ describe("Playlist page when empty", () => {
   });
 
   it("disables Shuffle and does nothing when Play is pressed", () => {
-    render(<PlaylistView />);
+    render(<><PlaylistView /><ContextMenu /></>);
 
     expect((screen.getByRole("button", { name: "Shuffle" }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Play Road trip" }));
@@ -120,7 +121,7 @@ describe("Playlist page with songs", () => {
   });
 
   it("shows the count, length and top artist", () => {
-    render(<PlaylistView />);
+    render(<><PlaylistView /><ContextMenu /></>);
 
     expect(screen.getByRole("heading", { name: "Road trip" })).toBeTruthy();
     expect(screen.getByText(`3 songs · ${fmtTotal(1800)} · Top artist:`, { exact: false })).toBeTruthy();
@@ -128,7 +129,7 @@ describe("Playlist page with songs", () => {
   });
 
   it("starts playback from a clicked row and keeps the playlist as the source", () => {
-    render(<PlaylistView />);
+    render(<><PlaylistView /><ContextMenu /></>);
 
     fireEvent.click(screen.getByText("Song 2"));
     expect(usePlayer.getState().playingFrom).toBe("p1");
@@ -136,56 +137,56 @@ describe("Playlist page with songs", () => {
   });
 
   it("plays the whole playlist from the play button", () => {
-    render(<PlaylistView />);
+    render(<><PlaylistView /><ContextMenu /></>);
 
     fireEvent.click(screen.getByRole("button", { name: "Play Road trip" }));
     expect(usePlayer.getState().queue.map((item) => item.id)).toEqual(["s1", "s2", "s3"]);
   });
 
   it("moves a song down with the row menu and saves the new order", () => {
-    render(<PlaylistView />);
+    render(<><PlaylistView /><ContextMenu /></>);
 
     fireEvent.click(screen.getByRole("button", { name: "More options for Song 1" }));
-    fireEvent.click(screen.getByRole("button", { name: "Move down" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Move down" }));
 
     expect(useLibrary.getState().playlists[0].tracks.map((item) => item.id)).toEqual(["s2", "s1", "s3"]);
   });
 
   it("disables Move up on the first song", () => {
-    render(<PlaylistView />);
+    render(<><PlaylistView /><ContextMenu /></>);
 
     fireEvent.click(screen.getByRole("button", { name: "More options for Song 1" }));
-    expect((screen.getByRole("button", { name: "Move up" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("menuitem", { name: "Move up" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("removes a song from the playlist and records a tombstone", () => {
-    render(<PlaylistView />);
+    render(<><PlaylistView /><ContextMenu /></>);
 
     fireEvent.click(screen.getByRole("button", { name: "More options for Song 2" }));
-    fireEvent.click(screen.getByRole("button", { name: "Remove from this playlist" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Remove from this playlist" }));
 
     expect(useLibrary.getState().playlists[0].tracks.map((item) => item.id)).toEqual(["s1", "s3"]);
     expect(useLibrary.getState().deletionSync?.deletes[deletionKey("tracks", "p1:s2")]).toBeGreaterThan(0);
   });
 
   it("moves a song to the top and to the bottom from the row menu", () => {
-    render(<PlaylistView />);
+    render(<><PlaylistView /><ContextMenu /></>);
 
     fireEvent.click(screen.getByRole("button", { name: "More options for Song 2" }));
-    fireEvent.click(screen.getByRole("button", { name: "Move to top" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Move to top" }));
     expect(useLibrary.getState().playlists[0].tracks.map((item) => item.id)).toEqual(["s2", "s1", "s3"]);
 
     fireEvent.click(screen.getByRole("button", { name: "More options for Song 2" }));
-    fireEvent.click(screen.getByRole("button", { name: "Move to bottom" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Move to bottom" }));
     expect(useLibrary.getState().playlists[0].tracks.map((item) => item.id)).toEqual(["s1", "s3", "s2"]);
   });
 
   it("disables Move to top on the first song and Move to bottom on the last", () => {
-    render(<PlaylistView />);
+    render(<><PlaylistView /><ContextMenu /></>);
 
     fireEvent.click(screen.getByRole("button", { name: "More options for Song 1" }));
-    expect((screen.getByRole("button", { name: "Move to top" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "Move to bottom" }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole("menuitem", { name: "Move to top" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("menuitem", { name: "Move to bottom" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("restores a removed song at its place when Undo is pressed", () => {
@@ -193,11 +194,12 @@ describe("Playlist page with songs", () => {
       <>
         <PlaylistView />
         <Toasts />
+        <ContextMenu />
       </>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "More options for Song 2" }));
-    fireEvent.click(screen.getByRole("button", { name: "Remove from this playlist" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Remove from this playlist" }));
     expect(useLibrary.getState().playlists[0].tracks.map((item) => item.id)).toEqual(["s1", "s3"]);
 
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
@@ -205,7 +207,7 @@ describe("Playlist page with songs", () => {
   });
 
   it("moves a song with Alt+ArrowDown and keeps focus on its row", () => {
-    render(<PlaylistView />);
+    render(<><PlaylistView /><ContextMenu /></>);
 
     const first = screen.getByText("Song 1").closest("li") as HTMLElement;
     const button = first.querySelector("button") as HTMLButtonElement;
@@ -231,7 +233,7 @@ describe("Playlist page with songs", () => {
         return { top, bottom: top + 50, height: 50, left: 0, right: 0, width: 0, x: 0, y: top, toJSON: () => ({}) } as DOMRect;
       });
 
-    render(<PlaylistView />);
+    render(<><PlaylistView /><ContextMenu /></>);
     const row = screen.getByText("Song 2").closest("li") as HTMLElement;
     pointer(row, "pointerdown", { x: 0, y: 70 });
     pointer(window, "pointermove", { x: 0, y: 100 });
@@ -248,32 +250,32 @@ describe("Playlist page with songs", () => {
   });
 
   it("adds every song to the queue from the header menu", () => {
-    render(<PlaylistView />);
+    render(<><PlaylistView /><ContextMenu /></>);
 
     fireEvent.click(screen.getByRole("button", { name: "More options" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add all to queue" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Add all to queue" }));
 
     expect(usePlayer.getState().queue).toHaveLength(3);
     expect(useUI.getState().toasts.map((toast) => toast.message)).toContain("Playlist added to queue");
   });
 
   it("opens the rename dialog with the current name", () => {
-    render(<PlaylistView />);
+    render(<><PlaylistView /><ContextMenu /></>);
 
     fireEvent.click(screen.getByRole("button", { name: "More options" }));
-    fireEvent.click(screen.getByRole("button", { name: "Rename" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
 
     expect(useUI.getState().dialog?.title).toBe("Rename playlist");
     expect(useUI.getState().dialog?.initialValue).toBe("Road trip");
   });
 
   it("asks before deleting and then returns to Your Library", () => {
-    render(<PlaylistView />);
+    render(<><PlaylistView /><ContextMenu /></>);
 
     fireEvent.click(screen.getByRole("button", { name: "More options" }));
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete playlist" }));
     const request = useUI.getState().dialog;
-    expect(request?.title).toBe("Delete playlist?");
+    expect(request?.title).toBe('Delete "Road trip"?');
     expect(request?.danger).toBe(true);
 
     request?.onConfirm("");
@@ -282,7 +284,7 @@ describe("Playlist page with songs", () => {
   });
 
   it("lists the songs in order", () => {
-    render(<PlaylistView />);
+    render(<><PlaylistView /><ContextMenu /></>);
 
     const rows = within(screen.getByRole("list")).getAllByRole("listitem");
     expect(rows).toHaveLength(3);

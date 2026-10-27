@@ -1,3 +1,4 @@
+import { ContextMenu } from "../components/ContextMenu";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -71,7 +72,7 @@ function releasePage(overrides: Partial<ReleasePage["album"]> = {}, tracks = son
 
 function renderAlbum(page: ReleasePage) {
   getAlbumPage.mockResolvedValue(page);
-  render(<AlbumView />);
+  render(<><AlbumView /><ContextMenu /></>);
 }
 
 function mockClamp(scrollHeight: number, clientHeight: number) {
@@ -176,8 +177,8 @@ describe("AlbumView", () => {
 
     await user.click(await screen.findByRole("button", { name: "More options" }));
 
-    expect((screen.getByRole("button", { name: "Go to artist" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "Download all" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("menuitem", { name: "Go to artist" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("menuitem", { name: "Download all" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("toggles the about text between clipped and expanded", async () => {
@@ -205,7 +206,7 @@ describe("AlbumView", () => {
     renderAlbum(releasePage());
 
     await user.click(await screen.findByRole("button", { name: "More options" }));
-    await user.click(screen.getByRole("button", { name: "Copy link" }));
+    await user.click(screen.getByRole("menuitem", { name: "Copy link" }));
 
     expect(await navigator.clipboard.readText()).toBe("https://music.youtube.com/browse/MPREalb");
     await vi.waitFor(() => expect(useUI.getState().toasts.map((toast) => toast.message)).toContain("Link copied"));
@@ -214,7 +215,7 @@ describe("AlbumView", () => {
   it("shows the error state and retries", async () => {
     const user = userEvent.setup();
     getAlbumPage.mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce(releasePage());
-    render(<AlbumView />);
+    render(<><AlbumView /><ContextMenu /></>);
 
     expect(await screen.findByText("Couldn't load this album")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Try again" }));

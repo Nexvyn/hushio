@@ -3,6 +3,9 @@ import { PlayIcon, ShuffleIcon } from "@hugeicons/core-free-icons";
 import { EqBars } from "../components/EqBars";
 import { Icon } from "../components/Icon";
 import { Artwork } from "../components/SearchRows";
+import { openMenuAtPointer, openMenuFromKey } from "../components/ContextMenu";
+import { browseMenuItems } from "../lib/browseActions";
+import { trackMenuItems } from "../lib/trackActions";
 import { Turntable } from "../components/Turntable";
 import { APP_NAME } from "../lib/app";
 import { freshMoods, getMoodCovers, loadMoods } from "../lib/explore";
@@ -16,7 +19,7 @@ import {
   type MoodCardItem,
   type MoodPage,
 } from "../lib/moodPage";
-import type { SearchSong } from "../lib/searchParse";
+import type { BrowseType, SearchSong } from "../lib/searchParse";
 import { useNavigation } from "../stores/navigation";
 import { currentTrack, usePlayer } from "../stores/player";
 
@@ -62,11 +65,24 @@ function listsOf(page: MoodPage | null | undefined): Lists {
   };
 }
 
-function BrowseCard({ item, round = false, onOpen }: { item: MoodCardItem; round?: boolean; onOpen: () => void }) {
+function BrowseCard({
+  item,
+  type,
+  round = false,
+  onOpen,
+}: {
+  item: MoodCardItem;
+  type: BrowseType;
+  round?: boolean;
+  onOpen: () => void;
+}) {
+  const menu = () => browseMenuItems({ type, browseId: item.id, title: item.title, subtitle: item.subtitle, thumb: item.thumb });
   return (
     <button
       type="button"
       onClick={onOpen}
+      onContextMenu={(event) => openMenuAtPointer(event, menu)}
+      onKeyDown={(event) => void openMenuFromKey(event, menu)}
       className="flex w-[148px] shrink-0 flex-col gap-2 rounded-[12px] p-1.5 text-left hover:bg-wash active:bg-pressed motion-safe:transition-colors"
     >
       <Artwork src={item.thumb} round={round} size="h-[136px] w-[136px]" />
@@ -212,7 +228,11 @@ export function MoodView() {
             <Shelf title="Up first in the mix">
               <ol>
                 {mix.slice(0, UP_FIRST).map((track, index) => (
-                  <li key={track.id}>
+                  <li
+                    key={track.id}
+                    onContextMenu={(event) => openMenuAtPointer(event, () => trackMenuItems(track))}
+                    onKeyDown={(event) => void openMenuFromKey(event, () => trackMenuItems(track))}
+                  >
                     <button
                       type="button"
                       onClick={() => playMix(index)}
@@ -243,6 +263,7 @@ export function MoodView() {
                   <BrowseCard
                     key={card.id}
                     item={card}
+                    type="playlist"
                     onOpen={() => navigate({ name: "ytplaylist", param: card.id })}
                   />
                 ))}
@@ -257,6 +278,7 @@ export function MoodView() {
                   <BrowseCard
                     key={card.id}
                     item={card}
+                    type="album"
                     onOpen={() => navigate({ name: "album", param: card.id })}
                   />
                 ))}
@@ -281,6 +303,7 @@ export function MoodView() {
                     key={card.id}
                     item={card}
                     round
+                    type="artist"
                     onOpen={() => navigate({ name: "artist", param: card.id })}
                   />
                 ))}

@@ -15,14 +15,24 @@ import {
   UserIcon,
 } from "@hugeicons/core-free-icons";
 import { ActionMenu } from "./ActionMenu";
+import { openMenuAtPointer, openMenuFromKey } from "./ContextMenu";
 import { Icon } from "./Icon";
 import { coversOf, libraryRows, type RowEntry, type SingleRow } from "../lib/collections";
-import { createMenuItems, dropPlaylistOnFolder } from "../lib/collectionActions";
+import {
+  artistRowMenuItems,
+  createMenuItems,
+  dropPlaylistOnFolder,
+  folderMenuItems,
+  panelMenuItems,
+  pinnedSingleMenuItems,
+  playlistMenuItems,
+} from "../lib/collectionActions";
 import { moveKey } from "../lib/libraryOrder";
 import { plural } from "../lib/plural";
 import { useSortable } from "../lib/useSortable";
-import { useLibrary } from "../stores/library";
+import { type PinnedSingles, useLibrary } from "../stores/library";
 import { type View, useNavigation } from "../stores/navigation";
+import type { MenuItem } from "../stores/ui";
 
 const SINGLE_INFO: Record<SingleRow, { label: string; icon: IconSvgElement; view: View }> = {
   liked: { label: "Liked Songs", icon: FavouriteIcon, view: { name: "library", param: "liked" } },
@@ -93,6 +103,19 @@ function dropTargetOf(entry: RowEntry): string | undefined {
   }
 }
 
+function rowMenu(entry: RowEntry, pinnedSingles: PinnedSingles): MenuItem[] {
+  switch (entry.kind) {
+    case "single":
+      return pinnedSingleMenuItems(entry.single, pinnedSingles[entry.single]);
+    case "playlist":
+      return playlistMenuItems(entry.playlist);
+    case "folder":
+      return folderMenuItems(entry.folder.id);
+    case "artist":
+      return artistRowMenuItems(entry.artist);
+  }
+}
+
 function isOpen(view: View, target: View): boolean {
   return view.name === target.name && (target.param === undefined || view.param === target.param);
 }
@@ -127,11 +150,17 @@ export function Sidebar() {
   function renderRow(entry: RowEntry, pinned: boolean) {
     const info = describe(entry, likedCount);
     const current = isOpen(view, info.view);
+    const bound = sortable.bind(entry.key);
+    const menu = rowMenu(entry, pinnedSingles);
     return (
       <li key={entry.key}>
         <button
           type="button"
-          {...sortable.bind(entry.key)}
+          {...bound}
+          onContextMenu={(event) => openMenuAtPointer(event, menu)}
+          onKeyDown={(event) => {
+            if (!openMenuFromKey(event, menu)) bound.onKeyDown(event);
+          }}
           data-drop-target={dropTargetOf(entry)}
           aria-current={current ? "page" : undefined}
           onClick={() => navigate(info.view)}
@@ -161,7 +190,10 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="shell-sidebar flex w-[328px] shrink-0 flex-col">
+    <aside
+      className="shell-sidebar flex w-[328px] shrink-0 flex-col"
+      onContextMenu={(event) => openMenuAtPointer(event, panelMenuItems())}
+    >
       <div className="flex items-center gap-2 px-5 pb-2 pt-4">
         <button
           type="button"

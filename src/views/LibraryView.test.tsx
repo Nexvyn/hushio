@@ -1,3 +1,4 @@
+import { ContextMenu } from "../components/ContextMenu";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
@@ -74,17 +75,17 @@ afterEach(cleanup);
 
 describe("Your Library with nothing saved", () => {
   it("shows zero counts and the no playlists empty state", () => {
-    render(<LibraryView />);
+    render(<><LibraryView /><ContextMenu /></>);
 
     expect(screen.getByText("0 playlists · 0 folders · 0 liked songs")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "No playlists yet" })).toBeTruthy();
   });
 
   it("opens the create menu and starts a new playlist dialog", () => {
-    render(<LibraryView />);
+    render(<><LibraryView /><ContextMenu /></>);
 
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
-    fireEvent.click(screen.getByRole("button", { name: "Create playlist" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Playlist/ }));
 
     expect(useUI.getState().dialog?.title).toBe("New playlist");
     expect(useUI.getState().dialog?.initialValue).toBe("My Playlist #1");
@@ -94,7 +95,7 @@ describe("Your Library with nothing saved", () => {
 describe("Your Library collections", () => {
   it("shows the liked count, pinned first, with the Downloads and Local Music stacks", () => {
     useLibrary.setState({ liked: [song(1), song(2)] });
-    render(<LibraryView />);
+    render(<><LibraryView /><ContextMenu /></>);
 
     expect(screen.getByText("Pinned · 2 songs")).toBeTruthy();
     expect(screen.getByText("0 songs")).toBeTruthy();
@@ -103,10 +104,10 @@ describe("Your Library collections", () => {
 
   it("unpins Liked Songs from its menu", () => {
     useLibrary.setState({ liked: [song(1), song(2)] });
-    render(<LibraryView />);
+    render(<><LibraryView /><ContextMenu /></>);
 
     fireEvent.click(screen.getByRole("button", { name: "More options for Liked Songs" }));
-    fireEvent.click(screen.getByRole("button", { name: "Unpin" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Unpin" }));
 
     expect(useLibrary.getState().pinnedSingles.liked).toBe(false);
     expect(screen.getByText("2 songs")).toBeTruthy();
@@ -114,7 +115,7 @@ describe("Your Library collections", () => {
 
   it("plays Liked Songs from its stack", () => {
     useLibrary.setState({ liked: [song(1), song(2)] });
-    render(<LibraryView />);
+    render(<><LibraryView /><ContextMenu /></>);
 
     fireEvent.click(screen.getByRole("button", { name: "Play Liked Songs" }));
     expect(usePlayer.getState().playingFrom).toBe("__liked__");
@@ -128,7 +129,7 @@ describe("Your Library playlists and folders", () => {
       playlists: [playlist("a"), playlist("b", { pinned: true }), playlist("c", { folderId: "f" })],
       folders: [{ id: "f", name: "Folder" }],
     });
-    render(<LibraryView />);
+    render(<><LibraryView /><ContextMenu /></>);
 
     const section = within(screen.getByRole("region", { name: "Playlists" }));
     const names = section.getAllByRole("button", { name: /^Open / }).map((button) => button.getAttribute("aria-label"));
@@ -140,7 +141,7 @@ describe("Your Library playlists and folders", () => {
       playlists: [playlist("a", { folderId: "f" })],
       folders: [{ id: "f", name: "Folder" }],
     });
-    render(<LibraryView />);
+    render(<><LibraryView /><ContextMenu /></>);
 
     expect(screen.getByText("All your playlists are in folders.")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "No playlists yet" })).toBeNull();
@@ -151,7 +152,7 @@ describe("Your Library playlists and folders", () => {
       playlists: [playlist("a", { folderId: "f" }), playlist("b", { folderId: "f" })],
       folders: [{ id: "f", name: "Chill" }],
     });
-    render(<LibraryView />);
+    render(<><LibraryView /><ContextMenu /></>);
 
     expect(screen.getByText("Folder · 2 playlists")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Open Chill" }));
@@ -160,7 +161,7 @@ describe("Your Library playlists and folders", () => {
 
   it("opens a playlist and shows its song count", () => {
     useLibrary.setState({ playlists: [playlist("a")] });
-    render(<LibraryView />);
+    render(<><LibraryView /><ContextMenu /></>);
 
     expect(screen.getByText("Playlist · 2 songs")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Open Playlist a" }));

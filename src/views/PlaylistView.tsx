@@ -1,66 +1,22 @@
 import { useRef } from "react";
-import {
-  ArrowDown01Icon,
-  ArrowDownDoubleIcon,
-  ArrowUp01Icon,
-  ArrowUpDoubleIcon,
-  Delete02Icon,
-  PlayIcon,
-  PlayListAddIcon,
-  PlayListIcon,
-  ShuffleIcon,
-} from "@hugeicons/core-free-icons";
-import { ActionMenu, type MenuItem } from "../components/ActionMenu";
+import { PlayIcon, PlayListAddIcon, PlayListIcon, ShuffleIcon } from "@hugeicons/core-free-icons";
+import { ActionMenu } from "../components/ActionMenu";
 import { PILL, ROUND } from "../components/BrowseHero";
 import { CollectionHero } from "../components/CollectionHero";
 import { EmptyState } from "../components/EmptyState";
 import { Icon } from "../components/Icon";
 import { TrackRow } from "../components/TrackRow";
 import { coversOf, topArtist } from "../lib/collections";
-import { dropTrackOnTarget, playCollection, playlistMenuItems, toSong } from "../lib/collectionActions";
-import { songMenu } from "../lib/browseActions";
+import { dropTrackOnTarget, playCollection, playlistHeaderItems, toSong } from "../lib/collectionActions";
 import { fmtTotal } from "../lib/format";
 import { plural } from "../lib/plural";
 import { sortKeys } from "../lib/sortable";
+import { playlistTrackMenuItems } from "../lib/trackActions";
 import { useSortable } from "../lib/useSortable";
-import { type LibraryTrack, useLibrary } from "../stores/library";
+import { useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
 import { playFromRow, usePlayer } from "../stores/player";
-import { useUI } from "../stores/ui";
-
-function trackMenu(playlistId: string, tracks: LibraryTrack[], index: number): MenuItem[] {
-  const track = tracks[index];
-  const last = tracks.length - 1;
-  const moveTo = (to: number) => () => useLibrary.getState().moveInPlaylist(playlistId, index, to);
-  const moves: MenuItem[] =
-    tracks.length < 2
-      ? []
-      : [
-          { label: "Move up", icon: ArrowUp01Icon, disabled: index === 0, separatorBefore: true, onSelect: moveTo(index - 1) },
-          { label: "Move down", icon: ArrowDown01Icon, disabled: index === last, onSelect: moveTo(index + 1) },
-          { label: "Move to top", icon: ArrowUpDoubleIcon, disabled: index === 0, onSelect: moveTo(0) },
-          { label: "Move to bottom", icon: ArrowDownDoubleIcon, disabled: index === last, onSelect: moveTo(last) },
-        ];
-  const songItems = songMenu(toSong(track)).map((item, position) =>
-    position === 0 ? { ...item, separatorBefore: true } : item,
-  );
-  return [
-    ...moves,
-    {
-      label: "Remove from this playlist",
-      icon: Delete02Icon,
-      separatorBefore: moves.length > 0,
-      onSelect: () => {
-        useLibrary.getState().removeFromPlaylist(playlistId, track.id);
-        useUI.getState().toast("Removed from playlist", "info", undefined, {
-          label: "Undo",
-          run: () => useLibrary.getState().restoreTrackInPlaylist(playlistId, track, index),
-        });
-      },
-    },
-    ...songItems,
-  ];
-}
+import { type MenuItem, useUI } from "../stores/ui";
 
 function searchForSongs() {
   useNavigation.getState().navigate({ name: "home" });
@@ -123,7 +79,7 @@ export function PlaylistView() {
         useUI.getState().toast("Playlist added to queue");
       },
     },
-    ...playlistMenuItems(playlist.id, playlist.pinned),
+    ...playlistHeaderItems(playlist),
   ];
 
   return (
@@ -175,7 +131,7 @@ export function PlaylistView() {
                 song={toSong(track)}
                 current={track.id === currentId}
                 playing={playing}
-                menu={trackMenu(playlist.id, tracks, index)}
+                menu={() => playlistTrackMenuItems(playlist, index)}
                 onPlay={() => playFromRow(tracks, index, playlist.id)}
                 artwork
                 showAlbum

@@ -1,6 +1,8 @@
 import { Cancel01Icon, MusicNote01Icon, ThumbsDownIcon } from "@hugeicons/core-free-icons";
+import { type MenuSource, openMenuAtPointer, openMenuFromKey } from "./ContextMenu";
 import { Icon } from "./Icon";
 import { upgradeArtwork } from "../lib/artwork";
+import { historyMenuItems, songOf, trackMenuItems } from "../lib/trackActions";
 import { useLibrary } from "../stores/library";
 import { currentTrack, usePlayer } from "../stores/player";
 import { useUI } from "../stores/ui";
@@ -47,11 +49,16 @@ type TrackRowProps = {
   onPlay: () => void;
   remove?: { label: string; onRemove: () => void };
   onDontPlay?: () => void;
+  menu?: MenuSource;
 };
 
-function TrackRow({ track, onPlay, remove, onDontPlay }: TrackRowProps) {
+function TrackRow({ track, onPlay, remove, onDontPlay, menu }: TrackRowProps) {
   return (
-    <li className="flex items-center gap-1 rounded-lg hover:bg-hover">
+    <li
+      className="flex items-center gap-1 rounded-lg hover:bg-hover"
+      onContextMenu={menu ? (event) => openMenuAtPointer(event, menu) : undefined}
+      onKeyDown={menu ? (event) => void openMenuFromKey(event, menu) : undefined}
+    >
       <button type="button" onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1.5 text-left">
         <Cover thumb={track.thumb} className="h-10 w-10 shrink-0 rounded-[4px] bg-wash" />
         <span className="min-w-0">
@@ -79,6 +86,16 @@ function TrackRow({ track, onPlay, remove, onDontPlay }: TrackRowProps) {
   );
 }
 
+function confirmClearHistory() {
+  useUI.getState().openDialog({
+    title: "Clear Recently played?",
+    body: "Your Replay stats are kept.",
+    confirmLabel: "Clear",
+    danger: true,
+    onConfirm: () => useLibrary.getState().clearHistory(),
+  });
+}
+
 function QueuePanel() {
   const queue = usePlayer((state) => state.queue);
   const index = usePlayer((state) => state.index);
@@ -90,7 +107,6 @@ function QueuePanel() {
   const playTrack = usePlayer((state) => state.playTrack);
   const history = useLibrary((state) => state.history);
   const removeFromHistory = useLibrary((state) => state.removeFromHistory);
-  const clearHistory = useLibrary((state) => state.clearHistory);
   const current = queue[index];
   const upcoming = queue.slice(index + 1);
   const recent = history.filter((track) => track.id !== current?.id);
@@ -126,6 +142,7 @@ function QueuePanel() {
                   onPlay={() => jumpTo(at)}
                   remove={{ label: "Remove from queue", onRemove: () => removeAt(at) }}
                   onDontPlay={at >= autoplayStart ? () => dontPlay(at) : undefined}
+                  menu={() => trackMenuItems(songOf(track))}
                 />
               );
             })}
@@ -142,7 +159,7 @@ function QueuePanel() {
             <button
               type="button"
               aria-label="Clear recently played"
-              onClick={clearHistory}
+              onClick={confirmClearHistory}
               className="text-[12px] text-ink-2 motion-safe:transition-colors hover:text-ink-1"
             >
               Clear
@@ -161,6 +178,7 @@ function QueuePanel() {
                 track={track}
                 onPlay={() => playTrack(track)}
                 remove={{ label: "Remove from Recently played", onRemove: () => removeFromHistory(track.id) }}
+                menu={() => historyMenuItems(track)}
               />
             ))}
           </ul>

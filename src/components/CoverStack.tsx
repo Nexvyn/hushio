@@ -1,6 +1,7 @@
 import type { IconSvgElement } from "@hugeicons/react";
 import { PlayIcon } from "@hugeicons/core-free-icons";
-import { ActionMenu, type MenuItem } from "./ActionMenu";
+import { ActionMenu } from "./ActionMenu";
+import { type MenuSource, openMenuAtPointer } from "./ContextMenu";
 import { Icon } from "./Icon";
 import { ROUND } from "./BrowseHero";
 
@@ -19,7 +20,7 @@ type CoverStackProps = {
   fallback: IconSvgElement;
   onOpen: () => void;
   onPlay?: () => void;
-  menu?: MenuItem[];
+  menu?: MenuSource;
 };
 
 function CoverFan({ covers, fallback }: { covers: string[]; fallback: IconSvgElement }) {
@@ -47,7 +48,10 @@ function CoverFan({ covers, fallback }: { covers: string[]; fallback: IconSvgEle
 
 export function CoverStack({ title, subtitle, covers, fallback, onOpen, onPlay, menu }: CoverStackProps) {
   return (
-    <article className="group relative rounded-xl motion-safe:transition-colors [@media(hover:hover)]:hover:bg-wash">
+    <article
+      className="group relative rounded-xl motion-safe:transition-colors [@media(hover:hover)]:hover:bg-wash"
+      onContextMenu={menu ? (event) => openMenuAtPointer(event, menu) : undefined}
+    >
       <button
         type="button"
         aria-label={`Open ${title}`}

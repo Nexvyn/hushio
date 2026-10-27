@@ -126,7 +126,7 @@ describe("delete playlist dialog", () => {
     useLibrary.setState({ playlists: [roadTrip] });
     openDialog(() => openDeletePlaylist("p1"));
 
-    expect(screen.getByText('Deleting "Road trip" keeps all of its songs.')).toBeTruthy();
+    expect(screen.getByText("This can't be undone. The tracks themselves aren't affected.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 
     expect(useLibrary.getState().playlists).toEqual([]);

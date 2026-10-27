@@ -1,3 +1,4 @@
+import { ContextMenu } from "../components/ContextMenu";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -80,7 +81,7 @@ afterEach(() => {
 describe("RemotePlaylistView", () => {
   it("shows the title, credit and meta", async () => {
     getPlaylistPage.mockResolvedValue(playlistPage(songs(2)));
-    render(<RemotePlaylistView />);
+    render(<><RemotePlaylistView /><ContextMenu /></>);
 
     expect(await screen.findByRole("heading", { level: 1, name: "Late Night Mix" })).toBeTruthy();
     expect(screen.getByText("Mira • Ana")).toBeTruthy();
@@ -91,7 +92,7 @@ describe("RemotePlaylistView", () => {
 
   it("says when the playlist has no tracks", async () => {
     getPlaylistPage.mockResolvedValue(playlistPage([]));
-    render(<RemotePlaylistView />);
+    render(<><RemotePlaylistView /><ContextMenu /></>);
 
     expect(await screen.findByText("This playlist is empty.")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Play" }) as HTMLButtonElement).disabled).toBe(true);
@@ -101,7 +102,7 @@ describe("RemotePlaylistView", () => {
     const user = userEvent.setup();
     const tracks = songs(3);
     getPlaylistPage.mockResolvedValue(playlistPage(tracks));
-    render(<RemotePlaylistView />);
+    render(<><RemotePlaylistView /><ContextMenu /></>);
 
     await user.click(await screen.findByRole("button", { name: "Play" }));
     expect(playQueue).toHaveBeenLastCalledWith(tracks, 0, undefined);
@@ -115,7 +116,7 @@ describe("RemotePlaylistView", () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
     const tracks = songs(3);
     getPlaylistPage.mockResolvedValue(playlistPage(tracks));
-    render(<RemotePlaylistView />);
+    render(<><RemotePlaylistView /><ContextMenu /></>);
 
     await user.click(await screen.findByRole("button", { name: "Shuffle" }));
 
@@ -128,10 +129,10 @@ describe("RemotePlaylistView", () => {
     const user = userEvent.setup();
     const tracks = songs(2);
     getPlaylistPage.mockResolvedValue(playlistPage(tracks));
-    render(<RemotePlaylistView />);
+    render(<><RemotePlaylistView /><ContextMenu /></>);
 
     await user.click(await screen.findByRole("button", { name: "More options" }));
-    await user.click(screen.getByRole("button", { name: "Add all to queue" }));
+    await user.click(screen.getByRole("menuitem", { name: "Add all to queue" }));
 
     expect(addToQueue).toHaveBeenCalledWith(tracks);
     expect(useUI.getState().toasts.map((toast) => toast.message)).toContain("Playlist added to queue");
@@ -140,10 +141,10 @@ describe("RemotePlaylistView", () => {
   it("copies the playlist link", async () => {
     const user = userEvent.setup();
     getPlaylistPage.mockResolvedValue(playlistPage(songs(1)));
-    render(<RemotePlaylistView />);
+    render(<><RemotePlaylistView /><ContextMenu /></>);
 
     await user.click(await screen.findByRole("button", { name: "More options" }));
-    await user.click(screen.getByRole("button", { name: "Copy link" }));
+    await user.click(screen.getByRole("menuitem", { name: "Copy link" }));
 
     expect(await navigator.clipboard.readText()).toBe("https://music.youtube.com/playlist?list=PLx");
   });
@@ -151,7 +152,7 @@ describe("RemotePlaylistView", () => {
   it("shows the error state and retries", async () => {
     const user = userEvent.setup();
     getPlaylistPage.mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce(playlistPage(songs(1)));
-    render(<RemotePlaylistView />);
+    render(<><RemotePlaylistView /><ContextMenu /></>);
 
     expect(await screen.findByText("Couldn't load this playlist")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Try again" }));

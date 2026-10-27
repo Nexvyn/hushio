@@ -1,8 +1,12 @@
 import { ListStartIcon, PlayListAddIcon } from "@hugeicons/core-free-icons";
+import { ActionMenu } from "./ActionMenu";
+import { openMenuAtPointer, openMenuFromKey } from "./ContextMenu";
 import { Icon } from "./Icon";
+import { browseMenuItems } from "../lib/browseActions";
 import { fmtTime } from "../lib/format";
 import { openBrowse, playSong } from "../lib/searchActions";
 import type { BrowseItem, BrowseType, SearchSong } from "../lib/searchParse";
+import { trackMenuItems } from "../lib/trackActions";
 import { usePlayer } from "../stores/player";
 import { useUI } from "../stores/ui";
 
@@ -28,8 +32,13 @@ export function Artwork({ src, round = false, size = "h-10 w-10" }: { src: strin
 export function SongRow({ song, query }: { song: SearchSong; query: string }) {
   const addToQueue = usePlayer((state) => state.addToQueue);
   const toast = useUI((state) => state.toast);
+  const menu = () => trackMenuItems(song);
   return (
-    <div className="group flex items-center gap-1 rounded-[10px] pr-1 hover:bg-wash/60">
+    <div
+      className="group flex items-center gap-1 rounded-[10px] pr-1 hover:bg-wash/60"
+      onContextMenu={(event) => openMenuAtPointer(event, menu)}
+      onKeyDown={(event) => void openMenuFromKey(event, menu)}
+    >
       <button type="button" onClick={() => playSong(song, query)} className={rowClass}>
         <Artwork src={song.thumb} />
         <span className="min-w-0 flex-1">
@@ -64,14 +73,22 @@ export function SongRow({ song, query }: { song: SearchSong; query: string }) {
       >
         <Icon icon={PlayListAddIcon} />
       </button>
+      <ActionMenu items={menu} label={`More options for ${song.title}`} />
     </div>
   );
 }
 
 export function BrowseRow({ item, query }: { item: BrowseItem; query: string }) {
   const subtitle = item.subtitle ? `${TYPE_LABEL[item.type]} • ${item.subtitle}` : TYPE_LABEL[item.type];
+  const menu = () => browseMenuItems(item);
   return (
-    <button type="button" onClick={() => openBrowse(item, query)} className={`${rowClass} w-full`}>
+    <button
+      type="button"
+      onClick={() => openBrowse(item, query)}
+      onContextMenu={(event) => openMenuAtPointer(event, menu)}
+      onKeyDown={(event) => void openMenuFromKey(event, menu)}
+      className={`${rowClass} w-full`}
+    >
       <Artwork src={item.thumb} round={item.type === "artist"} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[13px] font-medium text-ink-1">{item.title}</span>

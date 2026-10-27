@@ -1,3 +1,4 @@
+import { ContextMenu } from "./ContextMenu";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
@@ -32,7 +33,6 @@ vi.mock("../lib/persist", () => ({
 }));
 
 import { PlayerBar } from "./PlayerBar";
-import { PlaylistPicker } from "./PlaylistPicker";
 import { usePlayer } from "../stores/player";
 import { useUI } from "../stores/ui";
 
@@ -52,23 +52,30 @@ afterEach(cleanup);
 
 describe("Add to playlist button in the player bar", () => {
   it("is disabled when nothing is playing", () => {
-    render(<PlayerBar />);
+    render(<><PlayerBar /><ContextMenu /></>);
 
     expect((screen.getByRole("button", { name: "Add to playlist" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("opens the playlist picker with the playing song", () => {
+  it("opens the add-to-playlist menu for the playing song", () => {
     usePlayer.setState({ queue: [track], index: 0 });
-    render(
-      <>
-        <PlayerBar />
-        <PlaylistPicker />
-      </>,
-    );
+    render(<><PlayerBar /><ContextMenu /></>);
 
     fireEvent.click(screen.getByRole("button", { name: "Add to playlist" }));
 
-    expect(useUI.getState().playlistPicker).toEqual([track]);
-    expect(screen.getByRole("dialog", { name: "Add to playlists" })).toBeTruthy();
+    expect(screen.getByRole("menu", { name: "Night Drive" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Add to Liked Songs" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Add to playlist" })).toBeTruthy();
+  });
+
+  it("closes its menu on a second press", () => {
+    usePlayer.setState({ queue: [track], index: 0 });
+    render(<><PlayerBar /><ContextMenu /></>);
+
+    const button = screen.getByRole("button", { name: "Add to playlist" });
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 });

@@ -1,9 +1,10 @@
 import { PlayIcon } from "@hugeicons/core-free-icons";
-import { ActionMenu, type MenuItem } from "./ActionMenu";
+import { ActionMenu } from "./ActionMenu";
 import { EqBars } from "./EqBars";
 import { ExplicitBadge } from "./ExplicitBadge";
 import { Icon } from "./Icon";
 import { LikeButton } from "./LikeButton";
+import { type MenuSource, openMenuAtPointer, openMenuFromKey } from "./ContextMenu";
 import { Artwork } from "./SearchRows";
 import { fmtTime } from "../lib/format";
 import type { SearchSong } from "../lib/searchParse";
@@ -14,7 +15,7 @@ type TrackRowProps = {
   song: SearchSong;
   current: boolean;
   playing: boolean;
-  menu: MenuItem[];
+  menu: MenuSource;
   onPlay: () => void;
   artwork?: boolean;
   showAlbum?: boolean;
@@ -37,6 +38,10 @@ export function TrackRow({
   return (
     <li
       {...rowProps}
+      onContextMenu={(event) => openMenuAtPointer(event, menu)}
+      onKeyDown={(event) => {
+        if (!openMenuFromKey(event, menu)) rowProps?.onKeyDown(event);
+      }}
       className={`group relative isolate flex h-16 items-center gap-1 rounded-[10px] pr-2 motion-safe:transition-colors after:absolute after:bottom-0 after:right-3 after:h-px after:bg-card-edge/[0.06] last:after:hidden ${dividerInset} ${current ? "bg-hover" : "[@media(hover:hover)]:hover:bg-wash"}`}
     >
       {artwork && song.thumb && (

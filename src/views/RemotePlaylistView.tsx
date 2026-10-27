@@ -2,10 +2,11 @@ import { Copy01Icon, Download01Icon, PlayListAddIcon } from "@hugeicons/core-fre
 import { BrowseHero, HeroControls } from "../components/BrowseHero";
 import { BrowseSkeleton } from "../components/BrowseSkeleton";
 import { ErrorState } from "../components/ErrorState";
-import type { MenuItem } from "../components/ActionMenu";
+import type { MenuItem } from "../stores/ui";
 import { TrackRow } from "../components/TrackRow";
 import { getPlaylistPage } from "../lib/browse";
-import { copyLink, queueAll, songMenu } from "../lib/browseActions";
+import { copyLink, queueAll} from "../lib/browseActions";
+import { trackMenuItems } from "../lib/trackActions";
 import { heroCover, pageTitleSize, youtubePlaylistLink } from "../lib/browseText";
 import { useBrowseLoad } from "../lib/useBrowseLoad";
 import { useBrowsePlayback } from "../lib/useBrowsePlayback";
@@ -78,7 +79,7 @@ function PlaylistContent({ page, playlistId }: { page: PlaylistPage; playlistId:
                 playing={playing}
                 artwork
                 showAlbum
-                menu={songMenu(song)}
+                menu={() => trackMenuItems(song)}
                 onPlay={() => playAt(index)}
               />
             ))}

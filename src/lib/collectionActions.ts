@@ -1,19 +1,25 @@
 import {
+  ClipboardIcon,
   Delete02Icon,
+  FileUploadIcon,
+  Folder01Icon,
   FolderAddIcon,
+  FolderOpenIcon,
   PencilEdit02Icon,
   PinIcon,
   PinOffIcon,
   PlayListAddIcon,
 } from "@hugeicons/core-free-icons";
-import type { MenuItem } from "../components/ActionMenu";
+import { APP_NAME } from "./app";
 import { shortTitle } from "./browseText";
 import { addSongsToPlaylists } from "./devicePlaylists";
+import { plural } from "./plural";
 import type { SearchSong } from "./searchParse";
-import { type LibraryTrack, type LikeInput, useLibrary } from "../stores/library";
+import { coversOf } from "./collections";
+import { type LibraryTrack, type LikeInput, type Playlist, type PinnedSingles, useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
 import { usePlayer } from "../stores/player";
-import { useUI } from "../stores/ui";
+import { type MenuItem, useUI } from "../stores/ui";
 
 export function toSong(track: LibraryTrack): SearchSong {
   return { ...track, artistId: null, albumId: null, isVideo: false };
@@ -28,9 +34,46 @@ export function playCollection(tracks: LibraryTrack[], source: string, shuffle: 
 
 export function createMenuItems(): MenuItem[] {
   return [
+    {
+      label: "Playlist",
+      note: "Create a playlist with songs",
+      icon: PlayListAddIcon,
+      onSelect: openCreatePlaylist,
+    },
+    { label: "Folder", note: "Organize your playlists", icon: Folder01Icon, onSelect: openCreateFolder },
+    {
+      label: "Import a playlist link or song list",
+      note: "Paste a playlist link or song names",
+      icon: ClipboardIcon,
+      disabled: true,
+    },
+    { label: "Import a file", note: `.csv, .txt, .m3u8 or ${APP_NAME} .json`, icon: FileUploadIcon, disabled: true },
+  ];
+}
+
+export function panelMenuItems(): MenuItem[] {
+  return [
+    { label: "Your Library", header: true },
     { label: "Create playlist", icon: PlayListAddIcon, onSelect: openCreatePlaylist },
     { label: "Create folder", icon: FolderAddIcon, onSelect: openCreateFolder },
   ];
+}
+
+export function openNewPlaylistWith(track: SearchSong) {
+  const suggested = `Playlist ${useLibrary.getState().playlists.length + 1}`;
+  useUI.getState().openDialog({
+    title: "New playlist",
+    body: `Add "${shortTitle(track.title)}" to a new playlist.`,
+    initialValue: suggested,
+    placeholder: "Playlist name",
+    confirmLabel: "Create",
+    onConfirm: (value) => {
+      const library = useLibrary.getState();
+      const id = library.createPlaylist(value.trim() || suggested);
+      library.addToPlaylist(id, track);
+      useNavigation.getState().navigate({ name: "playlist", param: id });
+    },
+  });
 }
 
 export function openCreatePlaylist() {
@@ -90,8 +133,8 @@ export function openDeletePlaylist(id: string) {
   const playlist = useLibrary.getState().playlists.find((item) => item.id === id);
   if (!playlist) return;
   useUI.getState().openDialog({
-    title: "Delete playlist?",
-    body: `Deleting "${playlist.name}" keeps all of its songs.`,
+    title: `Delete "${playlist.name}"?`,
+    body: "This can't be undone. The tracks themselves aren't affected.",
     confirmLabel: "Delete",
     danger: true,
     onConfirm: () => {
@@ -115,22 +158,121 @@ export function openDeleteFolder(id: string) {
   });
 }
 
-export function playlistMenuItems(id: string, pinned: boolean): MenuItem[] {
+export function playlistHeaderItems(playlist: Playlist): MenuItem[] {
+  const count = playlist.tracks.length;
+  return [
+    { label: "Rename", icon: PencilEdit02Icon, onSelect: () => openRenamePlaylist(playlist.id) },
+    { label: "Delete playlist", icon: Delete02Icon, danger: true, onSelect: () => openDeletePlaylist(playlist.id) },
+    {
+      label: playlist.name,
+      subject: {
+        title: playlist.name,
+        subtitle: `Playlist · ${plural(count, "song", "songs")}`,
+        thumb: coversOf(playlist.tracks, 1)[0] ?? null,
+      },
+    },
+  ];
+}
+
+export function playlistOwnItems(playlist: Playlist): MenuItem[] {
+  const folders = useLibrary.getState().folders;
+  const folder = folders.find((item) => item.id === playlist.folderId);
+  const subject: MenuItem = {
+    label: playlist.name,
+    subject: {
+      title: playlist.name,
+      subtitle: `Playlist · ${plural(playlist.tracks.length, "song", "songs")}`,
+      thumb: coversOf(playlist.tracks, 1)[0] ?? null,
+    },
+  };
+  const folderItems: MenuItem[] =
+    folders.length === 0
+      ? []
+      : [
+          { label: "Folder", header: true, separatorBefore: true },
+          ...folders.map((item) => ({
+            label: item.name,
+            icon: FolderOpenIcon,
+            checked: item.id === playlist.folderId,
+            onSelect: () => useLibrary.getState().setPlaylistFolder(playlist.id, item.id),
+          })),
+        ];
+
+  if (folder) {
+    return [
+      { label: "Rename", icon: PencilEdit02Icon, onSelect: () => openRenamePlaylist(playlist.id) },
+      {
+        label: "Remove from folder",
+        icon: FolderOpenIcon,
+        danger: true,
+        onSelect: () => {
+          const previous = playlist.folderId;
+          useLibrary.getState().setPlaylistFolder(playlist.id, null);
+          useUI.getState().toast("Removed from folder", "info", undefined, {
+            label: "Undo",
+            run: () => useLibrary.getState().setPlaylistFolder(playlist.id, previous),
+          });
+        },
+      },
+      subject,
+      ...folderItems,
+      { label: "Delete playlist", icon: Delete02Icon, separatorBefore: true, onSelect: () => openDeletePlaylist(playlist.id) },
+    ];
+  }
+
+  return [
+    { label: "Rename", icon: PencilEdit02Icon, onSelect: () => openRenamePlaylist(playlist.id) },
+    { label: "Delete playlist", icon: Delete02Icon, danger: true, onSelect: () => openDeletePlaylist(playlist.id) },
+    subject,
+    ...folderItems,
+  ];
+}
+
+export function playlistMenuItems(playlist: Playlist): MenuItem[] {
   return [
     {
-      label: pinned ? "Unpin" : "Pin to top",
-      icon: pinned ? PinOffIcon : PinIcon,
-      onSelect: () => useLibrary.getState().togglePinPlaylist(id),
+      label: playlist.pinned ? "Unpin playlist" : "Pin playlist",
+      icon: playlist.pinned ? PinOffIcon : PinIcon,
+      onSelect: () => useLibrary.getState().togglePinPlaylist(playlist.id),
     },
-    { label: "Rename", icon: PencilEdit02Icon, onSelect: () => openRenamePlaylist(id) },
-    { label: "Delete", icon: Delete02Icon, separatorBefore: true, onSelect: () => openDeletePlaylist(id) },
+    ...playlistOwnItems(playlist),
   ];
 }
 
 export function folderMenuItems(id: string): MenuItem[] {
   return [
     { label: "Rename folder", icon: PencilEdit02Icon, onSelect: () => openRenameFolder(id) },
-    { label: "Delete folder", icon: Delete02Icon, separatorBefore: true, onSelect: () => openDeleteFolder(id) },
+    { label: "Delete folder", icon: Delete02Icon, danger: true, separatorBefore: true, onSelect: () => openDeleteFolder(id) },
+  ];
+}
+
+export function pinnedSingleMenuItems(key: keyof PinnedSingles, pinned: boolean): MenuItem[] {
+  return [
+    {
+      label: pinned ? "Unpin" : "Pin to top",
+      icon: pinned ? PinOffIcon : PinIcon,
+      onSelect: () => useLibrary.getState().togglePinSingle(key),
+    },
+  ];
+}
+
+export function artistRowMenuItems(artist: { id: string; name: string }): MenuItem[] {
+  return [
+    {
+      label: "Remove from your library",
+      icon: Delete02Icon,
+      danger: true,
+      onSelect: () =>
+        useUI.getState().openDialog({
+          title: `Remove “${artist.name}”?`,
+          confirmLabel: "Remove",
+          danger: true,
+          onConfirm: () => {
+            useLibrary.getState().unfollowArtist(artist.id);
+            useUI.getState().toast(`Removed “${artist.name}” from your library`);
+          },
+        }),
+    },
   ];
 }
 

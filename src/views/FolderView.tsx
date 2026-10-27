@@ -86,7 +86,7 @@ export function FolderView() {
                 covers={coversOf(playlist.tracks, 3)}
                 fallback={PlayListIcon}
                 onOpen={() => navigate({ name: "playlist", param: playlist.id })}
-                menu={playlistMenuItems(playlist.id, playlist.pinned)}
+                menu={playlistMenuItems(playlist)}
               />
             ))}
           </div>

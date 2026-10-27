@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect } from "react";
+import { ContextMenu } from "./components/ContextMenu";
 import { Dialog } from "./components/Dialog";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PlayerBar } from "./components/PlayerBar";
@@ -138,6 +139,7 @@ export default function App() {
       <Toasts />
       <Dialog />
       <PlaylistPicker />
+      <ContextMenu />
     </div>
   );
 }

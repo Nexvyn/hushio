@@ -1,6 +1,28 @@
 import { create } from "zustand";
+import type { IconSvgElement } from "@hugeicons/react";
 import type { SearchFilter } from "../lib/searchParse";
 import type { Track } from "../types";
+
+export type MenuSubject = { title: string; subtitle?: string; thumb?: string | null; round?: boolean };
+
+export type MenuItem = {
+  label: string;
+  icon?: IconSvgElement;
+  note?: string;
+  onSelect?: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+  checked?: boolean;
+  toggle?: boolean;
+  header?: boolean;
+  separatorBefore?: boolean;
+  children?: MenuItem[];
+  subject?: MenuSubject;
+};
+
+export type ContextMenuOptions = { above?: boolean; alignRight?: boolean; owner?: string };
+
+export type ContextMenuState = ContextMenuOptions & { items: MenuItem[]; x: number; y: number };
 
 export type ToastKind = "info" | "success" | "error" | "warning";
 
@@ -39,7 +61,9 @@ type UIState = {
   osFullscreen: boolean;
   toasts: Toast[];
   pendingToasts: Toast[];
-  contextMenu: unknown;
+  contextMenu: ContextMenuState | null;
+  openContextMenu: (x: number, y: number, items: MenuItem[], options?: ContextMenuOptions) => void;
+  closeContextMenu: () => void;
   playlistPicker: Track[] | null;
   dialog: DialogRequest | null;
   searchQuery: string;
@@ -72,6 +96,13 @@ export const useUI = create<UIState>()((set) => ({
   dialog: null,
   searchQuery: "",
   searchFilter: "all",
+
+  openContextMenu: (x, y, items, options = {}) => {
+    if (items.length === 0) return;
+    set({ contextMenu: { ...options, items, x, y } });
+  },
+
+  closeContextMenu: () => set({ contextMenu: null }),
 
   setSearchQuery: (query) => set({ searchQuery: query }),
 

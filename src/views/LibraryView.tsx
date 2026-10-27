@@ -7,18 +7,22 @@ import {
   HardDriveIcon,
   LibraryIcon,
   ListMusicIcon,
-  PinIcon,
-  PinOffIcon,
   PlayListIcon,
   PlusSignIcon,
 } from "@hugeicons/core-free-icons";
-import { ActionMenu, type MenuItem } from "../components/ActionMenu";
+import { ActionMenu } from "../components/ActionMenu";
 import { CollectionHero } from "../components/CollectionHero";
 import { CoverStack, STACK_GRID } from "../components/CoverStack";
 import { EmptyState } from "../components/EmptyState";
 import { PILL } from "../components/BrowseHero";
 import { coversOf, pinnedFirst, playlistsIn, unfiledPlaylists } from "../lib/collections";
-import { createMenuItems, folderMenuItems, playCollection, playlistMenuItems } from "../lib/collectionActions";
+import {
+  createMenuItems,
+  folderMenuItems,
+  pinnedSingleMenuItems,
+  playCollection,
+  playlistMenuItems,
+} from "../lib/collectionActions";
 import { plural } from "../lib/plural";
 import { type PinnedSingles, useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
@@ -34,17 +38,6 @@ type Collection = {
   open: () => void;
   play?: () => void;
 };
-
-function pinMenu(collection: Collection): MenuItem[] {
-  const pin = collection.pin;
-  return [
-    {
-      label: collection.pinned ? "Unpin" : "Pin to top",
-      icon: collection.pinned ? PinOffIcon : PinIcon,
-      onSelect: () => useLibrary.getState().togglePinSingle(pin),
-    },
-  ];
-}
 
 function Shelf({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -130,7 +123,7 @@ export function LibraryView() {
               fallback={collection.fallback}
               onOpen={collection.open}
               onPlay={collection.play}
-              menu={pinMenu(collection)}
+              menu={() => pinnedSingleMenuItems(collection.pin, collection.pinned)}
             />
           ))}
         </div>
@@ -168,7 +161,7 @@ export function LibraryView() {
                 covers={coversOf(playlist.tracks, 3)}
                 fallback={PlayListIcon}
                 onOpen={() => navigate({ name: "playlist", param: playlist.id })}
-                menu={playlistMenuItems(playlist.id, playlist.pinned)}
+                menu={playlistMenuItems(playlist)}
               />
             ))}
           </div>

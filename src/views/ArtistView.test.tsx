@@ -1,3 +1,4 @@
+import { ContextMenu } from "../components/ContextMenu";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -66,7 +67,7 @@ function artistPage(overrides: Partial<ArtistPage> = {}): ArtistPage {
 
 function renderArtist(page: ArtistPage) {
   getArtistPage.mockResolvedValue(page);
-  render(<ArtistView />);
+  render(<><ArtistView /><ContextMenu /></>);
 }
 
 beforeEach(() => {
@@ -88,7 +89,7 @@ afterEach(() => {
 describe("ArtistView", () => {
   it("shows a loading state until the page arrives", () => {
     getArtistPage.mockReturnValue(new Promise(() => {}));
-    render(<ArtistView />);
+    render(<><ArtistView /><ContextMenu /></>);
 
     expect(screen.getByRole("status", { name: "Loading" })).toBeTruthy();
   });
@@ -155,7 +156,7 @@ describe("ArtistView", () => {
     renderArtist(artistPage());
 
     await user.click(await screen.findByRole("button", { name: "More options" }));
-    await user.click(screen.getByRole("button", { name: "Add all to queue" }));
+    await user.click(screen.getByRole("menuitem", { name: "Add all to queue" }));
 
     expect(addToQueue).toHaveBeenCalledWith(songs(3));
     expect(useUI.getState().toasts.map((toast) => toast.message)).toContain("Added 3 songs to queue");
@@ -167,12 +168,12 @@ describe("ArtistView", () => {
     renderArtist(artistPage());
 
     await user.click(await screen.findByRole("button", { name: "More options" }));
-    await user.click(screen.getByRole("button", { name: "Follow artist" }));
+    await user.click(screen.getByRole("menuitem", { name: "Follow artist" }));
     expect(useLibrary.getState().followedArtists.map((artist) => artist.id)).toEqual(["UCnova"]);
     expect(useUI.getState().toasts.map((toast) => toast.message)).toContain("Added to your library");
 
     await user.click(screen.getByRole("button", { name: "More options" }));
-    await user.click(screen.getByRole("button", { name: "Unfollow artist" }));
+    await user.click(screen.getByRole("menuitem", { name: "Unfollow artist" }));
     expect(useLibrary.getState().followedArtists).toEqual([]);
     expect(useUI.getState().toasts.map((toast) => toast.message)).toContain("Removed from your library");
   });
@@ -205,7 +206,7 @@ describe("ArtistView", () => {
   it("shows the error state and retries the load", async () => {
     const user = userEvent.setup();
     getArtistPage.mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce(artistPage());
-    render(<ArtistView />);
+    render(<><ArtistView /><ContextMenu /></>);
 
     expect(await screen.findByText("Couldn't load this artist")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Try again" }));

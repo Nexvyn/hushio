@@ -6,7 +6,7 @@ import { PILL, ROUND } from "../components/BrowseHero";
 import { TrackRow } from "../components/TrackRow";
 import { coversOf, topArtist } from "../lib/collections";
 import { playCollection, toSong } from "../lib/collectionActions";
-import { songMenu } from "../lib/browseActions";
+import { trackMenuItems } from "../lib/trackActions";
 import { fmtTotal } from "../lib/format";
 import { plural } from "../lib/plural";
 import { useLibrary } from "../stores/library";
@@ -81,7 +81,7 @@ export function LikedView() {
                   song={song}
                   current={track.id === currentId}
                   playing={playing}
-                  menu={songMenu(song)}
+                  menu={() => trackMenuItems(song)}
                   onPlay={() => playFromRow(liked, index, LIKED_SOURCE)}
                   artwork
                   showAlbum

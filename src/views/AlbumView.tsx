@@ -3,11 +3,12 @@ import { AboutText } from "../components/AboutText";
 import { BrowseHero, HeroControls } from "../components/BrowseHero";
 import { BrowseSkeleton } from "../components/BrowseSkeleton";
 import { ErrorState } from "../components/ErrorState";
-import type { MenuItem } from "../components/ActionMenu";
+import type { MenuItem } from "../stores/ui";
 import { TrackRow } from "../components/TrackRow";
 import { getAlbumPage } from "../lib/browse";
 import type { ReleasePage } from "../lib/browseParse";
-import { addedMessage, copyLink, queueAll, songMenu } from "../lib/browseActions";
+import { addedMessage, copyLink, queueAll} from "../lib/browseActions";
+import { trackMenuItems } from "../lib/trackActions";
 import {
   albumMeta,
   heroCover,
@@ -114,7 +115,7 @@ function AlbumContent({ page }: { page: ReleasePage }) {
               song={song}
               current={song.id === current}
               playing={playing}
-              menu={songMenu(song)}
+              menu={() => trackMenuItems(song)}
               onPlay={() => playAt(index)}
             />
           ))}

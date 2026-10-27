@@ -12,11 +12,12 @@ import { BrowseSkeleton } from "../components/BrowseSkeleton";
 import { ErrorState } from "../components/ErrorState";
 import { HomeShelfView } from "../components/HomeShelves";
 import { Icon } from "../components/Icon";
-import type { MenuItem } from "../components/ActionMenu";
+import type { MenuItem } from "../stores/ui";
 import { TrackRow } from "../components/TrackRow";
 import { getArtistPage } from "../lib/browse";
 import type { ArtistPage } from "../lib/browseParse";
-import { addedMessage, queueAll, songMenu } from "../lib/browseActions";
+import { addedMessage, queueAll} from "../lib/browseActions";
+import { trackMenuItems } from "../lib/trackActions";
 import { artistTitleSize, heroCover, listenersChip, subscriberChip } from "../lib/browseText";
 import { useBrowseLoad } from "../lib/useBrowseLoad";
 import { useBrowsePlayback } from "../lib/useBrowsePlayback";
@@ -133,7 +134,7 @@ function ArtistContent({ page }: { page: ArtistPage }) {
                   playing={playing}
                   artwork
                   dividerInset="after:left-[80px]"
-                  menu={songMenu(song)}
+                  menu={() => trackMenuItems(song)}
                   onPlay={() => playAt(index)}
                 />
               ))}

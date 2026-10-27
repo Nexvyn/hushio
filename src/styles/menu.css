@@ -1,0 +1,96 @@
+.menu-sheet {
+  transform-origin: var(--menu-origin, top left);
+  animation: menu-open 170ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+.menu-sheet.is-above {
+  animation-name: menu-open-up;
+}
+
+.menu-sub {
+  animation: menu-slide-right 170ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+.menu-sub.is-flipped {
+  animation-name: menu-slide-left;
+}
+
+.menu-light {
+  position: absolute;
+  top: 0;
+  left: 6px;
+  right: 6px;
+  border-radius: 10px;
+  background: rgb(var(--ink-1) / 0.085);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 190ms cubic-bezier(0.2, 0.9, 0.3, 1),
+    height 190ms cubic-bezier(0.2, 0.9, 0.3, 1),
+    opacity 150ms ease,
+    background-color 150ms ease;
+}
+
+.menu-light.is-on {
+  opacity: 1;
+}
+
+.menu-light[data-danger="true"] {
+  background: rgb(var(--danger) / 0.15);
+}
+
+@keyframes menu-open {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.965);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes menu-open-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.965);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes menu-slide-right {
+  from {
+    transform: translateX(-6px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes menu-slide-left {
+  from {
+    transform: translateX(6px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-sheet,
+  .menu-sub,
+  .menu-light {
+    animation: none;
+    transition: none;
+  }
+}
+
+:root.reduce-motion .menu-sheet,
+:root.reduce-motion .menu-sub,
+:root.reduce-motion .menu-light {
+  animation: none;
+  transition: none;
+}

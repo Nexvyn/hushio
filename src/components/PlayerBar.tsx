@@ -1,3 +1,4 @@
+import { useId } from "react";
 import type { IconSvgElement } from "@hugeicons/react";
 import {
   Loading03Icon,
@@ -18,6 +19,7 @@ import { Icon } from "./Icon";
 import { LikeButton } from "./LikeButton";
 import { upgradeArtwork } from "../lib/artwork";
 import { fmtTime } from "../lib/format";
+import { playerAddMenuItems, songOf } from "../lib/trackActions";
 import { currentTrack, usePlayer, type RepeatMode } from "../stores/player";
 import { useSettings } from "../stores/settings";
 import { useUI } from "../stores/ui";
@@ -58,15 +60,28 @@ function TransportButton({ label, icon, active = false, pressed, disabled = fals
 }
 
 function AddToPlaylist({ track }: { track: Track | null }) {
-  const openPlaylistPicker = useUI((state) => state.openPlaylistPicker);
+  const owner = useId();
+  const open = useUI((state) => state.contextMenu?.owner === owner);
   return (
     <button
       type="button"
       aria-label="Add to playlist"
       title="Add to playlist"
+      aria-haspopup="menu"
+      aria-expanded={open}
       disabled={track === null}
-      onClick={() => {
-        if (track) openPlaylistPicker([track]);
+      onPointerDown={(event) => {
+        if (open) event.stopPropagation();
+      }}
+      onClick={(event) => {
+        const ui = useUI.getState();
+        if (ui.contextMenu?.owner === owner) {
+          ui.closeContextMenu();
+          return;
+        }
+        if (!track) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        ui.openContextMenu(rect.left, rect.top, playerAddMenuItems(songOf(track)), { owner, above: true });
       }}
       className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink-2 hover:text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-[var(--disabled-opacity)] motion-safe:transition-colors"
     >

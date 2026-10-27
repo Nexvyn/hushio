@@ -239,7 +239,7 @@ describe("search, escape and layers", () => {
 
   it("Ctrl+F stays off while a context menu is open", () => {
     const search = searchBox("global-search");
-    useUI.setState({ contextMenu: { x: 0, y: 0 } });
+    useUI.setState({ contextMenu: { items: [{ label: "Play now" }], x: 0, y: 0 } });
 
     const event = press("KeyF", { key: "f", ctrlKey: true });
     search.remove();

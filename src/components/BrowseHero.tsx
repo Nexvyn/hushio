@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { PlayIcon, ShuffleIcon } from "@hugeicons/core-free-icons";
-import { ActionMenu, type MenuItem } from "./ActionMenu";
+import { ActionMenu } from "./ActionMenu";
+import type { MenuItem } from "../stores/ui";
 import { Icon } from "./Icon";
 
 export const ROUND =

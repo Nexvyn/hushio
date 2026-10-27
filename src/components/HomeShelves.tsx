@@ -1,7 +1,11 @@
 import { useId, useRef } from "react";
 import { ArrowLeft01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { Icon } from "./Icon";
+import { openMenuAtPointer, openMenuFromKey } from "./ContextMenu";
+import { browseMenuItems } from "../lib/browseActions";
+import { songOf, trackMenuItems } from "../lib/trackActions";
 import { playFromRow } from "../stores/player";
+import type { MenuItem } from "../stores/ui";
 import { useNavigation } from "../stores/navigation";
 import { openRecentItem } from "../lib/searchActions";
 import type { HomeItem, HomeShelf } from "../lib/home";
@@ -33,7 +37,33 @@ function CardLabel({ title, subtitle }: { title: string; subtitle: string }) {
   );
 }
 
+function shelfMenu(item: HomeItem): MenuItem[] {
+  switch (item.kind) {
+    case "track":
+      return trackMenuItems(songOf(item.track));
+    case "album":
+      return browseMenuItems({ type: "album", browseId: item.id, title: item.title, subtitle: item.artist, thumb: item.thumb });
+    case "artist":
+      return browseMenuItems({ type: "artist", browseId: item.id, title: item.name, subtitle: "", thumb: item.thumb });
+    case "playlist":
+      return browseMenuItems({ type: "playlist", browseId: item.id, title: item.title, subtitle: item.subtitle, thumb: item.thumb });
+  }
+}
+
 function ShelfCard({ item }: { item: HomeItem }) {
+  const menu = () => shelfMenu(item);
+  return (
+    <div
+      className="contents"
+      onContextMenu={(event) => openMenuAtPointer(event, menu)}
+      onKeyDown={(event) => void openMenuFromKey(event, menu)}
+    >
+      <ShelfButton item={item} />
+    </div>
+  );
+}
+
+function ShelfButton({ item }: { item: HomeItem }) {
   const navigate = useNavigation((state) => state.navigate);
   const cardClass = `w-[160px] shrink-0 rounded-[11px] p-1 text-left motion-safe:transition-colors hover:bg-wash active:bg-pressed ${focusRing}`;
   switch (item.kind) {

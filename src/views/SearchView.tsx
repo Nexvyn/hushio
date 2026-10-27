@@ -21,7 +21,8 @@ import { Pill } from "../components/Pill";
 import { platform } from "../lib/bridge";
 import { APP_NAME } from "../lib/app";
 import { cachedSearchPage, peekSearchPage, searchMore } from "../lib/search";
-import { openRecentItem, playSong, submitSearch } from "../lib/searchActions";
+import { openRecentItem, playSong, recentSearchMenuItems, submitSearch } from "../lib/searchActions";
+import { openMenuAtPointer, openMenuFromKey } from "../components/ContextMenu";
 import {
   mergeRows,
   rowKey,
@@ -239,7 +240,12 @@ function RecentSearches({ searches }: { searches: string[] }) {
       </div>
       <ul className="flex flex-wrap gap-2">
         {searches.map((search) => (
-          <li key={search} className="flex h-10 items-center rounded-full bg-wash text-[13px] text-ink-1">
+          <li
+            key={search}
+            onContextMenu={(event) => openMenuAtPointer(event, () => recentSearchMenuItems(search))}
+            onKeyDown={(event) => void openMenuFromKey(event, () => recentSearchMenuItems(search))}
+            className="flex h-10 items-center rounded-full bg-wash text-[13px] text-ink-1"
+          >
             <button type="button" onClick={() => submitSearch(search)} className="h-full pl-4 pr-2">
               {search}
             </button>
