@@ -93,3 +93,42 @@ export async function naturalScrollDirection(): Promise<boolean | null> {
     return null;
   }
 }
+
+export interface LyricsMeta {
+  id: string;
+  title: string;
+  artist: string;
+  album?: string;
+  duration?: number;
+}
+
+export interface SyncedLyricWord {
+  start: number;
+  end: number;
+  text: string;
+}
+
+export interface SyncedLyricBg {
+  text: string;
+  words?: SyncedLyricWord[];
+}
+
+export interface SyncedLyricLine {
+  time: number;
+  text: string;
+  end?: number;
+  words?: SyncedLyricWord[];
+  bg?: SyncedLyricBg;
+  roman?: string;
+}
+
+export interface LyricsResult {
+  synced: SyncedLyricLine[] | null;
+  plain: string | null;
+  source: string;
+  wordSynced: boolean;
+}
+
+export function lyricsGet(meta: LyricsMeta): Promise<LyricsResult | null> {
+  return call<LyricsResult | null>("lyrics_get", { meta });
+}

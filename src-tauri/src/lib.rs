@@ -1,3 +1,4 @@
+mod lyrics;
 mod persist;
 mod stream;
 
@@ -9,6 +10,7 @@ use tracing_subscriber::fmt::format::Writer;
 use tracing_subscriber::fmt::{FmtContext, FormatEvent, FormatFields};
 use tracing_subscriber::registry::LookupSpan;
 
+const APP_NAME: &str = "Hushio";
 const APP_SLUG: &str = "hushio";
 const DATA_DIR_ENV: &str = "HUSHIO_DATA_DIR";
 
@@ -176,6 +178,14 @@ fn stream_register(
     state.register(&id, &url).map_err(str::to_owned)
 }
 
+#[tauri::command]
+async fn lyrics_get(
+    state: State<'_, lyrics::Service>,
+    meta: lyrics::LyricsMeta,
+) -> Result<Option<lyrics::LyricsResult>, String> {
+    Ok(state.get(meta).await)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt()
@@ -195,6 +205,7 @@ pub fn run() {
             let proxy = stream::StreamProxy::new(registry);
             tauri::async_runtime::block_on(proxy.start())?;
             app.manage(proxy);
+            app.manage(lyrics::Service::new()?);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -202,7 +213,8 @@ pub fn run() {
             persist_read,
             persist_write,
             stream_proxy_port,
-            stream_register
+            stream_register,
+            lyrics_get
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
