@@ -13,7 +13,7 @@ import { persistStorage } from "../lib/persist";
 import type { Track } from "../types";
 
 export const HISTORY_LIMIT = 200;
-const LIBRARY_VERSION = 2;
+export const LIBRARY_VERSION = 2;
 
 export type LibraryTrack = Track & { album: string | null; duration: number; explicit: boolean };
 export type LikeInput = Track & Partial<Pick<LibraryTrack, "album" | "duration" | "explicit">>;
@@ -49,7 +49,7 @@ export type Playlist = {
 
 export type Folder = { id: string; name: string };
 
-type LibraryValues = {
+export type LibraryValues = {
   liked: LibraryTrack[];
   history: LibraryTrack[];
   followedArtists: FollowedArtist[];

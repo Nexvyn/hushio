@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { persistStorage } from "../lib/persist";
+import { type MatchLanguage } from "../lib/importLanguage";
 import { applyTheme, type ThemeMode } from "../lib/theme";
 
 export const DEVICE_SETTINGS_KEYS = [
@@ -51,6 +52,7 @@ export type SettingsValues = {
   downloadQuality: DownloadQuality;
   exportDownloads: boolean;
   unlimitedSync: boolean;
+  matchLanguage: MatchLanguage;
 };
 
 export type SettingsState = SettingsValues & {
@@ -130,6 +132,7 @@ export const useSettings = create<SettingsState>()(
       downloadQuality: "lossless",
       exportDownloads: false,
       unlimitedSync: false,
+      matchLanguage: "",
       setCrossfadeSeconds: (value) => set({ crossfadeSeconds: clampCrossfadeSeconds(value) }),
       setPlaybackSpeed: (value) => set({ playbackSpeed: clampPlaybackSpeed(value) }),
       setValue: (key, value) => set({ [key]: value } as Partial<SettingsValues>),

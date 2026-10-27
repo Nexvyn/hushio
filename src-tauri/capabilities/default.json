@@ -22,7 +22,10 @@
         { "url": "https://jnn-pa.googleapis.com/*" },
         { "url": "https://pipedapi.kavin.rocks/*" },
         { "url": "https://pipedapi.adminforge.de/*" },
-        { "url": "https://api.piped.private.coffee/*" }
+        { "url": "https://api.piped.private.coffee/*" },
+        { "url": "https://open.spotify.com/*" },
+        { "url": "https://spotify.link/*" },
+        { "url": "https://api-partner.spotify.com/*" }
       ]
     }
   ]

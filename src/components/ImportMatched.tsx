@@ -1,0 +1,244 @@
+import { useMemo, useState } from "react";
+import {
+  Download01Icon,
+  PlayIcon,
+  PlayListAddIcon,
+  PlayListIcon,
+  PlusSignIcon,
+  RefreshIcon,
+  ShuffleIcon,
+} from "@hugeicons/core-free-icons";
+import { PILL, ROUND } from "./BrowseHero";
+import { ActionMenu } from "./ActionMenu";
+import { Button } from "./Button";
+import { CollectionHero } from "./CollectionHero";
+import { ErrorState } from "./ErrorState";
+import { Icon } from "./Icon";
+import { TrackRow } from "./TrackRow";
+import { queueAll } from "../lib/browseActions";
+import { trackMenuItems } from "../lib/trackActions";
+import { coversOf } from "../lib/collections";
+import { matchLanguageLabel, type MatchLanguage } from "../lib/importLanguage";
+import type { ImportSong } from "../lib/importParse";
+import { APP_NAME } from "../lib/app";
+import { useSongMatches, type MatchState } from "../lib/importMatches";
+import { pendingImport, saveImportedPlaylist, type StagedImport } from "../lib/importStage";
+import { plural } from "../lib/plural";
+import { useBrowsePlayback } from "../lib/useBrowsePlayback";
+import { useNavigation } from "../stores/navigation";
+import { useSettings } from "../stores/settings";
+import { useUI, type MenuItem } from "../stores/ui";
+
+export function ImportMatched({ importId }: { importId: string }) {
+  const playlist = useMemo(() => pendingImport(importId), [importId]);
+  const prefer = useSettings((state) => state.matchLanguage);
+  const [attempt, setAttempt] = useState(0);
+
+  if (!playlist) {
+    return (
+      <div className="pt-10">
+        <ErrorState
+          title="Nothing to import"
+          message="Import a playlist from the + in Your Library: a Spotify link, a CSV file, or a list of songs."
+        />
+      </div>
+    );
+  }
+  return (
+    <MatchedContent
+      playlist={playlist}
+      prefer={prefer}
+      attempt={attempt}
+      onRetry={() => setAttempt((count) => count + 1)}
+    />
+  );
+}
+
+type MatchedContentProps = {
+  playlist: StagedImport;
+  prefer: MatchLanguage;
+  attempt: number;
+  onRetry: () => void;
+};
+
+function MatchedContent({ playlist, prefer, attempt, onRetry }: MatchedContentProps) {
+  const navigate = useNavigation((state) => state.navigate);
+  const songs = playlist.songs;
+  const states = useSongMatches(songs, prefer, attempt);
+  const settled = songs.map((_, index) => states[index]);
+
+  const matched = settled.flatMap((state) => (state?.status === "matched" ? [state.track] : []));
+  const finding = settled.filter((state) => state === undefined).length;
+  const missing = settled.filter((state) => state?.status === "missing").length;
+  const failed = settled.filter((state) => state?.status === "failed").length;
+  const done = finding === 0;
+  const saveReady = done && matched.length > 0;
+  const total = songs.length;
+
+  const positions: number[] = [];
+  let cursor = 0;
+  for (const state of settled) {
+    positions.push(state?.status === "matched" ? cursor : -1);
+    if (state?.status === "matched") cursor += 1;
+  }
+
+  const { current, playing, playAt, shuffle } = useBrowsePlayback(matched);
+
+  const covers = coversOf([
+    { thumb: playlist.thumb ?? null },
+    ...songs.map((song) => ({ thumb: song.thumb ?? null })),
+    ...(done ? matched.map((track) => ({ thumb: track.thumb })) : []),
+  ]);
+  const menu: MenuItem[] = [
+    {
+      label: "Add all to queue",
+      icon: PlayListAddIcon,
+      disabled: matched.length === 0,
+      onSelect: () => queueAll(matched, "Added to queue"),
+    },
+    { label: "Download all", icon: Download01Icon, disabled: true },
+  ];
+
+  function save() {
+    const id = saveImportedPlaylist(playlist.name, matched);
+    useUI.getState().toast(`Saved “${playlist.name}” to your library`, "success");
+    navigate({ name: "playlist", param: id });
+  }
+
+  const facts = [
+    plural(total, "song", "songs"),
+    playlist.owner ? `By ${playlist.owner}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <div className="pb-14">
+      <CollectionHero
+        icon={PlayListIcon}
+        kind="Imported list"
+        title={playlist.name}
+        covers={covers}
+        facts={facts}
+      >
+        <button
+          type="button"
+          aria-label={`Play ${playlist.name}`}
+          disabled={matched.length === 0}
+          onClick={() => playAt(0)}
+          className={PILL}
+        >
+          <Icon icon={PlayIcon} />
+          Play
+        </button>
+        <button
+          type="button"
+          aria-label="Shuffle"
+          title="Shuffle"
+          disabled={matched.length === 0}
+          onClick={shuffle}
+          className={ROUND}
+        >
+          <Icon icon={ShuffleIcon} />
+        </button>
+        <button
+          type="button"
+          disabled={!saveReady}
+          title={saveReady ? "Save the matched songs as a playlist" : "Available once every song is checked"}
+          onClick={save}
+          className={PILL}
+        >
+          <Icon icon={PlusSignIcon} />
+          Save to library
+        </button>
+        <ActionMenu items={menu} label="More options" triggerClass={ROUND} />
+      </CollectionHero>
+
+      <div className="pt-6">
+        <p aria-live="polite" className="px-3 pb-2 text-[13px] text-ink-2">
+          {total === 0 ? "" : progressLine(done, total, finding, matched.length, missing, failed)}
+        </p>
+
+        {playlist.total > songs.length && (
+          <p className="px-3 pb-2 text-[13px] text-ink-2">
+            {`The playlist has ${playlist.total} songs; ${APP_NAME} could read the first ${songs.length}.`}
+          </p>
+        )}
+
+        {done && failed > 0 && (
+          <div className="px-3 pb-2">
+            <Button variant="secondary" onClick={onRetry}>
+              <Icon icon={RefreshIcon} />
+              Try again
+            </Button>
+          </div>
+        )}
+
+        {total === 0 ? (
+          <p className="px-3 py-6 text-[14px] text-ink-2">This playlist has no songs yet.</p>
+        ) : (
+          <ol>
+            {songs.map((song, index) => {
+              const state = settled[index];
+              if (state?.status === "matched") {
+                return (
+                  <TrackRow
+                    key={`${song.spotifyId ?? song.title}-${index}`}
+                    index={index}
+                    song={state.track}
+                    current={state.track.id === current}
+                    playing={playing}
+                    menu={() => trackMenuItems(state.track)}
+                    onPlay={() => playAt(positions[index])}
+                    artwork
+                  />
+                );
+              }
+              return <SourceRow key={`${song.spotifyId ?? song.title}-${index}`} index={index} song={song} state={state} />;
+            })}
+          </ol>
+        )}
+
+        {prefer && (
+          <p className="max-w-[672px] px-3 pt-6 text-[12px] text-ink-2">
+            {`Prefers ${matchLanguageLabel(prefer)} versions of a song where YouTube Music has several (Settings › Connected services).`}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function progressLine(
+  done: boolean,
+  total: number,
+  finding: number,
+  matched: number,
+  missing: number,
+  failed: number,
+): string {
+  if (!done) return `Finding ${total - finding} of ${total} songs on YouTube Music…`;
+  let line = `${matched} of ${total} songs found on YouTube Music`;
+  if (missing === 1) line += ". 1 isn't there";
+  else if (missing > 1) line += `. ${missing} aren't there`;
+  if (failed > 0) line += `. ${failed} couldn't be checked`;
+  return `${line}.`;
+}
+
+function statusText(state: MatchState | undefined): string {
+  if (state === undefined) return "Finding…";
+  return state.status === "missing" ? "Not on YouTube Music" : "Couldn't check";
+}
+
+function SourceRow({ song, state, index }: { song: ImportSong; state: MatchState | undefined; index: number }) {
+  return (
+    <li className="flex h-16 items-center gap-3 px-3 opacity-45">
+      <span className="w-7 shrink-0 text-center text-[13px] tabular-nums text-ink-2">{index + 1}</span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[14px] text-ink-1">{song.title}</p>
+        {song.artist && <p className="truncate text-[12px] text-ink-2">{song.artist}</p>}
+      </div>
+      <span className="shrink-0 text-[12px] text-ink-2">{statusText(state)}</span>
+    </li>
+  );
+}

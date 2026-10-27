@@ -1,3 +1,8 @@
+import { ImportMatched } from "../components/ImportMatched";
+import { ImportPage } from "../components/ImportPage";
+import { useNavigation } from "../stores/navigation";
+
 export function MatchedPlaylistView() {
-  return <h1 className="text-[34px] font-extrabold tracking-[-0.03em] text-ink-1">Import</h1>;
+  const importId = useNavigation((state) => state.view.param);
+  return importId ? <ImportMatched importId={importId} /> : <ImportPage />;
 }

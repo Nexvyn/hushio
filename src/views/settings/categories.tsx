@@ -10,6 +10,7 @@ import {
   DropletIcon,
   FileExportIcon,
   FileImportIcon,
+  ImportIcon,
   FilterIcon,
   FolderAddIcon,
   FolderDownloadIcon,
@@ -44,6 +45,8 @@ import { RadioGroup, type RadioOption } from "../../components/RadioGroup";
 import type { SettingRowProps } from "../../components/SettingRow";
 import { Slider } from "../../components/Slider";
 import { APP_NAME, APP_SLUG } from "../../lib/app";
+import { MATCH_LANGUAGE_OPTIONS } from "../../lib/importLanguage";
+import { confirmImportBackup, exportBackup } from "../../lib/importBackup";
 import type { View } from "../../stores/navigation";
 import type {
   DownloadQuality,
@@ -138,7 +141,7 @@ function crossfadeValue(settings: SettingsState) {
   return settings.smartFade ? "Auto" : "Off";
 }
 
-function accountCategory({ settings: s }: BuildContext): SettingsCategory {
+function accountCategory({ settings: s, navigate }: BuildContext): SettingsCategory {
   return {
     id: "account",
     label: "Account",
@@ -183,6 +186,32 @@ function accountCategory({ settings: s }: BuildContext): SettingsCategory {
             title: "Sign out",
             disabled: true,
             control: <Button disabled>Sign out</Button>,
+          },
+        ],
+      },
+      {
+        title: "Connected services",
+        rows: [
+          {
+            id: "import-playlists",
+            icon: ImportIcon,
+            title: "Import",
+            note: "Paste a playlist link or a list of songs, or open a CSV, M3U8 or JSON file",
+            control: <Button onClick={() => navigate({ name: "import" })}>Open</Button>,
+          },
+          {
+            id: "song-versions",
+            icon: TranslateIcon,
+            title: "Song versions",
+            note: "When a song has versions in several languages, imports and playlists pick this one.",
+            control: (
+              <RadioGroup
+                label="Song versions"
+                options={MATCH_LANGUAGE_OPTIONS}
+                value={s.matchLanguage}
+                onChange={(value) => s.setValue("matchLanguage", value)}
+              />
+            ),
           },
         ],
       },
@@ -555,16 +584,14 @@ function dataCategory({ navigate }: BuildContext): SettingsCategory {
             icon: FileExportIcon,
             title: "Export data",
             note: "Write a backup of your library and history",
-            disabled: true,
-            control: <Button disabled>Export</Button>,
+            control: <Button onClick={() => exportBackup()}>Export</Button>,
           },
           {
             id: "import-data",
             icon: FileImportIcon,
             title: "Import data",
             note: "Restore a backup, replacing what's here",
-            disabled: true,
-            control: <Button disabled>Import</Button>,
+            control: <Button onClick={confirmImportBackup}>Import</Button>,
           },
           {
             id: "reset-app-data",
