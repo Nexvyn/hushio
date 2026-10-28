@@ -1,5 +1,6 @@
-import { fileSrc, pathExists, registerStreamUrl, streamProxyPort } from "./bridge";
+import { fileSrc, localLibraryTrackPath, pathExists, registerStreamUrl, streamProxyPort } from "./bridge";
 import { downloadedPath } from "./downloads";
+import { isLocalId } from "./localLibrary";
 import { resolveStream } from "./resolveStream";
 import { useUI } from "../stores/ui";
 
@@ -134,6 +135,12 @@ async function savedSource(id: string): Promise<string | null> {
   return exists ? fileSrc(path) : null;
 }
 
+async function localSource(id: string): Promise<string> {
+  const path = await localLibraryTrackPath(id);
+  if (!path) throw new Error(`Local file is not in the library: ${id}`);
+  return fileSrc(path);
+}
+
 async function streamSource(id: string, refresh: boolean): Promise<string> {
   const stream = await resolveStream(id, refresh);
   const port = await streamProxyPort();
@@ -142,7 +149,9 @@ async function streamSource(id: string, refresh: boolean): Promise<string> {
 }
 
 async function loadStream(id: string, refresh: boolean, seq: number): Promise<void> {
-  const src = (await savedSource(id)) ?? (await streamSource(id, refresh));
+  const src = isLocalId(id)
+    ? await localSource(id)
+    : ((await savedSource(id)) ?? (await streamSource(id, refresh)));
   if (seq !== loadSeq) return;
   audio.src = src;
   if (pendingSeek > 0) audio.currentTime = pendingSeek;

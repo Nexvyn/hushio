@@ -48,6 +48,7 @@ import { APP_NAME, APP_SLUG } from "../../lib/app";
 import { MATCH_LANGUAGE_OPTIONS } from "../../lib/importLanguage";
 import { chooseDownloadFolder } from "../../lib/downloads";
 import { confirmImportBackup, exportBackup } from "../../lib/importBackup";
+import { useLocalLibrary } from "../../stores/localLibrary";
 import type { View } from "../../stores/navigation";
 import type {
   DownloadQuality,
@@ -506,16 +507,14 @@ function libraryCategory(context: BuildContext): SettingsCategory {
             icon: FolderAddIcon,
             title: "Add a folder",
             note: "Import music folders. A parent folder brings its music subfolders along",
-            disabled: true,
-            control: <Button disabled>Add folder</Button>,
+            control: <Button onClick={() => void useLocalLibrary.getState().importFromPicker()}>Add folder</Button>,
           },
           {
             id: "rescan-library",
             icon: RefreshIcon,
             title: "Rescan library",
             note: "Re-read tags and artwork from every imported folder",
-            disabled: true,
-            control: <Button disabled>Rescan</Button>,
+            control: <Button onClick={() => void useLocalLibrary.getState().scan()}>Rescan</Button>,
           },
           {
             id: "filter-non-music",

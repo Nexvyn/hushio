@@ -2,17 +2,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useLibrary } from "../stores/library";
 import { useUI } from "../stores/ui";
 
-const { registerStreamUrl, streamProxyPort, resolveStream, pathExists } = vi.hoisted(() => ({
+const { registerStreamUrl, streamProxyPort, resolveStream, pathExists, localLibraryTrackPath } = vi.hoisted(() => ({
   registerStreamUrl: vi.fn(),
   streamProxyPort: vi.fn(),
   resolveStream: vi.fn(),
   pathExists: vi.fn(),
+  localLibraryTrackPath: vi.fn(),
 }));
 
 vi.mock("./bridge", () => ({
   registerStreamUrl,
   streamProxyPort,
   pathExists,
+  localLibraryTrackPath,
   fileSrc: (path: string) => `asset://${path}`,
   persistRead: async () => null,
   persistWrite: async () => true,
@@ -68,6 +70,17 @@ beforeEach(() => {
 });
 
 describe("playStream", () => {
+  it("plays a local library file from its path without resolving a stream", async () => {
+    localLibraryTrackPath.mockResolvedValue("/music/a.mp3");
+
+    await playStream("local:abc", "A");
+
+    expect(localLibraryTrackPath).toHaveBeenCalledWith("local:abc");
+    expect(resolveStream).not.toHaveBeenCalled();
+    expect(audio.src).toBe("asset:///music/a.mp3");
+    expect(playSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("streams instead of the saved file when the allowlist refuses its path", async () => {
     useLibrary.setState({
       downloads: {

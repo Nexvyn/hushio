@@ -1,10 +1,11 @@
 mod downloads;
+mod local_library;
 mod lyrics;
 mod persist;
 mod reveal;
 mod stream;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use tauri::{AppHandle, Manager, RunEvent, State};
 use tracing::Subscriber;
@@ -188,6 +189,104 @@ async fn lyrics_get(
     Ok(state.get(meta).await)
 }
 
+fn allow_file(app: &AppHandle, path: &str) {
+    if let Err(error) = app.asset_protocol_scope().allow_file(path) {
+        tracing::warn!(%error, path, "could not allow file for playback");
+    }
+}
+
+#[tauri::command]
+async fn local_library_get(
+    state: State<'_, local_library::Service>,
+) -> Result<local_library::LocalLibrary, String> {
+    Ok(state.library().await)
+}
+
+#[tauri::command]
+async fn local_library_add_folders(
+    state: State<'_, local_library::Service>,
+    folders: State<'_, reveal::Folders>,
+    paths: Vec<String>,
+) -> Result<local_library::AddResult, String> {
+    for path in &paths {
+        folders.check(Path::new(path))?;
+    }
+    state.add_folders(paths).await
+}
+
+#[tauri::command]
+async fn local_library_scan(
+    state: State<'_, local_library::Service>,
+    folders: State<'_, reveal::Folders>,
+    filter_non_music: bool,
+) -> Result<local_library::LocalLibrary, String> {
+    state.scan(filter_non_music, &folders).await
+}
+
+#[tauri::command]
+async fn local_library_remove_folder(
+    state: State<'_, local_library::Service>,
+    path: String,
+) -> Result<local_library::LocalLibrary, String> {
+    state.remove_folder(&path).await
+}
+
+#[tauri::command]
+async fn local_library_rename_folder(
+    state: State<'_, local_library::Service>,
+    path: String,
+    display_name: String,
+) -> Result<local_library::LocalLibrary, String> {
+    state.rename_folder(&path, &display_name).await
+}
+
+#[tauri::command]
+async fn local_library_folder_statuses(
+    state: State<'_, local_library::Service>,
+) -> Result<Vec<local_library::FolderStatus>, String> {
+    Ok(state.folder_statuses().await)
+}
+
+#[tauri::command]
+async fn local_library_opened(
+    state: State<'_, local_library::Service>,
+) -> Result<Vec<local_library::LocalTrack>, String> {
+    Ok(state.opened().await)
+}
+
+#[tauri::command]
+async fn local_library_forget_opened(
+    state: State<'_, local_library::Service>,
+    id: String,
+) -> Result<Vec<local_library::LocalTrack>, String> {
+    state.forget_opened(&id).await
+}
+
+#[tauri::command]
+async fn local_library_open_files(
+    app: AppHandle,
+    state: State<'_, local_library::Service>,
+    folders: State<'_, reveal::Folders>,
+    paths: Vec<String>,
+) -> Result<local_library::OpenResult, String> {
+    let result = state.open_files(paths).await?;
+    for folder in &result.folders {
+        reveal::approve_user_folder(&app, &folders, PathBuf::from(folder)).await?;
+    }
+    for track in &result.tracks {
+        allow_file(&app, &track.path);
+    }
+    Ok(result)
+}
+
+#[tauri::command]
+async fn local_library_track_path(
+    state: State<'_, local_library::Service>,
+    id: String,
+) -> Result<Option<String>, String> {
+    Ok(state.track_path(&id).await)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt()
@@ -200,6 +299,10 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
+        .register_uri_scheme_protocol("localart", |context, request| {
+            let art_dir = context.app_handle().state::<local_library::Service>().art_dir();
+            local_library::serve_art(&art_dir, request.uri().path())
+        })
         .setup(|app| {
             let root = prepare_data_dir(app.handle())?;
             let default_dir = app.path().download_dir()?.join(APP_NAME);
@@ -209,8 +312,11 @@ pub fn run() {
                 default_dir.clone(),
                 export_dir,
             ));
+            folders.approve_library(tauri::async_runtime::block_on(local_library::stored_folder_paths(&root)));
             reveal::allow_picked(app.handle(), &folders)?;
             app.manage(folders);
+            let local = tauri::async_runtime::block_on(local_library::Service::load(root.clone()));
+            app.manage(local);
             app.manage(DataPaths { root });
             let registry = stream::Registry::default();
             app.manage(registry.clone());
@@ -234,7 +340,17 @@ pub fn run() {
             reveal::folder_pick,
             reveal::path_exists,
             reveal::reveal_path,
-            reveal::open_folder
+            reveal::open_folder,
+            local_library_get,
+            local_library_add_folders,
+            local_library_scan,
+            local_library_remove_folder,
+            local_library_rename_folder,
+            local_library_folder_statuses,
+            local_library_opened,
+            local_library_forget_opened,
+            local_library_open_files,
+            local_library_track_path
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

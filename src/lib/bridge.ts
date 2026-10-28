@@ -170,8 +170,8 @@ export function downloadStart(
   return call<void>("download_start", { track, url, dir, exportCompat });
 }
 
-export function pickFolder(): Promise<string | null> {
-  return call<string | null>("folder_pick");
+export function pickFolder(title?: string): Promise<string | null> {
+  return call<string | null>("folder_pick", { title });
 }
 
 export function pathExists(path: string): Promise<boolean> {
@@ -200,4 +200,109 @@ export function downloadQueue(): Promise<DownloadQueueRow[]> {
 
 export function listenDownloadEvents(onEvent: (event: DownloadEvent) => void): Promise<UnlistenFn> {
   return listen<DownloadEvent>("download:event", (event) => onEvent(event.payload));
+}
+
+export interface LocalFolderEntry {
+  path: string;
+  name: string;
+  displayName?: string;
+  addedAt: number;
+}
+
+export interface LocalTrack {
+  id: string;
+  path: string;
+  title: string;
+  artist: string;
+  album: string;
+  genre?: string;
+  duration: number;
+  size: number;
+  mtime: number;
+  art?: string;
+  codec?: string;
+}
+
+export interface LocalUnplayable {
+  format: string;
+  count: number;
+}
+
+export interface LocalLibrary {
+  folders: LocalFolderEntry[];
+  scannedAt: number;
+  tracks: LocalTrack[];
+  unplayable: LocalUnplayable[];
+}
+
+export interface LocalAddResult {
+  lib: LocalLibrary;
+  added: LocalFolderEntry[];
+  skipped: string[];
+}
+
+export interface LocalFolderStatus {
+  path: string;
+  exists: boolean;
+}
+
+export interface LocalOpenResult {
+  tracks: LocalTrack[];
+  folders: string[];
+  unplayable: string[];
+}
+
+export type FileDropEvent =
+  | { type: "enter" | "drop"; paths: string[] }
+  | { type: "over" | "leave" };
+
+export function localLibraryGet(): Promise<LocalLibrary> {
+  return call<LocalLibrary>("local_library_get");
+}
+
+export function localLibraryAddFolders(paths: string[]): Promise<LocalAddResult> {
+  return call<LocalAddResult>("local_library_add_folders", { paths });
+}
+
+export function localLibraryScan(filterNonMusic: boolean): Promise<LocalLibrary> {
+  return call<LocalLibrary>("local_library_scan", { filterNonMusic });
+}
+
+export function localLibraryRemoveFolder(path: string): Promise<LocalLibrary> {
+  return call<LocalLibrary>("local_library_remove_folder", { path });
+}
+
+export function localLibraryRenameFolder(path: string, displayName: string): Promise<LocalLibrary> {
+  return call<LocalLibrary>("local_library_rename_folder", { path, displayName });
+}
+
+export function localLibraryFolderStatuses(): Promise<LocalFolderStatus[]> {
+  return call<LocalFolderStatus[]>("local_library_folder_statuses");
+}
+
+export function localLibraryOpened(): Promise<LocalTrack[]> {
+  return call<LocalTrack[]>("local_library_opened");
+}
+
+export function localLibraryForgetOpened(id: string): Promise<LocalTrack[]> {
+  return call<LocalTrack[]>("local_library_forget_opened", { id });
+}
+
+export function localLibraryOpenFiles(paths: string[]): Promise<LocalOpenResult> {
+  return call<LocalOpenResult>("local_library_open_files", { paths });
+}
+
+export function localLibraryTrackPath(id: string): Promise<string | null> {
+  return call<string | null>("local_library_track_path", { id });
+}
+
+export async function listenFileDrop(onEvent: (event: FileDropEvent) => void): Promise<UnlistenFn> {
+  return getCurrentWindow().onDragDropEvent((event) => {
+    const payload = event.payload;
+    if (payload.type === "enter" || payload.type === "drop") {
+      onEvent({ type: payload.type, paths: payload.paths });
+    } else {
+      onEvent({ type: payload.type });
+    }
+  });
 }

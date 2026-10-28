@@ -7,6 +7,7 @@ import { NowPlaying } from "./components/NowPlaying";
 import { PlayerBar } from "./components/PlayerBar";
 import { PlaylistPicker } from "./components/PlaylistPicker";
 import { RightRail } from "./components/RightRail";
+import { FileDrop } from "./components/FileDrop";
 import { Sidebar } from "./components/Sidebar";
 import { SwipeArrow } from "./components/SwipeArrow";
 import { Toasts } from "./components/Toasts";
@@ -158,6 +159,7 @@ export default function App() {
       <PlayerBar />
       <NowPlaying />
       <Toasts />
+      <FileDrop />
       <Dialog />
       <PlaylistPicker />
       <ContextMenu />

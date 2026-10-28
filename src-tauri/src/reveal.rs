@@ -17,6 +17,7 @@ pub struct Folders {
     default_dir: PathBuf,
     export_dir: Option<PathBuf>,
     picked: Mutex<Vec<PathBuf>>,
+    library: Mutex<Vec<PathBuf>>,
 }
 
 impl Folders {
@@ -27,6 +28,7 @@ impl Folders {
             default_dir,
             export_dir,
             picked: Mutex::new(picked),
+            library: Mutex::new(Vec::new()),
         }
     }
 
@@ -40,6 +42,16 @@ impl Folders {
 
     pub fn picked(&self) -> Vec<PathBuf> {
         lock(&self.picked).clone()
+    }
+
+    pub fn approve_library(&self, paths: Vec<PathBuf>) {
+        *lock(&self.library) = paths;
+    }
+
+    pub fn user_dirs(&self) -> Vec<PathBuf> {
+        let mut dirs = self.picked();
+        dirs.extend(lock(&self.library).iter().cloned());
+        dirs
     }
 
     pub async fn remember(&self, path: PathBuf) -> Result<(), String> {
@@ -71,7 +83,7 @@ impl Folders {
     fn roots(&self) -> Vec<PathBuf> {
         let mut roots = vec![self.root.clone(), self.default_dir.clone()];
         roots.extend(self.export_dir.clone());
-        roots.extend(self.picked());
+        roots.extend(self.user_dirs());
         roots
     }
 }
@@ -182,7 +194,7 @@ fn run(invocation: Invocation) -> Result<(), String> {
         .map_err(|error| error.to_string())
 }
 
-fn allow_asset(app: &AppHandle, path: &Path) -> Result<(), String> {
+pub fn allow_asset(app: &AppHandle, path: &Path) -> Result<(), String> {
     app.asset_protocol_scope()
         .allow_directory(path, true)
         .map_err(|error| error.to_string())
@@ -190,9 +202,14 @@ fn allow_asset(app: &AppHandle, path: &Path) -> Result<(), String> {
 
 pub fn allow_picked(app: &AppHandle, folders: &Folders) -> Result<(), String> {
     folders
-        .picked()
+        .user_dirs()
         .iter()
         .try_for_each(|dir| allow_asset(app, dir))
+}
+
+pub async fn approve_user_folder(app: &AppHandle, folders: &Folders, path: PathBuf) -> Result<(), String> {
+    folders.remember(path.clone()).await?;
+    allow_asset(app, &path)
 }
 
 fn approved_path(folders: &Folders, path: String) -> Result<PathBuf, String> {
@@ -222,11 +239,15 @@ pub fn target_dir(
 }
 
 #[tauri::command]
-pub async fn folder_pick(app: AppHandle, folders: State<'_, Folders>) -> Result<Option<String>, String> {
+pub async fn folder_pick(
+    app: AppHandle,
+    folders: State<'_, Folders>,
+    title: Option<String>,
+) -> Result<Option<String>, String> {
     let (sender, receiver) = tokio::sync::oneshot::channel();
     app.dialog()
         .file()
-        .set_title("Choose download folder")
+        .set_title(title.as_deref().unwrap_or("Choose download folder"))
         .pick_folder(move |picked| {
             let _ = sender.send(picked);
         });
@@ -234,8 +255,7 @@ pub async fn folder_pick(app: AppHandle, folders: State<'_, Folders>) -> Result<
         return Ok(None);
     };
     let path = picked.into_path().map_err(|error| error.to_string())?;
-    folders.remember(path.clone()).await?;
-    allow_asset(&app, &path)?;
+    approve_user_folder(&app, &folders, path.clone()).await?;
     Ok(Some(path.display().to_string()))
 }
 

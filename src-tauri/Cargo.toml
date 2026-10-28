@@ -30,6 +30,7 @@ scraper = "0.20"
 unicode-normalization = "0.1.26"
 lofty = "0.22"
 tokio-util = "0.7.20"
+sha1 = "0.10"
 
 [profile.release]
 codegen-units = 1
