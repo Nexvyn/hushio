@@ -819,4 +819,45 @@ mod tests {
         assert!(result.word_synced);
         assert!(timed_result("Test", Vec::new()).is_none());
     }
+
+    #[test]
+    fn ttml_agent_attributes_leave_the_text_alone() {
+        let xml = r#"<tt><body><p begin="1s" end="2s" ttm:agent="v2"><span begin="1s" end="2s">Hi</span></p></body></tt>"#;
+        let lines = parse_ttml(xml);
+        assert_eq!(lines[0].text, "Hi");
+        assert_eq!(lines[0].end, Some(2.0));
+    }
+
+    #[test]
+    fn lrc_stamps_without_hundredths_and_crlf_endings() {
+        let lines = parse_lrc("[00:05]Five\r\n[00:07.5]Seven\r\n");
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0].time, 5.0);
+        assert_eq!(lines[0].text, "Five");
+        assert_eq!(lines[1].time, 7.5);
+        assert_eq!(lines[1].text, "Seven");
+    }
+
+    #[test]
+    fn enhanced_lrc_last_word_lasts_the_fallback_length() {
+        let lines = parse_lrc("[00:01.00]<00:01.00>one <00:02.00>two");
+        let words = lines[0].words.as_ref().expect("words");
+        assert_eq!(words[0].end, 2.0);
+        assert!((words[1].end - 2.8).abs() < 1e-9);
+    }
+
+    #[test]
+    fn byte_order_mark_before_lrc_is_ignored() {
+        let lines = timed(parse_provider_any("\u{feff}[00:01.00]First"));
+        assert_eq!(lines[0].text, "First");
+        assert_eq!(lines[0].time, 1.0);
+    }
+
+    #[test]
+    fn plain_text_keeps_blank_lines_between_stanzas() {
+        match parse_provider_any("First line\nsecond\n\nNext stanza") {
+            Some(Parsed::Plain(text)) => assert_eq!(text, "First line\nsecond\n\nNext stanza"),
+            _ => panic!("expected plain text"),
+        }
+    }
 }

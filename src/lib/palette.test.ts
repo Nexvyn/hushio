@@ -81,9 +81,35 @@ describe("readCover", () => {
   });
 });
 
+function oklabLightness([r, g, b]: number[]): number {
+  const linear = [r, g, b].map((channel) => {
+    const value = channel / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  const [lr, lg, lb] = linear;
+  const l = Math.cbrt(0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb);
+  const m = Math.cbrt(0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb);
+  const s = Math.cbrt(0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb);
+  return 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s;
+}
+
 describe("artTint", () => {
   it("falls back to the neutral tint when the cover cannot be read", () => {
     expect(artTint(null)).toBe(NEUTRAL_TINT);
+  });
+
+  it("reads a solid red cover as a red hue", () => {
+    const read = readCover(solid(220, 30, 30), PALETTE_PX, PALETTE_PX);
+    expect(read?.main).not.toBeNull();
+    expect(Math.abs((read?.main?.h ?? 0) - 29)).toBeLessThan(10);
+  });
+
+  it("lifts a dark red cover to the same background lightness as a bright one", () => {
+    const dark = artTint(readCover(solid(40, 10, 10), PALETTE_PX, PALETTE_PX)).split(" ").map(Number);
+    const bright = artTint(readCover(solid(220, 30, 30), PALETTE_PX, PALETTE_PX)).split(" ").map(Number);
+    expect(oklabLightness(dark)).toBeCloseTo(oklabLightness(bright), 1);
+    expect(oklabLightness(dark)).toBeGreaterThan(0.2);
+    expect(oklabLightness(dark)).toBeLessThan(0.27);
   });
 
   it("tints a black and white cover with a grey", () => {

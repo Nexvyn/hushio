@@ -34,6 +34,16 @@ describe("romanize", () => {
     expect(romanize("नमस्ते")).toBe("namaste");
   });
 
+  it("romanizes each script in a mixed line and keeps the Latin words", () => {
+    expect(romanize("Hello 안녕")).toBe("Hello annyeong");
+    expect(romanize("Привет ありがとう")).toBe("Privet arigatou");
+    expect(romanize("안녕 ありがとう")).toBe("annyeong arigatou");
+  });
+
+  it("returns null for a Hangul line that also has Han characters", () => {
+    expect(romanize("안녕 漢字")).toBeNull();
+  });
+
   it("collapses whitespace in the reading", () => {
     expect(romanize("안녕   하세요")).toBe("annyeong haseyo");
   });

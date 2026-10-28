@@ -995,4 +995,27 @@ mod tests {
         assert!(svc.get(meta()).await.is_some());
         assert_eq!(hits.load(Ordering::SeqCst), first);
     }
+
+    #[tokio::test]
+    async fn cached_miss_is_not_looked_up_again() {
+        let hits = counter();
+        let gate = hits.clone();
+        let svc = service(
+            move |_| Router::new().route("/api/get", get(counted(gate, "{}"))),
+            SWEEP_CEILING,
+        )
+        .await;
+        let meta = || LyricsMeta {
+            id: "miss".to_owned(),
+            title: "Song".to_owned(),
+            artist: "Singer".to_owned(),
+            album: None,
+            duration: Some(200.0),
+        };
+        assert!(svc.get(meta()).await.is_none());
+        let first = hits.load(Ordering::SeqCst);
+        assert!(first > 0);
+        assert!(svc.get(meta()).await.is_none());
+        assert_eq!(hits.load(Ordering::SeqCst), first);
+    }
 }

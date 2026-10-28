@@ -594,4 +594,56 @@ mod tests {
         assert!(!comparable(&["周杰伦".to_owned()], &["jay chou".to_owned()]));
         assert!(comparable(&["周杰伦".to_owned()], &["周杰倫".to_owned()]));
     }
+
+    #[test]
+    fn accents_are_ignored_in_titles_and_artists() {
+        let q = query("Crème Brûlée", "Beyoncé", None);
+        assert!(names_recording(&q, "Creme Brulee", "Beyonce", Some(200.0), false));
+        assert!(!names_recording(&q, "Creme Brulee", "Beyonce Knowles", Some(200.0), false));
+    }
+
+    #[test]
+    fn feat_credit_in_the_query_title_is_ignored() {
+        let q = query("Song (feat. Guest)", "Singer", None);
+        assert!(names_recording(&q, "Song", "Singer", Some(200.0), false));
+        let q = query("Song feat. Guest", "Singer", None);
+        assert!(names_recording(&q, "Song", "Singer", Some(200.0), false));
+    }
+
+    #[test]
+    fn named_version_must_match_on_both_sides() {
+        let q = query("Song (Acoustic Version)", "Singer", None);
+        assert!(!names_recording(&q, "Song", "Singer", Some(200.0), false));
+        assert!(names_recording(&q, "Song (Acoustic)", "Singer", Some(200.0), false));
+
+        let q = query("Song (Version 2)", "Singer", None);
+        assert!(names_recording(&q, "Song (Version 2)", "Singer", Some(200.0), false));
+        assert!(!names_recording(&q, "Song (Version 3)", "Singer", Some(200.0), false));
+        assert!(!names_recording(&q, "Song", "Singer", Some(200.0), false));
+    }
+
+    #[test]
+    fn chinese_live_marks_match_english_live() {
+        let q = query("Song (Live)", "Singer", None);
+        assert!(names_recording(&q, "Song (现场)", "Singer", Some(200.0), false));
+        assert!(!names("Song (现场)", "Singer", Some(200.0)));
+    }
+
+    #[test]
+    fn clean_title_removes_bracketed_and_trailing_upload_labels() {
+        assert_eq!(clean_title("Song [Lyrics]"), "Song");
+        assert_eq!(clean_title("Song (Audio)"), "Song");
+        assert_eq!(clean_title("Song (Visualizer)"), "Song");
+        assert_eq!(clean_title("Song (MV)"), "Song");
+        assert_eq!(clean_title("Song - Lyric Video"), "Song");
+        assert_eq!(clean_title("Song (Official Audio) [HD]"), "Song");
+        assert_eq!(clean_title("Artist - Canción letra"), "Canción");
+    }
+
+    #[test]
+    fn release_name_drops_single_and_ep_suffixes() {
+        assert_eq!(release_name("Album - EP"), "Album");
+        assert_eq!(release_name("Album - Single"), "Album");
+        assert_eq!(release_name("Album"), "Album");
+    }
 }

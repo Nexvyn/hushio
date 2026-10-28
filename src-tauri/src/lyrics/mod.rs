@@ -433,4 +433,15 @@ mod tests {
         assert!(ORDER.iter().filter(|source| source.lazy()).count() == 1);
         assert!(matches!(ORDER[ORDER.len() - 1], Source::Genius));
     }
+
+    #[test]
+    fn providers_run_in_prd_priority_order() {
+        let names: Vec<&str> = ORDER.iter().map(|source| source.name()).collect();
+        assert_eq!(names, ["BetterLyrics", "Portato", "PaxSenix", "LRCLIB", "Genius"]);
+    }
+
+    #[test]
+    fn sweep_ceiling_is_twelve_seconds() {
+        assert_eq!(SWEEP_CEILING, Duration::from_secs(12));
+    }
 }

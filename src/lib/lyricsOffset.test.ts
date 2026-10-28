@@ -45,6 +45,7 @@ import {
 } from "./lyricsOffset";
 import { LYRICS_NUDGE_STEP, useLyricsNudge } from "../stores/lyricsNudge";
 import { useSettings } from "../stores/settings";
+import { activeLineIndex } from "./lyricsLines";
 
 function press(code: string, target: Element | Window = window) {
   return fireEvent.keyDown(target, { code });
@@ -58,6 +59,18 @@ describe("effectiveLyricsOffset", () => {
     [0, 0, 0],
   ])("adds nudge %d and device %d to %d", (nudge, device, total) => {
     expect(effectiveLyricsOffset(nudge, device)).toBe(total);
+  });
+
+  it("rounds the sum to hundredths of a second", () => {
+    expect(effectiveLyricsOffset(0.1, 0.007)).toBe(0.11);
+  });
+
+  it("moves when a line starts by the full offset", () => {
+    const lines = [{ time: 5, text: "line" }];
+    const offset = effectiveLyricsOffset(0.25, 0);
+    expect(activeLineIndex(lines, 4.66)).toBe(0);
+    expect(activeLineIndex(lines, 4.66 - offset)).toBe(-1);
+    expect(activeLineIndex(lines, 4.91 - offset)).toBe(0);
   });
 });
 

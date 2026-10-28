@@ -56,6 +56,13 @@ describe("parseLrc", () => {
   it("reads hour-less minutes with three fraction digits", () => {
     expect(parseLrc("[12:00.125]Late")).toEqual([{ time: 720.125, text: "Late" }]);
   });
+
+  it("reads stamps without hundredths and CRLF line endings", () => {
+    expect(parseLrc("[00:05]Five\r\n[00:07.5]Seven\r\n")).toEqual([
+      { time: 5, text: "Five" },
+      { time: 7.5, text: "Seven" },
+    ]);
+  });
 });
 
 describe("parseEnhancedLrc", () => {
@@ -77,6 +84,16 @@ describe("parseEnhancedLrc", () => {
   it("sorts lines by their start time", () => {
     const lines = parseEnhancedLrc("[00:04.00]<00:04.00>Later\n[00:01.00]<00:01.00>Early");
     expect(lines.map((line) => line.text)).toEqual(["Early", "Later"]);
+  });
+
+  it("handles CRLF endings and a word stamp that opens a space-led fragment", () => {
+    const lines = parseEnhancedLrc("[00:01.00]<00:01.00>Hi <00:01.50>there\r\n");
+    expect(lines).toHaveLength(1);
+    expect(lines[0].text).toBe("Hi there");
+    expect(lines[0].words?.map((word) => [word.start, word.end, word.text])).toEqual([
+      [1, 1.5, "Hi"],
+      [1.5, expect.closeTo(2.3, 5), "there"],
+    ]);
   });
 });
 
@@ -106,6 +123,21 @@ describe("parseTtml", () => {
   it("skips paragraphs without a begin time", () => {
     expect(parseTtml(`<tt><body><p><span begin="00:00:01.000" end="00:00:02.000">x</span></p></body></tt>`)).toEqual([]);
   });
+
+  it("ends an untimed paragraph at its last word when the paragraph has no end", () => {
+    const [line] = parseTtml(
+      `<tt><body><p begin="00:00:02.000"><span begin="00:00:02.000" end="00:00:02.500">Go</span> <span begin="00:00:02.500" end="00:00:03.000">on</span></p></body></tt>`,
+    );
+    expect(line.end).toBe(3);
+  });
+
+  it("joins several roman spans with a space and keeps them out of the line", () => {
+    const [line] = parseTtml(
+      `<tt><body><p begin="00:00:01.000" end="00:00:02.000"><span begin="00:00:01.000" end="00:00:02.000">단어</span><span ttm:role="x-roman">dan</span><span ttm:role="x-roman">eo</span></p></body></tt>`,
+    );
+    expect(line.text).toBe("단어");
+    expect(line.roman).toBe("dan eo");
+  });
 });
 
 describe("parsePlainText", () => {
@@ -114,5 +146,9 @@ describe("parsePlainText", () => {
       "First line",
       "Second line",
     ]);
+  });
+
+  it("drops a byte order mark on the first line", () => {
+    expect(parsePlainText("﻿First\nSecond")).toEqual(["First", "Second"]);
   });
 });
