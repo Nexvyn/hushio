@@ -124,11 +124,11 @@ describe("version metadata and migration", () => {
   it("persists under the library key at version 2 with the whole state", () => {
     const options = useLibrary.persist.getOptions();
     expect(options.name).toBe("library");
-    expect(options.version).toBe(3);
+    expect(options.version).toBe(4);
 
     useLibrary.getState().toggleLike(track(1));
     expect(storage.writes.at(-1)).toMatchObject({
-      version: 3,
+      version: 4,
       state: { liked: [{ id: "t1" }], pinnedSingles: DEFAULT_PINS },
     });
   });

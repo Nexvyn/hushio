@@ -1,6 +1,7 @@
 mod downloads;
 mod lyrics;
 mod persist;
+mod reveal;
 mod stream;
 
 use std::path::PathBuf;
@@ -197,9 +198,19 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
         .setup(|app| {
             let root = prepare_data_dir(app.handle())?;
+            let default_dir = app.path().download_dir()?.join(APP_NAME);
+            let export_dir = app.path().audio_dir().ok().map(|dir| dir.join(APP_NAME));
+            let folders = tauri::async_runtime::block_on(reveal::Folders::open(
+                &root,
+                default_dir.clone(),
+                export_dir,
+            ));
+            reveal::allow_picked(app.handle(), &folders)?;
+            app.manage(folders);
             app.manage(DataPaths { root });
             let registry = stream::Registry::default();
             app.manage(registry.clone());
@@ -207,7 +218,6 @@ pub fn run() {
             tauri::async_runtime::block_on(proxy.start())?;
             app.manage(proxy);
             app.manage(lyrics::Service::new()?);
-            let default_dir = app.path().download_dir()?.join(APP_NAME);
             app.manage(downloads::Downloads::new(app.handle().clone(), default_dir));
             Ok(())
         })
@@ -220,7 +230,11 @@ pub fn run() {
             lyrics_get,
             download_start,
             download_cancel,
-            download_queue
+            download_queue,
+            reveal::folder_pick,
+            reveal::path_exists,
+            reveal::reveal_path,
+            reveal::open_folder
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
@@ -235,12 +249,15 @@ pub fn run() {
 #[tauri::command]
 fn download_start(
     state: State<'_, downloads::Downloads<AppHandle>>,
+    folders: State<'_, reveal::Folders>,
     track: downloads::TrackInfo,
     url: String,
     dir: Option<String>,
+    export_compat: Option<bool>,
 ) -> Result<(), String> {
     downloads::require_https(&url)?;
-    state.enqueue(track, url, dir.map(PathBuf::from))
+    let dir = reveal::target_dir(&folders, export_compat == Some(true), dir.map(PathBuf::from))?;
+    state.enqueue(track, url, dir)
 }
 
 #[tauri::command]

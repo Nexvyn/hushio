@@ -8,6 +8,7 @@ import {
   Delete02Icon,
   Download01Icon,
   FavouriteIcon,
+  FolderOpenIcon,
   Link01Icon,
   ListStartIcon,
   MoonIcon,
@@ -19,6 +20,7 @@ import {
 import { copyLink } from "./browseActions";
 import { openNewPlaylistWith, toSong } from "./collectionActions";
 import { addSongsToPlaylists } from "./devicePlaylists";
+import { downloadedPath, revealDownload, startDownload } from "./downloads";
 import type { SearchSong } from "./searchParse";
 import { type LibraryTrack, type Playlist, useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
@@ -105,7 +107,14 @@ export function trackMenuItems(track: SearchSong): MenuItem[] {
   }
   items.push({ label: "New playlist", icon: Playlist01Icon, onSelect: () => openNewPlaylistWith(track) });
 
-  if (!local) items.push({ label: "Download", icon: Download01Icon, separatorBefore: true, disabled: true });
+  if (!local) {
+    const saved = downloadedPath(track.id);
+    items.push(
+      saved
+        ? { label: "Show in folder", icon: FolderOpenIcon, separatorBefore: true, onSelect: () => revealDownload(saved) }
+        : { label: "Download", icon: Download01Icon, separatorBefore: true, onSelect: () => void startDownload(track) },
+    );
+  }
   if (artistId) {
     items.push({
       label: "Go to artist",

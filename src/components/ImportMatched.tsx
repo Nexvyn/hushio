@@ -16,6 +16,7 @@ import { ErrorState } from "./ErrorState";
 import { Icon } from "./Icon";
 import { TrackRow } from "./TrackRow";
 import { queueAll } from "../lib/browseActions";
+import { downloadAll } from "../lib/downloads";
 import { trackMenuItems } from "../lib/trackActions";
 import { coversOf } from "../lib/collections";
 import { matchLanguageLabel, type MatchLanguage } from "../lib/importLanguage";
@@ -96,7 +97,12 @@ function MatchedContent({ playlist, prefer, attempt, onRetry }: MatchedContentPr
       disabled: matched.length === 0,
       onSelect: () => queueAll(matched, "Added to queue"),
     },
-    { label: "Download all", icon: Download01Icon, disabled: true },
+    {
+      label: "Download all",
+      icon: Download01Icon,
+      disabled: matched.length === 0,
+      onSelect: () => downloadAll(matched, playlist.name),
+    },
   ];
 
   function save() {

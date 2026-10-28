@@ -139,11 +139,31 @@ describe("track menu (PRD 32.10.1 A)", () => {
     expect(labels).toContain("Copy log");
   });
 
-  it("disables Download and Sleep timer until their commits land", () => {
+  it("offers Download and keeps Sleep timer disabled", () => {
     const items = trackMenuItems(song);
 
-    expect(itemNamed(items, "Download").disabled).toBe(true);
+    expect(itemNamed(items, "Download").disabled).toBeFalsy();
     expect(itemNamed(items, "Sleep timer").disabled).toBe(true);
+  });
+
+  it("swaps Download for Show in folder once the song is saved", () => {
+    useLibrary.setState({
+      downloads: {
+        [song.id]: {
+          track: { id: song.id, title: song.title, artist: song.artist, duration: 0 },
+          path: "/music/Hushio/a.m4a",
+          status: "done",
+          progress: 1,
+          downloaded: 0,
+          total: 0,
+        },
+      },
+    });
+    const items = trackMenuItems(song);
+
+    expect(items.some((item) => item.label === "Download")).toBe(false);
+    expect(itemNamed(items, "Show in folder").disabled).toBeFalsy();
+    useLibrary.setState({ downloads: {} });
   });
 
   it("puts Go to album under its own separator only when there is no artist item", () => {

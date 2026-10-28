@@ -109,7 +109,7 @@ describe("browse album and playlist menu (PRD 32.10.1 J)", () => {
       "Download all",
       "Copy link",
     ]);
-    expect(itemNamed(items, "Download all").disabled).toBe(true);
+    expect(itemNamed(items, "Download all").disabled).toBeFalsy();
   });
 
   it("copies the album and playlist links to their YouTube Music pages", () => {

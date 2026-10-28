@@ -14,10 +14,28 @@ import { persistStorage } from "../lib/persist";
 import type { Track } from "../types";
 
 export const HISTORY_LIMIT = 200;
-export const LIBRARY_VERSION = 3;
+export const LIBRARY_VERSION = 4;
 
 export type LibraryTrack = Track & { album: string | null; duration: number; explicit: boolean };
 export type LikeInput = Track & Partial<Pick<LibraryTrack, "album" | "duration" | "explicit">>;
+
+export type DownloadTrack = {
+  id: string;
+  title: string;
+  artist: string;
+  thumb?: string;
+  album?: string;
+  duration: number;
+};
+export type DownloadStatus = "queued" | "downloading" | "done" | "failed";
+export type DownloadItem = {
+  track: DownloadTrack;
+  path: string | null;
+  status: DownloadStatus;
+  progress: number;
+  downloaded: number;
+  total: number;
+};
 
 export type FollowedArtist = { id: string; name: string; thumb?: string; followedAt: number };
 export type ArtistInput = Omit<FollowedArtist, "followedAt">;
@@ -57,11 +75,15 @@ export type LibraryValues = {
   pinnedSingles: PinnedSingles;
   playlists: Playlist[];
   folders: Folder[];
+  downloads: Record<string, DownloadItem>;
   libraryOrder: string[] | undefined;
   deletionSync: DeletionSync | undefined;
 };
 
 type LibraryState = LibraryValues & {
+  setDownload: (id: string, item: DownloadItem) => void;
+  patchDownload: (id: string, patch: Partial<DownloadItem>) => void;
+  removeDownload: (id: string) => void;
   toggleLike: (track: LikeInput) => void;
   pushHistory: (track: LikeInput) => void;
   clearHistory: () => void;
@@ -93,6 +115,7 @@ const DEFAULTS: LibraryValues = {
   pinnedSingles: DEFAULT_PINS,
   playlists: [],
   folders: [],
+  downloads: {},
   libraryOrder: undefined,
   deletionSync: undefined,
 };
@@ -332,6 +355,7 @@ function migrateLibrary(persisted: unknown, version: number): LibraryValues {
     pinnedSingles: version < 1 || stored.pinnedSingles == null ? DEFAULT_PINS : stored.pinnedSingles,
     playlists: stored.playlists ?? [],
     folders: stored.folders ?? [],
+    downloads: stored.downloads ?? {},
     libraryOrder: stored.libraryOrder ?? undefined,
     deletionSync: stored.deletionSync == null ? undefined : rekeyPlaylistTracks(readDeletionSync(stored.deletionSync)),
   };
@@ -410,6 +434,18 @@ export const useLibrary = create<LibraryState>()(
         togglePinSingle: (key) =>
           apply((state) => ({ pinnedSingles: { ...state.pinnedSingles, [key]: !state.pinnedSingles[key] } })),
         setLibraryOrder: (keys) => apply(() => ({ libraryOrder: [...keys] })),
+        setDownload: (id, item) => apply((state) => ({ downloads: { ...state.downloads, [id]: item } })),
+        patchDownload: (id, patch) =>
+          apply((state) => {
+            const current = state.downloads[id];
+            return current ? { downloads: { ...state.downloads, [id]: { ...current, ...patch } } } : {};
+          }),
+        removeDownload: (id) =>
+          apply((state) => {
+            const downloads = { ...state.downloads };
+            delete downloads[id];
+            return { downloads };
+          }),
       };
     },
     {
@@ -423,6 +459,7 @@ export const useLibrary = create<LibraryState>()(
         pinnedSingles: state.pinnedSingles,
         playlists: state.playlists,
         folders: state.folders,
+        downloads: state.downloads,
         libraryOrder: state.libraryOrder,
         deletionSync: state.deletionSync,
       }),

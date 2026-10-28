@@ -1,5 +1,5 @@
 import { getVersion } from "@tauri-apps/api/app";
-import { invoke, type InvokeArgs } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke, type InvokeArgs } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
@@ -161,8 +161,33 @@ export interface DownloadQueueRow {
   total: number;
 }
 
-export function downloadStart(track: DownloadTrack, url: string, dir?: string): Promise<void> {
-  return call<void>("download_start", { track, url, dir });
+export function downloadStart(
+  track: DownloadTrack,
+  url: string,
+  dir?: string,
+  exportCompat = false,
+): Promise<void> {
+  return call<void>("download_start", { track, url, dir, exportCompat });
+}
+
+export function pickFolder(): Promise<string | null> {
+  return call<string | null>("folder_pick");
+}
+
+export function pathExists(path: string): Promise<boolean> {
+  return call<boolean>("path_exists", { path });
+}
+
+export function revealPath(path: string): Promise<void> {
+  return call<void>("reveal_path", { path });
+}
+
+export function openFolder(path?: string): Promise<void> {
+  return call<void>("open_folder", { path });
+}
+
+export function fileSrc(path: string): string {
+  return convertFileSrc(path);
 }
 
 export function downloadCancel(id: string): Promise<boolean> {

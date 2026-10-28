@@ -1,13 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useLibrary } from "../stores/library";
 import { useUI } from "../stores/ui";
 
-const { registerStreamUrl, streamProxyPort, resolveStream } = vi.hoisted(() => ({
+const { registerStreamUrl, streamProxyPort, resolveStream, pathExists } = vi.hoisted(() => ({
   registerStreamUrl: vi.fn(),
   streamProxyPort: vi.fn(),
   resolveStream: vi.fn(),
+  pathExists: vi.fn(),
 }));
 
-vi.mock("./bridge", () => ({ registerStreamUrl, streamProxyPort }));
+vi.mock("./bridge", () => ({
+  registerStreamUrl,
+  streamProxyPort,
+  pathExists,
+  fileSrc: (path: string) => `asset://${path}`,
+  persistRead: async () => null,
+  persistWrite: async () => true,
+}));
 vi.mock("./resolveStream", () => ({ resolveStream }));
 
 import {
@@ -59,6 +68,28 @@ beforeEach(() => {
 });
 
 describe("playStream", () => {
+  it("streams instead of the saved file when the allowlist refuses its path", async () => {
+    useLibrary.setState({
+      downloads: {
+        [TEST_SONG_ID]: {
+          track: { id: TEST_SONG_ID, title: TEST_SONG_TITLE, artist: "Artist", duration: 200 },
+          path: "/elsewhere/song.m4a",
+          status: "done",
+          progress: 1,
+          downloaded: 1,
+          total: 1,
+        },
+      },
+    });
+    pathExists.mockRejectedValue(new Error("Path is not in an approved folder"));
+
+    await playStream(TEST_SONG_ID, TEST_SONG_TITLE);
+
+    expect(resolveStream).toHaveBeenCalledWith(TEST_SONG_ID, false);
+    expect(audio.src).toBe(`http://127.0.0.1:4321/?id=${TEST_SONG_ID}`);
+    useLibrary.setState({ downloads: {} });
+  });
+
   it("resolves the test song, registers its URL and plays it through the proxy", async () => {
     await playStream(TEST_SONG_ID, TEST_SONG_TITLE);
 

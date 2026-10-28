@@ -6,6 +6,7 @@ import type { MenuItem } from "../stores/ui";
 import { TrackRow } from "../components/TrackRow";
 import { getPlaylistPage } from "../lib/browse";
 import { copyLink, queueAll} from "../lib/browseActions";
+import { downloadAll } from "../lib/downloads";
 import { trackMenuItems } from "../lib/trackActions";
 import { heroCover, pageTitleSize, youtubePlaylistLink } from "../lib/browseText";
 import { useBrowseLoad } from "../lib/useBrowseLoad";
@@ -44,7 +45,12 @@ function PlaylistContent({ page, playlistId }: { page: PlaylistPage; playlistId:
       disabled: tracks.length === 0,
       onSelect: () => queueAll(tracks, "Playlist added to queue"),
     },
-    { label: "Download all", icon: Download01Icon, disabled: true },
+    {
+      label: "Download all",
+      icon: Download01Icon,
+      disabled: tracks.length === 0,
+      onSelect: () => downloadAll(tracks, page.title),
+    },
     { label: "Copy link", icon: Copy01Icon, onSelect: () => copyLink(youtubePlaylistLink(playlistId)) },
   ];
 

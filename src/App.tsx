@@ -12,6 +12,7 @@ import { SwipeArrow } from "./components/SwipeArrow";
 import { Toasts } from "./components/Toasts";
 import { TopBar } from "./components/TopBar";
 import { watchFullScreen } from "./lib/bridge";
+import { listenForDownloadProgress } from "./lib/downloads";
 import { useKeyboardShortcuts, useSwipeNavigation } from "./lib/shortcuts";
 import { useNavigation, type View } from "./stores/navigation";
 import { useUI } from "./stores/ui";
@@ -85,6 +86,21 @@ export default function App() {
 
   useKeyboardShortcuts();
   useSwipeNavigation();
+
+  useEffect(() => {
+    let stop: (() => void) | undefined;
+    let live = true;
+    void listenForDownloadProgress()
+      .then((unlisten) => {
+        if (live) stop = unlisten;
+        else unlisten();
+      })
+      .catch((error: unknown) => console.warn(`[hushio] download events unavailable: ${String(error)}`));
+    return () => {
+      live = false;
+      stop?.();
+    };
+  }, []);
 
   useEffect(() => {
     let stop: (() => void) | undefined;

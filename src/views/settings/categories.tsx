@@ -46,6 +46,7 @@ import type { SettingRowProps } from "../../components/SettingRow";
 import { Slider } from "../../components/Slider";
 import { APP_NAME, APP_SLUG } from "../../lib/app";
 import { MATCH_LANGUAGE_OPTIONS } from "../../lib/importLanguage";
+import { chooseDownloadFolder } from "../../lib/downloads";
 import { confirmImportBackup, exportBackup } from "../../lib/importBackup";
 import type { View } from "../../stores/navigation";
 import type {
@@ -532,8 +533,7 @@ function libraryCategory(context: BuildContext): SettingsCategory {
             icon: FolderDownloadIcon,
             title: "Download folder",
             note: s.downloadDir ?? `Default: your system Downloads folder / ${APP_NAME}`,
-            disabled: true,
-            control: <Button disabled>Choose</Button>,
+            control: <Button onClick={() => void chooseDownloadFolder()}>Choose</Button>,
           },
           {
             id: "download-quality",

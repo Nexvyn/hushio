@@ -8,6 +8,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { getAlbumPage, getPlaylistPage } from "./browse";
 import { youtubeAlbumLink, youtubePlaylistLink } from "./browseText";
+import { downloadAll } from "./downloads";
 import { plural } from "./plural";
 import type { BrowseItem, SearchSong } from "./searchParse";
 import { useNavigation } from "../stores/navigation";
@@ -74,7 +75,12 @@ export function browseMenuItems(item: BrowseItem): MenuItem[] {
       icon: PlayListAddIcon,
       onSelect: () => withTracks((tracks) => usePlayer.getState().addToQueue(tracks)),
     },
-    { label: "Download all", icon: Download01Icon, separatorBefore: true, disabled: true },
+    {
+      label: "Download all",
+      icon: Download01Icon,
+      separatorBefore: true,
+      onSelect: () => withTracks((tracks) => downloadAll(tracks, item.title)),
+    },
     {
       label: "Copy link",
       icon: Link01Icon,

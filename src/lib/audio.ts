@@ -1,4 +1,5 @@
-import { registerStreamUrl, streamProxyPort } from "./bridge";
+import { fileSrc, pathExists, registerStreamUrl, streamProxyPort } from "./bridge";
+import { downloadedPath } from "./downloads";
 import { resolveStream } from "./resolveStream";
 import { useUI } from "../stores/ui";
 
@@ -126,12 +127,24 @@ export function setMuted(value: boolean): void {
   audio.muted = value;
 }
 
-async function loadStream(id: string, refresh: boolean, seq: number): Promise<void> {
+async function savedSource(id: string): Promise<string | null> {
+  const path = downloadedPath(id);
+  if (!path) return null;
+  const exists = await pathExists(path).catch(() => false);
+  return exists ? fileSrc(path) : null;
+}
+
+async function streamSource(id: string, refresh: boolean): Promise<string> {
   const stream = await resolveStream(id, refresh);
   const port = await streamProxyPort();
   await registerStreamUrl(id, stream.url);
+  return `http://127.0.0.1:${port}/?id=${encodeURIComponent(id)}`;
+}
+
+async function loadStream(id: string, refresh: boolean, seq: number): Promise<void> {
+  const src = (await savedSource(id)) ?? (await streamSource(id, refresh));
   if (seq !== loadSeq) return;
-  audio.src = `http://127.0.0.1:${port}/?id=${encodeURIComponent(id)}`;
+  audio.src = src;
   if (pendingSeek > 0) audio.currentTime = pendingSeek;
   pendingSeek = 0;
 }

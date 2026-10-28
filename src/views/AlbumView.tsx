@@ -8,6 +8,7 @@ import { TrackRow } from "../components/TrackRow";
 import { getAlbumPage } from "../lib/browse";
 import type { ReleasePage } from "../lib/browseParse";
 import { addedMessage, copyLink, queueAll} from "../lib/browseActions";
+import { downloadAll } from "../lib/downloads";
 import { trackMenuItems } from "../lib/trackActions";
 import {
   albumMeta,
@@ -64,7 +65,12 @@ function AlbumContent({ page }: { page: ReleasePage }) {
       disabled: tracks.length === 0,
       onSelect: () => queueAll(tracks, addedMessage(tracks.length)),
     },
-    { label: "Download all", icon: Download01Icon, disabled: true },
+    {
+      label: "Download all",
+      icon: Download01Icon,
+      disabled: tracks.length === 0,
+      onSelect: () => downloadAll(tracks, album.title),
+    },
     { label: "Copy link", icon: Copy01Icon, onSelect: () => copyLink(youtubeAlbumLink(album.id)) },
   ];
 

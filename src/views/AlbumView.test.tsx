@@ -178,7 +178,7 @@ describe("AlbumView", () => {
     await user.click(await screen.findByRole("button", { name: "More options" }));
 
     expect((screen.getByRole("menuitem", { name: "Go to artist" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("menuitem", { name: "Download all" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("menuitem", { name: "Download all" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("toggles the about text between clipped and expanded", async () => {

@@ -83,7 +83,7 @@ describe("buildBackup", () => {
     expect(backup.app).toBe("hushio");
     expect(backup.version).toBe(1);
     expect(backup.exportedAt).toBe("2026-11-09T21:00:00.000Z");
-    expect(backup.library?.version).toBe(3);
+    expect(backup.library?.version).toBe(4);
     expect(backup.player?.version).toBe(0);
     expect(Object.keys(backup.library?.state ?? {})).toEqual(
       expect.arrayContaining(["liked", "history", "playlists", "folders", "pinnedSingles"]),
