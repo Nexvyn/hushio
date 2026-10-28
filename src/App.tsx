@@ -3,6 +3,7 @@ import { ContextMenu } from "./components/ContextMenu";
 import { Dialog } from "./components/Dialog";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LyricsCenter } from "./components/LyricsCenter";
+import { NowPlaying } from "./components/NowPlaying";
 import { PlayerBar } from "./components/PlayerBar";
 import { PlaylistPicker } from "./components/PlaylistPicker";
 import { RightRail } from "./components/RightRail";
@@ -139,6 +140,7 @@ export default function App() {
       </div>
 
       <PlayerBar />
+      <NowPlaying />
       <Toasts />
       <Dialog />
       <PlaylistPicker />

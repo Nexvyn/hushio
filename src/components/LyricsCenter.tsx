@@ -1,57 +1,22 @@
-import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { Icon } from "./Icon";
 import { LyricsTiming } from "./LyricsTiming";
 import { SyncedLyrics } from "./SyncedLyrics";
-import type { LyricsResult } from "../lib/bridge";
-import { requestLyrics } from "../lib/lyrics";
 import { reducedMotion, swap } from "../lib/motion";
-import { isTyping } from "../lib/shortcuts";
+import { useLyricsOffset, useLyricsTimingKeys } from "../lib/lyricsOffset";
+import { useTrackLyrics } from "../lib/useTrackLyrics";
 import { currentTrack, usePlayer } from "../stores/player";
-import { LYRICS_NUDGE_STEP, useLyricsNudge } from "../stores/lyricsNudge";
-import { useSettings } from "../stores/settings";
 import { useUI } from "../stores/ui";
 
 export function LyricsCenter() {
   const track = usePlayer(currentTrack);
   const duration = usePlayer((state) => state.duration);
   const closeLyrics = useUI((state) => state.closeLyrics);
-  const deviceOffset = useSettings((state) => state.lyricsOffset);
   const trackId = track?.id ?? null;
-  const nudge = useLyricsNudge((state) => (trackId ? (state.nudges[trackId] ?? 0) : 0));
-  const [settled, setSettled] = useState<{ id: string; lyrics: LyricsResult | null } | null>(null);
-
-  useEffect(() => {
-    if (!track) return;
-    let cancelled = false;
-    requestLyrics(track, duration).then((result) => {
-      if (!cancelled) setSettled({ id: track.id, lyrics: result });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [trackId]);
-
-  const ready = settled !== null && settled.id === trackId;
-  const lyrics = ready ? settled.lyrics : null;
-  const loading = trackId !== null && !ready;
-
-  useEffect(() => {
-    if (!trackId) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (isTyping(event.target)) return;
-      if (event.code === "BracketLeft") {
-        event.preventDefault();
-        useLyricsNudge.getState().nudge(trackId, -LYRICS_NUDGE_STEP);
-      } else if (event.code === "BracketRight") {
-        event.preventDefault();
-        useLyricsNudge.getState().nudge(trackId, LYRICS_NUDGE_STEP);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [trackId]);
+  const offset = useLyricsOffset(trackId);
+  const { lyrics, loading } = useTrackLyrics(track, duration);
+  useLyricsTimingKeys(trackId);
 
   const reduced = reducedMotion();
 
@@ -79,7 +44,7 @@ export function LyricsCenter() {
             key={track.id}
             lyrics={lyrics}
             loading={loading}
-            offset={deviceOffset + nudge}
+            offset={offset}
             trackKey={track.id}
           />
         ) : (

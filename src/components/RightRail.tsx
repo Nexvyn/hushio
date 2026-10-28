@@ -96,7 +96,7 @@ function confirmClearHistory() {
   });
 }
 
-function QueuePanel() {
+export function QueuePanel() {
   const queue = usePlayer((state) => state.queue);
   const index = usePlayer((state) => state.index);
   const autoplayCount = usePlayer((state) => state.autoplayCount);
