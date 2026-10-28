@@ -13,7 +13,7 @@ use axum::routing::get;
 use serde::Deserialize;
 use tokio::sync::OnceCell;
 
-const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+pub const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 const UPSTREAM_TIMEOUT: Duration = Duration::from_secs(20);
 const SERVED_CAP: usize = 500;
 const APP_ORIGINS: [&str; 3] = [

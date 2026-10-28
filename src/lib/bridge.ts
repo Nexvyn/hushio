@@ -1,5 +1,6 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke, type InvokeArgs } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 export type Platform = "windows" | "macos" | "linux" | "android";
@@ -132,4 +133,46 @@ export interface LyricsResult {
 
 export function lyricsGet(meta: LyricsMeta): Promise<LyricsResult | null> {
   return call<LyricsResult | null>("lyrics_get", { meta });
+}
+
+export interface DownloadTrack {
+  id: string;
+  title: string;
+  artist: string;
+  album?: string;
+  thumb?: string;
+}
+
+export type DownloadEventKind = "queued" | "start" | "progress" | "done" | "failed" | "cancelled";
+
+export interface DownloadEvent {
+  type: DownloadEventKind;
+  id: string;
+  downloaded?: number;
+  total?: number;
+  path?: string;
+  reason?: string;
+}
+
+export interface DownloadQueueRow {
+  id: string;
+  running: boolean;
+  downloaded: number;
+  total: number;
+}
+
+export function downloadStart(track: DownloadTrack, url: string, dir?: string): Promise<void> {
+  return call<void>("download_start", { track, url, dir });
+}
+
+export function downloadCancel(id: string): Promise<boolean> {
+  return call<boolean>("download_cancel", { id });
+}
+
+export function downloadQueue(): Promise<DownloadQueueRow[]> {
+  return call<DownloadQueueRow[]>("download_queue");
+}
+
+export function listenDownloadEvents(onEvent: (event: DownloadEvent) => void): Promise<UnlistenFn> {
+  return listen<DownloadEvent>("download:event", (event) => onEvent(event.payload));
 }

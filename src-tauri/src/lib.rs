@@ -1,10 +1,11 @@
+mod downloads;
 mod lyrics;
 mod persist;
 mod stream;
 
 use std::path::PathBuf;
 
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager, RunEvent, State};
 use tracing::Subscriber;
 use tracing_subscriber::fmt::format::Writer;
 use tracing_subscriber::fmt::{FmtContext, FormatEvent, FormatFields};
@@ -193,7 +194,7 @@ pub fn run() {
         .with_max_level(tracing::Level::INFO)
         .init();
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
@@ -206,6 +207,8 @@ pub fn run() {
             tauri::async_runtime::block_on(proxy.start())?;
             app.manage(proxy);
             app.manage(lyrics::Service::new()?);
+            let default_dir = app.path().download_dir()?.join(APP_NAME);
+            app.manage(downloads::Downloads::new(app.handle().clone(), default_dir));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -214,10 +217,40 @@ pub fn run() {
             persist_write,
             stream_proxy_port,
             stream_register,
-            lyrics_get
+            lyrics_get,
+            download_start,
+            download_cancel,
+            download_queue
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|app, event| {
+        if let RunEvent::ExitRequested { .. } = event {
+            app.state::<downloads::Downloads<AppHandle>>().abandon();
+        }
+    });
+}
+
+#[tauri::command]
+fn download_start(
+    state: State<'_, downloads::Downloads<AppHandle>>,
+    track: downloads::TrackInfo,
+    url: String,
+    dir: Option<String>,
+) -> Result<(), String> {
+    downloads::require_https(&url)?;
+    state.enqueue(track, url, dir.map(PathBuf::from))
+}
+
+#[tauri::command]
+fn download_cancel(state: State<'_, downloads::Downloads<AppHandle>>, id: String) -> bool {
+    state.cancel(&id)
+}
+
+#[tauri::command]
+fn download_queue(state: State<'_, downloads::Downloads<AppHandle>>) -> Vec<downloads::QueueRow> {
+    state.queue()
 }
 
 #[cfg(test)]

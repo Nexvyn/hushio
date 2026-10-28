@@ -27,6 +27,8 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 regex = "1.13.1"
 scraper = "0.20"
 unicode-normalization = "0.1.26"
+lofty = "0.22"
+tokio-util = "0.7.20"
 
 [profile.release]
 codegen-units = 1
