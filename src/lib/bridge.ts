@@ -120,6 +120,7 @@ export interface SyncedLyricLine {
   words?: SyncedLyricWord[];
   bg?: SyncedLyricBg;
   roman?: string;
+  gap?: boolean;
 }
 
 export interface LyricsResult {

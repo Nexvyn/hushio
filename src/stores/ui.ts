@@ -76,6 +76,7 @@ type UIState = {
   setRightPanel: (panel: "details" | "queue") => void;
   toggleQueue: () => void;
   toggleLyrics: () => void;
+  closeLyrics: () => void;
   toggleNowPlaying: () => void;
   closePanels: () => void;
   openDialog: (request: DialogRequest) => void;
@@ -136,6 +137,8 @@ export const useUI = create<UIState>()((set) => ({
     set((state) => ({ rightPanel: state.rightPanel === "queue" ? "details" : "queue" })),
 
   toggleLyrics: () => set((state) => ({ lyricsCenter: !state.lyricsCenter })),
+
+  closeLyrics: () => set({ lyricsCenter: false }),
 
   toggleNowPlaying: () => set((state) => ({ nowPlayingOpen: !state.nowPlayingOpen })),
 

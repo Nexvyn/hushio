@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect } from "react";
 import { ContextMenu } from "./components/ContextMenu";
 import { Dialog } from "./components/Dialog";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { LyricsCenter } from "./components/LyricsCenter";
 import { PlayerBar } from "./components/PlayerBar";
 import { PlaylistPicker } from "./components/PlaylistPicker";
 import { RightRail } from "./components/RightRail";
@@ -79,6 +80,7 @@ export default function App() {
   const viewReloadNonce = useNavigation((state) => state.viewReloadNonce);
   const clearPendingScroll = useNavigation((state) => state.clearPendingScroll);
   const setOsFullscreen = useUI((state) => state.setOsFullscreen);
+  const lyricsCenter = useUI((state) => state.lyricsCenter);
 
   useKeyboardShortcuts();
   useSwipeNavigation();
@@ -129,6 +131,7 @@ export default function App() {
               </ErrorBoundary>
             </div>
           </div>
+          {lyricsCenter && <LyricsCenter />}
           <SwipeArrow />
         </main>
 

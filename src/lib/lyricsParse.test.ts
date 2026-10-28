@@ -1,0 +1,118 @@
+import { describe, expect, it } from "vitest";
+import { parseClock, parseEnhancedLrc, parseLrc, parsePlainText, parseTtml } from "./lyricsParse";
+
+const TTML_FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
+<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
+  <body><div>
+    <p begin="00:00:01.000" end="00:00:03.500" ttm:agent="v1">
+      <span begin="00:00:01.000" end="00:00:01.500">Hello</span> <span begin="00:00:01.500" end="00:00:02.000">world</span>
+      <span ttm:role="x-roman">heh-lo wurld</span>
+      <span ttm:role="x-translation">Bonjour</span>
+    </p>
+    <p begin="00:00:04.000" end="00:00:05.000">
+      <span begin="00:00:04.000" end="00:00:05.000">Second &amp; last</span>
+    </p>
+    <p begin="00:00:05.500" end="00:00:06.000">
+      <span begin="00:00:05.500" end="00:00:06.000">main</span>
+      <span ttm:role="x-bg" begin="00:00:05.500" end="00:00:06.000">(echo)</span>
+    </p>
+    <p begin="00:00:07.000" end="00:00:08.000">
+      <span>Untimed words</span>
+    </p>
+  </div></body>
+</tt>`;
+
+describe("parseClock", () => {
+  it.each([
+    ["01:02.5", 62.5],
+    ["1:02:03.25", 3723.25],
+    ["12.5", 12.5],
+    ["00:00:01.000", 1],
+  ])("reads %s as %d seconds", (input, seconds) => {
+    expect(parseClock(input)).toBeCloseTo(seconds, 5);
+  });
+
+  it("returns null for text that is not a time", () => {
+    expect(parseClock("abc")).toBeNull();
+    expect(parseClock("")).toBeNull();
+  });
+});
+
+describe("parseLrc", () => {
+  it("expands multiple stamps on one line and sorts by time", () => {
+    const lines = parseLrc("[00:05.50][00:01.00]Repeated line\n[00:03.00]Middle");
+    expect(lines).toEqual([
+      { time: 1, text: "Repeated line" },
+      { time: 3, text: "Middle" },
+      { time: 5.5, text: "Repeated line" },
+    ]);
+  });
+
+  it("skips header tags, blank bodies and inline word stamps", () => {
+    const lines = parseLrc("[ar: Artist]\n[ti: Title]\n[00:02.000]\n[00:04.250]<00:04.250>Word stamps <00:04.800>here");
+    expect(lines).toEqual([{ time: 4.25, text: "Word stamps here" }]);
+  });
+
+  it("reads hour-less minutes with three fraction digits", () => {
+    expect(parseLrc("[12:00.125]Late")).toEqual([{ time: 720.125, text: "Late" }]);
+  });
+});
+
+describe("parseEnhancedLrc", () => {
+  it("builds words from word stamps and glues fragments with no space", () => {
+    const [line] = parseEnhancedLrc("[00:01.00]<00:01.00>Hel<00:01.50>lo <00:02.00>world");
+    expect(line.time).toBe(1);
+    expect(line.text).toBe("Hello world");
+    expect(line.words).toEqual([
+      { start: 1, end: 2, text: "Hello" },
+      { start: 2, end: 2.8, text: "world" },
+    ]);
+    expect(line.end).toBeCloseTo(2.8, 5);
+  });
+
+  it("keeps plain lines that have no word stamps", () => {
+    expect(parseEnhancedLrc("[00:09.00]Plain line")).toEqual([{ time: 9, text: "Plain line" }]);
+  });
+
+  it("sorts lines by their start time", () => {
+    const lines = parseEnhancedLrc("[00:04.00]<00:04.00>Later\n[00:01.00]<00:01.00>Early");
+    expect(lines.map((line) => line.text)).toEqual(["Early", "Later"]);
+  });
+});
+
+describe("parseTtml", () => {
+  it("reads timed words, the transliteration and the background line", () => {
+    const lines = parseTtml(TTML_FIXTURE);
+    expect(lines.map((line) => line.text)).toEqual(["Hello world", "Second & last", "main", "Untimed words"]);
+
+    const [first] = lines;
+    expect(first.time).toBe(1);
+    expect(first.end).toBe(3.5);
+    expect(first.words).toEqual([
+      { start: 1, end: 1.5, text: "Hello" },
+      { start: 1.5, end: 2, text: "world" },
+    ]);
+    expect(first.roman).toBe("heh-lo wurld");
+    expect(first.bg).toBeUndefined();
+
+    expect(lines[2].bg).toEqual({ text: "(echo)", words: [{ start: 5.5, end: 6, text: "(echo)" }] });
+  });
+
+  it("keeps an untimed paragraph as one line without words", () => {
+    const untimed = parseTtml(TTML_FIXTURE).at(-1);
+    expect(untimed).toEqual({ time: 7, end: 8, text: "Untimed words" });
+  });
+
+  it("skips paragraphs without a begin time", () => {
+    expect(parseTtml(`<tt><body><p><span begin="00:00:01.000" end="00:00:02.000">x</span></p></body></tt>`)).toEqual([]);
+  });
+});
+
+describe("parsePlainText", () => {
+  it("trims lines, drops blanks and metadata tags", () => {
+    expect(parsePlainText("  First line  \r\n\n[ar: Someone]\nSecond line\n   \n")).toEqual([
+      "First line",
+      "Second line",
+    ]);
+  });
+});

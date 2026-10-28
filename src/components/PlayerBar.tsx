@@ -2,6 +2,7 @@ import { useId } from "react";
 import type { IconSvgElement } from "@hugeicons/react";
 import {
   Loading03Icon,
+  Mic01Icon,
   MusicNote01Icon,
   NextIcon,
   PauseIcon,
@@ -202,6 +203,8 @@ export function PlayerBar() {
   const next = usePlayer((state) => state.next);
   const rightPanel = useUI((state) => state.rightPanel);
   const toggleQueue = useUI((state) => state.toggleQueue);
+  const lyricsCenter = useUI((state) => state.lyricsCenter);
+  const toggleLyrics = useUI((state) => state.toggleLyrics);
   const hideVolumeBar = useSettings((state) => state.hideVolumeBar);
   const empty = queueLength === 0;
 
@@ -236,6 +239,13 @@ export function PlayerBar() {
         </div>
 
         <div className="flex items-center justify-end gap-2">
+          <TransportButton
+            label="Lyrics"
+            icon={Mic01Icon}
+            active={lyricsCenter}
+            pressed={lyricsCenter}
+            onClick={toggleLyrics}
+          />
           <TransportButton
             label="Queue"
             icon={Queue01Icon}

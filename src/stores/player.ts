@@ -9,6 +9,7 @@ import {
   setMuted,
   setVolume as setAudioVolume,
 } from "../lib/audio";
+import { prefetchLyrics } from "../lib/lyrics";
 import { persistStorage } from "../lib/persist";
 import {
   AUTOPLAY_EMPTY_MESSAGE,
@@ -106,6 +107,7 @@ let loadedId: string | null = null;
 function load(track: Track) {
   loadedId = track.id;
   usePlayer.setState({ duration: 0 });
+  prefetchLyrics(track);
   playStream(track.id, track.title).catch(() => {
     usePlayer.setState({ playing: false, buffering: false });
     useUI.getState().toast(`Couldn't play "${track.title}"`, "error");

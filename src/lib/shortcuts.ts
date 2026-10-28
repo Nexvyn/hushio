@@ -10,7 +10,7 @@ const NON_TEXT_INPUTS = new Set(["range", "checkbox", "radio", "button", "submit
 const SEEK_STEP_S = 5;
 const VOLUME_STEP = 0.05;
 
-function isTyping(target: EventTarget | null) {
+export function isTyping(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
   if (target instanceof HTMLInputElement) return !NON_TEXT_INPUTS.has(target.type);
   if (target.tagName === "TEXTAREA") return true;

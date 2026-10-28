@@ -196,6 +196,10 @@ export function pause(): void {
   audio.pause();
 }
 
+export function getPlaybackPosition(): number {
+  return audio.currentTime;
+}
+
 export function seekTo(seconds: number): void {
   if (!Number.isFinite(seconds)) return;
   const end = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : seconds;
