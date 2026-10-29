@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 
 use lofty::prelude::{Accessor, TaggedFileExt};
 use lofty::probe::Probe;
+use lofty::picture::MimeType;
 use lofty::tag::TagType;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -14,7 +15,7 @@ use tokio::time::{sleep, timeout};
 use super::tags::{self, Cover, CoverFormat, Tags};
 use super::{
     DownloadEvent, Downloads, EventKind, EventSink, Policy, Throttle, TrackInfo, claim_name,
-    cover_url, is_webm, require_https, sanitize_filename, valid_id,
+    cover_url, is_webm, part_path, remove_partials, require_https, sanitize_filename, valid_id,
 };
 
 struct Channel(mpsc::UnboundedSender<DownloadEvent>);
@@ -825,4 +826,79 @@ fn unreadable_part_is_left_untouched() {
     assert!(outcome.is_err());
     assert_eq!(std::fs::read(&part).expect("still there"), garbage);
     assert!(!dir.path().join("broken.part.tagging").exists());
+}
+
+#[test]
+fn every_windows_forbidden_and_control_character_becomes_an_underscore() {
+    for forbidden in ['\\', '/', ':', '*', '?', '"', '<', '>', '|', '\u{1}', '\u{1f}'] {
+        assert_eq!(sanitize_filename(&format!("a{forbidden}b")), "a_b", "{forbidden:?}");
+    }
+}
+
+#[test]
+fn a_name_taken_by_an_earlier_copy_is_skipped() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    std::fs::write(dir.path().join("Song.m4a"), b"").expect("write");
+    std::fs::write(dir.path().join("Song (2).m4a"), b"").expect("write");
+
+    let claimed = claim_name(dir.path(), "Song", "m4a").expect("claimed");
+
+    assert_eq!(claimed.file_name().expect("file name"), "Song (3).m4a");
+}
+
+#[test]
+fn partial_file_is_hidden_and_named_after_the_track_id() {
+    let dir = PathBuf::from("downloads");
+
+    assert_eq!(part_path(&dir, "abc123"), dir.join(".hushio-abc123.part"));
+}
+
+#[test]
+fn partial_and_tag_temp_files_are_removed_together() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let part = dir.path().join(".hushio-x.part");
+    let temp = dir.path().join(".hushio-x.part.tagging");
+    std::fs::write(&part, b"partial").expect("write");
+    std::fs::write(&temp, b"temp").expect("write");
+
+    remove_partials(&part);
+
+    assert!(!part.exists());
+    assert!(!temp.exists());
+    remove_partials(&part);
+}
+
+#[test]
+fn png_cover_is_tagged_as_png_and_album_is_left_out_when_absent() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let part = dir.path().join("png.part");
+    std::fs::write(&part, m4a_fixture(&b"PNG-PAYLOAD".repeat(3))).expect("fixture");
+    let png = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3];
+
+    tags::write(
+        &part,
+        &Tags {
+            title: "Song".to_owned(),
+            artist: "Band".to_owned(),
+            album: None,
+            cover: Some(Cover {
+                format: CoverFormat::Png,
+                data: png.clone(),
+            }),
+        },
+    )
+    .expect("tagged");
+
+    let read_back = Probe::open(&part)
+        .expect("opens")
+        .guess_file_type()
+        .expect("probed")
+        .read()
+        .expect("lofty reads the file");
+    let tag = read_back.tag(TagType::Mp4Ilst).expect("iTunes tag");
+    assert!(tag.album().is_none());
+    let pictures = tag.pictures();
+    assert_eq!(pictures.len(), 1);
+    assert_eq!(pictures[0].mime_type(), Some(&MimeType::Png));
+    assert_eq!(pictures[0].data(), png.as_slice());
 }

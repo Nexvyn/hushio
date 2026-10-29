@@ -500,3 +500,304 @@ async fn remove_and_rename_persist_across_restart() {
     let reloaded = Service::load(root.path().to_path_buf()).await;
     assert!(reloaded.library().await.folders.is_empty());
 }
+
+fn be32(value: usize) -> [u8; 4] {
+    u32::try_from(value).expect("u32").to_be_bytes()
+}
+
+fn le32(value: usize) -> [u8; 4] {
+    u32::try_from(value).expect("u32").to_le_bytes()
+}
+
+fn mp4_box(kind: &[u8; 4], body: &[u8]) -> Vec<u8> {
+    [&be32(8 + body.len())[..], &kind[..], body].concat()
+}
+
+fn mp4_full(kind: &[u8; 4], body: &[u8]) -> Vec<u8> {
+    mp4_box(kind, &[&[0u8; 4][..], body].concat())
+}
+
+fn mp4_item(kind: &[u8; 4], text: &str) -> Vec<u8> {
+    let data = [&1u32.to_be_bytes()[..], &[0u8; 4], text.as_bytes()].concat();
+    mp4_box(kind, &mp4_box(b"data", &data))
+}
+
+fn m4a_bytes(title: &str, artist: &str, album: &str, codec: &[u8; 4]) -> Vec<u8> {
+    let ftyp = mp4_box(b"ftyp", &[&b"M4A "[..], &[0u8; 4], b"M4A mp42isom"].concat());
+    let mvhd = mp4_full(
+        b"mvhd",
+        &[
+            &[0u8; 8][..],
+            &1000u32.to_be_bytes(),
+            &31_000u32.to_be_bytes(),
+            &0x0001_0000u32.to_be_bytes(),
+            &[1, 0],
+            &[0u8; 10],
+            &[0u8; 36],
+            &[0u8; 24],
+            &2u32.to_be_bytes(),
+        ]
+        .concat(),
+    );
+    let mdhd = mp4_full(
+        b"mdhd",
+        &[&[0u8; 8][..], &44_100u32.to_be_bytes(), &1_367_100u32.to_be_bytes(), &[0x55, 0xC4, 0, 0]].concat(),
+    );
+    let hdlr = mp4_full(b"hdlr", &[&[0u8; 4][..], b"soun", &[0u8; 12], &[0u8]].concat());
+    let mut entry_body = [
+        &[0u8; 6][..],
+        &[0, 1],
+        &[0u8; 8],
+        &[0, 2, 0, 16, 0, 0, 0, 0],
+        &(44_100u32 << 16).to_be_bytes(),
+    ]
+    .concat();
+    if codec == b"alac" {
+        entry_body.extend(mp4_box(b"alac", &[0u8; 28]));
+    }
+    let sample_entry = mp4_box(codec, &entry_body);
+    let stsd = mp4_full(b"stsd", &[&1u32.to_be_bytes()[..], &sample_entry].concat());
+    let stbl = mp4_box(b"stbl", &stsd);
+    let mdia = mp4_box(b"mdia", &[mdhd, hdlr, mp4_box(b"minf", &stbl)].concat());
+    let trak = mp4_box(b"trak", &mdia);
+    let meta_hdlr = mp4_full(b"hdlr", &[&[0u8; 4][..], b"mdir", b"appl", &[0u8; 8], &[0u8]].concat());
+    let ilst = mp4_box(
+        b"ilst",
+        &[
+            mp4_item(b"\xa9nam", title),
+            mp4_item(b"\xa9ART", artist),
+            mp4_item(b"\xa9alb", album),
+        ]
+        .concat(),
+    );
+    let udta = mp4_box(b"udta", &mp4_full(b"meta", &[meta_hdlr, ilst].concat()));
+    let moov = mp4_box(b"moov", &[mvhd, trak, udta].concat());
+    [ftyp, moov, mp4_box(b"mdat", &[0u8; 64])].concat()
+}
+
+fn id3_frame(kind: &[u8; 4], body: &[u8]) -> Vec<u8> {
+    [&kind[..], &be32(body.len()), &[0u8; 2], body].concat()
+}
+
+fn id3_text(kind: &[u8; 4], text: &str) -> Vec<u8> {
+    id3_frame(kind, &[&[0u8][..], text.as_bytes()].concat())
+}
+
+const MP3_FRAME: [u8; 4] = [0xFF, 0xFB, 0x90, 0x00];
+const MP3_FRAMES: usize = 1200;
+
+fn mp3_bytes(title: &str, artist: &str, album: &str, cover: Option<&[u8]>) -> Vec<u8> {
+    let mut frames = [
+        id3_text(b"TIT2", title),
+        id3_text(b"TPE1", artist),
+        id3_text(b"TALB", album),
+    ]
+    .concat();
+    if let Some(data) = cover {
+        let body = [&[0u8][..], b"image/jpeg\0", &[3, 0], data].concat();
+        frames.extend(id3_frame(b"APIC", &body));
+    }
+    let size = frames.len();
+    let syncsafe = [
+        ((size >> 21) & 0x7f) as u8,
+        ((size >> 14) & 0x7f) as u8,
+        ((size >> 7) & 0x7f) as u8,
+        (size & 0x7f) as u8,
+    ];
+    let mut bytes = [&b"ID3"[..], &[3, 0, 0], &syncsafe, &frames].concat();
+    for _ in 0..MP3_FRAMES {
+        bytes.extend_from_slice(&MP3_FRAME);
+        bytes.extend(vec![0u8; 413]);
+    }
+    bytes
+}
+
+fn flac_block(kind: u8, body: &[u8]) -> Vec<u8> {
+    [&[kind][..], &be32(body.len())[1..], body].concat()
+}
+
+fn vorbis_comments(comments: &[String]) -> Vec<u8> {
+    let vendor = b"hushio-test";
+    let mut out = le32(vendor.len()).to_vec();
+    out.extend_from_slice(vendor);
+    out.extend_from_slice(&le32(comments.len()));
+    for comment in comments {
+        out.extend_from_slice(&le32(comment.len()));
+        out.extend_from_slice(comment.as_bytes());
+    }
+    out
+}
+
+fn tag_lines(title: &str, artist: &str, album: &str) -> Vec<String> {
+    vec![format!("TITLE={title}"), format!("ARTIST={artist}"), format!("ALBUM={album}")]
+}
+
+fn flac_bytes(title: &str, artist: &str, album: &str) -> Vec<u8> {
+    let packed: u64 = (44_100u64 << 44) | (1u64 << 41) | (15u64 << 36) | 1_367_100;
+    let mut streaminfo = Vec::new();
+    streaminfo.extend_from_slice(&4096u16.to_be_bytes());
+    streaminfo.extend_from_slice(&4096u16.to_be_bytes());
+    streaminfo.extend_from_slice(&[0u8; 6]);
+    streaminfo.extend_from_slice(&packed.to_be_bytes());
+    streaminfo.extend_from_slice(&[0u8; 16]);
+    let comments = vorbis_comments(&tag_lines(title, artist, album));
+    [&b"fLaC"[..], &flac_block(0x00, &streaminfo), &flac_block(0x84, &comments)].concat()
+}
+
+fn ogg_page(flags: u8, sequence: u32, granule: u64, packet: &[u8]) -> Vec<u8> {
+    let mut lacing = vec![255u8; packet.len() / 255];
+    lacing.push((packet.len() % 255) as u8);
+    let mut page = b"OggS".to_vec();
+    page.extend_from_slice(&[0, flags]);
+    page.extend_from_slice(&granule.to_le_bytes());
+    page.extend_from_slice(&1u32.to_le_bytes());
+    page.extend_from_slice(&sequence.to_le_bytes());
+    page.extend_from_slice(&[0u8; 4]);
+    page.push(u8::try_from(lacing.len()).expect("segments"));
+    page.extend(lacing);
+    page.extend_from_slice(packet);
+    page
+}
+
+fn ogg_bytes(title: &str, artist: &str, album: &str) -> Vec<u8> {
+    let mut identification = vec![1u8];
+    identification.extend_from_slice(b"vorbis");
+    identification.extend_from_slice(&0u32.to_le_bytes());
+    identification.push(2);
+    identification.extend_from_slice(&44_100u32.to_le_bytes());
+    identification.extend_from_slice(&[0u8; 12]);
+    identification.extend_from_slice(&[0xB8, 1]);
+    let mut comment = vec![3u8];
+    comment.extend_from_slice(b"vorbis");
+    comment.extend_from_slice(&vorbis_comments(&tag_lines(title, artist, album)));
+    comment.push(1);
+    let mut setup = vec![5u8];
+    setup.extend_from_slice(b"vorbis");
+    setup.extend_from_slice(&[0u8; 16]);
+    setup.push(1);
+    [
+        ogg_page(0x02, 0, 0, &identification),
+        ogg_page(0x00, 1, 0, &comment),
+        ogg_page(0x00, 2, 0, &setup),
+        ogg_page(0x04, 3, 1_367_100, &[0u8; 8]),
+    ]
+    .concat()
+}
+
+fn write_bytes(path: &Path, bytes: &[u8]) {
+    fs::create_dir_all(path.parent().expect("parent")).expect("dirs");
+    fs::write(path, bytes).expect("write");
+}
+
+#[test]
+fn each_playable_format_is_indexed_with_its_tags() {
+    let temp = tempfile::tempdir().expect("temp");
+    let root = temp.path();
+    write_bytes(&root.join("track 1.mp3"), &mp3_bytes("Mp3 Song", "Mp3 Artist", "Mp3 Album", None));
+    write_bytes(&root.join("track 2.flac"), &flac_bytes("Flac Song", "Flac Artist", "Flac Album"));
+    write_bytes(&root.join("track 3.m4a"), &m4a_bytes("M4a Song", "M4a Artist", "M4a Album", b"mp4a"));
+    write_bytes(&root.join("track 4.ogg"), &ogg_bytes("Ogg Song", "Ogg Artist", "Ogg Album"));
+
+    let (mut tracks, unplayable) = scan_root(root, true);
+    tracks.sort_by(|a, b| a.title.cmp(&b.title));
+
+    assert!(unplayable.is_empty());
+    let found: Vec<(&str, &str, &str, f64)> = tracks
+        .iter()
+        .map(|track| (track.title.as_str(), track.artist.as_str(), track.album.as_str(), track.duration))
+        .collect();
+    assert_eq!(
+        found,
+        vec![
+            ("Flac Song", "Flac Artist", "Flac Album", 31.0),
+            ("M4a Song", "M4a Artist", "M4a Album", 31.0),
+            ("Mp3 Song", "Mp3 Artist", "Mp3 Album", 31.0),
+            ("Ogg Song", "Ogg Artist", "Ogg Album", 31.0),
+        ]
+    );
+    assert!(tracks.iter().all(|track| track.codec.is_some()));
+}
+
+#[test]
+fn embedded_cover_is_saved_under_the_track_hash() {
+    let temp = tempfile::tempdir().expect("temp");
+    let file = temp.path().join("Cover.mp3");
+    let cover = b"\xff\xd8\xff\xe0cover-bytes";
+    write_bytes(&file, &mp3_bytes("Cover", "Band", "Art", Some(cover)));
+    let art_dir = temp.path().join(ART_DIR);
+
+    let track = read_track(&file, 1, 1, &art_dir);
+
+    let name = format!("{}.jpg", hash_path(&track.path));
+    assert_eq!(track.art, Some(format!("localart://{name}")));
+    assert_eq!(fs::read(art_dir.join(&name)).expect("cover saved"), cover);
+}
+
+#[test]
+fn long_tag_values_are_cut_to_200_characters() {
+    let temp = tempfile::tempdir().expect("temp");
+    let file = temp.path().join("Long.mp3");
+    write_bytes(&file, &mp3_bytes(&"x".repeat(300), "Band", "Album", None));
+
+    let track = read_track(&file, 1, 1, &temp.path().join(ART_DIR));
+
+    assert_eq!(track.title.chars().count(), MAX_TAG_CHARS);
+}
+
+#[test]
+fn unreadable_audio_keeps_the_name_based_record() {
+    let temp = tempfile::tempdir().expect("temp");
+    let file = temp.path().join("Band - Broken.mp3");
+    write_bytes(&file, b"not audio");
+
+    let track = read_track(&file, 9, 5, &temp.path().join(ART_DIR));
+
+    assert_eq!(track.title, "Broken");
+    assert_eq!(track.artist, "Band");
+    assert_eq!(track.album, UNKNOWN_ALBUM);
+    assert_eq!(track.duration, 0.0);
+    assert_eq!(track.codec, None);
+    assert_eq!(track.art, None);
+    assert_eq!(track.mtime, 5);
+}
+
+#[test]
+fn thirty_seconds_is_kept_and_twenty_nine_is_dropped() {
+    let temp = tempfile::tempdir().expect("temp");
+    write_wav(&temp.path().join("Thirty.wav"), 30);
+    write_wav(&temp.path().join("Twenty Nine.wav"), 29);
+
+    let (tracks, _) = scan_root(temp.path(), true);
+
+    assert_eq!(names(&tracks), vec!["Thirty".to_string()]);
+}
+
+#[test]
+fn alac_inside_m4a_is_counted_as_unplayable() {
+    let temp = tempfile::tempdir().expect("temp");
+    write_bytes(&temp.path().join("lossless.m4a"), &m4a_bytes("Lossless", "Band", "Album", b"alac"));
+
+    let (tracks, unplayable) = scan_root(temp.path(), true);
+
+    assert!(tracks.is_empty());
+    assert_eq!(
+        unplayable,
+        vec![Unplayable {
+            format: "ALAC".to_string(),
+            count: 1
+        }]
+    );
+}
+
+#[test]
+fn non_audio_files_are_neither_listed_nor_counted() {
+    let temp = tempfile::tempdir().expect("temp");
+    fs::write(temp.path().join("cover.jpg"), b"\xff\xd8").expect("write");
+    fs::write(temp.path().join("notes.txt"), b"lyrics").expect("write");
+    fs::write(temp.path().join("playlist.m3u8"), b"#EXTM3U").expect("write");
+
+    let (tracks, unplayable) = scan_root(temp.path(), true);
+
+    assert!(tracks.is_empty());
+    assert!(unplayable.is_empty());
+}
