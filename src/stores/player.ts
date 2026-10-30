@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { persist, type PersistStorage } from "zustand/middleware";
 import {
+  type BlendEnd,
+  type BlendTarget,
   audio,
   pause as pauseAudio,
   play as playAudio,
@@ -515,6 +517,33 @@ export const usePlayer = create<PlayerState>()(
 
 export function currentTrack(state: PlayerState): Track | null {
   return state.queue[state.index] ?? null;
+}
+
+export function nextBlendTarget(): BlendTarget | null {
+  const { queue, index, repeat, shuffle } = usePlayer.getState();
+  if (repeat === "one") return null;
+  const at = index + 1 < queue.length ? index + 1 : repeat === "all" && !shuffle ? 0 : -1;
+  const track = queue[at];
+  return track ? { id: track.id, title: track.title, index: at } : null;
+}
+
+export function finishBlend(target: BlendTarget, { position, duration, ended }: BlendEnd): void {
+  const { queue, played } = usePlayer.getState();
+  const track = queue[target.index];
+  loadedId = track.id;
+  usePlayer.setState({
+    index: target.index,
+    playing: true,
+    buffering: false,
+    position,
+    duration,
+    error: null,
+    played: [track, ...played.filter((item) => item.id !== track.id)].slice(0, PLAYED_LIMIT),
+  });
+  useLibrary.getState().pushHistory(track);
+  prefetchLyrics(track);
+  refillIfNeeded();
+  if (ended) usePlayer.getState().handleEnded();
 }
 
 export function playFromRow(tracks: Track[], row: number, from?: string) {

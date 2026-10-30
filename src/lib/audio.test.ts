@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { useLibrary } from "../stores/library";
 import { useUI } from "../stores/ui";
 
@@ -20,8 +20,18 @@ vi.mock("./bridge", () => ({
   persistWrite: async () => true,
 }));
 vi.mock("./resolveStream", () => ({ resolveStream }));
+vi.mock("./persist", () => ({
+  persistStorage: () => ({
+    getItem: async () => null,
+    setItem: async () => {},
+    removeItem: async () => {},
+  }),
+}));
 
 import {
+  activeDeck,
+  type BlendEnd,
+  type BlendTarget,
   audio,
   headroomDb,
   pause,
@@ -29,6 +39,7 @@ import {
   playStream,
   seekTo,
   setVolume,
+  standbyDeck,
   TEST_SONG_ID,
   TEST_SONG_TITLE,
 } from "./audio";
@@ -43,8 +54,8 @@ function stream(url: string) {
 }
 
 function setMediaTimes(duration: number, currentTime = 0) {
-  Object.defineProperty(audio, "duration", { value: duration, configurable: true });
-  Object.defineProperty(audio, "currentTime", {
+  Object.defineProperty(activeDeck(), "duration", { value: duration, configurable: true });
+  Object.defineProperty(activeDeck(), "currentTime", {
     value: currentTime,
     writable: true,
     configurable: true,
@@ -77,8 +88,31 @@ describe("playStream", () => {
 
     expect(localLibraryTrackPath).toHaveBeenCalledWith("local:abc");
     expect(resolveStream).not.toHaveBeenCalled();
-    expect(audio.src).toBe("asset:///music/a.mp3");
+    expect(activeDeck().src).toBe("asset:///music/a.mp3");
     expect(playSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("plays a downloaded song from its saved file without resolving a stream", async () => {
+    useLibrary.setState({
+      downloads: {
+        [TEST_SONG_ID]: {
+          track: { id: TEST_SONG_ID, title: TEST_SONG_TITLE, artist: "Artist", duration: 200 },
+          path: "/music/song.m4a",
+          status: "done",
+          progress: 1,
+          downloaded: 1,
+          total: 1,
+        },
+      },
+    });
+    pathExists.mockResolvedValue(true);
+
+    await playStream(TEST_SONG_ID, TEST_SONG_TITLE);
+
+    expect(resolveStream).not.toHaveBeenCalled();
+    expect(activeDeck().src).toBe("asset:///music/song.m4a");
+    expect(playSpy).toHaveBeenCalledTimes(1);
+    useLibrary.setState({ downloads: {} });
   });
 
   it("streams instead of the saved file when the allowlist refuses its path", async () => {
@@ -99,7 +133,7 @@ describe("playStream", () => {
     await playStream(TEST_SONG_ID, TEST_SONG_TITLE);
 
     expect(resolveStream).toHaveBeenCalledWith(TEST_SONG_ID, false);
-    expect(audio.src).toBe(`http://127.0.0.1:4321/?id=${TEST_SONG_ID}`);
+    expect(activeDeck().src).toBe(`http://127.0.0.1:4321/?id=${TEST_SONG_ID}`);
     useLibrary.setState({ downloads: {} });
   });
 
@@ -108,7 +142,7 @@ describe("playStream", () => {
 
     expect(resolveStream).toHaveBeenCalledWith(TEST_SONG_ID, false);
     expect(registerStreamUrl).toHaveBeenCalledWith(TEST_SONG_ID, STREAM_URL);
-    expect(audio.src).toBe(`http://127.0.0.1:4321/?id=${TEST_SONG_ID}`);
+    expect(activeDeck().src).toBe(`http://127.0.0.1:4321/?id=${TEST_SONG_ID}`);
     expect(playSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -126,7 +160,7 @@ describe("playStream", () => {
     await playStream(TEST_SONG_ID, TEST_SONG_TITLE);
     resolveStream.mockResolvedValueOnce(stream(RETRY_URL));
 
-    audio.dispatchEvent(new Event("error"));
+    activeDeck().dispatchEvent(new Event("error"));
 
     await vi.waitFor(() => expect(playSpy).toHaveBeenCalledTimes(2));
     expect(resolveStream).toHaveBeenLastCalledWith(TEST_SONG_ID, true);
@@ -137,9 +171,9 @@ describe("playStream", () => {
   it("resumes the retry at the position where playback broke", async () => {
     await playStream(TEST_SONG_ID, TEST_SONG_TITLE);
     const seek = vi.fn();
-    Object.defineProperty(audio, "currentTime", { configurable: true, get: () => 75, set: seek });
+    Object.defineProperty(activeDeck(), "currentTime", { configurable: true, get: () => 75, set: seek });
 
-    audio.dispatchEvent(new Event("error"));
+    activeDeck().dispatchEvent(new Event("error"));
 
     await vi.waitFor(() => expect(playSpy).toHaveBeenCalledTimes(2));
     expect(seek).toHaveBeenCalledWith(75);
@@ -149,7 +183,7 @@ describe("playStream", () => {
     await playStream(TEST_SONG_ID, TEST_SONG_TITLE);
     resolveStream.mockRejectedValueOnce(new Error("No Piped mirror had a playable stream"));
 
-    audio.dispatchEvent(new Event("error"));
+    activeDeck().dispatchEvent(new Event("error"));
 
     await vi.waitFor(() => expect(useUI.getState().toasts).toHaveLength(1));
     expect(useUI.getState().toasts[0]).toMatchObject({
@@ -157,7 +191,7 @@ describe("playStream", () => {
       message: `Couldn't play "${TEST_SONG_TITLE}"`,
     });
 
-    audio.dispatchEvent(new Event("error"));
+    activeDeck().dispatchEvent(new Event("error"));
     await settle();
     expect(resolveStream).toHaveBeenCalledTimes(2);
     expect(playSpy).toHaveBeenCalledTimes(1);
@@ -167,16 +201,16 @@ describe("playStream", () => {
     setMediaTimes(200, 10);
     await playStream(TEST_SONG_ID, TEST_SONG_TITLE);
 
-    audio.dispatchEvent(new Event("error"));
+    activeDeck().dispatchEvent(new Event("error"));
     await vi.waitFor(() => expect(playSpy).toHaveBeenCalledTimes(2));
 
     setMediaTimes(200, 50);
-    audio.dispatchEvent(new Event("error"));
+    activeDeck().dispatchEvent(new Event("error"));
     await vi.waitFor(() => expect(playSpy).toHaveBeenCalledTimes(3));
     expect(resolveStream).toHaveBeenCalledTimes(3);
 
     setMediaTimes(200, 60);
-    audio.dispatchEvent(new Event("error"));
+    activeDeck().dispatchEvent(new Event("error"));
     await settle();
     expect(resolveStream).toHaveBeenCalledTimes(3);
     expect(useUI.getState().toasts).toHaveLength(1);
@@ -205,7 +239,7 @@ describe("playStream", () => {
     await playStream(TEST_SONG_ID, TEST_SONG_TITLE);
     pause();
 
-    audio.dispatchEvent(new Event("error"));
+    activeDeck().dispatchEvent(new Event("error"));
     await settle();
 
     expect(resolveStream).toHaveBeenCalledTimes(1);
@@ -221,7 +255,7 @@ describe("playStream", () => {
         }),
     );
 
-    audio.dispatchEvent(new Event("error"));
+    activeDeck().dispatchEvent(new Event("error"));
     await vi.waitFor(() => expect(resolveStream).toHaveBeenCalledTimes(2));
     pause();
     release(stream(RETRY_URL));
@@ -253,17 +287,17 @@ describe("transport", () => {
 
   it("sets the element volume and clamps it to the 0 to 1 range", () => {
     setVolume(0.4);
-    expect(audio.volume).toBeCloseTo(0.4);
+    expect(activeDeck().volume).toBeCloseTo(0.4);
     setVolume(1.7);
-    expect(audio.volume).toBe(1);
+    expect(activeDeck().volume).toBe(1);
     setVolume(-0.2);
-    expect(audio.volume).toBe(0);
+    expect(activeDeck().volume).toBe(0);
   });
 
   it("ignores a non-finite volume", () => {
     setVolume(0.6);
     setVolume(Number.NaN);
-    expect(audio.volume).toBeCloseTo(0.6);
+    expect(activeDeck().volume).toBeCloseTo(0.6);
   });
 });
 
@@ -271,27 +305,27 @@ describe("seekTo", () => {
   it("moves the playhead to the requested second", () => {
     setMediaTimes(200);
     seekTo(42.5);
-    expect(audio.currentTime).toBe(42.5);
+    expect(activeDeck().currentTime).toBe(42.5);
   });
 
   it("clamps to the song length and to zero", () => {
     setMediaTimes(200);
     seekTo(250);
-    expect(audio.currentTime).toBe(200);
+    expect(activeDeck().currentTime).toBe(200);
     seekTo(-5);
-    expect(audio.currentTime).toBe(0);
+    expect(activeDeck().currentTime).toBe(0);
   });
 
   it("does not clamp to the length while the duration is unknown", () => {
     setMediaTimes(Number.NaN);
     seekTo(90);
-    expect(audio.currentTime).toBe(90);
+    expect(activeDeck().currentTime).toBe(90);
   });
 
   it("ignores non-finite positions", () => {
     setMediaTimes(200, 10);
     seekTo(Number.NaN);
-    expect(audio.currentTime).toBe(10);
+    expect(activeDeck().currentTime).toBe(10);
   });
 });
 
@@ -422,7 +456,9 @@ describe("Web Audio graph", () => {
 
     expect(created).toHaveLength(1);
     const { ctx, sources, filters, gains, compressors, destination } = created[0];
-    expect(ctx.createMediaElementSource).toHaveBeenCalledWith(mod.audio);
+    expect(ctx.createMediaElementSource).toHaveBeenCalledTimes(2);
+    expect(ctx.createMediaElementSource).toHaveBeenCalledWith(mod.activeDeck());
+    expect(ctx.createMediaElementSource).toHaveBeenCalledWith(mod.standbyDeck());
     const bands = filters.slice(0, 10);
     expect(bands.map((band) => band.frequency.value)).toEqual(EQ_HZ);
     expect(bands[0].type).toBe("lowshelf");
@@ -494,7 +530,7 @@ describe("Web Audio graph", () => {
     mod.applyEq({ enabled: true, gains: FLAT, autoHeadroom: true });
 
     created[0].ctx.state = "suspended";
-    mod.audio.dispatchEvent(new Event("playing"));
+    mod.activeDeck().dispatchEvent(new Event("playing"));
 
     expect(created[0].ctx.resume).toHaveBeenCalledTimes(2);
   });
@@ -504,11 +540,11 @@ describe("retry limits", () => {
   it("does not retry a failure that comes exactly 30 s after the last retry", async () => {
     setMediaTimes(200, 10);
     await playStream(TEST_SONG_ID, TEST_SONG_TITLE);
-    audio.dispatchEvent(new Event("error"));
+    activeDeck().dispatchEvent(new Event("error"));
     await vi.waitFor(() => expect(playSpy).toHaveBeenCalledTimes(2));
 
     setMediaTimes(200, 40);
-    audio.dispatchEvent(new Event("error"));
+    activeDeck().dispatchEvent(new Event("error"));
     await settle();
 
     expect(resolveStream).toHaveBeenCalledTimes(2);
@@ -522,5 +558,351 @@ describe("retry limits", () => {
     expect(resolveStream).toHaveBeenCalledTimes(2);
     expect(playSpy).toHaveBeenCalledTimes(2);
     expect(useUI.getState().toasts).toHaveLength(1);
+  });
+});
+
+describe("deck events", () => {
+  it("forwards events from the active deck only", () => {
+    const onPause = vi.fn();
+    audio.addEventListener("pause", onPause);
+
+    standbyDeck().dispatchEvent(new Event("pause"));
+    expect(onPause).not.toHaveBeenCalled();
+
+    activeDeck().dispatchEvent(new Event("pause"));
+    expect(onPause).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("crossfade and Automix", () => {
+  type DeckState = { duration: number; currentTime: number; ended: boolean };
+  const CURRENT = { id: "a", title: "A" };
+  const states = new Map<HTMLAudioElement, DeckState>();
+
+  let mod: typeof import("./audio");
+  let settings: typeof import("../stores/settings");
+  let queue: { id: string; title: string }[];
+  let index: number;
+  let upNext: Mock<() => BlendTarget | null>;
+  let onComplete: Mock<(target: BlendTarget, end: BlendEnd) => void>;
+
+  function timed(deck: HTMLAudioElement, duration: number): DeckState {
+    const state: DeckState = { duration, currentTime: 0, ended: false };
+    states.set(deck, state);
+    Object.defineProperty(deck, "duration", { configurable: true, get: () => state.duration });
+    Object.defineProperty(deck, "currentTime", {
+      configurable: true,
+      get: () => state.currentTime,
+      set: (value: number) => {
+        state.currentTime = value;
+      },
+    });
+    Object.defineProperty(deck, "ended", { configurable: true, get: () => state.ended });
+    return state;
+  }
+
+  function stateOf(deck: HTMLAudioElement): DeckState {
+    const state = states.get(deck);
+    if (!state) throw new Error("deck has no timing");
+    return state;
+  }
+
+  async function flush() {
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+  }
+
+  function playhead(seconds: number) {
+    const deck = mod.activeDeck();
+    stateOf(deck).currentTime = seconds;
+    deck.dispatchEvent(new Event("timeupdate"));
+  }
+
+  function incomingPlays(): number {
+    return playSpy.mock.contexts.filter((context) => context === mod.standbyDeck()).length;
+  }
+
+  function failIncomingPlay(error: Error) {
+    const incoming = mod.standbyDeck();
+    playSpy.mockImplementation(function (this: HTMLMediaElement) {
+      return this === incoming ? Promise.reject(error) : Promise.resolve();
+    });
+  }
+
+  async function startSong() {
+    await mod.playStream(CURRENT.id, CURRENT.title);
+  }
+
+  async function reachBlendStart() {
+    await startSong();
+    playhead(195.5);
+    await flush();
+    await vi.advanceTimersByTimeAsync(500);
+    await flush();
+  }
+
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    mod = await import("./audio");
+    settings = await import("../stores/settings");
+    timed(mod.activeDeck(), 200);
+    timed(mod.standbyDeck(), 200);
+    queue = [CURRENT, { id: "b", title: "B" }, { id: "c", title: "C" }];
+    index = 0;
+    upNext = vi.fn(() => (index + 1 < queue.length ? { ...queue[index + 1], index: index + 1 } : null));
+    onComplete = vi.fn((target: { index: number }) => {
+      index = target.index;
+    });
+    mod.setBlendHooks({
+      upNext: () => upNext(),
+      onComplete: (target, end) => onComplete(target, end),
+    });
+    settings.useSettings.setState({ crossfadeSeconds: 4, smartFade: false, reduceAnimation: false });
+    resolveStream.mockImplementation(async (id: string) => stream(`https://r1.googlevideo.com/${id}`));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("loads the next song and starts it the crossfade length before the end", async () => {
+    await startSong();
+    playhead(100);
+    expect(mod.standbyDeck().getAttribute("src")).toBeNull();
+
+    playhead(195.5);
+    await flush();
+    expect(mod.standbyDeck().getAttribute("src")).toBe("http://127.0.0.1:4321/?id=b");
+    expect(incomingPlays()).toBe(0);
+
+    await vi.advanceTimersByTimeAsync(499);
+    expect(incomingPlays()).toBe(0);
+    await vi.advanceTimersByTimeAsync(1);
+    await flush();
+    expect(incomingPlays()).toBe(1);
+  });
+
+  it("blends into a local file as the next song without resolving a stream", async () => {
+    localLibraryTrackPath.mockResolvedValue("/music/b.mp3");
+    queue[1] = { id: "local:b", title: "B" };
+    await reachBlendStart();
+
+    expect(mod.standbyDeck().getAttribute("src")).toBe("asset:///music/b.mp3");
+    expect(resolveStream).not.toHaveBeenCalledWith("local:b", expect.anything());
+  });
+
+  it.each([3, 8])("sets the overlap from a %i s crossfade", async (seconds) => {
+    settings.useSettings.setState({ crossfadeSeconds: seconds });
+    await startSong();
+    playhead(200 - seconds - 1);
+    await flush();
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(incomingPlays()).toBe(0);
+    await vi.advanceTimersByTimeAsync(1);
+    await flush();
+    expect(incomingPlays()).toBe(1);
+  });
+
+  it("uses a 6 s blend for Automix when the crossfade is 0", async () => {
+    settings.useSettings.setState({ crossfadeSeconds: 0, smartFade: true });
+    await startSong();
+    playhead(193);
+    await flush();
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(incomingPlays()).toBe(0);
+    await vi.advanceTimersByTimeAsync(1);
+    await flush();
+    expect(incomingPlays()).toBe(1);
+  });
+
+  it("does not blend when the crossfade and Automix are both off", async () => {
+    settings.useSettings.setState({ crossfadeSeconds: 0, smartFade: false });
+    await startSong();
+    playhead(199.5);
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(mod.standbyDeck().getAttribute("src")).toBeNull();
+    expect(incomingPlays()).toBe(0);
+  });
+
+  it("clamps an out-of-range crossfade length to 12 s", async () => {
+    settings.useSettings.setState({ crossfadeSeconds: 30 });
+    await startSong();
+    playhead(187);
+    await flush();
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(incomingPlays()).toBe(0);
+    await vi.advanceTimersByTimeAsync(1);
+    await flush();
+    expect(incomingPlays()).toBe(1);
+  });
+
+  it("does not arm without a different next song", async () => {
+    await startSong();
+    upNext.mockReturnValue(null);
+    playhead(195);
+    await flush();
+    expect(mod.standbyDeck().getAttribute("src")).toBeNull();
+
+    upNext.mockReturnValue({ ...CURRENT, index: 0 });
+    playhead(195.2);
+    await flush();
+    expect(mod.standbyDeck().getAttribute("src")).toBeNull();
+  });
+
+  it("swaps the decks when the blend ends and reports the new song's position", async () => {
+    const outgoing = mod.activeDeck();
+    const incoming = mod.standbyDeck();
+    await reachBlendStart();
+    stateOf(incoming).currentTime = 1.5;
+
+    await vi.advanceTimersByTimeAsync(4000);
+
+    expect(onComplete).toHaveBeenCalledWith(
+      { id: "b", title: "B", index: 1 },
+      { position: 1.5, duration: 200, ended: false },
+    );
+    expect(mod.activeDeck()).toBe(incoming);
+    expect(mod.standbyDeck()).toBe(outgoing);
+    expect(outgoing.getAttribute("src")).toBeNull();
+  });
+
+  it("clamps the position to the length of the new song", async () => {
+    const incoming = mod.standbyDeck();
+    await reachBlendStart();
+    stateOf(incoming).duration = 3;
+    stateOf(incoming).currentTime = 10;
+
+    await vi.advanceTimersByTimeAsync(4000);
+
+    expect(onComplete).toHaveBeenCalledWith(
+      { id: "b", title: "B", index: 1 },
+      { position: 3, duration: 3, ended: false },
+    );
+  });
+
+  it("fades along an equal-power curve scaled by the volume", async () => {
+    mod.setVolume(0.8);
+    const outgoing = mod.activeDeck();
+    const incoming = mod.standbyDeck();
+    await reachBlendStart();
+
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(outgoing.volume).toBeCloseTo(0.8 * Math.SQRT1_2, 3);
+    expect(incoming.volume).toBeCloseTo(0.8 * Math.SQRT1_2, 3);
+  });
+
+  it("freezes the blend while paused and resumes it where it stopped", async () => {
+    await reachBlendStart();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    mod.pause();
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(onComplete).not.toHaveBeenCalled();
+
+    await mod.play();
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(onComplete).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it("aborts the blend when the playhead moves", async () => {
+    const outgoing = mod.activeDeck();
+    await reachBlendStart();
+
+    mod.seekTo(50);
+    expect(mod.standbyDeck().getAttribute("src")).toBeNull();
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(mod.activeDeck()).toBe(outgoing);
+  });
+
+  it("aborts the blend when another song starts", async () => {
+    await reachBlendStart();
+
+    await mod.playStream("c", "C");
+    expect(mod.standbyDeck().getAttribute("src")).toBeNull();
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it("does not retry a next song whose blend failed during the same song", async () => {
+    const { useUI } = await import("../stores/ui");
+    useUI.setState({ toasts: [], pendingToasts: [] });
+    await reachBlendStart();
+
+    mod.standbyDeck().dispatchEvent(new Event("error"));
+    expect(mod.standbyDeck().getAttribute("src")).toBeNull();
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(useUI.getState().toasts).toHaveLength(0);
+
+    playhead(195.5);
+    await flush();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(mod.standbyDeck().getAttribute("src")).toBeNull();
+    expect(resolveStream.mock.calls.filter(([id]) => id === "b")).toHaveLength(1);
+  });
+
+  it("ignores an AbortError from the next song's play()", async () => {
+    failIncomingPlay(new DOMException("The play() request was interrupted", "AbortError"));
+    await reachBlendStart();
+
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it("aborts the blend when the next song cannot play", async () => {
+    failIncomingPlay(new Error("NotSupportedError"));
+    await reachBlendStart();
+
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(mod.standbyDeck().getAttribute("src")).toBeNull();
+  });
+
+  it("cuts the blend when Reduce animation is on", async () => {
+    settings.useSettings.setState({ reduceAnimation: true });
+    await startSong();
+    playhead(195.5);
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(mod.standbyDeck().getAttribute("src")).toBeNull();
+    expect(incomingPlays()).toBe(0);
+  });
+
+  it("completes early and reports the end when the next song runs out first", async () => {
+    await reachBlendStart();
+    stateOf(mod.standbyDeck()).ended = true;
+
+    await vi.advanceTimersByTimeAsync(25);
+
+    expect(onComplete).toHaveBeenCalledWith(
+      { id: "b", title: "B", index: 1 },
+      expect.objectContaining({ ended: true }),
+    );
+  });
+
+  it("arms the following blend from the song that just started", async () => {
+    await reachBlendStart();
+    await vi.advanceTimersByTimeAsync(4000);
+    const incomingNow = mod.activeDeck();
+    const outgoingNow = mod.standbyDeck();
+
+    stateOf(incomingNow).currentTime = 195.5;
+    incomingNow.dispatchEvent(new Event("timeupdate"));
+    await flush();
+    await vi.advanceTimersByTimeAsync(500);
+    await flush();
+
+    expect(outgoingNow.getAttribute("src")).toBe("http://127.0.0.1:4321/?id=c");
   });
 });
