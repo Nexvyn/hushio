@@ -1,8 +1,9 @@
-import { useId } from "react";
+import { useEffect, useId, useState } from "react";
 import type { IconSvgElement } from "@hugeicons/react";
 import {
   Loading03Icon,
   Mic01Icon,
+  MoonIcon,
   MusicNote01Icon,
   NextIcon,
   PauseIcon,
@@ -19,11 +20,14 @@ import {
 import { Icon } from "./Icon";
 import { LikeButton } from "./LikeButton";
 import { upgradeArtwork } from "../lib/artwork";
+import { sleepMenuItems, sleepStatus } from "../lib/sleepActions";
+import { formatSleepLeft } from "../lib/sleepTimer";
 import { fmtTime } from "../lib/format";
 import { playerAddMenuItems, songOf } from "../lib/trackActions";
 import { currentTrack, usePlayer, type RepeatMode } from "../stores/player";
 import { useSettings } from "../stores/settings";
-import { useUI } from "../stores/ui";
+import { useSleepTimer } from "../stores/sleepTimer";
+import { type MenuItem, useUI } from "../stores/ui";
 import type { Track } from "../types";
 
 const REPEAT_LABEL: Record<RepeatMode, string> = {
@@ -57,6 +61,57 @@ function TransportButton({ label, icon, active = false, pressed, disabled = fals
         <span aria-hidden="true" className="absolute bottom-0 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-ink-1" />
       )}
     </button>
+  );
+}
+
+function SleepTimer() {
+  const owner = useId();
+  const endsAt = useSleepTimer((state) => state.endsAt);
+  const endOfSong = useSleepTimer((state) => state.endOfSong);
+  const open = useUI((state) => state.contextMenu?.owner === owner);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (endsAt === null) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [endsAt]);
+
+  const status = sleepStatus({ endsAt, endOfSong }, now);
+  const left = endsAt === null ? null : formatSleepLeft(endsAt - now);
+  const label = status ? `Sleep timer: ${status.toLowerCase()}` : "Sleep timer";
+
+  return (
+    <span className="flex items-center">
+      <button
+        type="button"
+        title={label}
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onPointerDown={(event) => {
+          if (open) event.stopPropagation();
+        }}
+        onClick={(event) => {
+          const ui = useUI.getState();
+          if (ui.contextMenu?.owner === owner) {
+            ui.closeContextMenu();
+            return;
+          }
+          const rect = event.currentTarget.getBoundingClientRect();
+          const header: MenuItem = { label: status ?? "Sleep timer", header: true };
+          ui.openContextMenu(rect.left, rect.top, [header, ...sleepMenuItems()], { owner, above: true });
+        }}
+        className={`relative grid h-8 w-8 shrink-0 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-safe:transition-colors motion-safe:duration-150 ${status ? "text-ink-1" : "text-ink-2 hover:text-ink-1"}`}
+      >
+        <Icon icon={MoonIcon} />
+        {status && (
+          <span aria-hidden="true" className="absolute bottom-0 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-ink-1" />
+        )}
+      </button>
+      {left && <span className="-ml-0.5 mr-1 text-[11px] tabular-nums text-ink-2">{left}</span>}
+    </span>
   );
 }
 
@@ -239,6 +294,7 @@ export function PlayerBar() {
         </div>
 
         <div className="flex items-center justify-end gap-2">
+          <SleepTimer />
           <TransportButton
             label="Lyrics"
             icon={Mic01Icon}

@@ -1,9 +1,22 @@
-import { useEffect, useRef } from "react";
-import { useUI } from "../stores/ui";
+import { useEffect, useRef, useState } from "react";
+import { type DialogRequest, useUI } from "../stores/ui";
+
+type Failure = { request: DialogRequest; message: string };
+
+function commit(request: DialogRequest, value: string, fail: (message: string) => void, close: () => void) {
+  const message = request.validate?.(value) ?? null;
+  if (message !== null) {
+    fail(message);
+    return;
+  }
+  request.onConfirm(value);
+  close();
+}
 
 export function Dialog() {
   const request = useUI((state) => state.dialog);
   const closeDialog = useUI((state) => state.closeDialog);
+  const [failure, setFailure] = useState<Failure | null>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -51,8 +64,7 @@ export function Dialog() {
         active.initialValue !== undefined
           ? inputRef.current?.value ?? active.initialValue
           : "";
-      active.onConfirm(value);
-      closeDialog();
+      commit(active, value, (message) => setFailure({ request: active, message }), closeDialog);
     }
 
     window.addEventListener("keydown", onKeyDown, true);
@@ -77,8 +89,7 @@ export function Dialog() {
   const hasInput = request.initialValue !== undefined;
   const confirm = () => {
     const value = hasInput ? inputRef.current?.value ?? request.initialValue ?? "" : "";
-    request.onConfirm(value);
-    closeDialog();
+    commit(request, value, (message) => setFailure({ request, message }), closeDialog);
   };
 
   return (
@@ -130,10 +141,16 @@ export function Dialog() {
               type="text"
               defaultValue={request.initialValue}
               placeholder={request.placeholder}
+              aria-invalid={failure?.request === request || undefined}
               spellCheck={false}
               className="mt-4 h-10 w-full rounded-xl border border-separator bg-ink-1/[0.06] px-3.5 text-sm text-ink-1 placeholder:text-ink-2 focus:border-accent"
             />
           ))}
+        {failure?.request === request && (
+          <p role="alert" className="mt-2 text-[13px] text-danger-text">
+            {failure.message}
+          </p>
+        )}
         <div className="mt-6 flex items-center justify-end gap-2">
           {!request.notice && (
             <button

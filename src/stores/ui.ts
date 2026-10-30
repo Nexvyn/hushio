@@ -46,6 +46,7 @@ export type DialogRequest = {
   danger?: boolean;
   notice?: boolean;
   multiline?: boolean;
+  validate?: (value: string) => string | null;
   onConfirm: (value: string) => void;
 };
 

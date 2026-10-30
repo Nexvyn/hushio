@@ -139,11 +139,22 @@ describe("track menu (PRD 32.10.1 A)", () => {
     expect(labels).toContain("Copy log");
   });
 
-  it("offers Download and keeps Sleep timer disabled", () => {
+  it("offers Download and an enabled Sleep timer submenu", () => {
     const items = trackMenuItems(song);
+    const sleep = itemNamed(items, "Sleep timer");
 
     expect(itemNamed(items, "Download").disabled).toBeFalsy();
-    expect(itemNamed(items, "Sleep timer").disabled).toBe(true);
+    expect(sleep.disabled).toBeFalsy();
+    expect(labelsOf(sleep.children ?? [])).toEqual([
+      "5 minutes",
+      "15 minutes",
+      "30 minutes",
+      "45 minutes",
+      "1 hour",
+      "2 hours",
+      "End of this song",
+      "Custom",
+    ]);
   });
 
   it("swaps Download for Show in folder once the song is saved", () => {

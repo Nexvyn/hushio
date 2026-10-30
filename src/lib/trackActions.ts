@@ -21,6 +21,7 @@ import { copyLink } from "./browseActions";
 import { openNewPlaylistWith, toSong } from "./collectionActions";
 import { addSongsToPlaylists } from "./devicePlaylists";
 import { downloadedPath, revealDownload, startDownload } from "./downloads";
+import { sleepMenuItems } from "./sleepActions";
 import type { SearchSong } from "./searchParse";
 import { type LibraryTrack, type Playlist, useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
@@ -139,7 +140,7 @@ export function trackMenuItems(track: SearchSong): MenuItem[] {
     });
   }
   items.push(
-    { label: "Sleep timer", icon: MoonIcon, separatorBefore: true, disabled: true },
+    { label: "Sleep timer", icon: MoonIcon, separatorBefore: true, children: sleepMenuItems() },
     { label: "Copy log", icon: Copy01Icon, onSelect: () => copyLog(track) },
     { label: track.title, subject: { title: track.title, subtitle: track.artist, thumb: track.thumb } },
   );

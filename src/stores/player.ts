@@ -38,6 +38,7 @@ import {
 import type { Track } from "../types";
 import { useLibrary } from "./library";
 import { useSettings } from "./settings";
+import { useSleepTimer } from "./sleepTimer";
 import { useUI } from "./ui";
 
 export type { RepeatMode };
@@ -460,7 +461,7 @@ export const usePlayer = create<PlayerState>()(
       setVolume: (value) => {
         if (!Number.isFinite(value)) return;
         const volume = Math.min(1, Math.max(0, value));
-        setAudioVolume(volume);
+        setAudioVolume(volume * useSleepTimer.getState().level);
         setMuted(false);
         set({ volume, muted: false });
       },
@@ -483,6 +484,11 @@ export const usePlayer = create<PlayerState>()(
       cycleRepeat: () => set((state) => ({ repeat: NEXT_REPEAT[state.repeat] })),
 
       handleEnded: () => {
+        if (useSleepTimer.getState().endOfSong) {
+          useSleepTimer.getState().cancel();
+          set({ playing: false, awaitingAutoplay: false });
+          return;
+        }
         if (get().repeat === "one") {
           seekTo(0);
           set({ position: 0, playing: true });
@@ -521,7 +527,7 @@ export function currentTrack(state: PlayerState): Track | null {
 
 export function nextBlendTarget(): BlendTarget | null {
   const { queue, index, repeat, shuffle } = usePlayer.getState();
-  if (repeat === "one") return null;
+  if (repeat === "one" || useSleepTimer.getState().endOfSong) return null;
   const at = index + 1 < queue.length ? index + 1 : repeat === "all" && !shuffle ? 0 : -1;
   const track = queue[at];
   return track ? { id: track.id, title: track.title, index: at } : null;
