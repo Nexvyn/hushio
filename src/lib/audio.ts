@@ -8,18 +8,19 @@ import {
   type TrackAnalysis,
 } from "./bridge";
 import { downloadedPath } from "./downloads";
+import { EQ_BANDS_HZ } from "./eq";
 import { isLocalId } from "./localLibrary";
 import { analysable, Leveling, Lru } from "./loudness";
 import { headTrimTarget, TRIM_MIN_S, tailReached } from "./playbackEdges";
 import { resolveStream } from "./resolveStream";
-import { clampCrossfadeSeconds, useSettings } from "../stores/settings";
+import { clampCrossfadeSeconds, useSettings, type SettingsValues } from "../stores/settings";
 import { useUI } from "../stores/ui";
 
 export const TEST_SONG_ID = "dQw4w9WgXcQ";
 export const TEST_SONG_TITLE = "Test song";
 
-const EQ_BAND_HZ = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 const EQ_Q = 1.41;
+const SINK_RETRY_MS = 300;
 const LIMIT_THRESHOLD_DB = -0.5;
 const LIMIT_RATIO = 20;
 const LIMIT_ATTACK_S = 0.002;
@@ -28,7 +29,7 @@ const RETRY_WINDOW_S = 30;
 const PEAK_SAMPLES = 96;
 const PEAK_MIN_HZ = 20;
 const PEAK_MAX_HZ = 20000;
-const NO_GAINS = EQ_BAND_HZ.map(() => 0);
+const NO_GAINS = EQ_BANDS_HZ.map(() => 0);
 const AUTOMIX_FALLBACK_S = 6;
 const MIN_BLEND_MS = 500;
 const ARM_LEAD_MS = 4000;
@@ -154,7 +155,7 @@ export function headroomDb(peakDb: number, level: number): number {
 
 function bandType(index: number): BiquadFilterType {
   if (index === 0) return "lowshelf";
-  if (index === EQ_BAND_HZ.length - 1) return "highshelf";
+  if (index === EQ_BANDS_HZ.length - 1) return "highshelf";
   return "peaking";
 }
 
@@ -165,7 +166,7 @@ function eqResponsePeakDb(ctx: AudioContext, gains: readonly number[]): number {
     (_, i) => PEAK_MIN_HZ * (top / PEAK_MIN_HZ) ** (i / (PEAK_SAMPLES - 1)),
   );
   const total = new Float64Array(PEAK_SAMPLES);
-  EQ_BAND_HZ.forEach((hz, index) => {
+  EQ_BANDS_HZ.forEach((hz, index) => {
     const filter = ctx.createBiquadFilter();
     filter.type = bandType(index);
     filter.frequency.value = hz;
@@ -183,7 +184,7 @@ function eqResponsePeakDb(ctx: AudioContext, gains: readonly number[]): number {
 
 function buildGraph(): Graph {
   const ctx = new AudioContext();
-  const bands = EQ_BAND_HZ.map((hz, index) => {
+  const bands = EQ_BANDS_HZ.map((hz, index) => {
     const filter = ctx.createBiquadFilter();
     filter.type = bandType(index);
     filter.frequency.value = hz;
@@ -271,6 +272,56 @@ export function setVolume(value: number): void {
 
 export function setMuted(value: boolean): void {
   for (const deck of decks) deck.muted = value;
+}
+
+type SinkRouted = { sinkId?: string; setSinkId(sinkId: string): Promise<void> };
+
+function hasSinkRouting(node: object): node is SinkRouted {
+  return "setSinkId" in node && typeof node.setSinkId === "function";
+}
+
+async function trySink(node: SinkRouted, sinkId: string): Promise<boolean> {
+  try {
+    await node.setSinkId(sinkId);
+    return true;
+  } catch (error) {
+    console.warn(`[hushio] setSinkId("${sinkId}") failed: ${describeError(error)}`);
+    return false;
+  }
+}
+
+async function routeSink(node: SinkRouted, sinkId: string): Promise<void> {
+  if (await trySink(node, sinkId)) return;
+  if (sinkId === "") return;
+  await new Promise((resolve) => setTimeout(resolve, SINK_RETRY_MS));
+  if (await trySink(node, sinkId)) return;
+  await trySink(node, "");
+}
+
+function sinkOf(node: SinkRouted): string {
+  return node.sinkId ?? "";
+}
+
+export function applySink(sinkId: string): void {
+  if (graph) {
+    if (hasSinkRouting(graph.ctx) && sinkOf(graph.ctx) !== sinkId) void routeSink(graph.ctx, sinkId);
+    return;
+  }
+  for (const deck of decks) {
+    if (hasSinkRouting(deck) && sinkOf(deck) !== sinkId) void routeSink(deck, sinkId);
+  }
+}
+
+function resumeGraph(): void {
+  if (graph?.ctx.state === "suspended") void graph.ctx.resume();
+}
+
+for (const type of ["pointerdown", "keydown"] as const) {
+  window.addEventListener(type, resumeGraph, true);
+}
+
+function eqSettingsOf(state: SettingsValues): EqSettings {
+  return { enabled: state.eqEnabled, gains: state.eqGains, autoHeadroom: state.eqAutoHeadroom };
 }
 
 function analysisOf(id: string | undefined): TrackAnalysis | undefined {
@@ -660,6 +711,16 @@ useSettings.subscribe((state, previous) => {
     if (state.skipSilence) armSilence();
     else disarmSilence();
   }
+  if (
+    state.eqEnabled !== previous.eqEnabled ||
+    state.eqGains !== previous.eqGains ||
+    state.eqAutoHeadroom !== previous.eqAutoHeadroom
+  ) {
+    applyEq(eqSettingsOf(state));
+  }
+  if (state.audioSinkId !== previous.audioSinkId) applySink(state.audioSinkId);
 });
 
 applySpeed();
+applyEq(eqSettingsOf(useSettings.getState()));
+applySink(useSettings.getState().audioSinkId);

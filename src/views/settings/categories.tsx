@@ -1,5 +1,6 @@
 import {
   Album02Icon,
+  Alert01Icon,
   AudioWave01Icon,
   ChartLineData01Icon,
   CloudDownloadIcon,
@@ -29,6 +30,7 @@ import {
   RepeatIcon,
   ReplayIcon,
   SidebarBottomIcon,
+  SlidersHorizontalIcon,
   SparklesIcon,
   Speaker01Icon,
   Timer01Icon,
@@ -40,11 +42,15 @@ import {
   Wifi01Icon,
 } from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
+import type { ReactNode } from "react";
 import { Button } from "../../components/Button";
+import { Equalizer } from "../../components/Equalizer";
+import { OutputDevicePicker } from "../../components/OutputDevicePicker";
 import { RadioGroup, type RadioOption } from "../../components/RadioGroup";
 import type { SettingRowProps } from "../../components/SettingRow";
 import { Slider } from "../../components/Slider";
 import { APP_NAME, APP_SLUG } from "../../lib/app";
+import type { Platform } from "../../lib/bridge";
 import { MATCH_LANGUAGE_OPTIONS } from "../../lib/importLanguage";
 import { chooseDownloadFolder } from "../../lib/downloads";
 import { confirmImportBackup, exportBackup } from "../../lib/importBackup";
@@ -77,6 +83,7 @@ export type SettingsGroup = {
   title?: string;
   note?: string;
   rows: RowSpec[];
+  body?: ReactNode;
 };
 
 export type SettingsCategory = {
@@ -90,7 +97,7 @@ export type SettingsCategory = {
 export type BuildContext = {
   settings: SettingsState;
   version: string | null;
-  windows: boolean;
+  platform: Platform;
   navigate: (view: View) => void;
 };
 
@@ -238,7 +245,7 @@ function accountCategory({ settings: s, navigate }: BuildContext): SettingsCateg
 }
 
 function playbackCategory(context: BuildContext): SettingsCategory {
-  const { settings: s, windows } = context;
+  const { settings: s, platform } = context;
   const rows: RowSpec[] = [
     {
       id: "crossfade",
@@ -306,7 +313,7 @@ function playbackCategory(context: BuildContext): SettingsCategory {
     },
   ];
 
-  if (windows) {
+  if (platform === "windows") {
     rows.push({
       id: "close-to-tray",
       icon: SidebarBottomIcon,
@@ -325,7 +332,7 @@ function playbackCategory(context: BuildContext): SettingsCategory {
   };
 }
 
-function soundCategory({ settings: s }: BuildContext): SettingsCategory {
+function soundCategory({ settings: s, platform }: BuildContext): SettingsCategory {
   return {
     id: "sound",
     label: "Sound",
@@ -361,6 +368,45 @@ function soundCategory({ settings: s }: BuildContext): SettingsCategory {
                 onChange={(value) => s.setValue("loudnessLevel", value)}
               />
             ),
+          },
+          platform === "windows"
+            ? {
+                id: "output-device",
+                icon: Speaker01Icon,
+                title: "Output device",
+                note: s.audioSinkId ? "Pinned to this device" : "Following the system default",
+                control: <OutputDevicePicker />,
+              }
+            : {
+                id: "output-device",
+                icon: Speaker01Icon,
+                title: "Output device",
+                note: "Follows the system output",
+                disabled: true,
+              },
+        ],
+      },
+      {
+        rows: [
+          {
+            id: "equalizer",
+            icon: SlidersHorizontalIcon,
+            title: "Equalizer",
+            note: "Shape the sound with 10 bands",
+            toggle: flag(s, "eqEnabled"),
+          },
+        ],
+        body: <Equalizer />,
+      },
+      {
+        rows: [
+          {
+            id: "prevent-clipping",
+            icon: Alert01Icon,
+            title: "Prevent clipping",
+            note: "Lowers the level only when your boosts would distort at the current volume",
+            disabled: !s.eqEnabled,
+            toggle: flag(s, "eqAutoHeadroom"),
           },
         ],
       },

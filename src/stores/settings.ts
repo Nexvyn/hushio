@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { persistStorage } from "../lib/persist";
 import { type MatchLanguage } from "../lib/importLanguage";
+import { type EqPreset, flatGains, normalizeEqGains, normalizeEqPresets } from "../lib/eq";
 import { applyTheme, type ThemeMode } from "../lib/theme";
 
 export const DEVICE_SETTINGS_KEYS = [
@@ -53,6 +54,10 @@ export type SettingsValues = {
   exportDownloads: boolean;
   unlimitedSync: boolean;
   matchLanguage: MatchLanguage;
+  eqEnabled: boolean;
+  eqGains: number[];
+  eqPresets: EqPreset[];
+  eqAutoHeadroom: boolean;
 };
 
 export type SettingsState = SettingsValues & {
@@ -66,6 +71,7 @@ export type SettingsState = SettingsValues & {
   setCloseToTray: (value: boolean) => void;
   setCrossfadeSeconds: (value: number) => void;
   setPlaybackSpeed: (value: number) => void;
+  setEqGains: (value: number[]) => void;
   setValue: <K extends keyof SettingsValues>(key: K, value: SettingsValues[K]) => void;
 };
 
@@ -133,8 +139,13 @@ export const useSettings = create<SettingsState>()(
       exportDownloads: false,
       unlimitedSync: false,
       matchLanguage: "",
+      eqEnabled: false,
+      eqGains: flatGains(),
+      eqPresets: [],
+      eqAutoHeadroom: true,
       setCrossfadeSeconds: (value) => set({ crossfadeSeconds: clampCrossfadeSeconds(value) }),
       setPlaybackSpeed: (value) => set({ playbackSpeed: clampPlaybackSpeed(value) }),
+      setEqGains: (value) => set({ eqGains: normalizeEqGains(value) }),
       setValue: (key, value) => set({ [key]: value } as Partial<SettingsValues>),
       setTheme: (value) => set({ theme: value }),
       setReduceAnimation: (value) => set({ reduceAnimation: value }),
@@ -151,7 +162,9 @@ export const useSettings = create<SettingsState>()(
       merge: (persisted, current) => {
         const stored = persisted as Partial<SettingsValues>;
         const theme = isThemeMode(stored.theme) ? stored.theme : current.theme;
-        return { ...current, ...stored, theme };
+        const eqGains = stored.eqGains === undefined ? current.eqGains : normalizeEqGains(stored.eqGains);
+        const eqPresets = stored.eqPresets === undefined ? current.eqPresets : normalizeEqPresets(stored.eqPresets);
+        return { ...current, ...stored, theme, eqGains, eqPresets };
       },
     },
   ),

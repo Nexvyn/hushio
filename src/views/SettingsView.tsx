@@ -46,6 +46,7 @@ function GroupView({ group }: { group: SettingsGroup }) {
         {group.rows.map((row) => (
           <SettingRow key={row.id} {...row} />
         ))}
+        {group.body && <div className="px-4 py-4">{group.body}</div>}
       </div>
     </section>
   );
@@ -158,7 +159,7 @@ export function SettingsView() {
   const categories = buildCategories({
     settings,
     version,
-    windows: platform === "windows",
+    platform,
     navigate,
   });
   const searching = query.trim() !== "";
