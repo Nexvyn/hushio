@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { useLibrary } from "../stores/library";
+import { useSettings } from "../stores/settings";
 import { useUI } from "../stores/ui";
 
 const { registerStreamUrl, streamProxyPort, resolveStream, pathExists, localLibraryTrackPath } = vi.hoisted(() => ({
@@ -77,6 +78,7 @@ beforeEach(() => {
   streamProxyPort.mockResolvedValue(4321);
   registerStreamUrl.mockResolvedValue(undefined);
   useUI.setState({ toasts: [], pendingToasts: [] });
+  useSettings.setState({ loudnessLevel: "off" });
   setMediaTimes(Number.NaN, 0);
 });
 
@@ -657,7 +659,12 @@ describe("crossfade and Automix", () => {
       upNext: () => upNext(),
       onComplete: (target, end) => onComplete(target, end),
     });
-    settings.useSettings.setState({ crossfadeSeconds: 4, smartFade: false, reduceAnimation: false });
+    settings.useSettings.setState({
+      crossfadeSeconds: 4,
+      smartFade: false,
+      reduceAnimation: false,
+      loudnessLevel: "off",
+    });
     resolveStream.mockImplementation(async (id: string) => stream(`https://r1.googlevideo.com/${id}`));
   });
 

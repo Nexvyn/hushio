@@ -1,3 +1,4 @@
+mod analysis;
 mod downloads;
 mod local_library;
 mod lyrics;
@@ -182,6 +183,14 @@ fn stream_register(
 }
 
 #[tauri::command]
+async fn track_analysis(
+    folders: State<'_, reveal::Folders>,
+    source: String,
+) -> Result<analysis::Analysis, String> {
+    analysis::analyse_source(source, &folders).await
+}
+
+#[tauri::command]
 async fn lyrics_get(
     state: State<'_, lyrics::Service>,
     meta: lyrics::LyricsMeta,
@@ -334,6 +343,7 @@ pub fn run() {
             stream_proxy_port,
             stream_register,
             lyrics_get,
+            track_analysis,
             download_start,
             download_cancel,
             download_queue,

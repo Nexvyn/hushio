@@ -87,6 +87,12 @@ export function registerStreamUrl(id: string, url: string): Promise<void> {
   return call<void>("stream_register", { id, url });
 }
 
+export type TrackAnalysis = { head: number; tail: number; lufs: number | null };
+
+export function trackAnalysis(source: string): Promise<TrackAnalysis> {
+  return call<TrackAnalysis>("track_analysis", { source });
+}
+
 export async function naturalScrollDirection(): Promise<boolean | null> {
   try {
     return await call<boolean | null>("os_scroll_direction");
