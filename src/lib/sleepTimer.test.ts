@@ -30,6 +30,9 @@ describe("formatSleepLeft", () => {
     [59_001, "1:00"],
     [0, "0:00"],
     [-5_000, "0:00"],
+    [59_999, "1:00"],
+    [1_000, "0:01"],
+    [36_000_000, "10:00:00"],
   ])("formats %i ms as %j", (ms, text) => {
     expect(formatSleepLeft(ms)).toBe(text);
   });
@@ -42,6 +45,10 @@ describe("sleepLevel", () => {
     [5_000, 0.5],
     [0, 0],
     [-1_000, 0],
+    [9_999, 0.9999],
+    [7_500, 0.75],
+    [2_500, 0.25],
+    [10_001, 1],
   ])("gives %i ms remaining a level of %d", (remaining, level) => {
     expect(sleepLevel(remaining)).toBe(level);
   });

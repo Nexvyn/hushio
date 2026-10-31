@@ -29,6 +29,24 @@ describe("gainForLufs", () => {
   it("is 1 exactly at the target", () => {
     expect(gainForLufs(-14, -14)).toBe(1);
   });
+
+  it("reaches the 0.05 floor 27 dB over the target and stays above it 25 dB over", () => {
+    expect(gainForLufs(13, -14)).toBe(0.05);
+    expect(gainForLufs(11, -14)).toBeCloseTo(10 ** (-25 / 20), 9);
+  });
+
+  it("uses the fallback gain for an infinite or NaN loudness", () => {
+    const fallback = gainForLufs(FALLBACK_LUFS, -14);
+    expect(gainForLufs(Number.POSITIVE_INFINITY, -14)).toBe(fallback);
+    expect(gainForLufs(Number.NEGATIVE_INFINITY, -14)).toBe(fallback);
+    expect(gainForLufs(Number.NaN, -14)).toBe(fallback);
+    expect(gainForLufs(Number.NaN, -11)).toBeCloseTo(0.794, 3);
+  });
+
+  it("holds gain 1 for any track quieter than the target, however far below", () => {
+    expect(gainForLufs(-60, -11)).toBe(1);
+    expect(gainForLufs(-14.0001, -14)).toBe(1);
+  });
 });
 
 describe("gainForTrack", () => {
@@ -41,6 +59,14 @@ describe("gainForTrack", () => {
     expect(gainForTrack(FALLBACK_LUFS, "normal")).toBeCloseTo(0.562, 3);
     expect(gainForTrack(FALLBACK_LUFS, "loud")).toBeCloseTo(0.794, 3);
   });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    "uses the fallback loudness for a measured %d",
+    (lufs) => {
+      expect(gainForTrack(lufs, "normal")).toBe(gainForTrack(null, "normal"));
+      expect(gainForTrack(lufs, "loud")).toBe(gainForTrack(null, "loud"));
+    },
+  );
 
   it("gives gain 1 to a track measured at -21 LUFS under loud", () => {
     expect(gainForTrack(-21, "loud")).toBe(1);

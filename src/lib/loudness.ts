@@ -15,7 +15,8 @@ const MIN_GAIN = 0.05;
 const GLIDE_EPSILON = 1e-4;
 
 export function gainForLufs(lufs: number, target: number): number {
-  return Math.min(1, Math.max(MIN_GAIN, 10 ** ((target - lufs) / 20)));
+  const measured = Number.isFinite(lufs) ? lufs : FALLBACK_LUFS;
+  return Math.min(1, Math.max(MIN_GAIN, 10 ** ((target - measured) / 20)));
 }
 
 export function gainForTrack(lufs: number | null, level: LoudnessLevel): number {

@@ -119,6 +119,25 @@ fn rates_below_8_khz_have_no_loudness_but_keep_the_edges() {
 }
 
 #[test]
+fn clipped_audio_measures_louder_than_the_same_tone_before_clipping() {
+    let unclipped = lufs(wav(48_000, 1, &tone(48_000, 4.0, 1000.0, 0.5)));
+    let clipped = lufs(wav(48_000, 1, &tone(48_000, 4.0, 1000.0, 2.0)));
+
+    assert!(clipped.is_finite());
+    assert!(clipped > unclipped + 3.0, "clipped {clipped} vs unclipped {unclipped}");
+}
+
+#[test]
+fn a_sustained_dc_offset_adds_no_loudness_however_long_it_lasts() {
+    let tone_lufs = lufs(wav(48_000, 1, &tone(48_000, 4.0, 1000.0, 0.1)));
+    let four_seconds = lufs(wav(48_000, 1, &vec![0.1; 4 * 48_000]));
+    let eight_seconds = lufs(wav(48_000, 1, &vec![0.1; 8 * 48_000]));
+
+    assert!((eight_seconds - four_seconds).abs() < 0.01, "8 s {eight_seconds} vs 4 s {four_seconds}");
+    assert!(four_seconds < tone_lufs - 20.0, "dc {four_seconds} vs tone {tone_lufs}");
+}
+
+#[test]
 fn bytes_that_are_not_audio_are_an_error() {
     let result = analyse(Box::new(Cursor::new(b"not audio at all".to_vec())), None);
 

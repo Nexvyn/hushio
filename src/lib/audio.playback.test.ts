@@ -411,4 +411,16 @@ describe("clipping guard", () => {
     mod.setVolume(0.5);
     expect(preGain.setTargetAtTime).toHaveBeenLastCalledWith(1, 0, 0.05);
   });
+
+  it.each([1, 0.8, 0.5, 0.2])("keeps the boosted peak at or under full scale at track level %s", async (level) => {
+    const ctx = stubContext();
+    const boostDb = 6;
+    mod.applyEq({ enabled: true, gains: [boostDb, 0, 0, 0, 0, 0, 0, 0, 0, 0], autoHeadroom: true });
+    const preGain = ctx.createGain.mock.results[0].value.gain;
+    mod.setVolume(level);
+
+    const pre = preGain.setTargetAtTime.mock.lastCall?.[0] as number;
+    const peak = pre * level * 10 ** (boostDb / 20);
+    expect(peak).toBeLessThanOrEqual(1 + 1e-6);
+  });
 });

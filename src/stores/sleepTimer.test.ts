@@ -121,6 +121,18 @@ describe("preset countdown", () => {
     expect(lastVolume()).toBe(0.5);
   });
 
+  it("fires at exactly 15 minutes, not one tick earlier", () => {
+    sleep().start(15);
+    vi.advanceTimersByTime(15 * MINUTE - 250);
+
+    expect(pause).not.toHaveBeenCalled();
+    expect(sleep().level).toBeCloseTo(0.025, 6);
+
+    vi.advanceTimersByTime(250);
+    expect(pause).toHaveBeenCalledTimes(1);
+    expect(sleep().endsAt).toBeNull();
+  });
+
   it("stops the ticker after it fires", () => {
     sleep().start(1);
     vi.advanceTimersByTime(61_000);
@@ -166,6 +178,26 @@ describe("end of this song", () => {
     expect(player().playing).toBe(false);
     expect(play).not.toHaveBeenCalled();
     expect(sleep().endOfSong).toBe(false);
+  });
+
+  it("stops at the end of the song with shuffle on and does not pick a next song", () => {
+    usePlayer.setState({ queue: [track(0), track(1), track(2)], index: 0, shuffle: true, repeat: "all" });
+    sleep().startEndOfSong();
+
+    player().handleEnded();
+
+    expect(player().index).toBe(0);
+    expect(player().playing).toBe(false);
+    expect(play).not.toHaveBeenCalled();
+  });
+
+  it("does not fade while the length of the song is unknown", () => {
+    usePlayer.setState({ duration: 0, position: 0 });
+    sleep().startEndOfSong();
+    vi.advanceTimersByTime(5000);
+
+    expect(sleep().level).toBe(1);
+    expect(lastVolume()).toBe(0.5);
   });
 
   it("keeps the song playing when it does not reach the end", () => {

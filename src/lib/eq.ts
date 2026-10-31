@@ -17,7 +17,7 @@ export const EQ_PRESETS: Readonly<Record<string, readonly number[]>> = {
 };
 
 export type EqPreset = { name: string; gains: number[] };
-export type PresetNameError = "empty" | "builtin" | "duplicate";
+export type PresetNameError = "empty" | "builtin" | "duplicate" | "long";
 export type PresetNameResult = { name: string; error?: undefined } | { name?: undefined; error: PresetNameError };
 
 export function flatGains(): number[] {
@@ -60,12 +60,13 @@ export function presetMatching(gains: readonly number[], presets: readonly EqPre
 }
 
 export function cleanPresetName(raw: string): string {
-  return raw.slice(0, EQ_PRESET_NAME_LIMIT).trim();
+  return raw.trim().slice(0, EQ_PRESET_NAME_LIMIT).trim();
 }
 
 export function checkPresetName(raw: string, presets: readonly EqPreset[], current?: string): PresetNameResult {
-  const name = cleanPresetName(raw);
+  const name = raw.trim();
   if (name === "") return { error: "empty" };
+  if (name.length > EQ_PRESET_NAME_LIMIT) return { error: "long" };
   if (isBuiltInEqPreset(name)) return { error: "builtin" };
   if (name !== current && presets.some((preset) => preset.name === name)) return { error: "duplicate" };
   return { name };
@@ -74,6 +75,7 @@ export function checkPresetName(raw: string, presets: readonly EqPreset[], curre
 export function presetNameMessage(error: PresetNameError, name: string): string {
   if (error === "builtin") return `"${name}" is a built-in preset. Pick another name`;
   if (error === "duplicate") return `You already have a preset called "${name}"`;
+  if (error === "long") return `Names can be up to ${EQ_PRESET_NAME_LIMIT} characters`;
   return "Give the preset a name";
 }
 
@@ -101,7 +103,7 @@ function presetFrom(entry: unknown): EqPreset[] {
   if (typeof entry !== "object" || entry === null || !("name" in entry) || !("gains" in entry)) return [];
   const { name, gains } = entry;
   if (typeof name !== "string") return [];
-  const checked = checkPresetName(name, []);
+  const checked = checkPresetName(cleanPresetName(name), []);
   if (checked.name === undefined) return [];
   return [{ name: checked.name, gains: normalizeEqGains(gains) }];
 }

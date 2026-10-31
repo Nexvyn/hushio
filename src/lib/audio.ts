@@ -56,6 +56,7 @@ type Graph = { ctx: AudioContext; bands: BiquadFilterNode[]; preGain: GainNode }
 type Armed = {
   fromId: string;
   toId: string;
+  fadeMs: number;
   ready: Promise<Source | null>;
   timer: ReturnType<typeof setTimeout>;
 };
@@ -508,10 +509,21 @@ function maybeArm(): void {
   if (failedBlend?.toId === next.id) return;
   const deck = activeDeck();
   if (!Number.isFinite(deck.duration) || deck.duration <= 0) return;
+  if (shorterThanBlend(deck.duration, fadeMs)) return;
   const rate = deck.playbackRate || 1;
   const remainingMs = ((deck.duration - edgeOf(current.id, "tail") - deck.currentTime) * 1000) / rate;
   if (remainingMs <= ARM_FLOOR_MS || remainingMs > fadeMs + ARM_LEAD_MS) return;
   arm(current.id, next, fadeMs, remainingMs);
+}
+
+function shorterThanBlend(seconds: number, fadeMs: number): boolean {
+  return Number.isFinite(seconds) && seconds > 0 && seconds * 1000 < fadeMs;
+}
+
+function skipShortIncoming(): void {
+  if (!armed || !shorterThanBlend(standbyDeck().duration, armed.fadeMs)) return;
+  failedBlend = { fromId: armed.fromId, toId: armed.toId };
+  abortBlend();
 }
 
 function arm(fromId: string, next: BlendTarget, fadeMs: number, remainingMs: number): void {
@@ -519,6 +531,7 @@ function arm(fromId: string, next: BlendTarget, fadeMs: number, remainingMs: num
   const pending: Armed = {
     fromId,
     toId: next.id,
+    fadeMs,
     ready: sourceFor(next.id, false).then(
       (source) => {
         if (armed === pending) {
@@ -552,6 +565,8 @@ async function beginFade(pending: Armed, fadeMs: number): Promise<void> {
     abortBlend();
     return;
   }
+  skipShortIncoming();
+  if (armed !== pending) return;
   const outgoing = activeDeck();
   const incoming = standbyDeck();
   const rate = outgoing.playbackRate || 1;
@@ -697,7 +712,10 @@ for (const [index, deck] of decks.entries()) {
   deck.addEventListener("playing", () => {
     if (graph?.ctx.state === "suspended") void graph.ctx.resume();
   });
-  deck.addEventListener("durationchange", () => void analyseDeck(index));
+  deck.addEventListener("durationchange", () => {
+    void analyseDeck(index);
+    if (deck !== activeDeck()) skipShortIncoming();
+  });
 }
 
 useSettings.subscribe((state, previous) => {

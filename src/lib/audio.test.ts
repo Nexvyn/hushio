@@ -345,6 +345,11 @@ describe("headroomDb", () => {
     expect(headroomDb(12, 0.5)).toBeCloseTo(5.98, 2);
     expect(headroomDb(6, 0)).toBe(0);
   });
+
+  it("caps the track level at 1 and never returns negative headroom", () => {
+    expect(headroomDb(6, 2)).toBe(6);
+    expect(headroomDb(2, 0.1)).toBe(0);
+  });
 });
 
 class FakeParam {
@@ -735,6 +740,53 @@ describe("crossfade and Automix", () => {
     expect(incomingPlays()).toBe(0);
   });
 
+  it("treats a negative crossfade length as off", async () => {
+    settings.useSettings.setState({ crossfadeSeconds: -3, smartFade: false });
+    await startSong();
+    playhead(199.5);
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(mod.standbyDeck().getAttribute("src")).toBeNull();
+  });
+
+  it("rounds a fractional crossfade length to whole seconds", async () => {
+    settings.useSettings.setState({ crossfadeSeconds: 3.4 });
+    await startSong();
+    playhead(196);
+    await flush();
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(incomingPlays()).toBe(0);
+    await vi.advanceTimersByTimeAsync(1);
+    await flush();
+    expect(incomingPlays()).toBe(1);
+  });
+
+  it("starts the incoming song at the offset the outgoing song is late by", async () => {
+    await startSong();
+    playhead(195.5);
+    await flush();
+    stateOf(mod.activeDeck()).currentTime = 196.8;
+
+    await vi.advanceTimersByTimeAsync(500);
+    await flush();
+
+    expect(stateOf(mod.standbyDeck()).currentTime).toBeCloseTo(0.8, 6);
+  });
+
+  it("starts the incoming song at its head when the outgoing song is late by under 30 ms", async () => {
+    await startSong();
+    playhead(195.5);
+    await flush();
+    stateOf(mod.activeDeck()).currentTime = 196.02;
+
+    await vi.advanceTimersByTimeAsync(500);
+    await flush();
+
+    expect(stateOf(mod.standbyDeck()).currentTime).toBe(0);
+  });
+
   it("clamps an out-of-range crossfade length to 12 s", async () => {
     settings.useSettings.setState({ crossfadeSeconds: 30 });
     await startSong();
@@ -759,6 +811,47 @@ describe("crossfade and Automix", () => {
     playhead(195.2);
     await flush();
     expect(mod.standbyDeck().getAttribute("src")).toBeNull();
+  });
+
+  it("still blends out of a song exactly as long as the crossfade", async () => {
+    await startSong();
+    stateOf(mod.activeDeck()).duration = 4;
+    playhead(0.5);
+    await flush();
+    await vi.advanceTimersByTimeAsync(0);
+    await flush();
+
+    expect(incomingPlays()).toBe(1);
+  });
+
+  it("does not blend out of a song shorter than the crossfade and plays it through", async () => {
+    await startSong();
+    stateOf(mod.activeDeck()).duration = 3;
+    playhead(2);
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(mod.standbyDeck().getAttribute("src")).toBeNull();
+    expect(incomingPlays()).toBe(0);
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it("drops an armed blend once the next song turns out shorter than the crossfade", async () => {
+    await startSong();
+    playhead(195.5);
+    await flush();
+    expect(mod.standbyDeck().getAttribute("src")).toBe("http://127.0.0.1:4321/?id=b");
+
+    stateOf(mod.standbyDeck()).duration = 3;
+    mod.standbyDeck().dispatchEvent(new Event("durationchange"));
+    expect(mod.standbyDeck().getAttribute("src")).toBeNull();
+
+    playhead(196);
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(mod.standbyDeck().getAttribute("src")).toBeNull();
+    expect(incomingPlays()).toBe(0);
+    expect(onComplete).not.toHaveBeenCalled();
   });
 
   it("swaps the decks when the blend ends and reports the new song's position", async () => {
