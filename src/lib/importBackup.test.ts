@@ -26,6 +26,12 @@ vi.mock("../lib/audio", () => ({
   TEST_SONG_TITLE: "Test song",
 }));
 
+vi.mock("./bridge", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./bridge")>()),
+  replayExport: vi.fn(async () => []),
+  replayImport: vi.fn(async () => {}),
+}));
+
 import {
   backupFileName,
   buildBackup,
@@ -35,6 +41,7 @@ import {
   restoreBackup,
   serializeBackup,
 } from "./importBackup";
+import { replayExport, replayImport } from "./bridge";
 import { DEFAULT_PINS, useLibrary } from "../stores/library";
 import { usePlayer } from "../stores/player";
 import { useRecents } from "../stores/recents";
@@ -69,6 +76,8 @@ beforeEach(() => {
   useLibrary.setState(initialLibrary, true);
   usePlayer.setState(initialPlayer, true);
   useRecents.setState(initialRecents, true);
+  vi.mocked(replayExport).mockClear();
+  vi.mocked(replayImport).mockClear();
   useUI.setState({ toasts: [], pendingToasts: [], dialog: null, toast: initialToast });
 });
 
@@ -89,6 +98,17 @@ describe("buildBackup", () => {
       expect.arrayContaining(["liked", "history", "playlists", "folders", "pinnedSingles"]),
     );
     expect(Object.keys(backup.player?.state ?? {})).toEqual(expect.arrayContaining(["queue", "index", "volume"]));
+  });
+
+  it("includes the listening buckets it is given as the listening section", () => {
+    const buckets = [{ month: "2026-10", tracks: {}, artists: {}, hours: Array.from({ length: 24 }, () => 0), days: {} }];
+    const backup = buildBackup(new Date("2026-11-09T21:00:00.000Z"), buckets);
+    expect(backup.listening).toEqual({ state: { buckets }, version: 1 });
+    expect(JSON.parse(serializeBackup(backup)).listening.state.buckets[0].month).toBe("2026-10");
+  });
+
+  it("writes an empty listening section when no buckets are given", () => {
+    expect(buildBackup(new Date("2026-11-09T21:00:00.000Z")).listening).toEqual({ state: { buckets: [] }, version: 1 });
   });
 
   it("leaves out device settings and functions", () => {
@@ -140,6 +160,12 @@ describe("parseBackup", () => {
 
   it("reports a newer backup", () => {
     expect(() => parseBackup(doc({ version: 2 }))).toThrow("That backup was written by a newer version of Hushio");
+  });
+
+  it("reports a malformed listening section by name", () => {
+    expect(() => parseBackup(doc({ listening: { state: "x", version: 1 } }))).toThrow(
+      "That doesn't look like a Hushio backup (malformed listening section)",
+    );
   });
 
   it("reports malformed library and player sections by name", () => {
@@ -230,6 +256,24 @@ describe("restoreBackup library, player and searches", () => {
     expect(state.libraryOrder).toEqual(["playlist:p1"]);
   });
 
+  it("sends the listening buckets to the replay store", () => {
+    restoreBackup(parseBackup(doc({ listening: envelope({ buckets: [{ month: "2026-10" }] }, 1) })));
+    expect(replayImport).toHaveBeenCalledWith([{ month: "2026-10" }]);
+  });
+
+  it("keeps the current listening stats when the backup has no listening section", () => {
+    restoreBackup(parseBackup(doc({ recentSearches: [] })));
+    expect(replayImport).not.toHaveBeenCalled();
+  });
+
+  it("reports a listening history that the replay store cannot take", async () => {
+    vi.mocked(replayImport).mockRejectedValueOnce(new Error("store locked"));
+    const toast = vi.fn();
+    useUI.setState({ toast });
+    restoreBackup(parseBackup(doc({ listening: envelope({ buckets: [] }, 1) })));
+    await vi.waitFor(() => expect(toast).toHaveBeenCalledWith("store locked", "error"));
+  });
+
   it("restores a valid queue and clamps the index into it", () => {
     restoreBackup(
       parseBackup(
@@ -260,16 +304,23 @@ describe("restoreBackup library, player and searches", () => {
 });
 
 describe("export and import entry points", () => {
-  it("downloads the backup as a file and reports success", () => {
-    const createObjectURL = vi.fn(() => "blob:backup");
+  it("downloads the backup as a file with the replay buckets and reports success", async () => {
+    const createObjectURL = vi.fn((_blob: Blob) => "blob:backup");
     const revokeObjectURL = vi.fn();
     Object.assign(URL, { createObjectURL, revokeObjectURL });
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     const toast = vi.fn();
     useUI.setState({ toast });
+    vi.mocked(replayExport).mockResolvedValueOnce([{ month: "2026-11", tracks: {}, artists: {}, hours: [], days: {} }]);
 
-    exportBackup(new Date("2026-11-09T12:00:00Z"));
+    await exportBackup(new Date("2026-11-09T12:00:00Z"));
 
+    const text = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsText(createObjectURL.mock.calls[0][0]);
+    });
+    expect(JSON.parse(text).listening.state.buckets[0].month).toBe("2026-11");
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     expect(click).toHaveBeenCalledTimes(1);
     expect(toast).toHaveBeenCalledWith("Backup saved", "success");

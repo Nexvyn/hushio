@@ -79,6 +79,31 @@ export function persistWrite(name: string, data: unknown, owner: string): Promis
   return call<boolean>("persist_write", { name, data, owner });
 }
 
+export type PlaybackKind = "start" | "resume" | "pause" | "progress" | "stop";
+
+export type WireTrack = {
+  id: string;
+  title: string;
+  artist: string;
+  thumb: string | null;
+  duration?: number;
+  episode?: true;
+};
+
+export type PlaybackEventPayload = { type: PlaybackKind; track?: WireTrack; deltaMs?: number };
+
+export function playbackEvent(event: PlaybackEventPayload): Promise<void> {
+  return call<void>("playback_event", { event });
+}
+
+export function replayExport(): Promise<unknown[]> {
+  return call<unknown[]>("replay_export");
+}
+
+export function replayImport(buckets: unknown[]): Promise<void> {
+  return call<void>("replay_import", { buckets });
+}
+
 export function streamProxyPort(): Promise<number> {
   return call<number>("stream_proxy_port");
 }

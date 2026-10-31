@@ -11,6 +11,7 @@ import {
   setMuted,
   setVolume as setAudioVolume,
 } from "../lib/audio";
+import { pauseListen, resumeListen, setListenDuration, startListen, stopListen, tick } from "../lib/listening";
 import { prefetchLyrics } from "../lib/lyrics";
 import { persistStorage } from "../lib/persist";
 import {
@@ -219,6 +220,7 @@ function startCurrent() {
     played: [track, ...played.filter((item) => item.id !== track.id)].slice(0, PLAYED_LIMIT),
   });
   useLibrary.getState().pushHistory(track);
+  startListen(track);
   load(track);
   refillIfNeeded();
 }
@@ -371,6 +373,7 @@ export const usePlayer = create<PlayerState>()(
 
         if (remaining.length === 0) {
           pauseAudio();
+          stopListen();
           loadedId = null;
           set({ queue: [], index: 0, playing: false, position: 0, unshuffled: nextUnshuffled });
           return;
@@ -547,6 +550,7 @@ export function finishBlend(target: BlendTarget, { position, duration, ended }: 
     played: [track, ...played.filter((item) => item.id !== track.id)].slice(0, PLAYED_LIMIT),
   });
   useLibrary.getState().pushHistory(track);
+  startListen(track);
   prefetchLyrics(track);
   refillIfNeeded();
   if (ended) usePlayer.getState().handleEnded();
@@ -557,11 +561,22 @@ export function playFromRow(tracks: Track[], row: number, from?: string) {
 }
 
 audio.addEventListener("play", () => usePlayer.setState({ playing: true }));
-audio.addEventListener("pause", () => usePlayer.setState({ playing: false }));
-audio.addEventListener("playing", () => usePlayer.setState({ playing: true, buffering: false }));
+audio.addEventListener("pause", () => {
+  usePlayer.setState({ playing: false });
+  pauseListen();
+});
+audio.addEventListener("playing", () => {
+  usePlayer.setState({ playing: true, buffering: false });
+  resumeListen();
+});
 audio.addEventListener("waiting", () => usePlayer.setState({ buffering: true }));
-audio.addEventListener("timeupdate", () => usePlayer.setState({ position: audio.currentTime }));
-audio.addEventListener("durationchange", () =>
-  usePlayer.setState({ duration: Number.isFinite(audio.duration) ? audio.duration : 0 }),
-);
+audio.addEventListener("timeupdate", () => {
+  usePlayer.setState({ position: audio.currentTime });
+  tick();
+});
+audio.addEventListener("durationchange", () => {
+  const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
+  usePlayer.setState({ duration });
+  setListenDuration(duration);
+});
 audio.addEventListener("ended", () => usePlayer.getState().handleEnded());

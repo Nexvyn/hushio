@@ -1,4 +1,5 @@
 import { APP_NAME, APP_SLUG } from "./app";
+import { replayExport, replayImport } from "./bridge";
 import { isMatchLanguage } from "./importLanguage";
 import type { Track } from "../types";
 import { DEFAULT_PINS, LIBRARY_VERSION, useLibrary, type LibraryValues } from "../stores/library";
@@ -29,6 +30,7 @@ const TOO_LARGE = "That backup file is too large to import";
 
 const LIBRARY_KEYS = ["liked", "history", "followedArtists", "pinnedSingles", "playlists", "folders", "libraryOrder"] as const;
 const PLAYER_KEYS = ["queue", "index", "volume", "muted", "shuffle", "repeat", "unshuffled", "playingFrom", "autoplayCount"] as const;
+const LISTENING_VERSION = 1;
 const LIBRARY_LIST_KEYS = ["liked", "history", "followedArtists", "playlists", "folders"] as const;
 
 type Envelope = { state: Record<string, unknown>; version: number };
@@ -40,6 +42,7 @@ export type BackupDoc = {
   settings?: Record<string, unknown>;
   library?: Envelope;
   player?: Envelope;
+  listening?: Envelope;
   recentSearches?: string[];
 };
 
@@ -75,7 +78,7 @@ export function backupFileName(now: Date): string {
   return `${APP_SLUG}-backup-${now.toISOString().slice(0, 10)}.json`;
 }
 
-export function buildBackup(now: Date = new Date()): BackupDoc {
+export function buildBackup(now: Date = new Date(), listening: unknown[] = []): BackupDoc {
   const library = useLibrary.getState();
   const player = usePlayer.getState();
   return {
@@ -85,6 +88,7 @@ export function buildBackup(now: Date = new Date()): BackupDoc {
     settings: settingValues(useSettings.getState()),
     library: { state: pick(library, LIBRARY_KEYS), version: LIBRARY_VERSION },
     player: { state: pick(player, PLAYER_KEYS), version: 0 },
+    listening: { state: { buckets: listening }, version: LISTENING_VERSION },
     recentSearches: useRecents
       .getState()
       .searches.map((search) => search.trim())
@@ -125,6 +129,7 @@ export function parseBackup(text: string): BackupDoc {
     settings: isRecord(doc.settings) ? doc.settings : undefined,
     library: envelopeOf(doc.library, "library"),
     player: envelopeOf(doc.player, "player"),
+    listening: envelopeOf(doc.listening, "listening"),
     recentSearches: Array.isArray(doc.recentSearches)
       ? doc.recentSearches.filter((item): item is string => typeof item === "string")
       : undefined,
@@ -195,6 +200,11 @@ export function restoreBackup(doc: BackupDoc): void {
   if (doc.settings) useSettings.setState(settingsPatch(doc.settings, useSettings.getState()));
   if (doc.library) useLibrary.setState(libraryPatch(doc.library.state));
   if (doc.player) usePlayer.setState(playerPatch(doc.player.state));
+  if (doc.listening && Array.isArray(doc.listening.state.buckets)) {
+    replayImport(doc.listening.state.buckets).catch((error: unknown) => {
+      useUI.getState().toast(messageOf(error, "Couldn't restore listening history."), "error");
+    });
+  }
   if (doc.recentSearches) useRecents.setState({ searches: doc.recentSearches.slice(0, RECENT_LIMIT) });
 }
 
@@ -207,10 +217,11 @@ function downloadJson(name: string, text: string): void {
   window.setTimeout(() => URL.revokeObjectURL(url), REVOKE_DELAY_MS);
 }
 
-export function exportBackup(now: Date = new Date()): void {
+export async function exportBackup(now: Date = new Date()): Promise<void> {
   const toast = useUI.getState().toast;
   try {
-    downloadJson(backupFileName(now), serializeBackup(buildBackup(now)));
+    const listening = await replayExport();
+    downloadJson(backupFileName(now), serializeBackup(buildBackup(now, listening)));
     toast("Backup saved", "success");
   } catch (error) {
     toast(messageOf(error, "Couldn't save the backup."), "error");

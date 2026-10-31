@@ -4,9 +4,11 @@ mod local_library;
 mod lyrics;
 mod persist;
 mod reveal;
+mod stats;
 mod stream;
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use tauri::{AppHandle, Manager, RunEvent, State};
 use tracing::Subscriber;
@@ -326,6 +328,7 @@ pub fn run() {
             app.manage(folders);
             let local = tauri::async_runtime::block_on(local_library::Service::load(root.clone()));
             app.manage(local);
+            let stats_root = root.clone();
             app.manage(DataPaths { root });
             let registry = stream::Registry::default();
             app.manage(registry.clone());
@@ -334,6 +337,9 @@ pub fn run() {
             app.manage(proxy);
             app.manage(lyrics::Service::new()?);
             app.manage(downloads::Downloads::new(app.handle().clone(), default_dir));
+            let stats = Arc::new(tauri::async_runtime::block_on(stats::Service::load(stats_root)));
+            tauri::async_runtime::spawn(stats.clone().run_flush());
+            app.manage(stats);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -360,7 +366,11 @@ pub fn run() {
             local_library_opened,
             local_library_forget_opened,
             local_library_open_files,
-            local_library_track_path
+            local_library_track_path,
+            playback_event,
+            replay_summary,
+            replay_export,
+            replay_import
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
@@ -368,8 +378,29 @@ pub fn run() {
     app.run(|app, event| {
         if let RunEvent::ExitRequested { .. } = event {
             app.state::<downloads::Downloads<AppHandle>>().abandon();
+            tauri::async_runtime::block_on(app.state::<Arc<stats::Service>>().flush());
         }
     });
+}
+
+#[tauri::command]
+fn playback_event(stats: State<'_, Arc<stats::Service>>, event: stats::PlaybackEvent) -> Result<(), String> {
+    stats.playback(&event, chrono::Local::now())
+}
+
+#[tauri::command]
+fn replay_summary(stats: State<'_, Arc<stats::Service>>, period: String) -> serde_json::Value {
+    stats.replay_summary(&period, chrono::Local::now())
+}
+
+#[tauri::command]
+fn replay_export(stats: State<'_, Arc<stats::Service>>) -> Vec<serde_json::Value> {
+    stats.export()
+}
+
+#[tauri::command]
+async fn replay_import(stats: State<'_, Arc<stats::Service>>, buckets: Vec<serde_json::Value>) -> Result<(), String> {
+    stats.import(&buckets).await
 }
 
 #[tauri::command]

@@ -32,6 +32,7 @@ lofty = "0.22"
 tokio-util = "0.7.20"
 sha1 = "0.10"
 symphonia = { version = "0.5", features = ["all"] }
+chrono = "0.4"
 
 [profile.release]
 codegen-units = 1
@@ -42,3 +43,4 @@ strip = true
 
 [dev-dependencies]
 tempfile = "3.27.0"
+tokio = { version = "1.54.1", features = ["full", "test-util"] }
