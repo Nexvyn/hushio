@@ -51,8 +51,9 @@ import { RadioGroup, type RadioOption } from "../../components/RadioGroup";
 import type { SettingRowProps } from "../../components/SettingRow";
 import { Slider } from "../../components/Slider";
 import { APP_NAME, APP_SLUG } from "../../lib/app";
-import type { GoogleAccount, Platform } from "../../lib/bridge";
+import type { GoogleAccount, Platform, YtSyncStatus } from "../../lib/bridge";
 import { MATCH_LANGUAGE_OPTIONS } from "../../lib/importLanguage";
+import { failedText, quotaText, syncStatusText } from "../../lib/ytSync";
 import { chooseDownloadFolder } from "../../lib/downloads";
 import { confirmImportBackup, exportBackup } from "../../lib/importBackup";
 import { useLocalLibrary } from "../../stores/localLibrary";
@@ -103,12 +104,18 @@ export type AuthContext = {
   requestSignOut: () => void;
 };
 
+export type SyncContext = {
+  status: YtSyncStatus;
+  syncNow: () => void;
+};
+
 export type BuildContext = {
   settings: SettingsState;
   version: string | null;
   platform: Platform;
   navigate: (view: View) => void;
   auth: AuthContext;
+  sync: SyncContext;
 };
 
 type BooleanKey = {
@@ -160,8 +167,15 @@ function crossfadeValue(settings: SettingsState) {
   return settings.smartFade ? "Auto" : "Off";
 }
 
-function accountCategory({ settings: s, navigate, auth }: BuildContext): SettingsCategory {
+function accountCategory({ settings: s, navigate, auth, sync }: BuildContext): SettingsCategory {
   const signedIn = auth.account.mode === "google";
+  const running = sync.status.state === "running";
+  const syncNote = [
+    syncStatusText(sync.status, Date.now()),
+    sync.status.failedJobs > 0 ? failedText(sync.status.failedJobs) : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
   return {
     id: "account",
     label: "Account",
@@ -180,13 +194,20 @@ function accountCategory({ settings: s, navigate, auth }: BuildContext): Setting
         ),
       },
       {
+        title: "Sync",
+        note: signedIn ? syncNote : undefined,
         rows: [
           {
             id: "sync-now",
             icon: RefreshIcon,
             title: "Sync now",
-            disabled: true,
-            control: <Button disabled>Sync now</Button>,
+            note: signedIn ? quotaText(sync.status) : undefined,
+            disabled: !signedIn || running,
+            control: (
+              <Button disabled={!signedIn || running} onClick={sync.syncNow}>
+                Sync now
+              </Button>
+            ),
           },
           {
             id: "unlimited-sync",

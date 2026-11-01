@@ -58,6 +58,12 @@ const MSG_CANCELLED: &str = "Sign-in cancelled.";
 
 pub type StoreResult<T> = Result<T, String>;
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum TokenError {
+    SignedOut,
+    Retry,
+}
+
 pub trait SecretStore: Send + Sync {
     fn read(&self) -> StoreResult<Option<String>>;
     fn write(&self, value: &str) -> StoreResult<()>;
@@ -602,6 +608,19 @@ impl GoogleAuth {
         self.lock().session = None;
         if let Err(error) = self.store.clear() {
             tracing::warn!(%error, "could not delete the stored Google sign-in");
+        }
+    }
+
+    pub async fn youtube_token(&self, force: bool) -> Result<String, TokenError> {
+        if force {
+            if let Some(session) = self.lock().session.as_mut() {
+                session.access = None;
+            }
+        }
+        match self.access().await {
+            Access::Token(token) => Ok(token),
+            Access::Retry => Err(TokenError::Retry),
+            Access::Rejected => Err(TokenError::SignedOut),
         }
     }
 

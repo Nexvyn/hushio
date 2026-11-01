@@ -7,6 +7,8 @@ mod persist;
 mod reveal;
 mod stats;
 mod stream;
+mod sync_queue;
+mod yt_data_api;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -305,7 +307,60 @@ async fn google_sign_in(
         .sign_in(&google_auth::SystemBrowser(app.clone()))
         .await?;
     let _ = app.emit("google-auth-changed", &account);
+    spawn_sync(&app, app.state::<Arc<YtEngine>>().inner().clone());
     Ok(account)
+}
+
+type YtEngine = sync_queue::Engine<Arc<google_auth::GoogleAuth>>;
+
+fn emit_sync(app: &AppHandle, event: sync_queue::Event) {
+    match event {
+        sync_queue::Event::Progress(status) => {
+            let _ = app.emit("yt-sync-progress", status);
+        }
+        sync_queue::Event::Linked {
+            local_playlist_id,
+            yt_playlist_id,
+        } => {
+            let _ = app.emit(
+                "yt-playlist-linked",
+                serde_json::json!({ "localPlaylistId": local_playlist_id, "ytPlaylistId": yt_playlist_id }),
+            );
+        }
+    }
+}
+
+fn spawn_sync(app: &AppHandle, engine: Arc<YtEngine>) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let emit = move |event: sync_queue::Event| emit_sync(&app, event);
+        engine.run(&emit).await;
+    });
+}
+
+#[tauri::command]
+async fn yt_sync_status(engine: State<'_, Arc<YtEngine>>) -> Result<sync_queue::Status, String> {
+    Ok(engine.status().await)
+}
+
+#[tauri::command]
+async fn yt_sync_now(
+    app: AppHandle,
+    engine: State<'_, Arc<YtEngine>>,
+) -> Result<sync_queue::Status, String> {
+    spawn_sync(&app, engine.inner().clone());
+    Ok(engine.status().await)
+}
+
+#[tauri::command]
+async fn yt_enqueue(
+    app: AppHandle,
+    engine: State<'_, Arc<YtEngine>>,
+    jobs: Vec<sync_queue::JobInput>,
+) -> Result<(), String> {
+    engine.enqueue(jobs).await?;
+    spawn_sync(&app, engine.inner().clone());
+    Ok(())
 }
 
 #[tauri::command]
@@ -324,7 +379,12 @@ async fn keep_google_session(app: AppHandle, google: Arc<google_auth::GoogleAuth
     loop {
         match google.resume().await {
             google_auth::Resume::Nothing => return,
-            google_auth::Resume::Ready(account) | google_auth::Resume::SignedOut(account) => {
+            google_auth::Resume::Ready(account) => {
+                let _ = app.emit("google-auth-changed", &account);
+                spawn_sync(&app, app.state::<Arc<YtEngine>>().inner().clone());
+                return;
+            }
+            google_auth::Resume::SignedOut(account) => {
                 let _ = app.emit("google-auth-changed", &account);
                 return;
             }
@@ -373,6 +433,7 @@ pub fn run() {
             let local = tauri::async_runtime::block_on(local_library::Service::load(root.clone()));
             app.manage(local);
             let stats_root = root.clone();
+            let sync_root = root.clone();
             app.manage(DataPaths { root });
             let registry = stream::Registry::default();
             app.manage(registry.clone());
@@ -389,6 +450,12 @@ pub fn run() {
                 Arc::new(google_auth::KeyringStore),
             ));
             app.manage(google.clone());
+            let engine = tauri::async_runtime::block_on(sync_queue::Engine::load(
+                sync_root,
+                yt_data_api::API_BASE,
+                google.clone(),
+            ));
+            app.manage(Arc::new(engine));
             tauri::async_runtime::spawn(keep_google_session(app.handle().clone(), google));
             Ok(())
         })
@@ -425,7 +492,10 @@ pub fn run() {
             google_account_get,
             google_sign_in,
             google_sign_in_cancel,
-            google_sign_out
+            google_sign_out,
+            yt_sync_status,
+            yt_sync_now,
+            yt_enqueue
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

@@ -11,9 +11,11 @@ vi.mock("../../lib/persist", () => ({
 import { buildCategories, type BuildContext, type RowSpec } from "./categories";
 import { useSettings } from "../../stores/settings";
 
+const IDLE = { state: "idle" as const, done: 0, total: 0, playlistName: null, backend: "official" as const, quotaUsedToday: 0, quotaLimit: 10000, failedJobs: 0, lastError: null, lastSyncedAt: null, pulledPlaylists: 0 };
+
 const ACCOUNT = { googleSub: null, name: null, email: null, pictureUrl: null, configured: true, keyringAvailable: true };
 
-function context(mode: "guest" | "google", requestSignOut = vi.fn()): BuildContext {
+function context(mode: "guest" | "google", requestSignOut = vi.fn(), syncNow = vi.fn(), state: "idle" | "running" = "idle"): BuildContext {
   return {
     settings: useSettings.getState(),
     version: null,
@@ -26,6 +28,7 @@ function context(mode: "guest" | "google", requestSignOut = vi.fn()): BuildConte
       cancelSignIn: vi.fn(),
       requestSignOut,
     },
+    sync: { status: { ...IDLE, state }, syncNow },
   };
 }
 
@@ -55,8 +58,15 @@ describe("account settings", () => {
     expect(requestSignOut).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps sync actions disabled until the sync commits", () => {
-    const sync = accountRows(context("google")).find((row) => row.id === "sync-now");
-    expect(sync?.disabled).toBe(true);
+  it("enables Sync now for signed-in accounts and not while a sync runs", () => {
+    const row = (ctx: BuildContext) => accountRows(ctx).find((candidate) => candidate.id === "sync-now");
+    expect(row(context("google"))?.disabled).toBe(false);
+    expect(row(context("guest"))?.disabled).toBe(true);
+    expect(row(context("google", vi.fn(), vi.fn(), "running"))?.disabled).toBe(true);
+  });
+
+  it("keeps unlimited sync disabled until its commit", () => {
+    const unlimited = accountRows(context("google")).find((row) => row.id === "unlimited-sync");
+    expect(unlimited?.disabled).toBe(true);
   });
 });

@@ -10,6 +10,7 @@ import {
   rekeyPlaylistTracks,
 } from "../lib/deletionSync";
 import { moveKey } from "../lib/libraryOrder";
+import { queueYtJobs, videoIdOf } from "../lib/ytSync";
 import { persistStorage } from "../lib/persist";
 import type { Track } from "../types";
 
@@ -64,6 +65,7 @@ export type Playlist = {
   folderId: string | null;
   pinned: boolean;
   tracks: LibraryTrack[];
+  remote?: { ytPlaylistId: string };
 };
 
 export type Folder = { id: string; name: string };
@@ -96,6 +98,7 @@ type LibraryState = LibraryValues & {
   togglePinPlaylist: (id: string) => void;
   addToPlaylist: (playlistId: string, track: LikeInput) => boolean;
   removeFromPlaylist: (playlistId: string, trackId: string) => void;
+  linkRemote: (playlistId: string, ytPlaylistId: string) => void;
   restoreTrackInPlaylist: (playlistId: string, track: LibraryTrack, index: number) => void;
   moveInPlaylist: (playlistId: string, from: number, to: number) => void;
   setPlaylistFolder: (playlistId: string, folderId: string | null) => void;
@@ -405,10 +408,23 @@ export const useLibrary = create<LibraryState>()(
         createPlaylist: (name) => {
           const id = newId();
           apply(createPlaylistUpdate(id, name));
+          queueYtJobs([{ kind: "create", localPlaylistId: id, payload: name.trim() }]);
           return id;
         },
-        renamePlaylist: (id, name) => apply(renamePlaylistUpdate(id, name)),
-        deletePlaylist: (id) => apply(deletePlaylistUpdate(id)),
+        renamePlaylist: (id, name) => {
+          apply(renamePlaylistUpdate(id, name));
+          const trimmed = name.trim();
+          if (trimmed) queueYtJobs([{ kind: "rename", localPlaylistId: id, payload: trimmed }]);
+        },
+        deletePlaylist: (id) => {
+          const remote = get().playlists.find((playlist) => playlist.id === id)?.remote;
+          apply(deletePlaylistUpdate(id));
+          queueYtJobs([{ kind: "delete", localPlaylistId: id, ytPlaylistId: remote?.ytPlaylistId ?? null }]);
+        },
+        linkRemote: (playlistId, ytPlaylistId) =>
+          apply((state) => ({
+            playlists: mapPlaylist(state, playlistId, (playlist) => ({ ...playlist, remote: { ytPlaylistId } })),
+          })),
         togglePinPlaylist: (id) =>
           apply((state) => ({
             playlists: mapPlaylist(state, id, (playlist) => ({ ...playlist, pinned: !playlist.pinned })),
@@ -417,9 +433,18 @@ export const useLibrary = create<LibraryState>()(
           const playlist = get().playlists.find((item) => item.id === playlistId);
           if (!playlist || playlist.tracks.some((item) => item.id === track.id)) return false;
           apply(addTrackUpdate(playlistId, track));
+          const videoId = videoIdOf(track);
+          if (videoId) queueYtJobs([{ kind: "add", localPlaylistId: playlistId, videoId }]);
           return true;
         },
-        removeFromPlaylist: (playlistId, trackId) => apply(removeTrackUpdate(playlistId, trackId)),
+        removeFromPlaylist: (playlistId, trackId) => {
+          const track = get().playlists
+            .find((playlist) => playlist.id === playlistId)
+            ?.tracks.find((item) => item.id === trackId);
+          apply(removeTrackUpdate(playlistId, trackId));
+          const videoId = track && videoIdOf(track);
+          if (videoId) queueYtJobs([{ kind: "remove", localPlaylistId: playlistId, videoId }]);
+        },
         restoreTrackInPlaylist: (playlistId, track, index) =>
           apply(restoreTrackUpdate(playlistId, track, index)),
         moveInPlaylist: (playlistId, from, to) => apply(movePlaylistTrackUpdate(playlistId, from, to)),

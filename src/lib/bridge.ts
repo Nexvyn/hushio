@@ -373,6 +373,52 @@ export function listenGoogleAuthChanged(onChange: (account: GoogleAccount) => vo
   return listen<GoogleAccount>("google-auth-changed", (event) => onChange(event.payload));
 }
 
+export type YtSyncState = "idle" | "running" | "paused_sign_in" | "error";
+
+export type YtSyncStatus = {
+  state: YtSyncState;
+  done: number;
+  total: number;
+  playlistName: string | null;
+  backend: "official";
+  quotaUsedToday: number;
+  quotaLimit: number;
+  failedJobs: number;
+  lastError: string | null;
+  lastSyncedAt: number | null;
+  pulledPlaylists: number;
+};
+
+export type YtSyncJob = {
+  kind: "create" | "rename" | "add" | "remove" | "delete" | "like" | "unlike";
+  localPlaylistId?: string | null;
+  ytPlaylistId?: string | null;
+  videoId?: string | null;
+  payload?: string | null;
+};
+
+export function ytSyncStatus(): Promise<YtSyncStatus> {
+  return call<YtSyncStatus>("yt_sync_status");
+}
+
+export function ytSyncNow(): Promise<YtSyncStatus> {
+  return call<YtSyncStatus>("yt_sync_now");
+}
+
+export function ytEnqueue(jobs: YtSyncJob[]): Promise<void> {
+  return call<void>("yt_enqueue", { jobs });
+}
+
+export function listenYtSyncProgress(onChange: (status: YtSyncStatus) => void): Promise<UnlistenFn> {
+  return listen<YtSyncStatus>("yt-sync-progress", (event) => onChange(event.payload));
+}
+
+export type YtPlaylistLink = { localPlaylistId: string; ytPlaylistId: string };
+
+export function listenYtPlaylistLinked(onLink: (link: YtPlaylistLink) => void): Promise<UnlistenFn> {
+  return listen<YtPlaylistLink>("yt-playlist-linked", (event) => onLink(event.payload));
+}
+
 export async function listenFileDrop(onEvent: (event: FileDropEvent) => void): Promise<UnlistenFn> {
   return getCurrentWindow().onDragDropEvent((event) => {
     const payload = event.payload;

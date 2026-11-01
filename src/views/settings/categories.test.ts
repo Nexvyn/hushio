@@ -22,7 +22,14 @@ function auth(mode: "guest" | "google" = "guest"): BuildContext["auth"] {
 }
 
 function context(platform: BuildContext["platform"], mode: "guest" | "google" = "guest"): BuildContext {
-  return { settings: useSettings.getState(), version: null, platform, navigate: vi.fn(), auth: auth(mode) };
+  return {
+    settings: useSettings.getState(),
+    version: null,
+    platform,
+    navigate: vi.fn(),
+    auth: auth(mode),
+    sync: { status: { state: "idle" as const, done: 0, total: 0, playlistName: null, backend: "official" as const, quotaUsedToday: 0, quotaLimit: 10000, failedJobs: 0, lastError: null, lastSyncedAt: null, pulledPlaylists: 0 }, syncNow: vi.fn() },
+  };
 }
 
 function soundRows(platform: BuildContext["platform"]): RowSpec[] {

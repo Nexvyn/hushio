@@ -4,6 +4,7 @@ import { Icon } from "../components/Icon";
 import { SettingRow } from "../components/SettingRow";
 import { appVersion, platform } from "../lib/bridge";
 import { useAuth } from "../stores/auth";
+import { useSync } from "../stores/sync";
 import { useNavigation } from "../stores/navigation";
 import { useSettings } from "../stores/settings";
 import {
@@ -156,6 +157,7 @@ export function SettingsView() {
   const version = useAppVersion();
   const account = useAuth((state) => state.account);
   const signingIn = useAuth((state) => state.signingIn);
+  const syncStatus = useSync((state) => state.status);
   const [query, setQuery] = useState("");
 
   const active = resolveCategory(view.param);
@@ -170,6 +172,10 @@ export function SettingsView() {
       signIn: () => void useAuth.getState().signIn(),
       cancelSignIn: () => void useAuth.getState().cancelSignIn(),
       requestSignOut: () => useAuth.getState().requestSignOut(),
+    },
+    sync: {
+      status: syncStatus,
+      syncNow: () => void useSync.getState().syncNow(),
     },
   });
   const searching = query.trim() !== "";

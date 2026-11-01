@@ -16,6 +16,7 @@ import { watchFullScreen } from "./lib/bridge";
 import { listenForDownloadProgress } from "./lib/downloads";
 import { useKeyboardShortcuts, useSwipeNavigation } from "./lib/shortcuts";
 import { startGoogleAuth } from "./stores/auth";
+import { startYtSync } from "./stores/sync";
 import { useNavigation, type View } from "./stores/navigation";
 import { useUI } from "./stores/ui";
 import { AlbumView } from "./views/AlbumView";
@@ -90,6 +91,7 @@ export default function App() {
   useSwipeNavigation();
 
   useEffect(() => startGoogleAuth(), []);
+  useEffect(() => startYtSync(), []);
 
   useEffect(() => {
     let stop: (() => void) | undefined;
