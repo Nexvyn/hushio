@@ -250,7 +250,7 @@ fn journal_add(entries: &mut Vec<JournalEntry>, track: &TrackInput, heard_ms: u6
         return;
     }
     let now = millis(at);
-    entries.retain(|entry| now.saturating_sub(entry.at) < JOURNAL_KEEP_MS);
+    entries.retain(|entry| now.saturating_sub(entry.at) <= JOURNAL_KEEP_MS);
     entries.push(JournalEntry {
         track: JournalTrack {
             id: track.id.clone(),

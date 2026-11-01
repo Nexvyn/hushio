@@ -34,6 +34,10 @@ describe("fmtHours", () => {
     expect(fmtHours(12.4 * 3_600_000)).toBe("12 hrs");
   });
 
+  it("shows zero minutes for silence", () => {
+    expect(fmtHours(0)).toBe("0 min");
+  });
+
   it("groups thousands", () => {
     expect(fmtHours(1204 * 3_600_000)).toBe(`${(1204).toLocaleString()} hrs`);
   });
@@ -89,6 +93,10 @@ describe("streaks", () => {
       { date: "2026-11-05", ms: 1 },
     ];
     expect(streaks(days)).toEqual({ active: 4, longest: 2 });
+  });
+
+  it("reports no active days or run for empty input", () => {
+    expect(streaks([])).toEqual({ active: 0, longest: 0 });
   });
 
   it("keeps a run across the end of a month", () => {
@@ -210,5 +218,110 @@ describe("journalReplay", () => {
       { date: "2026-11-05", ms: 30_000 },
       { date: "2026-11-09", ms: 120_000 },
     ]);
+  });
+});
+
+describe("streaks across gaps", () => {
+  it("counts only consecutive days toward the longest run", () => {
+    const days = ["2026-11-01", "2026-11-02", "2026-11-04", "2026-11-05", "2026-11-06"].map((date) => ({ date, ms: 1000 }));
+    expect(streaks(days)).toEqual({ active: 5, longest: 3 });
+  });
+
+  it("ignores days with no listening time", () => {
+    const days = [
+      { date: "2026-11-01", ms: 1000 },
+      { date: "2026-11-02", ms: 0 },
+      { date: "2026-11-03", ms: 1000 },
+    ];
+    expect(streaks(days)).toEqual({ active: 2, longest: 1 });
+  });
+
+  it("counts a duplicated date once", () => {
+    const days = [
+      { date: "2026-11-01", ms: 1000 },
+      { date: "2026-11-01", ms: 2000 },
+    ];
+    expect(streaks(days)).toEqual({ active: 1, longest: 1 });
+  });
+
+  it("is not thrown off by unsorted input", () => {
+    const days = ["2026-11-03", "2026-11-01", "2026-11-02"].map((date) => ({ date, ms: 1000 }));
+    expect(streaks(days).longest).toBe(3);
+  });
+});
+
+describe("streakNow edge cases", () => {
+  it("keeps the streak alive when today is empty but yesterday was heard", () => {
+    const days = [
+      { date: "2026-11-07", ms: 1000 },
+      { date: "2026-11-08", ms: 1000 },
+    ];
+    expect(streakNow(days, today, false)).toEqual({ current: 2, heardToday: false, best: 2 });
+  });
+
+  it("drops to zero after a full missed day", () => {
+    const days = [{ date: "2026-11-07", ms: 1000 }];
+    expect(streakNow(days, today, false).current).toBe(0);
+  });
+
+  it("counts today as heard while a song is playing", () => {
+    const days = [{ date: "2026-11-08", ms: 1000 }];
+    expect(streakNow(days, today, true)).toEqual({ current: 2, heardToday: true, best: 2 });
+  });
+
+  it("reports a longer past run as best", () => {
+    const days = ["2026-10-01", "2026-10-02", "2026-10-03", "2026-11-09"].map((date) => ({ date, ms: 1000 }));
+    expect(streakNow(days, today, false)).toEqual({ current: 1, heardToday: true, best: 3 });
+  });
+});
+
+describe("biggestDay and peakHour ties", () => {
+  it("keeps the earlier day when two days tie", () => {
+    const days = [
+      { date: "2026-11-01", ms: 5000 },
+      { date: "2026-11-02", ms: 5000 },
+    ];
+    expect(biggestDay(days)?.date).toBe("2026-11-01");
+  });
+
+  it("returns null when nothing was heard", () => {
+    expect(biggestDay([{ date: "2026-11-01", ms: 0 }])).toBeNull();
+  });
+
+  it("keeps the earlier hour when two hours tie", () => {
+    const hours = new Array<number>(24).fill(0);
+    hours[8] = 100;
+    hours[20] = 100;
+    expect(peakHour(hours)).toBe(8);
+  });
+});
+
+describe("journalReplay ordering and window", () => {
+  const at = (day: number, hour = 10) => new Date(2026, 10, day, hour);
+
+  it("ranks songs by listening time, longest first", () => {
+    const entries = [
+      entry("a", "Short", "X", at(8), 60),
+      entry("b", "Long", "X", at(8, 12), 300),
+      entry("a", "Short", "X", at(9, 8), 30),
+    ];
+    expect(journalReplay(entries, today).tracks.map((row) => row.id)).toEqual(["b", "a"]);
+  });
+
+  it("counts each play of the same song", () => {
+    const entries = [entry("a", "Song", "X", at(8), 60), entry("a", "Song", "X", at(9, 8), 60)];
+    const row = journalReplay(entries, today).tracks[0];
+    expect(row.plays).toBe(2);
+    expect(row.ms).toBe(120_000);
+  });
+
+  it("leaves out plays older than the seven day window", () => {
+    const entries = [entry("old", "Old", "X", at(1), 60), entry("new", "New", "X", at(8), 60)];
+    expect(journalReplay(entries, today).tracks.map((row) => row.id)).toEqual(["new"]);
+  });
+
+  it("leaves out plays that end in the future", () => {
+    const entries = [entry("later", "Later", "X", at(9, 23), 60)];
+    expect(journalReplay(entries, today).plays).toBe(0);
   });
 });

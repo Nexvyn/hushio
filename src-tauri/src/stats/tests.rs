@@ -265,6 +265,50 @@ fn the_journal_keeps_600_entries_and_drops_entries_older_than_60_days() {
     assert_eq!(ids, vec!["new"]);
 }
 
+#[test]
+fn a_play_lands_in_its_day_hour_month_and_year() {
+    let mut state = State::default();
+    record(&mut state, &track("a", None), 45_000, at(2026, 10, 15, 21));
+    let bucket = &state.buckets[0];
+    assert_eq!(bucket.month, "2026-10");
+    assert_eq!(bucket.days.get("2026-10-15"), Some(&45_000));
+    assert_eq!(bucket.hours[21], 45_000);
+    let now = at(2026, 10, 15, 22);
+    assert_eq!(summarize(&state.buckets, "month", &now)["days"], json!([{ "date": "2026-10-15", "ms": 45_000 }]));
+    assert_eq!(summarize(&state.buckets, "year", &now)["totalMs"], json!(45_000));
+}
+
+#[test]
+fn an_empty_history_summarizes_to_zero_for_every_period() {
+    let now = at(2026, 10, 15, 22);
+    for period in ["month", "lastMonth", "year", "all"] {
+        let summary = summarize(&[], period, &now);
+        assert_eq!(summary["totalMs"], json!(0));
+        assert_eq!(summary["plays"], json!(0));
+        assert_eq!(summary["tracks"], json!([]));
+    }
+}
+
+#[test]
+fn a_journal_entry_a_day_short_of_sixty_days_is_kept() {
+    let mut entries = Vec::new();
+    let base = at(2026, 10, 15, 9);
+    journal_add(&mut entries, &track("old", None), 5_000, &base);
+    journal_add(&mut entries, &track("newer", None), 5_000, &(base + chrono::Duration::days(59)));
+    assert_eq!(entries.len(), 2);
+}
+
+#[test]
+fn the_journal_holds_exactly_600_entries_without_dropping_any() {
+    let mut entries = Vec::new();
+    let base = at(2026, 10, 15, 9);
+    for i in 0..JOURNAL_MAX as i64 {
+        journal_add(&mut entries, &track(&format!("t{i}"), None), 1_000, &(base + chrono::Duration::seconds(i)));
+    }
+    assert_eq!(entries.len(), JOURNAL_MAX);
+    assert_eq!(entries[0].track.id, "t0");
+}
+
 #[tokio::test(start_paused = true)]
 async fn the_flush_waits_five_seconds_after_the_first_change_and_is_not_restarted_by_later_ones() {
     let root = tempfile::tempdir().expect("temp dir");
@@ -352,4 +396,15 @@ async fn import_replaces_the_stats_and_export_returns_them() {
     assert!(service.lock().rules.ms.is_empty());
     let stored = persist::read(root.path(), "guest", "listening-history").await.expect("stats file");
     assert_eq!(stored["state"]["buckets"].as_array().map(Vec::len), Some(1));
+}
+
+#[test]
+fn a_journal_entry_exactly_sixty_days_old_is_kept_and_one_day_older_is_dropped() {
+    let mut entries = Vec::new();
+    let base = at(2026, 10, 15, 9);
+    journal_add(&mut entries, &track("old", None), 5_000, &base);
+    journal_add(&mut entries, &track("edge", None), 5_000, &(base + chrono::Duration::days(60)));
+    assert_eq!(entries.len(), 2);
+    journal_add(&mut entries, &track("late", None), 5_000, &(base + chrono::Duration::days(61)));
+    assert_eq!(entries.len(), 2);
 }

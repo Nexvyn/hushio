@@ -109,6 +109,17 @@ describe("latelyByArtist", () => {
   });
 });
 
+describe("latelyByArtist weighting", () => {
+  it("weighs a play from yesterday above one from 60 days ago", () => {
+    const scores = latelyByArtist([voted("a", "Yesterday", NOW - DAY, "done"), voted("b", "Old", NOW - 60 * DAY, "done")], NOW);
+    expect(scores.get("yesterday") ?? 0).toBeGreaterThan(scores.get("old") ?? 0);
+  });
+
+  it("returns an empty map for no votes", () => {
+    expect(latelyByArtist([], NOW).size).toBe(0);
+  });
+});
+
 describe("heavyRotation", () => {
   it("keeps tracks with two or more listens and a positive score, newest metadata first", () => {
     const votes = [

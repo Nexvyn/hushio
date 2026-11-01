@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   advance,
+  hash32,
   inYourOrder,
   insertIds,
+  mulberry32,
   nextPass,
   orderFrom,
   seededShuffle,
@@ -86,5 +88,26 @@ describe("insertIds", () => {
   it("appends when the song is missing", () => {
     expect(insertIds(["a", "b"], ["x"], undefined)).toEqual(["a", "b", "x"]);
     expect(insertIds(["a", "b"], ["x"], "z")).toEqual(["a", "b", "x"]);
+  });
+});
+
+describe("hash32 and mulberry32", () => {
+  it("gives the same value for the same text and different values for different text", () => {
+    expect(hash32("artist-1")).toBe(hash32("artist-1"));
+    expect(hash32("artist-1")).not.toBe(hash32("artist-2"));
+    expect(hash32("")).toBe(0x811c9dc5);
+  });
+
+  it("repeats the same sequence for one seed and stays in [0, 1)", () => {
+    const draws = (seed: number) => {
+      const next = mulberry32(seed);
+      return [next(), next(), next()];
+    };
+    expect(draws(42)).toEqual(draws(42));
+    expect(draws(42)).not.toEqual(draws(43));
+    for (const value of draws(42)) {
+      expect(value).toBeGreaterThanOrEqual(0);
+      expect(value).toBeLessThan(1);
+    }
   });
 });
