@@ -508,6 +508,10 @@ impl Service {
         self.lock().buckets.iter().filter_map(|bucket| serde_json::to_value(bucket).ok()).collect()
     }
 
+    pub fn journal(&self) -> Vec<JournalEntry> {
+        self.lock().journal.clone()
+    }
+
     pub async fn import(&self, buckets: &[Value]) -> Result<(), String> {
         {
             let mut state = self.lock();

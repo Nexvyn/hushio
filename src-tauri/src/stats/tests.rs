@@ -234,6 +234,20 @@ async fn a_stop_writes_the_heard_seconds_to_the_journal_and_a_new_track_closes_t
     assert_eq!(state.journal[0].heard, 31);
 }
 
+#[tokio::test]
+async fn the_journal_is_exposed_for_the_week_view() {
+    let root = tempfile::tempdir().expect("temp dir");
+    let service = Service::load(root.path().to_path_buf()).await;
+    let first = track("a", None);
+    service.playback(&event("start", &first, 0.0), at(2026, 10, 15, 21)).expect("start");
+    service.playback(&event("progress", &first, 31_400.0), at(2026, 10, 15, 21)).expect("progress");
+    service.playback(&event("start", &track("b", None), 0.0), at(2026, 10, 15, 22)).expect("start");
+    let entries = service.journal();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].track.id, "a");
+    assert_eq!(entries[0].heard, 31);
+}
+
 #[test]
 fn the_journal_keeps_600_entries_and_drops_entries_older_than_60_days() {
     let mut entries = Vec::new();

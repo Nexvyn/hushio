@@ -310,6 +310,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .register_uri_scheme_protocol("localart", |context, request| {
             let art_dir = context.app_handle().state::<local_library::Service>().art_dir();
             local_library::serve_art(&art_dir, request.uri().path())
@@ -369,6 +370,7 @@ pub fn run() {
             local_library_track_path,
             playback_event,
             replay_summary,
+            replay_journal,
             replay_export,
             replay_import
         ])
@@ -391,6 +393,11 @@ fn playback_event(stats: State<'_, Arc<stats::Service>>, event: stats::PlaybackE
 #[tauri::command]
 fn replay_summary(stats: State<'_, Arc<stats::Service>>, period: String) -> serde_json::Value {
     stats.replay_summary(&period, chrono::Local::now())
+}
+
+#[tauri::command]
+fn replay_journal(stats: State<'_, Arc<stats::Service>>) -> Vec<stats::JournalEntry> {
+    stats.journal()
 }
 
 #[tauri::command]

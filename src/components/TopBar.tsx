@@ -3,6 +3,7 @@ import { ArrowLeft01Icon, ArrowRight01Icon, Compass01Icon, Search01Icon } from "
 import { CaptionButtons } from "./CaptionButtons";
 import { Icon } from "./Icon";
 import { SearchSuggestions, optionId, useTypeAhead } from "./SearchSuggestions";
+import { StreakChip } from "./StreakChip";
 import { platform } from "../lib/bridge";
 import { openSuggestion, submitSearch } from "../lib/searchActions";
 import type { SuggestionRow } from "../lib/searchParse";
@@ -156,6 +157,8 @@ export function TopBar() {
           />
         )}
       </div>
+
+      <StreakChip />
 
       {platform === "windows" || platform === "linux" ? <CaptionButtons /> : null}
     </header>

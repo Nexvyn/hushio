@@ -2,6 +2,9 @@ import { getVersion } from "@tauri-apps/api/app";
 import { convertFileSrc, invoke, type InvokeArgs } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { Image } from "@tauri-apps/api/image";
+import { writeImage } from "@tauri-apps/plugin-clipboard-manager";
+import type { JournalEntry, ReplayData } from "./replay";
 
 export type Platform = "windows" | "macos" | "linux" | "android";
 
@@ -94,6 +97,19 @@ export type PlaybackEventPayload = { type: PlaybackKind; track?: WireTrack; delt
 
 export function playbackEvent(event: PlaybackEventPayload): Promise<void> {
   return call<void>("playback_event", { event });
+}
+
+export function replaySummary(period: string): Promise<ReplayData> {
+  return call<ReplayData>("replay_summary", { period });
+}
+
+export function replayJournal(): Promise<JournalEntry[]> {
+  return call<JournalEntry[]>("replay_journal");
+}
+
+export async function copyImage(png: Uint8Array): Promise<void> {
+  const image = await Image.fromBytes(png);
+  await writeImage(image);
 }
 
 export function replayExport(): Promise<unknown[]> {
