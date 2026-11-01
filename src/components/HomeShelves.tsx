@@ -11,7 +11,7 @@ import { openRecentItem } from "../lib/searchActions";
 import type { HomeItem, HomeShelf } from "../lib/home";
 import type { RecentItem } from "../stores/recents";
 
-const focusRing =
+export const focusRing =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-base";
 const cover = "outline outline-1 -outline-offset-1 outline-black/10 [[data-theme=dark]_&]:outline-white/10";
 
@@ -22,7 +22,7 @@ function reducedMotion(): boolean {
   );
 }
 
-function Cover({ src, round = false }: { src: string | null; round?: boolean }) {
+export function Cover({ src, round = false }: { src: string | null; round?: boolean }) {
   const shape = round ? "rounded-full" : "rounded-[9px]";
   if (!src) return <span aria-hidden="true" className={`block aspect-square w-full ${shape} bg-wash`} />;
   return <img src={src} alt="" loading="lazy" className={`block aspect-square w-full ${shape} object-cover ${cover}`} />;

@@ -3,12 +3,14 @@ import { PlayIcon } from "@hugeicons/core-free-icons";
 import { Button } from "../components/Button";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
-import { HomeShelfView, QuickTiles } from "../components/HomeShelves";
+import { FeedSectionView } from "../components/FeedSections";
+import { QuickTiles } from "../components/HomeShelves";
 import { Icon } from "../components/Icon";
 import { Pill } from "../components/Pill";
 import { TEST_SONG_ID, TEST_SONG_TITLE } from "../lib/audio";
 import { HOME_MOODS, refreshHome, type HomeShelf } from "../lib/home";
 import { marketValue } from "../lib/market";
+import { useHomeFeed } from "../lib/useHomeFeed";
 import { useHomeCache } from "../stores/homeCache";
 import { useNavigation } from "../stores/navigation";
 import { playFromRow } from "../stores/player";
@@ -68,7 +70,9 @@ export function HomeView() {
   };
 
   const tiles = recent.filter((item) => item.kind === "song").slice(0, TILE_LIMIT);
-  const hasContent = tiles.length > 0 || shelves.length > 0;
+  const feed = useHomeFeed(shelves);
+  const sections = feed.filter((section) => section.kind !== "browse");
+  const hasContent = tiles.length > 0 || sections.length > 0;
 
   return (
     <div className="relative">
@@ -97,8 +101,8 @@ export function HomeView() {
             </Pill>
           ))}
         </div>
-        {shelves.map((shelf, index) => (
-          <HomeShelfView key={`${index}-${shelf.title}`} shelf={shelf} />
+        {sections.map((section) => (
+          <FeedSectionView key={section.id} section={section} />
         ))}
         {!hasContent && status === "loading" && <LoadingShelves />}
         {!hasContent && status === "failed" && (
