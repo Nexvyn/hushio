@@ -45,12 +45,13 @@ import type { IconSvgElement } from "@hugeicons/react";
 import type { ReactNode } from "react";
 import { Button } from "../../components/Button";
 import { Equalizer } from "../../components/Equalizer";
+import { GoogleAccountCard } from "../../components/GoogleAccountCard";
 import { OutputDevicePicker } from "../../components/OutputDevicePicker";
 import { RadioGroup, type RadioOption } from "../../components/RadioGroup";
 import type { SettingRowProps } from "../../components/SettingRow";
 import { Slider } from "../../components/Slider";
 import { APP_NAME, APP_SLUG } from "../../lib/app";
-import type { Platform } from "../../lib/bridge";
+import type { GoogleAccount, Platform } from "../../lib/bridge";
 import { MATCH_LANGUAGE_OPTIONS } from "../../lib/importLanguage";
 import { chooseDownloadFolder } from "../../lib/downloads";
 import { confirmImportBackup, exportBackup } from "../../lib/importBackup";
@@ -94,11 +95,20 @@ export type SettingsCategory = {
   groups: SettingsGroup[];
 };
 
+export type AuthContext = {
+  account: GoogleAccount;
+  signingIn: boolean;
+  signIn: () => void;
+  cancelSignIn: () => void;
+  requestSignOut: () => void;
+};
+
 export type BuildContext = {
   settings: SettingsState;
   version: string | null;
   platform: Platform;
   navigate: (view: View) => void;
+  auth: AuthContext;
 };
 
 type BooleanKey = {
@@ -150,7 +160,8 @@ function crossfadeValue(settings: SettingsState) {
   return settings.smartFade ? "Auto" : "Off";
 }
 
-function accountCategory({ settings: s, navigate }: BuildContext): SettingsCategory {
+function accountCategory({ settings: s, navigate, auth }: BuildContext): SettingsCategory {
+  const signedIn = auth.account.mode === "google";
   return {
     id: "account",
     label: "Account",
@@ -158,17 +169,18 @@ function accountCategory({ settings: s, navigate }: BuildContext): SettingsCateg
     icon: UserIcon,
     groups: [
       {
+        rows: [],
+        body: (
+          <GoogleAccountCard
+            account={auth.account}
+            signingIn={auth.signingIn}
+            onSignIn={auth.signIn}
+            onCancelSignIn={auth.cancelSignIn}
+          />
+        ),
+      },
+      {
         rows: [
-          {
-            id: "account-card",
-            icon: UserIcon,
-            title: "Guest",
-            control: (
-              <Button variant="primary" disabled>
-                Sign in with Google
-              </Button>
-            ),
-          },
           {
             id: "sync-now",
             icon: RefreshIcon,
@@ -187,14 +199,18 @@ function accountCategory({ settings: s, navigate }: BuildContext): SettingsCateg
         ],
       },
       {
-        note: "Your library stays on this computer and in your Google account, ready for when you sign in again",
+        note: "Sync stops. Your data stays on this computer and in your Google account.",
         rows: [
           {
             id: "sign-out",
             icon: Logout01Icon,
             title: "Sign out",
-            disabled: true,
-            control: <Button disabled>Sign out</Button>,
+            disabled: !signedIn,
+            control: (
+              <Button disabled={!signedIn} onClick={auth.requestSignOut}>
+                Sign out
+              </Button>
+            ),
           },
         ],
       },

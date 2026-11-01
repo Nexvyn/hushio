@@ -343,6 +343,36 @@ export function localLibraryTrackPath(id: string): Promise<string | null> {
   return call<string | null>("local_library_track_path", { id });
 }
 
+export type GoogleAccount = {
+  mode: "guest" | "google";
+  googleSub: string | null;
+  name: string | null;
+  email: string | null;
+  pictureUrl: string | null;
+  configured: boolean;
+  keyringAvailable: boolean;
+};
+
+export function googleAccountGet(): Promise<GoogleAccount> {
+  return call<GoogleAccount>("google_account_get");
+}
+
+export function googleSignIn(): Promise<GoogleAccount> {
+  return call<GoogleAccount>("google_sign_in");
+}
+
+export function googleSignInCancel(): Promise<boolean> {
+  return call<boolean>("google_sign_in_cancel");
+}
+
+export function googleSignOut(): Promise<GoogleAccount> {
+  return call<GoogleAccount>("google_sign_out");
+}
+
+export function listenGoogleAuthChanged(onChange: (account: GoogleAccount) => void): Promise<UnlistenFn> {
+  return listen<GoogleAccount>("google-auth-changed", (event) => onChange(event.payload));
+}
+
 export async function listenFileDrop(onEvent: (event: FileDropEvent) => void): Promise<UnlistenFn> {
   return getCurrentWindow().onDragDropEvent((event) => {
     const payload = event.payload;

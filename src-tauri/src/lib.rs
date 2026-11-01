@@ -1,5 +1,6 @@
 mod analysis;
 mod downloads;
+mod google_auth;
 mod local_library;
 mod lyrics;
 mod persist;
@@ -10,7 +11,7 @@ mod stream;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use tauri::{AppHandle, Manager, RunEvent, State};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
 use tracing::Subscriber;
 use tracing_subscriber::fmt::format::Writer;
 use tracing_subscriber::fmt::{FmtContext, FormatEvent, FormatFields};
@@ -291,6 +292,48 @@ async fn local_library_open_files(
 }
 
 #[tauri::command]
+fn google_account_get(google: State<'_, Arc<google_auth::GoogleAuth>>) -> google_auth::GoogleAccount {
+    google.account()
+}
+
+#[tauri::command]
+async fn google_sign_in(
+    app: AppHandle,
+    google: State<'_, Arc<google_auth::GoogleAuth>>,
+) -> Result<google_auth::GoogleAccount, String> {
+    let account = google
+        .sign_in(&google_auth::SystemBrowser(app.clone()))
+        .await?;
+    let _ = app.emit("google-auth-changed", &account);
+    Ok(account)
+}
+
+#[tauri::command]
+fn google_sign_in_cancel(google: State<'_, Arc<google_auth::GoogleAuth>>) -> bool {
+    google.cancel_sign_in()
+}
+
+#[tauri::command]
+async fn google_sign_out(
+    google: State<'_, Arc<google_auth::GoogleAuth>>,
+) -> Result<google_auth::GoogleAccount, String> {
+    Ok(google.sign_out().await)
+}
+
+async fn keep_google_session(app: AppHandle, google: Arc<google_auth::GoogleAuth>) {
+    loop {
+        match google.resume().await {
+            google_auth::Resume::Nothing => return,
+            google_auth::Resume::Ready(account) | google_auth::Resume::SignedOut(account) => {
+                let _ = app.emit("google-auth-changed", &account);
+                return;
+            }
+            google_auth::Resume::Retry => tokio::time::sleep(google_auth::REFRESH_RETRY).await,
+        }
+    }
+}
+
+#[tauri::command]
 async fn local_library_track_path(
     state: State<'_, local_library::Service>,
     id: String,
@@ -341,6 +384,12 @@ pub fn run() {
             let stats = Arc::new(tauri::async_runtime::block_on(stats::Service::load(stats_root)));
             tauri::async_runtime::spawn(stats.clone().run_flush());
             app.manage(stats);
+            let google = Arc::new(google_auth::GoogleAuth::new(
+                google_auth::OAuthConfig::production(),
+                Arc::new(google_auth::KeyringStore),
+            ));
+            app.manage(google.clone());
+            tauri::async_runtime::spawn(keep_google_session(app.handle().clone(), google));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -372,7 +421,11 @@ pub fn run() {
             replay_summary,
             replay_journal,
             replay_export,
-            replay_import
+            replay_import,
+            google_account_get,
+            google_sign_in,
+            google_sign_in_cancel,
+            google_sign_out
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

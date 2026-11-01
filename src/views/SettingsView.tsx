@@ -3,6 +3,7 @@ import { Cancel01Icon, Search01Icon } from "@hugeicons/core-free-icons";
 import { Icon } from "../components/Icon";
 import { SettingRow } from "../components/SettingRow";
 import { appVersion, platform } from "../lib/bridge";
+import { useAuth } from "../stores/auth";
 import { useNavigation } from "../stores/navigation";
 import { useSettings } from "../stores/settings";
 import {
@@ -153,6 +154,8 @@ export function SettingsView() {
   const navigate = useNavigation((state) => state.navigate);
   const settings = useSettings();
   const version = useAppVersion();
+  const account = useAuth((state) => state.account);
+  const signingIn = useAuth((state) => state.signingIn);
   const [query, setQuery] = useState("");
 
   const active = resolveCategory(view.param);
@@ -161,6 +164,13 @@ export function SettingsView() {
     version,
     platform,
     navigate,
+    auth: {
+      account,
+      signingIn,
+      signIn: () => void useAuth.getState().signIn(),
+      cancelSignIn: () => void useAuth.getState().cancelSignIn(),
+      requestSignOut: () => useAuth.getState().requestSignOut(),
+    },
   });
   const searching = query.trim() !== "";
   const results = filterCategories(categories, query);

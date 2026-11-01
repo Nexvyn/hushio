@@ -11,8 +11,18 @@ vi.mock("../../lib/persist", () => ({
 import { buildCategories, type BuildContext, type RowSpec } from "./categories";
 import { useSettings } from "../../stores/settings";
 
-function context(platform: BuildContext["platform"]): BuildContext {
-  return { settings: useSettings.getState(), version: null, platform, navigate: vi.fn() };
+function auth(mode: "guest" | "google" = "guest"): BuildContext["auth"] {
+  return {
+    account: { mode, googleSub: null, name: null, email: null, pictureUrl: null, configured: true, keyringAvailable: true },
+    signingIn: false,
+    signIn: vi.fn(),
+    cancelSignIn: vi.fn(),
+    requestSignOut: vi.fn(),
+  };
+}
+
+function context(platform: BuildContext["platform"], mode: "guest" | "google" = "guest"): BuildContext {
+  return { settings: useSettings.getState(), version: null, platform, navigate: vi.fn(), auth: auth(mode) };
 }
 
 function soundRows(platform: BuildContext["platform"]): RowSpec[] {
