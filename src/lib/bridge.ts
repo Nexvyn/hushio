@@ -509,3 +509,11 @@ export async function listenFileDrop(onEvent: (event: FileDropEvent) => void): P
     }
   });
 }
+
+export function setTrayPlaying(playing: boolean): Promise<void> {
+  return call<void>("tray_set_playing", { playing });
+}
+
+export function listenMenuCommands(onCommand: (command: string) => void): Promise<UnlistenFn> {
+  return listen<string>("menu:command", (event) => onCommand(event.payload));
+}

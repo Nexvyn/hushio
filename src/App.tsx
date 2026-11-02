@@ -15,6 +15,7 @@ import { Toasts } from "./components/Toasts";
 import { TopBar } from "./components/TopBar";
 import { watchFullScreen } from "./lib/bridge";
 import { listenForDownloadProgress } from "./lib/downloads";
+import { startMenuCommands } from "./lib/menuCommands";
 import { useKeyboardShortcuts, useSwipeNavigation } from "./lib/shortcuts";
 import { startGoogleAuth } from "./stores/auth";
 import { startYtSync } from "./stores/sync";
@@ -93,6 +94,7 @@ export default function App() {
 
   useEffect(() => startGoogleAuth(), []);
   useEffect(() => startYtSync(), []);
+  useEffect(() => startMenuCommands(), []);
 
   useEffect(() => {
     let stop: (() => void) | undefined;

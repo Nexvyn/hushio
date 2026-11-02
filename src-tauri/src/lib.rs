@@ -13,6 +13,8 @@ mod stats;
 mod stream;
 mod sync_merge;
 mod sync_queue;
+mod tray;
+mod window;
 mod yt_data_api;
 mod yt_innertube_auth;
 
@@ -481,6 +483,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .on_window_event(window::on_window_event)
         .register_uri_scheme_protocol("localart", |context, request| {
             let art_dir = context.app_handle().state::<local_library::Service>().art_dir();
             local_library::serve_art(&art_dir, request.uri().path())
@@ -503,6 +506,8 @@ pub fn run() {
             let sync_root = root.clone();
             let drive_root = root.clone();
             app.manage(DataPaths { root });
+            app.manage(tray::Tray::default());
+            tray::setup(app.handle());
             let registry = stream::Registry::default();
             app.manage(registry.clone());
             let proxy = stream::StreamProxy::new(registry);
@@ -595,7 +600,8 @@ pub fn run() {
             disconnect::erase_youtube_playlists,
             disconnect::erase_revoke,
             disconnect::erase_keyring,
-            disconnect::erase_local_data
+            disconnect::erase_local_data,
+            tray::tray_set_playing
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
