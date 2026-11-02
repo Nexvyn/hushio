@@ -515,4 +515,26 @@ mod tests {
         assert_eq!(quota.used(before), 50);
         assert_eq!(quota.used(after), 0);
     }
+
+    #[test]
+    fn pacific_midnight_moves_with_the_daylight_changes() {
+        let at = |text: &str| DateTime::parse_from_rfc3339(text).unwrap().timestamp_millis();
+        assert_eq!(pacific_day(at("2026-03-08T07:59:00Z")), "2026-03-07");
+        assert_eq!(pacific_day(at("2026-03-08T08:01:00Z")), "2026-03-08");
+        assert_eq!(pacific_day(at("2026-03-09T06:59:00Z")), "2026-03-08");
+        assert_eq!(pacific_day(at("2026-03-09T07:01:00Z")), "2026-03-09");
+        assert_eq!(pacific_day(at("2026-11-01T06:59:00Z")), "2026-10-31");
+        assert_eq!(pacific_day(at("2026-11-01T07:01:00Z")), "2026-11-01");
+    }
+
+    #[test]
+    fn fallback_switch_ends_at_pacific_midnight_after_the_spring_change() {
+        let at = |text: &str| DateTime::parse_from_rfc3339(text).unwrap().timestamp_millis();
+        let before = at("2026-03-09T06:59:00Z");
+        let after = at("2026-03-09T07:01:00Z");
+        let mut quota = Quota::default();
+        quota.switch_to_fallback(before);
+        assert!(quota.on_fallback(before));
+        assert!(!quota.on_fallback(after));
+    }
 }

@@ -948,6 +948,28 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_pull_with_no_remote_file_leaves_the_status_idle() {
+        let (base, mock) = start_mock().await;
+        let root = tempfile::tempdir().unwrap();
+        let (drive, _) = make(root.path(), &base, session(true));
+        let status = drive.sync_now().await;
+        assert_eq!(status.state, State::Idle);
+        assert_eq!(status.last_error, None);
+        assert_eq!(mock.writes(), 0);
+        assert!(mock.files.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_network_error_sets_the_error_status() {
+        let root = tempfile::tempdir().unwrap();
+        local(root.path(), "settings", json!({"theme": "dark"})).await;
+        let (drive, _) = make(root.path(), "http://127.0.0.1:1", session(true));
+        let status = drive.sync_now().await;
+        assert_eq!(status.state, State::Error);
+        assert_eq!(status.last_error.as_deref(), Some("Couldn't reach Google. Check your connection."));
+    }
+
+    #[tokio::test]
     async fn quit_flush_pushes_pending_changes_without_waiting_for_the_debounce() {
         let (base, mock) = start_mock().await;
         let root = tempfile::tempdir().unwrap();

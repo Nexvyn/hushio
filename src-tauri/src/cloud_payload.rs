@@ -330,6 +330,25 @@ mod tests {
     }
 
     #[test]
+    fn listening_history_upload_is_trimmed_to_the_six_mib_budget() {
+        let pad = 2_621_440;
+        let file = json!({
+            "state": {"buckets": [
+                history_bucket("2026-06", pad),
+                history_bucket("2026-07", pad),
+                history_bucket("2026-08", pad),
+                history_bucket("2026-09", pad),
+            ]},
+            "version": 1,
+        });
+        let payload = prepare_upload("listening-history", &file).unwrap();
+        let mut months: Vec<String> = payload["state"]["buckets"].as_array().unwrap().iter().map(month_of).collect();
+        months.sort();
+        assert_eq!(months, vec!["2026-08", "2026-09"]);
+        assert!(payload_bytes(&payload) <= LISTENING_HISTORY_BUDGET_BYTES);
+    }
+
+    #[test]
     fn fitting_stops_when_no_bucket_is_left() {
         let file = json!({"state": {"buckets": [history_bucket("2026-07", 50_000)]}, "version": 1});
         let fitted = fit_to_budget(for_upload("listening-history", &file), 100);

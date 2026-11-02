@@ -1335,6 +1335,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn token_values_never_reach_an_error_message() {
+        let (base, fake) = start_fake().await;
+        let leaky = serde_json::json!({ "access_token": "leaked-access-9", "expires_in": 3600, "scope": SCOPES });
+        *fake.token.lock().unwrap() = Some((200, leaky.to_string()));
+        let error = GoogleAuth::new(config(&base), Arc::new(MemoryStore::default()))
+            .sign_in(&*browser(code_for))
+            .await
+            .unwrap_err();
+        assert!(!error.contains("leaked-access-9"));
+
+        *fake.token.lock().unwrap() =
+            Some((400, r#"{"error":"invalid_grant","error_description":"refresh leaked-refresh-7"}"#.to_owned()));
+        let error = GoogleAuth::new(config(&base), Arc::new(MemoryStore::default()))
+            .sign_in(&*browser(code_for))
+            .await
+            .unwrap_err();
+        assert!(!error.contains("leaked-refresh-7"));
+    }
+
+    #[tokio::test]
     async fn sign_in_reports_expired_grant_and_network_failure() {
         let (base, fake) = start_fake().await;
         *fake.token.lock().unwrap() = Some((400, r#"{"error":"invalid_grant"}"#.to_owned()));

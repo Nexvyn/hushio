@@ -937,6 +937,24 @@ mod tests {
         assert_eq!(queue.stored.jobs.len(), 2);
     }
 
+    #[test]
+    fn queued_writes_run_in_the_order_they_were_added() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let mut queue = Queue {
+            root: dir.path().to_path_buf(),
+            stored: Stored::default(),
+        };
+        for (at, video) in [(0, "v1"), (1, "v2"), (2, "v3")] {
+            queue.enqueue(add("L1", video, Some("PL1")), at).expect("queued");
+        }
+        let mut order = Vec::new();
+        while let Some(job) = queue.take(10) {
+            order.push(job.video_id.clone().unwrap_or_default());
+            queue.succeed(&job.id, None);
+        }
+        assert_eq!(order, vec!["v1", "v2", "v3"]);
+    }
+
     #[tokio::test]
     async fn a_failing_job_retries_on_the_backoff_schedule_and_stops_after_five_attempts() {
         let (base, mock) = start_mock().await;
@@ -961,6 +979,63 @@ mod tests {
         assert_eq!(queue.stored.jobs.len(), 1);
         assert_eq!(queue.stored.jobs[0].state, State::Failed);
         assert_eq!(queue.stored.jobs[0].attempts, 5);
+    }
+
+    #[tokio::test]
+    async fn an_exhausted_job_is_marked_failed_while_the_next_job_still_runs() {
+        let (base, mock) = start_mock().await;
+        {
+            let mut replies = mock.replies.lock().unwrap();
+            replies.push_back((500, "{}".to_owned()));
+            replies.push_back((200, "{}".to_owned()));
+            for _ in 0..4 {
+                replies.push_back((500, "{}".to_owned()));
+            }
+        }
+        let dir = tempfile::tempdir().expect("temp dir");
+        let engine = engine(dir.path(), &base).await;
+        engine
+            .enqueue(vec![add("L1", "v1", Some("PL1")), add("L1", "v2", Some("PL1"))])
+            .await
+            .expect("queued");
+
+        let base = now_ms() + 1_000_000;
+        assert_eq!(engine.step(base, &ignore).await, Step::Ran);
+        assert_eq!(engine.step(base, &ignore).await, Step::Ran);
+        assert_eq!(engine.step(base + 1_000, &ignore).await, Step::Ran);
+        assert_eq!(engine.step(base + 3_000, &ignore).await, Step::Ran);
+        assert_eq!(engine.step(base + 7_000, &ignore).await, Step::Ran);
+        assert_eq!(engine.step(base + 15_000, &ignore).await, Step::Ran);
+        assert_eq!(engine.step(base + 1_000_000, &ignore).await, Step::Idle);
+
+        let seen = mock.seen.lock().unwrap().clone();
+        assert_eq!(seen.len(), 6);
+        assert!(seen[1].body.contains("v2"));
+        let queue = engine.queue.lock().await;
+        assert_eq!(queue.stored.jobs.len(), 1);
+        assert_eq!(queue.stored.jobs[0].video_id.as_deref(), Some("v1"));
+        assert_eq!(queue.stored.jobs[0].state, State::Failed);
+        assert_eq!(queue.stored.jobs[0].attempts, 5);
+    }
+
+    #[tokio::test]
+    async fn a_forbidden_reply_without_the_quota_reason_does_not_switch_to_the_fallback() {
+        let (base, mock) = start_mock().await;
+        mock.replies.lock().unwrap().push_back((
+            403,
+            r#"{"error":{"message":"Forbidden","errors":[{"reason":"forbidden"}]}}"#.to_owned(),
+        ));
+        let dir = tempfile::tempdir().expect("temp dir");
+        let engine = engine(dir.path(), &base).await;
+        engine.enqueue(vec![add("L1", "v1", Some("PL1"))]).await.expect("queued");
+
+        assert_eq!(engine.step(now_ms(), &ignore).await, Step::Ran);
+        assert!(!engine.quota.lock().unwrap().fallback);
+        let status = engine.status().await;
+        assert_eq!(status.backend, "official");
+        let queue = engine.queue.lock().await;
+        assert_eq!(queue.stored.jobs[0].state, State::Pending);
+        assert_eq!(queue.stored.jobs[0].attempts, 1);
     }
 
     #[tokio::test]
