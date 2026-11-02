@@ -380,7 +380,7 @@ export type YtSyncStatus = {
   done: number;
   total: number;
   playlistName: string | null;
-  backend: "official";
+  backend: "official" | "unofficial";
   quotaUsedToday: number;
   quotaLimit: number;
   failedJobs: number;
@@ -417,6 +417,34 @@ export type YtPlaylistLink = { localPlaylistId: string; ytPlaylistId: string };
 
 export function listenYtPlaylistLinked(onLink: (link: YtPlaylistLink) => void): Promise<UnlistenFn> {
   return listen<YtPlaylistLink>("yt-playlist-linked", (event) => onLink(event.payload));
+}
+
+export type YtTvCode = { userCode: string; verificationUrl: string; expiresAt: number };
+
+export type YtTvStatus = { connected: boolean };
+
+export function ytTvStatus(): Promise<YtTvStatus> {
+  return call<YtTvStatus>("yt_tv_status");
+}
+
+export function ytTvConnect(): Promise<YtTvStatus> {
+  return call<YtTvStatus>("yt_tv_connect");
+}
+
+export function ytTvCancel(): Promise<boolean> {
+  return call<boolean>("yt_tv_cancel");
+}
+
+export function ytTvDisconnect(): Promise<YtTvStatus> {
+  return call<YtTvStatus>("yt_tv_disconnect");
+}
+
+export function ytTvOpen(): Promise<void> {
+  return call<void>("yt_tv_open");
+}
+
+export function listenYtTvCode(onCode: (code: YtTvCode) => void): Promise<UnlistenFn> {
+  return listen<YtTvCode>("yt-tv-code", (event) => onCode(event.payload));
 }
 
 export async function listenFileDrop(onEvent: (event: FileDropEvent) => void): Promise<UnlistenFn> {

@@ -158,6 +158,10 @@ export function SettingsView() {
   const account = useAuth((state) => state.account);
   const signingIn = useAuth((state) => state.signingIn);
   const syncStatus = useSync((state) => state.status);
+  const tvConnected = useSync((state) => state.tvConnected);
+  const tvCode = useSync((state) => state.tvCode);
+  const tvBusy = useSync((state) => state.tvBusy);
+  const tvError = useSync((state) => state.tvError);
   const [query, setQuery] = useState("");
 
   const active = resolveCategory(view.param);
@@ -176,6 +180,16 @@ export function SettingsView() {
     sync: {
       status: syncStatus,
       syncNow: () => void useSync.getState().syncNow(),
+      tv: {
+        connected: tvConnected,
+        code: tvCode,
+        busy: tvBusy,
+        error: tvError,
+        connect: () => void useSync.getState().connectTv(),
+        cancel: () => void useSync.getState().cancelTv(),
+        open: () => void useSync.getState().openTv(),
+        disconnect: () => void useSync.getState().disconnectTv(),
+      },
     },
   });
   const searching = query.trim() !== "";

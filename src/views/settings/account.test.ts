@@ -28,7 +28,11 @@ function context(mode: "guest" | "google", requestSignOut = vi.fn(), syncNow = v
       cancelSignIn: vi.fn(),
       requestSignOut,
     },
-    sync: { status: { ...IDLE, state }, syncNow },
+    sync: {
+      status: { ...IDLE, state },
+      syncNow,
+      tv: { connected: false, code: null, busy: false, error: null, connect: vi.fn(), cancel: vi.fn(), open: vi.fn(), disconnect: vi.fn() },
+    },
   };
 }
 
@@ -65,8 +69,19 @@ describe("account settings", () => {
     expect(row(context("google", vi.fn(), vi.fn(), "running"))?.disabled).toBe(true);
   });
 
-  it("keeps unlimited sync disabled until its commit", () => {
-    const unlimited = accountRows(context("google")).find((row) => row.id === "unlimited-sync");
-    expect(unlimited?.disabled).toBe(true);
+  it("enables unlimited sync for signed-in accounts only", () => {
+    const unlimited = (ctx: BuildContext) => accountRows(ctx).find((row) => row.id === "unlimited-sync");
+    expect(unlimited(context("google"))?.disabled).toBeFalsy();
+    expect(unlimited(context("guest"))?.disabled).toBe(true);
+  });
+
+  it("offers Connect YouTube Music only while unlimited sync is on", () => {
+    const ids = (ctx: BuildContext) => accountRows(ctx).map((row) => row.id);
+    useSettings.setState({ unlimitedSync: false });
+    expect(ids(context("google"))).not.toContain("tv-connect");
+    useSettings.setState({ unlimitedSync: true });
+    expect(ids(context("google"))).toContain("tv-connect");
+    expect(ids(context("guest"))).not.toContain("tv-connect");
+    useSettings.setState({ unlimitedSync: false });
   });
 });

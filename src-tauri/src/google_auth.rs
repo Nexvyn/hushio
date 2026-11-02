@@ -40,7 +40,7 @@ const VERIFIER_CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuv
 const STATE_BYTES: usize = 32;
 const MAX_CODE_LEN: usize = 512;
 const MAX_ERROR_LEN: usize = 300;
-const REFRESH_LEEWAY_SECS: i64 = 60;
+pub(crate) const REFRESH_LEEWAY_SECS: i64 = 60;
 const HTTP_TIMEOUT: Duration = Duration::from_secs(30);
 const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(300);
 pub const REFRESH_RETRY: Duration = Duration::from_secs(30);
@@ -72,13 +72,15 @@ pub trait SecretStore: Send + Sync {
 
 pub struct KeyringStore;
 
-fn keyring_entry() -> StoreResult<keyring::Entry> {
-    keyring::Entry::new(&keyring_service(), KEYRING_ACCOUNT).map_err(|error| error.to_string())
+pub struct KeyringSlot(pub &'static str);
+
+fn keyring_entry(account: &str) -> StoreResult<keyring::Entry> {
+    keyring::Entry::new(&keyring_service(), account).map_err(|error| error.to_string())
 }
 
-impl SecretStore for KeyringStore {
+impl SecretStore for KeyringSlot {
     fn read(&self) -> StoreResult<Option<String>> {
-        match keyring_entry()?.get_password() {
+        match keyring_entry(self.0)?.get_password() {
             Ok(value) => Ok(Some(value)),
             Err(keyring::Error::NoEntry) => Ok(None),
             Err(error) => Err(error.to_string()),
@@ -86,16 +88,30 @@ impl SecretStore for KeyringStore {
     }
 
     fn write(&self, value: &str) -> StoreResult<()> {
-        keyring_entry()?
+        keyring_entry(self.0)?
             .set_password(value)
             .map_err(|error| error.to_string())
     }
 
     fn clear(&self) -> StoreResult<()> {
-        match keyring_entry()?.delete_credential() {
+        match keyring_entry(self.0)?.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
             Err(error) => Err(error.to_string()),
         }
+    }
+}
+
+impl SecretStore for KeyringStore {
+    fn read(&self) -> StoreResult<Option<String>> {
+        KeyringSlot(KEYRING_ACCOUNT).read()
+    }
+
+    fn write(&self, value: &str) -> StoreResult<()> {
+        KeyringSlot(KEYRING_ACCOUNT).write(value)
+    }
+
+    fn clear(&self) -> StoreResult<()> {
+        KeyringSlot(KEYRING_ACCOUNT).clear()
     }
 }
 
@@ -667,7 +683,7 @@ fn redirect_uri(port: u16) -> String {
     format!("http://127.0.0.1:{port}{CALLBACK_PATH}")
 }
 
-fn form_body(fields: &[(&str, &str)]) -> String {
+pub(crate) fn form_body(fields: &[(&str, &str)]) -> String {
     url::form_urlencoded::Serializer::new(String::new())
         .extend_pairs(fields.iter().copied())
         .finish()
@@ -719,18 +735,18 @@ fn identity(info: Option<Claims>, claims: Option<Claims>) -> Option<Identity> {
     })
 }
 
-fn is_fresh(expires_at: i64, now: i64) -> bool {
+pub(crate) fn is_fresh(expires_at: i64, now: i64) -> bool {
     expires_at - now >= REFRESH_LEEWAY_SECS
 }
 
-fn now_secs() -> i64 {
+pub(crate) fn now_secs() -> i64 {
     UNIX_EPOCH
         .elapsed()
         .map(|elapsed| elapsed.as_secs() as i64)
         .unwrap_or(0)
 }
 
-fn error_code(body: &str) -> Option<String> {
+pub(crate) fn error_code(body: &str) -> Option<String> {
     let value: serde_json::Value = serde_json::from_str(body).ok()?;
     value.get("error")?.as_str().map(str::to_owned)
 }

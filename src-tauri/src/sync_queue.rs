@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
@@ -11,6 +12,7 @@ use crate::APP_NAME;
 use crate::google_auth::TokenError;
 use crate::persist;
 use crate::yt_data_api::{AccessTokens, ApiError, QUOTA_LIMIT, Quota, RemoteItem, YtApi, now_ms};
+use crate::yt_innertube_auth::{Innertube, MSG_CONNECT};
 
 pub const MAX_ATTEMPTS: u32 = 5;
 const BACKOFF_MS: [i64; 4] = [1_000, 2_000, 4_000, 8_000];
@@ -18,6 +20,69 @@ const PACING: Duration = Duration::from_millis(250);
 const OWNER: &str = "guest";
 const QUEUE_FILE: &str = "sync-queue";
 const QUOTA_FILE: &str = "yt-quota";
+const SETTINGS_FILE: &str = "settings";
+
+pub trait Remote: Sync {
+    fn create(&self, title: &str) -> impl Future<Output = Result<String, ApiError>> + Send;
+    fn rename(&self, playlist: &str, title: &str) -> impl Future<Output = Result<(), ApiError>> + Send;
+    fn delete(&self, playlist: &str) -> impl Future<Output = Result<(), ApiError>> + Send;
+    fn add(&self, playlist: &str, video: &str) -> impl Future<Output = Result<(), ApiError>> + Send;
+    fn remove(&self, playlist: &str, video: &str) -> impl Future<Output = Result<(), ApiError>> + Send;
+    fn rate(&self, video: &str, like: bool) -> impl Future<Output = Result<(), ApiError>> + Send;
+}
+
+struct Official<'a, T> {
+    api: &'a YtApi,
+    tokens: &'a T,
+}
+
+impl<T: AccessTokens> Remote for Official<'_, T> {
+    async fn create(&self, title: &str) -> Result<String, ApiError> {
+        self.api.create_playlist(self.tokens, title).await
+    }
+
+    async fn rename(&self, playlist: &str, title: &str) -> Result<(), ApiError> {
+        self.api.rename_playlist(self.tokens, playlist, title).await
+    }
+
+    async fn delete(&self, playlist: &str) -> Result<(), ApiError> {
+        self.api.delete_playlist(self.tokens, playlist).await
+    }
+
+    async fn add(&self, playlist: &str, video: &str) -> Result<(), ApiError> {
+        self.api.add_item(self.tokens, playlist, video).await
+    }
+
+    async fn remove(&self, playlist: &str, video: &str) -> Result<(), ApiError> {
+        let items: Vec<RemoteItem> = self.api.list_items(self.tokens, playlist).await?;
+        let Some(item) = items.iter().find(|item| item.video_id == video) else {
+            return Ok(());
+        };
+        match self.api.remove_item(self.tokens, &item.item_id).await {
+            Err(error) if error.status() == Some(404) => Ok(()),
+            other => other,
+        }
+    }
+
+    async fn rate(&self, video: &str, like: bool) -> Result<(), ApiError> {
+        self.api.rate(self.tokens, video, like).await
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Route {
+    Official,
+    Unofficial,
+}
+
+impl Route {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Official => "official",
+            Self::Unofficial => "unofficial",
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -337,7 +402,6 @@ impl Queue {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Halt {
     SignIn,
-    Quota,
 }
 
 #[derive(Default)]
@@ -349,6 +413,7 @@ struct Run {
     total: usize,
     pulled: usize,
     playlist_name: Option<String>,
+    backend: Option<&'static str>,
 }
 
 #[derive(Serialize, Clone, Debug, PartialEq, Eq)]
@@ -388,13 +453,14 @@ pub struct Engine<T> {
     root: PathBuf,
     api: YtApi,
     tokens: T,
+    tv: Arc<Innertube>,
     quota: Arc<StdMutex<Quota>>,
     queue: Mutex<Queue>,
     run: StdMutex<Run>,
 }
 
 impl<T: AccessTokens> Engine<T> {
-    pub async fn load(root: PathBuf, base: &str, tokens: T) -> Self {
+    pub async fn load(root: PathBuf, base: &str, tokens: T, tv: Arc<Innertube>) -> Self {
         let quota: Quota = persist::read(&root, OWNER, QUOTA_FILE)
             .await
             .and_then(|value| serde_json::from_value(value).ok())
@@ -405,10 +471,30 @@ impl<T: AccessTokens> Engine<T> {
             api: YtApi::new(base, quota.clone()),
             quota,
             tokens,
+            tv,
             queue: Mutex::new(queue),
             run: StdMutex::new(Run::default()),
             root,
         }
+    }
+
+    async fn route(&self, now: i64) -> Route {
+        if self.unlimited().await {
+            return Route::Unofficial;
+        }
+        let fallback = self
+            .quota
+            .lock()
+            .map(|mut quota| quota.on_fallback(now))
+            .unwrap_or(false);
+        if fallback { Route::Unofficial } else { Route::Official }
+    }
+
+    async fn unlimited(&self) -> bool {
+        persist::read(&self.root, OWNER, SETTINGS_FILE)
+            .await
+            .and_then(|value| value["state"]["unlimitedSync"].as_bool())
+            .unwrap_or(false)
     }
 
     pub async fn enqueue(&self, inputs: Vec<JobInput>) -> Result<(), String> {
@@ -457,7 +543,7 @@ impl<T: AccessTokens> Engine<T> {
             done: run.done,
             total: run.total,
             playlist_name: run.playlist_name.clone(),
-            backend: "official",
+            backend: run.backend.unwrap_or(Route::Official.name()),
             quota_used_today,
             quota_limit: QUOTA_LIMIT,
             failed_jobs,
@@ -501,20 +587,23 @@ impl<T: AccessTokens> Engine<T> {
     }
 
     async fn drain(&self, emit: Emit<'_>) {
-        match self.api.list_playlists(&self.tokens).await {
-            Ok(list) => {
-                self.run
-                    .lock()
-                    .unwrap_or_else(|poison| poison.into_inner())
-                    .pulled = list.len();
-            }
-            Err(error) => {
-                if let Some(halt) = halt_for(&error) {
-                    self.halt(halt, now_ms());
-                    self.report(emit).await;
-                    return;
+        if self.route(now_ms()).await == Route::Official {
+            match self.api.list_playlists(&self.tokens).await {
+                Ok(list) => {
+                    self.run
+                        .lock()
+                        .unwrap_or_else(|poison| poison.into_inner())
+                        .pulled = list.len();
                 }
-                self.note_error(error.describe());
+                Err(error) if error.is_quota() => self.switch_to_fallback(now_ms()),
+                Err(error) => {
+                    if let Some(halt) = halt_for(&error) {
+                        self.halt(halt, Route::Official);
+                        self.report(emit).await;
+                        return;
+                    }
+                    self.note_error(error.describe());
+                }
             }
         }
         loop {
@@ -564,6 +653,7 @@ impl<T: AccessTokens> Engine<T> {
     }
 
     async fn step(&self, now: i64, emit: Emit<'_>) -> Step {
+        let route = self.route(now).await;
         let job = {
             let mut queue = self.queue.lock().await;
             let Some(job) = queue.take(now) else {
@@ -574,15 +664,16 @@ impl<T: AccessTokens> Engine<T> {
             }
             job
         };
-        self.run
-            .lock()
-            .unwrap_or_else(|poison| poison.into_inner())
-            .playlist_name = match job.kind {
-            Kind::Create | Kind::Rename => job.payload.clone(),
-            _ => None,
-        };
+        {
+            let mut run = self.run.lock().unwrap_or_else(|poison| poison.into_inner());
+            run.playlist_name = match job.kind {
+                Kind::Create | Kind::Rename => job.payload.clone(),
+                _ => None,
+            };
+            run.backend = Some(route.name());
+        }
 
-        let outcome = self.perform(&job).await;
+        let outcome = self.perform(&job, route).await;
         let mut queue = self.queue.lock().await;
         let step = match outcome {
             Ok(created) => {
@@ -596,10 +687,15 @@ impl<T: AccessTokens> Engine<T> {
                 self.count_done();
                 Step::Ran
             }
+            Err(error) if route == Route::Official && error.is_quota() => {
+                queue.release(&job.id);
+                self.switch_to_fallback(now);
+                Step::Ran
+            }
             Err(error) => match halt_for(&error) {
                 Some(halt) => {
                     queue.release(&job.id);
-                    self.halt(halt, now);
+                    self.halt(halt, route);
                     Step::Halted(halt)
                 }
                 None => {
@@ -630,53 +726,30 @@ impl<T: AccessTokens> Engine<T> {
         step
     }
 
-    async fn perform(&self, job: &Job) -> Result<Option<String>, ApiError> {
-        let tokens = &self.tokens;
-        let playlist = job.yt_playlist_id.clone().unwrap_or_default();
-        let video = job.video_id.clone().unwrap_or_default();
-        let name = job.payload.clone().unwrap_or_default();
-        match job.kind {
-            Kind::Create => self.api.create_playlist(tokens, &name).await.map(Some),
-            Kind::Rename => self
-                .api
-                .rename_playlist(tokens, &playlist, &name)
-                .await
-                .map(|()| None),
-            Kind::Add => self
-                .api
-                .add_item(tokens, &playlist, &video)
-                .await
-                .map(|()| None),
-            Kind::Remove => {
-                let items: Vec<RemoteItem> = self.api.list_items(tokens, &playlist).await?;
-                let Some(item) = items.iter().find(|item| item.video_id == video) else {
-                    return Ok(None);
+    async fn perform(&self, job: &Job, route: Route) -> Result<Option<String>, ApiError> {
+        match route {
+            Route::Official => {
+                let remote = Official {
+                    api: &self.api,
+                    tokens: &self.tokens,
                 };
-                match self.api.remove_item(tokens, &item.item_id).await {
-                    Err(error) if error.status() == Some(404) => Ok(None),
-                    other => other.map(|()| None),
-                }
+                perform_on(&remote, job).await
             }
-            Kind::Delete => self
-                .api
-                .delete_playlist(tokens, &playlist)
-                .await
-                .map(|()| None),
-            Kind::Like => self.api.rate(tokens, &video, true).await.map(|()| None),
-            Kind::Unlike => self.api.rate(tokens, &video, false).await.map(|()| None),
+            Route::Unofficial => perform_on(self.tv.as_ref(), job).await,
         }
     }
 
-    fn halt(&self, halt: Halt, now: i64) {
+    fn switch_to_fallback(&self, now: i64) {
+        if let Ok(mut quota) = self.quota.lock() {
+            quota.switch_to_fallback(now);
+        }
+    }
+
+    fn halt(&self, halt: Halt, route: Route) {
         let mut run = self.run.lock().unwrap_or_else(|poison| poison.into_inner());
         run.halt = Some(halt);
-        if halt == Halt::Quota {
-            if let Ok(mut quota) = self.quota.lock() {
-                quota.exhaust(now);
-            }
-            run.last_error = Some(
-                "YouTube's daily API quota is used up. Sync resumes after midnight Pacific.".to_owned(),
-            );
+        if route == Route::Unofficial {
+            run.last_error = Some(MSG_CONNECT.to_owned());
         }
     }
 
@@ -718,8 +791,22 @@ impl<T: AccessTokens> Engine<T> {
 fn halt_for(error: &ApiError) -> Option<Halt> {
     match error {
         ApiError::Token(TokenError::SignedOut) => Some(Halt::SignIn),
-        error if error.is_quota() => Some(Halt::Quota),
         _ => None,
+    }
+}
+
+async fn perform_on<R: Remote>(remote: &R, job: &Job) -> Result<Option<String>, ApiError> {
+    let playlist = job.yt_playlist_id.clone().unwrap_or_default();
+    let video = job.video_id.clone().unwrap_or_default();
+    let name = job.payload.clone().unwrap_or_default();
+    match job.kind {
+        Kind::Create => remote.create(&name).await.map(Some),
+        Kind::Rename => remote.rename(&playlist, &name).await.map(|()| None),
+        Kind::Add => remote.add(&playlist, &video).await.map(|()| None),
+        Kind::Remove => remote.remove(&playlist, &video).await.map(|()| None),
+        Kind::Delete => remote.delete(&playlist).await.map(|()| None),
+        Kind::Like => remote.rate(&video, true).await.map(|()| None),
+        Kind::Unlike => remote.rate(&video, false).await.map(|()| None),
     }
 }
 
@@ -727,6 +814,8 @@ fn halt_for(error: &ApiError) -> Option<Halt> {
 mod tests {
     use super::*;
     use crate::yt_data_api::test_support::{FakeTokens, start_mock};
+    use crate::yt_innertube_auth::test_support::{MemorySecret, config};
+    use serde_json::json;
 
     fn add(local: &str, video: &str, yt: Option<&str>) -> JobInput {
         JobInput {
@@ -749,7 +838,18 @@ mod tests {
     }
 
     async fn engine(root: &Path, base: &str) -> Engine<FakeTokens> {
-        Engine::load(root.to_path_buf(), base, FakeTokens).await
+        engine_with(root, base, Some("tv-refresh")).await
+    }
+
+    async fn engine_with(root: &Path, base: &str, tv_token: Option<&str>) -> Engine<FakeTokens> {
+        let tv = Arc::new(Innertube::new(config(base), MemorySecret::holding(tv_token)));
+        Engine::load(root.to_path_buf(), base, FakeTokens, tv).await
+    }
+
+    async fn unlimited(root: &Path, on: bool) {
+        persist::write(root, OWNER, SETTINGS_FILE, &json!({ "state": { "unlimitedSync": on }, "version": 0 }))
+            .await
+            .expect("settings written");
     }
 
     fn ignore(_: Event) {}
@@ -844,24 +944,93 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn quota_error_pauses_the_run_without_spending_an_attempt() {
+    async fn quota_error_switches_to_the_fallback_without_spending_an_attempt() {
         let (base, mock) = start_mock().await;
-        mock.replies.lock().unwrap().push_back((
-            403,
-            r#"{"error":{"message":"Quota exceeded","errors":[{"reason":"quotaExceeded"}]}}"#.to_owned(),
-        ));
+        {
+            let mut replies = mock.replies.lock().unwrap();
+            replies.push_back((
+                403,
+                r#"{"error":{"message":"Quota exceeded","errors":[{"reason":"quotaExceeded"}]}}"#.to_owned(),
+            ));
+            replies.push_back((200, r#"{"access_token":"tv-access","expires_in":3600}"#.to_owned()));
+            replies.push_back((200, "{}".to_owned()));
+        }
         let dir = tempfile::tempdir().expect("temp dir");
         let engine = engine(dir.path(), &base).await;
         engine.enqueue(vec![add("L1", "v1", Some("PL1"))]).await.expect("queued");
 
-        let now = now_ms();
-        assert_eq!(engine.step(now, &ignore).await, Step::Halted(Halt::Quota));
+        assert_eq!(engine.step(now_ms(), &ignore).await, Step::Ran);
+        {
+            let queue = engine.queue.lock().await;
+            assert_eq!(queue.stored.jobs[0].state, State::Pending);
+            assert_eq!(queue.stored.jobs[0].attempts, 0);
+        }
+        assert!(engine.quota.lock().unwrap().fallback);
+
+        assert_eq!(engine.step(now_ms(), &ignore).await, Step::Ran);
+        let seen = mock.seen.lock().unwrap().clone();
+        assert_eq!(seen.len(), 3);
+        assert!(seen[1].path.ends_with("/token"));
+        assert!(seen[2].path.ends_with("/browse/edit_playlist"));
+        assert!(seen[2].body.contains("ACTION_ADD_VIDEO"));
         let status = engine.status().await;
-        assert_eq!(status.state, "error");
+        assert_eq!(status.backend, "unofficial");
         assert_eq!(status.quota_used_today, QUOTA_LIMIT);
+    }
+
+    #[tokio::test]
+    async fn unlimited_sync_sends_writes_to_innertube() {
+        let (base, mock) = start_mock().await;
+        {
+            let mut replies = mock.replies.lock().unwrap();
+            replies.push_back((200, r#"{"access_token":"tv-access","expires_in":3600}"#.to_owned()));
+            replies.push_back((200, "{}".to_owned()));
+        }
+        let dir = tempfile::tempdir().expect("temp dir");
+        unlimited(dir.path(), true).await;
+        let engine = engine(dir.path(), &base).await;
+        engine.enqueue(vec![add("L1", "v1", Some("PL1"))]).await.expect("queued");
+
+        assert_eq!(engine.step(now_ms(), &ignore).await, Step::Ran);
+        let seen = mock.seen.lock().unwrap().clone();
+        assert_eq!(seen.len(), 2);
+        assert!(seen.iter().all(|request| !request.path.ends_with("/playlistItems")));
+        assert!(seen[1].path.ends_with("/browse/edit_playlist"));
+        assert_eq!(engine.status().await.backend, "unofficial");
+    }
+
+    #[tokio::test]
+    async fn unlimited_sync_without_a_tv_token_pauses_with_the_connect_message() {
+        let (base, mock) = start_mock().await;
+        let dir = tempfile::tempdir().expect("temp dir");
+        unlimited(dir.path(), true).await;
+        let engine = engine_with(dir.path(), &base, None).await;
+        engine.enqueue(vec![add("L1", "v1", Some("PL1"))]).await.expect("queued");
+
+        assert_eq!(engine.step(now_ms(), &ignore).await, Step::Halted(Halt::SignIn));
+        let status = engine.status().await;
+        assert_eq!(status.state, "paused_sign_in");
+        assert_eq!(status.last_error.as_deref(), Some(MSG_CONNECT));
+        assert!(mock.seen.lock().unwrap().is_empty());
         let queue = engine.queue.lock().await;
         assert_eq!(queue.stored.jobs[0].state, State::Pending);
         assert_eq!(queue.stored.jobs[0].attempts, 0);
+    }
+
+    #[tokio::test]
+    async fn turning_unlimited_sync_off_returns_writes_to_the_official_api() {
+        let (base, mock) = start_mock().await;
+        mock.replies.lock().unwrap().push_back((200, "{}".to_owned()));
+        let dir = tempfile::tempdir().expect("temp dir");
+        unlimited(dir.path(), false).await;
+        let engine = engine(dir.path(), &base).await;
+        engine.enqueue(vec![add("L1", "v1", Some("PL1"))]).await.expect("queued");
+
+        assert_eq!(engine.step(now_ms(), &ignore).await, Step::Ran);
+        let seen = mock.seen.lock().unwrap().clone();
+        assert_eq!(seen.len(), 1);
+        assert!(seen[0].path.ends_with("/playlistItems"));
+        assert_eq!(engine.status().await.backend, "official");
     }
 
     #[tokio::test]

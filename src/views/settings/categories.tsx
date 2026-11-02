@@ -20,6 +20,7 @@ import {
   GlobeIcon,
   Infinity01Icon,
   InformationCircleIcon,
+  Link01Icon,
   Logout01Icon,
   MaximizeScreenIcon,
   Mic01Icon,
@@ -49,9 +50,10 @@ import { GoogleAccountCard } from "../../components/GoogleAccountCard";
 import { OutputDevicePicker } from "../../components/OutputDevicePicker";
 import { RadioGroup, type RadioOption } from "../../components/RadioGroup";
 import type { SettingRowProps } from "../../components/SettingRow";
+import { YouTubeMusicPrompt } from "../../components/YouTubeMusicPrompt";
 import { Slider } from "../../components/Slider";
 import { APP_NAME, APP_SLUG } from "../../lib/app";
-import type { GoogleAccount, Platform, YtSyncStatus } from "../../lib/bridge";
+import type { GoogleAccount, Platform, YtSyncStatus, YtTvCode } from "../../lib/bridge";
 import { MATCH_LANGUAGE_OPTIONS } from "../../lib/importLanguage";
 import { failedText, quotaText, syncStatusText } from "../../lib/ytSync";
 import { chooseDownloadFolder } from "../../lib/downloads";
@@ -104,9 +106,21 @@ export type AuthContext = {
   requestSignOut: () => void;
 };
 
+export type TvContext = {
+  connected: boolean;
+  code: YtTvCode | null;
+  busy: boolean;
+  error: string | null;
+  connect: () => void;
+  cancel: () => void;
+  open: () => void;
+  disconnect: () => void;
+};
+
 export type SyncContext = {
   status: YtSyncStatus;
   syncNow: () => void;
+  tv: TvContext;
 };
 
 export type BuildContext = {
@@ -167,6 +181,32 @@ function crossfadeValue(settings: SettingsState) {
   return settings.smartFade ? "Auto" : "Off";
 }
 
+function tvRows(visible: boolean, tv: TvContext): RowSpec[] {
+  if (!visible) return [];
+  if (tv.connected) {
+    return [
+      {
+        id: "tv-disconnect",
+        icon: Logout01Icon,
+        title: "Disconnect YouTube Music",
+        control: <Button onClick={tv.disconnect}>Disconnect</Button>,
+      },
+    ];
+  }
+  return [
+    {
+      id: "tv-connect",
+      icon: Link01Icon,
+      title: "Connect YouTube Music",
+      control: (
+        <Button disabled={tv.busy} onClick={tv.connect}>
+          Connect
+        </Button>
+      ),
+    },
+  ];
+}
+
 function accountCategory({ settings: s, navigate, auth, sync }: BuildContext): SettingsCategory {
   const signedIn = auth.account.mode === "google";
   const running = sync.status.state === "running";
@@ -214,11 +254,28 @@ function accountCategory({ settings: s, navigate, auth, sync }: BuildContext): S
             icon: Infinity01Icon,
             title: "Unlimited sync (unofficial)",
             note: UNLIMITED_SYNC_NOTE,
-            disabled: true,
+            disabled: !signedIn,
             toggle: flag(s, "unlimitedSync"),
           },
+          ...tvRows(s.unlimitedSync && signedIn, sync.tv),
         ],
       },
+      ...(s.unlimitedSync && signedIn && (sync.tv.code || sync.tv.error || sync.tv.busy)
+        ? [
+            {
+              rows: [],
+              body: (
+                <YouTubeMusicPrompt
+                  code={sync.tv.code}
+                  busy={sync.tv.busy}
+                  error={sync.tv.error}
+                  onOpen={sync.tv.open}
+                  onCancel={sync.tv.cancel}
+                />
+              ),
+            },
+          ]
+        : []),
       {
         note: "Sync stops. Your data stays on this computer and in your Google account.",
         rows: [

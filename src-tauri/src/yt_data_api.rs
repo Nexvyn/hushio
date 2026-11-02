@@ -72,6 +72,8 @@ impl ApiError {
 pub struct Quota {
     pub day: String,
     pub units: i64,
+    #[serde(default)]
+    pub fallback: bool,
 }
 
 impl Quota {
@@ -80,9 +82,15 @@ impl Quota {
         self.units += units;
     }
 
-    pub fn exhaust(&mut self, now: i64) {
+    pub fn switch_to_fallback(&mut self, now: i64) {
         self.roll(now);
         self.units = QUOTA_LIMIT;
+        self.fallback = true;
+    }
+
+    pub fn on_fallback(&mut self, now: i64) -> bool {
+        self.roll(now);
+        self.fallback
     }
 
     pub fn used(&mut self, now: i64) -> i64 {
@@ -95,6 +103,7 @@ impl Quota {
         if self.day != day {
             self.day = day;
             self.units = 0;
+            self.fallback = false;
         }
     }
 }
@@ -322,7 +331,7 @@ impl YtApi {
     }
 }
 
-fn interpret(status: u16, text: &str) -> Result<Value, ApiError> {
+pub(crate) fn interpret(status: u16, text: &str) -> Result<Value, ApiError> {
     if (200..300).contains(&status) {
         return Ok(serde_json::from_str(text).unwrap_or(Value::Null));
     }
@@ -339,7 +348,7 @@ fn str_at(value: &Value, key: &str) -> String {
     value[key].as_str().unwrap_or_default().to_owned()
 }
 
-fn clip_title(title: &str) -> String {
+pub(crate) fn clip_title(title: &str) -> String {
     title.chars().take(TITLE_MAX_CHARS).collect()
 }
 
@@ -483,6 +492,18 @@ mod tests {
         assert_eq!(pacific_day(winter), "2026-11-08");
         let summer = DateTime::parse_from_rfc3339("2026-07-01T06:30:00Z").unwrap().timestamp_millis();
         assert_eq!(pacific_day(summer), "2026-06-30");
+    }
+
+    #[test]
+    fn fallback_switch_ends_at_pacific_midnight() {
+        let before = DateTime::parse_from_rfc3339("2026-11-09T07:59:00Z").unwrap().timestamp_millis();
+        let after = DateTime::parse_from_rfc3339("2026-11-09T08:01:00Z").unwrap().timestamp_millis();
+        let mut quota = Quota::default();
+        quota.switch_to_fallback(before);
+        assert!(quota.on_fallback(before));
+        assert_eq!(quota.used(before), QUOTA_LIMIT);
+        assert!(!quota.on_fallback(after));
+        assert_eq!(quota.used(after), 0);
     }
 
     #[test]

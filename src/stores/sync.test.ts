@@ -1,18 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { YtPlaylistLink, YtSyncStatus } from "../lib/bridge";
+import type { YtPlaylistLink, YtSyncStatus, YtTvCode } from "../lib/bridge";
 
 const hoisted = vi.hoisted(() => ({
   progress: null as ((status: YtSyncStatus) => void) | null,
   linked: null as ((link: YtPlaylistLink) => void) | null,
+  tvCode: null as ((code: YtTvCode) => void) | null,
   statusNow: vi.fn(),
   syncNowCall: vi.fn(),
   linkRemote: vi.fn(),
+  tvStatus: vi.fn(),
+  tvConnect: vi.fn(),
+  tvCancel: vi.fn(),
+  tvDisconnect: vi.fn(),
+  tvOpen: vi.fn(),
+  setValue: vi.fn(),
   stopped: [] as string[],
 }));
 
 vi.mock("../lib/bridge", () => ({
   ytSyncStatus: hoisted.statusNow,
   ytSyncNow: hoisted.syncNowCall,
+  ytTvStatus: hoisted.tvStatus,
+  ytTvConnect: hoisted.tvConnect,
+  ytTvCancel: hoisted.tvCancel,
+  ytTvDisconnect: hoisted.tvDisconnect,
+  ytTvOpen: hoisted.tvOpen,
   listenYtSyncProgress: async (onChange: (status: YtSyncStatus) => void) => {
     hoisted.progress = onChange;
     return () => hoisted.stopped.push("progress");
@@ -21,24 +33,40 @@ vi.mock("../lib/bridge", () => ({
     hoisted.linked = onLink;
     return () => hoisted.stopped.push("linked");
   },
+  listenYtTvCode: async (onCode: (code: YtTvCode) => void) => {
+    hoisted.tvCode = onCode;
+    return () => hoisted.stopped.push("tv-code");
+  },
 }));
 
 vi.mock("./library", () => ({
   useLibrary: { getState: () => ({ linkRemote: hoisted.linkRemote }) },
 }));
 
+vi.mock("./settings", () => ({
+  useSettings: { getState: () => ({ setValue: hoisted.setValue }) },
+}));
+
 import { IDLE_SYNC, startYtSync, useSync } from "./sync";
 
 const running: YtSyncStatus = { ...IDLE_SYNC, state: "running", done: 1, total: 4 };
+const code: YtTvCode = { userCode: "ABCD-EFGH", verificationUrl: "https://www.google.com/device", expiresAt: 0 };
 
 beforeEach(() => {
   hoisted.statusNow.mockReset().mockResolvedValue(IDLE_SYNC);
   hoisted.syncNowCall.mockReset().mockResolvedValue(running);
   hoisted.linkRemote.mockReset();
+  hoisted.tvStatus.mockReset().mockResolvedValue({ connected: false });
+  hoisted.tvConnect.mockReset().mockResolvedValue({ connected: true });
+  hoisted.tvCancel.mockReset().mockResolvedValue(true);
+  hoisted.tvDisconnect.mockReset().mockResolvedValue({ connected: false });
+  hoisted.tvOpen.mockReset().mockResolvedValue(undefined);
+  hoisted.setValue.mockReset();
   hoisted.stopped.length = 0;
   hoisted.progress = null;
   hoisted.linked = null;
-  useSync.setState({ status: IDLE_SYNC });
+  hoisted.tvCode = null;
+  useSync.setState({ status: IDLE_SYNC, tvConnected: false, tvCode: null, tvBusy: false, tvError: null });
 });
 
 describe("sync store", () => {
@@ -55,7 +83,7 @@ describe("sync store", () => {
     hoisted.progress?.({ ...IDLE_SYNC, state: "error", lastError: "boom" });
     expect(useSync.getState().status.state).toBe("error");
     stop();
-    expect(hoisted.stopped).toEqual(["progress", "linked"]);
+    expect(hoisted.stopped).toEqual(["progress", "linked", "tv-code"]);
   });
 
   it("links a playlist to YouTube when the sync reports it was created", async () => {
@@ -64,5 +92,32 @@ describe("sync store", () => {
     hoisted.linked?.({ localPlaylistId: "L1", ytPlaylistId: "PLnew" });
     expect(hoisted.linkRemote).toHaveBeenCalledWith("L1", "PLnew");
     stop();
+  });
+
+  it("shows the code from the event and clears it once the connection finishes", async () => {
+    const stop = startYtSync();
+    await vi.waitFor(() => expect(hoisted.tvCode).not.toBeNull());
+    hoisted.tvCode?.(code);
+    expect(useSync.getState().tvCode).toEqual(code);
+    await useSync.getState().connectTv();
+    expect(useSync.getState().tvConnected).toBe(true);
+    expect(useSync.getState().tvCode).toBeNull();
+    expect(useSync.getState().tvBusy).toBe(false);
+    stop();
+  });
+
+  it("keeps the reason when connecting fails and does not mark the account connected", async () => {
+    hoisted.tvConnect.mockRejectedValueOnce(new Error("The code expired. Get a new one."));
+    await useSync.getState().connectTv();
+    expect(useSync.getState().tvError).toBe("The code expired. Get a new one.");
+    expect(useSync.getState().tvConnected).toBe(false);
+    expect(useSync.getState().tvBusy).toBe(false);
+  });
+
+  it("turns unlimited sync off when the YouTube Music connection is removed", async () => {
+    useSync.setState({ tvConnected: true });
+    await useSync.getState().disconnectTv();
+    expect(useSync.getState().tvConnected).toBe(false);
+    expect(hoisted.setValue).toHaveBeenCalledWith("unlimitedSync", false);
   });
 });

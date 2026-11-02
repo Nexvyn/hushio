@@ -9,6 +9,7 @@ mod stats;
 mod stream;
 mod sync_queue;
 mod yt_data_api;
+mod yt_innertube_auth;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -364,6 +365,43 @@ async fn yt_enqueue(
 }
 
 #[tauri::command]
+fn yt_tv_status(tv: State<'_, Arc<yt_innertube_auth::Innertube>>) -> yt_innertube_auth::TvStatus {
+    tv.status()
+}
+
+#[tauri::command]
+async fn yt_tv_connect(
+    app: AppHandle,
+    tv: State<'_, Arc<yt_innertube_auth::Innertube>>,
+) -> Result<yt_innertube_auth::TvStatus, String> {
+    let emit = |code: yt_innertube_auth::TvCode| {
+        let _ = app.emit("yt-tv-code", code);
+    };
+    if tv.connect(&emit).await? {
+        spawn_sync(&app, app.state::<Arc<YtEngine>>().inner().clone());
+    }
+    Ok(tv.status())
+}
+
+#[tauri::command]
+fn yt_tv_cancel(tv: State<'_, Arc<yt_innertube_auth::Innertube>>) -> bool {
+    tv.cancel()
+}
+
+#[tauri::command]
+async fn yt_tv_disconnect(
+    tv: State<'_, Arc<yt_innertube_auth::Innertube>>,
+) -> Result<yt_innertube_auth::TvStatus, String> {
+    tv.disconnect().await
+}
+
+#[tauri::command]
+fn yt_tv_open(app: AppHandle) -> Result<(), String> {
+    use google_auth::Browser;
+    google_auth::SystemBrowser(app).open(yt_innertube_auth::VERIFICATION_URL)
+}
+
+#[tauri::command]
 fn google_sign_in_cancel(google: State<'_, Arc<google_auth::GoogleAuth>>) -> bool {
     google.cancel_sign_in()
 }
@@ -450,10 +488,16 @@ pub fn run() {
                 Arc::new(google_auth::KeyringStore),
             ));
             app.manage(google.clone());
+            let tv = Arc::new(yt_innertube_auth::Innertube::new(
+                yt_innertube_auth::TvConfig::production(),
+                Arc::new(google_auth::KeyringSlot(yt_innertube_auth::TV_TOKEN_SLOT)),
+            ));
+            app.manage(tv.clone());
             let engine = tauri::async_runtime::block_on(sync_queue::Engine::load(
                 sync_root,
                 yt_data_api::API_BASE,
                 google.clone(),
+                tv,
             ));
             app.manage(Arc::new(engine));
             tauri::async_runtime::spawn(keep_google_session(app.handle().clone(), google));
@@ -495,7 +539,12 @@ pub fn run() {
             google_sign_out,
             yt_sync_status,
             yt_sync_now,
-            yt_enqueue
+            yt_enqueue,
+            yt_tv_status,
+            yt_tv_connect,
+            yt_tv_cancel,
+            yt_tv_disconnect,
+            yt_tv_open
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
