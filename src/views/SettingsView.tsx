@@ -158,6 +158,7 @@ export function SettingsView() {
   const account = useAuth((state) => state.account);
   const signingIn = useAuth((state) => state.signingIn);
   const syncStatus = useSync((state) => state.status);
+  const driveStatus = useSync((state) => state.drive);
   const tvConnected = useSync((state) => state.tvConnected);
   const tvCode = useSync((state) => state.tvCode);
   const tvBusy = useSync((state) => state.tvBusy);
@@ -179,7 +180,11 @@ export function SettingsView() {
     },
     sync: {
       status: syncStatus,
-      syncNow: () => void useSync.getState().syncNow(),
+      drive: driveStatus,
+      syncNow: () => {
+        void useSync.getState().syncNow();
+        void useSync.getState().syncDriveNow();
+      },
       tv: {
         connected: tvConnected,
         code: tvCode,

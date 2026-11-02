@@ -447,6 +447,30 @@ export function listenYtTvCode(onCode: (code: YtTvCode) => void): Promise<Unlist
   return listen<YtTvCode>("yt-tv-code", (event) => onCode(event.payload));
 }
 
+export type DriveSyncState = "idle" | "pending" | "syncing" | "error";
+
+export type DriveSyncStatus = {
+  mode: "google";
+  lastSyncAt: number | null;
+  restoreSeq: number;
+  restoredStores: string[];
+  state: DriveSyncState;
+  lastError: string | null;
+  pending: number;
+};
+
+export function driveSyncStatus(): Promise<DriveSyncStatus> {
+  return call<DriveSyncStatus>("drive_sync_status");
+}
+
+export function driveSyncNow(): Promise<DriveSyncStatus> {
+  return call<DriveSyncStatus>("drive_sync_now");
+}
+
+export function listenDriveSyncProgress(onChange: (status: DriveSyncStatus) => void): Promise<UnlistenFn> {
+  return listen<DriveSyncStatus>("drive-sync-progress", (event) => onChange(event.payload));
+}
+
 export async function listenFileDrop(onEvent: (event: FileDropEvent) => void): Promise<UnlistenFn> {
   return getCurrentWindow().onDragDropEvent((event) => {
     const payload = event.payload;

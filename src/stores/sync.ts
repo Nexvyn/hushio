@@ -1,5 +1,8 @@
 import { create } from "zustand";
 import {
+  driveSyncNow,
+  driveSyncStatus,
+  listenDriveSyncProgress,
   listenYtPlaylistLinked,
   listenYtSyncProgress,
   listenYtTvCode,
@@ -10,12 +13,32 @@ import {
   ytTvDisconnect,
   ytTvOpen,
   ytTvStatus,
+  type DriveSyncStatus,
   type YtSyncStatus,
   type YtTvCode,
 } from "../lib/bridge";
+import { useArtistMeta } from "./artistMeta";
 import { useLibrary } from "./library";
+import { useRecents } from "./recents";
 import { useSettings } from "./settings";
 import { useUI } from "./ui";
+
+export const IDLE_DRIVE: DriveSyncStatus = {
+  mode: "google",
+  lastSyncAt: null,
+  restoreSeq: 0,
+  restoredStores: [],
+  state: "idle",
+  lastError: null,
+  pending: 0,
+};
+
+const REHYDRATE: Record<string, () => void> = {
+  settings: () => void useSettings.persist.rehydrate(),
+  library: () => void useLibrary.persist.rehydrate(),
+  "recent-searches": () => void useRecents.persist.rehydrate(),
+  "artist-meta-cache": () => void useArtistMeta.persist.rehydrate(),
+};
 
 export const IDLE_SYNC: YtSyncStatus = {
   state: "idle",
@@ -33,6 +56,7 @@ export const IDLE_SYNC: YtSyncStatus = {
 
 type SyncState = {
   status: YtSyncStatus;
+  drive: DriveSyncStatus;
   tvConnected: boolean;
   tvCode: YtTvCode | null;
   tvBusy: boolean;
@@ -40,6 +64,9 @@ type SyncState = {
   load: () => Promise<void>;
   syncNow: () => Promise<void>;
   apply: (status: YtSyncStatus) => void;
+  loadDrive: () => Promise<void>;
+  syncDriveNow: () => Promise<void>;
+  applyDrive: (status: DriveSyncStatus) => void;
   loadTv: () => Promise<void>;
   connectTv: () => Promise<void>;
   cancelTv: () => Promise<void>;
@@ -54,6 +81,7 @@ function errorText(error: unknown) {
 
 export const useSync = create<SyncState>()((set, get) => ({
   status: IDLE_SYNC,
+  drive: IDLE_DRIVE,
   tvConnected: false,
   tvCode: null,
   tvBusy: false,
@@ -76,6 +104,30 @@ export const useSync = create<SyncState>()((set, get) => ({
   },
 
   apply: (status) => set({ status }),
+
+  loadDrive: async () => {
+    try {
+      set({ drive: await driveSyncStatus() });
+    } catch (error) {
+      useUI.getState().toast(errorText(error), "error");
+    }
+  },
+
+  syncDriveNow: async () => {
+    try {
+      set({ drive: await driveSyncNow() });
+    } catch (error) {
+      useUI.getState().toast(errorText(error), "error");
+    }
+  },
+
+  applyDrive: (drive) => {
+    const previous = get().drive.restoreSeq;
+    set({ drive });
+    if (drive.restoreSeq !== previous) {
+      for (const store of drive.restoredStores) REHYDRATE[store]?.();
+    }
+  },
 
   loadTv: async () => {
     try {
@@ -145,8 +197,10 @@ export function startYtSync(): () => void {
     ),
   );
   keep(listenYtTvCode((code) => useSync.getState().applyTvCode(code)));
+  keep(listenDriveSyncProgress((status) => useSync.getState().applyDrive(status)));
   void useSync.getState().load();
   void useSync.getState().loadTv();
+  void useSync.getState().loadDrive();
   return () => {
     live = false;
     stops.forEach((stop) => stop());

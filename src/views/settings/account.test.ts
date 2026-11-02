@@ -30,6 +30,7 @@ function context(mode: "guest" | "google", requestSignOut = vi.fn(), syncNow = v
     },
     sync: {
       status: { ...IDLE, state },
+      drive: { mode: "google" as const, lastSyncAt: null, restoreSeq: 0, restoredStores: [], state: "idle" as const, lastError: null, pending: 0 },
       syncNow,
       tv: { connected: false, code: null, busy: false, error: null, connect: vi.fn(), cancel: vi.fn(), open: vi.fn(), disconnect: vi.fn() },
     },

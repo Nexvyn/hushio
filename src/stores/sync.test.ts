@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { YtPlaylistLink, YtSyncStatus, YtTvCode } from "../lib/bridge";
+import type { DriveSyncStatus, YtPlaylistLink, YtSyncStatus, YtTvCode } from "../lib/bridge";
 
 const hoisted = vi.hoisted(() => ({
   progress: null as ((status: YtSyncStatus) => void) | null,
@@ -15,6 +15,10 @@ const hoisted = vi.hoisted(() => ({
   tvOpen: vi.fn(),
   setValue: vi.fn(),
   stopped: [] as string[],
+  driveProgress: null as ((status: DriveSyncStatus) => void) | null,
+  driveStatusNow: vi.fn(),
+  driveSyncNowCall: vi.fn(),
+  rehydrated: [] as string[],
 }));
 
 vi.mock("../lib/bridge", () => ({
@@ -37,17 +41,37 @@ vi.mock("../lib/bridge", () => ({
     hoisted.tvCode = onCode;
     return () => hoisted.stopped.push("tv-code");
   },
+  driveSyncStatus: hoisted.driveStatusNow,
+  driveSyncNow: hoisted.driveSyncNowCall,
+  listenDriveSyncProgress: async (onChange: (status: DriveSyncStatus) => void) => {
+    hoisted.driveProgress = onChange;
+    return () => hoisted.stopped.push("drive-progress");
+  },
 }));
 
 vi.mock("./library", () => ({
-  useLibrary: { getState: () => ({ linkRemote: hoisted.linkRemote }) },
+  useLibrary: {
+    getState: () => ({ linkRemote: hoisted.linkRemote }),
+    persist: { rehydrate: () => hoisted.rehydrated.push("library") },
+  },
 }));
 
 vi.mock("./settings", () => ({
-  useSettings: { getState: () => ({ setValue: hoisted.setValue }) },
+  useSettings: {
+    getState: () => ({ setValue: hoisted.setValue }),
+    persist: { rehydrate: () => hoisted.rehydrated.push("settings") },
+  },
 }));
 
-import { IDLE_SYNC, startYtSync, useSync } from "./sync";
+vi.mock("./recents", () => ({
+  useRecents: { persist: { rehydrate: () => hoisted.rehydrated.push("recent-searches") } },
+}));
+
+vi.mock("./artistMeta", () => ({
+  useArtistMeta: { persist: { rehydrate: () => hoisted.rehydrated.push("artist-meta-cache") } },
+}));
+
+import { IDLE_DRIVE, IDLE_SYNC, startYtSync, useSync } from "./sync";
 
 const running: YtSyncStatus = { ...IDLE_SYNC, state: "running", done: 1, total: 4 };
 const code: YtTvCode = { userCode: "ABCD-EFGH", verificationUrl: "https://www.google.com/device", expiresAt: 0 };
@@ -66,7 +90,11 @@ beforeEach(() => {
   hoisted.progress = null;
   hoisted.linked = null;
   hoisted.tvCode = null;
-  useSync.setState({ status: IDLE_SYNC, tvConnected: false, tvCode: null, tvBusy: false, tvError: null });
+  hoisted.driveProgress = null;
+  hoisted.rehydrated.length = 0;
+  hoisted.driveStatusNow.mockReset().mockResolvedValue(IDLE_DRIVE);
+  hoisted.driveSyncNowCall.mockReset().mockResolvedValue({ ...IDLE_DRIVE, lastSyncAt: 1 });
+  useSync.setState({ status: IDLE_SYNC, drive: IDLE_DRIVE, tvConnected: false, tvCode: null, tvBusy: false, tvError: null });
 });
 
 describe("sync store", () => {
@@ -83,7 +111,7 @@ describe("sync store", () => {
     hoisted.progress?.({ ...IDLE_SYNC, state: "error", lastError: "boom" });
     expect(useSync.getState().status.state).toBe("error");
     stop();
-    expect(hoisted.stopped).toEqual(["progress", "linked", "tv-code"]);
+    expect(hoisted.stopped).toEqual(["progress", "linked", "tv-code", "drive-progress"]);
   });
 
   it("links a playlist to YouTube when the sync reports it was created", async () => {
@@ -119,5 +147,24 @@ describe("sync store", () => {
     await useSync.getState().disconnectTv();
     expect(useSync.getState().tvConnected).toBe(false);
     expect(hoisted.setValue).toHaveBeenCalledWith("unlimitedSync", false);
+  });
+
+  it("applies Drive progress and rehydrates the stores named by a restore once", async () => {
+    const stop = startYtSync();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    hoisted.driveProgress?.({ ...IDLE_DRIVE, state: "syncing" });
+    expect(useSync.getState().drive.state).toBe("syncing");
+    const restored = { ...IDLE_DRIVE, restoreSeq: 1, restoredStores: ["settings", "library", "recent-searches"] };
+    hoisted.driveProgress?.(restored);
+    expect(hoisted.rehydrated).toEqual(["settings", "library", "recent-searches"]);
+    hoisted.driveProgress?.(restored);
+    expect(hoisted.rehydrated).toHaveLength(3);
+    stop();
+  });
+
+  it("stores the Drive status returned by Sync now", async () => {
+    await useSync.getState().syncDriveNow();
+    expect(hoisted.driveSyncNowCall).toHaveBeenCalledTimes(1);
+    expect(useSync.getState().drive.lastSyncAt).toBe(1);
   });
 });

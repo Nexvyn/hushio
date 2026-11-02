@@ -28,7 +28,7 @@ function context(platform: BuildContext["platform"], mode: "guest" | "google" = 
     platform,
     navigate: vi.fn(),
     auth: auth(mode),
-    sync: { status: { state: "idle" as const, done: 0, total: 0, playlistName: null, backend: "official" as const, quotaUsedToday: 0, quotaLimit: 10000, failedJobs: 0, lastError: null, lastSyncedAt: null, pulledPlaylists: 0 }, syncNow: vi.fn(), tv: { connected: false, code: null, busy: false, error: null, connect: vi.fn(), cancel: vi.fn(), open: vi.fn(), disconnect: vi.fn() } },
+    sync: { drive: { mode: "google" as const, lastSyncAt: null, restoreSeq: 0, restoredStores: [], state: "idle" as const, lastError: null, pending: 0 }, status: { state: "idle" as const, done: 0, total: 0, playlistName: null, backend: "official" as const, quotaUsedToday: 0, quotaLimit: 10000, failedJobs: 0, lastError: null, lastSyncedAt: null, pulledPlaylists: 0 }, syncNow: vi.fn(), tv: { connected: false, code: null, busy: false, error: null, connect: vi.fn(), cancel: vi.fn(), open: vi.fn(), disconnect: vi.fn() } },
   };
 }
 

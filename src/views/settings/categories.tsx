@@ -53,7 +53,8 @@ import type { SettingRowProps } from "../../components/SettingRow";
 import { YouTubeMusicPrompt } from "../../components/YouTubeMusicPrompt";
 import { Slider } from "../../components/Slider";
 import { APP_NAME, APP_SLUG } from "../../lib/app";
-import type { GoogleAccount, Platform, YtSyncStatus, YtTvCode } from "../../lib/bridge";
+import type { DriveSyncStatus, GoogleAccount, Platform, YtSyncStatus, YtTvCode } from "../../lib/bridge";
+import { driveStatusText } from "../../lib/driveSync";
 import { MATCH_LANGUAGE_OPTIONS } from "../../lib/importLanguage";
 import { failedText, quotaText, syncStatusText } from "../../lib/ytSync";
 import { chooseDownloadFolder } from "../../lib/downloads";
@@ -119,6 +120,7 @@ export type TvContext = {
 
 export type SyncContext = {
   status: YtSyncStatus;
+  drive: DriveSyncStatus;
   syncNow: () => void;
   tv: TvContext;
 };
@@ -248,6 +250,13 @@ function accountCategory({ settings: s, navigate, auth, sync }: BuildContext): S
                 Sync now
               </Button>
             ),
+          },
+          {
+            id: "drive-sync-status",
+            icon: DatabaseIcon,
+            title: "Google Drive",
+            note: driveStatusText(sync.drive, signedIn),
+            disabled: !signedIn,
           },
           {
             id: "unlimited-sync",

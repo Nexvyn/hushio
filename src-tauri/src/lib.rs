@@ -1,9 +1,8 @@
 mod analysis;
-#[allow(dead_code)]
 mod cloud_payload;
-#[allow(dead_code)]
 mod deletion_sync;
 mod downloads;
+mod drive_sync;
 mod google_auth;
 mod local_library;
 mod lyrics;
@@ -11,7 +10,6 @@ mod persist;
 mod reveal;
 mod stats;
 mod stream;
-#[allow(dead_code)]
 mod sync_merge;
 mod sync_queue;
 mod yt_data_api;
@@ -115,6 +113,7 @@ async fn persist_read(
 #[tauri::command]
 async fn persist_write(
     state: State<'_, DataPaths>,
+    drive: State<'_, Arc<drive_sync::Drive>>,
     name: String,
     data: serde_json::Value,
     owner: Option<String>,
@@ -126,7 +125,26 @@ async fn persist_write(
         &data,
     )
     .await?;
+    drive.notify_write(&name);
     Ok(true)
+}
+
+#[tauri::command]
+fn drive_sync_status(drive: State<'_, Arc<drive_sync::Drive>>) -> drive_sync::Status {
+    drive.status()
+}
+
+#[tauri::command]
+fn drive_sync_now(app: AppHandle, drive: State<'_, Arc<drive_sync::Drive>>) -> drive_sync::Status {
+    spawn_drive_sync(&app);
+    drive.status()
+}
+
+fn spawn_drive_sync(app: &AppHandle) {
+    let drive = app.state::<Arc<drive_sync::Drive>>().inner().clone();
+    tauri::async_runtime::spawn(async move {
+        drive.sync_now().await;
+    });
 }
 
 #[tauri::command]
@@ -315,6 +333,7 @@ async fn google_sign_in(
         .await?;
     let _ = app.emit("google-auth-changed", &account);
     spawn_sync(&app, app.state::<Arc<YtEngine>>().inner().clone());
+    spawn_drive_sync(&app);
     Ok(account)
 }
 
@@ -426,6 +445,7 @@ async fn keep_google_session(app: AppHandle, google: Arc<google_auth::GoogleAuth
             google_auth::Resume::Ready(account) => {
                 let _ = app.emit("google-auth-changed", &account);
                 spawn_sync(&app, app.state::<Arc<YtEngine>>().inner().clone());
+                spawn_drive_sync(&app);
                 return;
             }
             google_auth::Resume::SignedOut(account) => {
@@ -478,6 +498,7 @@ pub fn run() {
             app.manage(local);
             let stats_root = root.clone();
             let sync_root = root.clone();
+            let drive_root = root.clone();
             app.manage(DataPaths { root });
             let registry = stream::Registry::default();
             app.manage(registry.clone());
@@ -506,6 +527,18 @@ pub fn run() {
                 tv,
             ));
             app.manage(Arc::new(engine));
+            let status_app = app.handle().clone();
+            let drive = Arc::new(drive_sync::DriveSync::new(
+                drive_root,
+                drive_sync::DRIVE_BASE,
+                google.clone(),
+                drive_sync::http_client(),
+                Box::new(move |status: &drive_sync::Status| {
+                    let _ = status_app.emit("drive-sync-progress", status);
+                }),
+            ));
+            app.manage(drive.clone());
+            tauri::async_runtime::spawn(drive.run());
             tauri::async_runtime::spawn(keep_google_session(app.handle().clone(), google));
             Ok(())
         })
@@ -550,7 +583,9 @@ pub fn run() {
             yt_tv_connect,
             yt_tv_cancel,
             yt_tv_disconnect,
-            yt_tv_open
+            yt_tv_open,
+            drive_sync_status,
+            drive_sync_now
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
@@ -558,6 +593,8 @@ pub fn run() {
     app.run(|app, event| {
         if let RunEvent::ExitRequested { .. } = event {
             app.state::<downloads::Downloads<AppHandle>>().abandon();
+            let drive = app.state::<Arc<drive_sync::Drive>>();
+            let _ = tauri::async_runtime::block_on(tokio::time::timeout(drive_sync::QUIT_FLUSH, drive.flush()));
             tauri::async_runtime::block_on(app.state::<Arc<stats::Service>>().flush());
         }
     });
