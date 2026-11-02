@@ -549,6 +549,10 @@ impl Service {
         written
     }
 
+    pub fn erase(&self) {
+        *self.lock() = State::default();
+    }
+
     pub async fn flush(&self) {
         if let Err(error) = self.write_pending().await {
             tracing::warn!("stats flush failed: {error}");

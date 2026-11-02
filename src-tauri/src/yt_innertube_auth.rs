@@ -200,6 +200,22 @@ impl Innertube {
         }
     }
 
+    pub async fn revoke(&self) -> Result<(), String> {
+        let Ok(Some(refresh)) = self.store.read() else {
+            return Ok(());
+        };
+        match self.post(&self.config.revoke_url, &[("token", refresh.as_str())]).await {
+            Some((status, _)) if (200..300).contains(&status) || status == 400 => Ok(()),
+            Some(_) => Err("Google didn't accept the request. Sign in again, then retry.".to_owned()),
+            None => Err("Couldn't connect right now. Check your connection and try again.".to_owned()),
+        }
+    }
+
+    pub fn forget(&self) -> Result<(), String> {
+        *self.access.lock().unwrap_or_else(PoisonError::into_inner) = None;
+        self.store.clear()
+    }
+
     pub async fn disconnect(&self) -> Result<TvStatus, String> {
         if let Ok(Some(refresh)) = self.store.read() {
             let _ = self.post(&self.config.revoke_url, &[("token", refresh.as_str())]).await;

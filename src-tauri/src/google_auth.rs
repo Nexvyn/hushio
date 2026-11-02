@@ -55,6 +55,7 @@ const MSG_NO_REFRESH: &str = "Google didn't return a long-term sign-in. Try agai
 const MSG_NOT_CONFIGURED: &str = "Google sign-in isn't set up in this build.";
 const MSG_ALREADY_PENDING: &str = "Finish signing in with Google in your browser.";
 const MSG_CANCELLED: &str = "Sign-in cancelled.";
+const MSG_REJECTED: &str = "Google didn't accept the request. Sign in again, then retry.";
 
 pub type StoreResult<T> = Result<T, String>;
 
@@ -620,7 +621,7 @@ impl GoogleAuth {
         self.store.write(&raw)
     }
 
-    fn forget(&self) {
+    pub fn forget(&self) {
         self.lock().session = None;
         if let Err(error) = self.store.clear() {
             tracing::warn!(%error, "could not delete the stored Google sign-in");
@@ -637,6 +638,22 @@ impl GoogleAuth {
             Access::Token(token) => Ok(token),
             Access::Retry => Err(TokenError::Retry),
             Access::Rejected => Err(TokenError::SignedOut),
+        }
+    }
+
+    pub async fn revoke(&self) -> Result<(), String> {
+        let refresh_token = self.lock().session.as_ref().map(|session| session.refresh_token.clone());
+        let Some(refresh_token) = refresh_token else {
+            return Ok(());
+        };
+        let reply = self
+            .post_form(&self.config.revoke_url, &[("token", refresh_token.as_str())])
+            .await
+            .ok_or_else(|| MSG_NETWORK.to_owned())?;
+        if reply.ok || reply.status == 400 {
+            Ok(())
+        } else {
+            Err(MSG_REJECTED.to_owned())
         }
     }
 

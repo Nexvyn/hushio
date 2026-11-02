@@ -471,6 +471,34 @@ export function listenDriveSyncProgress(onChange: (status: DriveSyncStatus) => v
   return listen<DriveSyncStatus>("drive-sync-progress", (event) => onChange(event.payload));
 }
 
+export function eraseStopSync(): Promise<void> {
+  return call<void>("erase_stop_sync");
+}
+
+export function eraseResumeSync(): Promise<void> {
+  return call<void>("erase_resume_sync");
+}
+
+export function eraseDriveFiles(): Promise<number> {
+  return call<number>("erase_drive_files");
+}
+
+export function eraseYoutubePlaylists(): Promise<number> {
+  return call<number>("erase_youtube_playlists");
+}
+
+export function eraseRevoke(): Promise<void> {
+  return call<void>("erase_revoke");
+}
+
+export function eraseKeyring(): Promise<void> {
+  return call<void>("erase_keyring");
+}
+
+export function eraseLocalData(deleteDownloads: boolean, downloadPaths: string[]): Promise<void> {
+  return call<void>("erase_local_data", { deleteDownloads, downloadPaths });
+}
+
 export async function listenFileDrop(onEvent: (event: FileDropEvent) => void): Promise<UnlistenFn> {
   return getCurrentWindow().onDragDropEvent((event) => {
     const payload = event.payload;

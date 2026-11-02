@@ -1,6 +1,7 @@
 mod analysis;
 mod cloud_payload;
 mod deletion_sync;
+mod disconnect;
 mod downloads;
 mod drive_sync;
 mod google_auth;
@@ -332,6 +333,8 @@ async fn google_sign_in(
         .sign_in(&google_auth::SystemBrowser(app.clone()))
         .await?;
     let _ = app.emit("google-auth-changed", &account);
+    app.state::<Arc<drive_sync::Drive>>().resume();
+    app.state::<Arc<YtEngine>>().resume();
     spawn_sync(&app, app.state::<Arc<YtEngine>>().inner().clone());
     spawn_drive_sync(&app);
     Ok(account)
@@ -585,7 +588,14 @@ pub fn run() {
             yt_tv_disconnect,
             yt_tv_open,
             drive_sync_status,
-            drive_sync_now
+            drive_sync_now,
+            disconnect::erase_stop_sync,
+            disconnect::erase_resume_sync,
+            disconnect::erase_drive_files,
+            disconnect::erase_youtube_playlists,
+            disconnect::erase_revoke,
+            disconnect::erase_keyring,
+            disconnect::erase_local_data
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

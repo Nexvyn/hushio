@@ -193,6 +193,10 @@ impl Queue {
         persist::write(&self.root, OWNER, QUEUE_FILE, &value).await
     }
 
+    pub fn clear(&mut self) {
+        self.stored = Stored::default();
+    }
+
     pub fn enqueue(&mut self, input: JobInput, now: i64) -> Result<bool, String> {
         validate(&input)?;
         let local = input.local_playlist_id.clone();
@@ -457,6 +461,7 @@ pub struct Engine<T> {
     quota: Arc<StdMutex<Quota>>,
     queue: Mutex<Queue>,
     run: StdMutex<Run>,
+    stopped: std::sync::atomic::AtomicBool,
 }
 
 impl<T: AccessTokens> Engine<T> {
@@ -474,6 +479,7 @@ impl<T: AccessTokens> Engine<T> {
             tv,
             queue: Mutex::new(queue),
             run: StdMutex::new(Run::default()),
+            stopped: Default::default(),
             root,
         }
     }
@@ -561,7 +567,21 @@ impl<T: AccessTokens> Engine<T> {
         self.end(emit).await;
     }
 
+    pub async fn stop(&self) -> Result<(), String> {
+        self.stopped.store(true, std::sync::atomic::Ordering::SeqCst);
+        let mut queue = self.queue.lock().await;
+        queue.clear();
+        queue.save().await
+    }
+
+    pub fn resume(&self) {
+        self.stopped.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+
     async fn begin(&self) -> bool {
+        if self.stopped.load(std::sync::atomic::Ordering::SeqCst) {
+            return false;
+        }
         {
             let mut run = self.run.lock().unwrap_or_else(|poison| poison.into_inner());
             if run.active {

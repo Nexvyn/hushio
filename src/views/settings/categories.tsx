@@ -59,6 +59,7 @@ import { MATCH_LANGUAGE_OPTIONS } from "../../lib/importLanguage";
 import { failedText, quotaText, syncStatusText } from "../../lib/ytSync";
 import { chooseDownloadFolder } from "../../lib/downloads";
 import { confirmImportBackup, exportBackup } from "../../lib/importBackup";
+import { useErase } from "../../stores/erase";
 import { useLocalLibrary } from "../../stores/localLibrary";
 import type { View } from "../../stores/navigation";
 import type {
@@ -209,6 +210,9 @@ function tvRows(visible: boolean, tv: TvContext): RowSpec[] {
   ];
 }
 
+const DANGER_BUTTON =
+  "inline-flex items-center justify-center rounded-[9px] bg-danger px-3 py-1.5 text-[13px] font-medium text-white transition-[filter] hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+
 function accountCategory({ settings: s, navigate, auth, sync }: BuildContext): SettingsCategory {
   const signedIn = auth.account.mode === "google";
   const running = sync.status.state === "running";
@@ -328,17 +332,24 @@ function accountCategory({ settings: s, navigate, auth, sync }: BuildContext): S
         ],
       },
       {
-        title: "Disconnect & erase",
+        title: signedIn ? "Disconnect & erase" : "Erase all local data",
         rows: [
           {
             id: "disconnect-erase",
             icon: Delete02Icon,
-            title: "Disconnect & erase",
-            note: `Erases ${APP_NAME}'s data in your Google Drive and on this computer, and disconnects your Google account. Playlists on YouTube stay unless you choose to delete them.`,
+            title: signedIn ? "Disconnect & erase" : "Erase all local data",
+            note: signedIn
+              ? `Deletes ${APP_NAME}'s sync data from your Google Drive, removes this computer's sign-in and erases ${APP_NAME}'s data on this computer. Your YouTube playlists and Liked Songs are kept unless you choose otherwise.`
+              : `Deletes everything ${APP_NAME} stores on this computer. This can't be undone.`,
             danger: true,
-            disabled: true,
             control: (
-              <Button disabled>Disconnect & erase</Button>
+              <button
+                type="button"
+                onClick={() => useErase.getState().open(signedIn ? "google" : "guest")}
+                className={DANGER_BUTTON}
+              >
+                {signedIn ? "Disconnect & erase" : "Erase all local data"}
+              </button>
             ),
           },
         ],
@@ -744,11 +755,14 @@ function dataCategory({ navigate }: BuildContext): SettingsCategory {
           {
             id: "reset-app-data",
             icon: Delete02Icon,
-            title: "Reset app data",
-            note: "Erase library, playlists, history and settings on this device",
+            title: "Reset app data (local)",
+            note: "Erase library, playlists, history and settings on this device. Downloads, YouTube and Drive data are kept.",
             danger: true,
-            disabled: true,
-            control: <Button disabled>Reset</Button>,
+            control: (
+              <button type="button" onClick={() => useErase.getState().open("reset")} className={DANGER_BUTTON}>
+                Reset
+              </button>
+            ),
           },
         ],
       },

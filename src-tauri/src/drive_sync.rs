@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -130,6 +131,7 @@ pub struct DriveSync<T> {
     run: AsyncMutex<()>,
     wake: Notify,
     on_status: OnStatus,
+    stopped: AtomicBool,
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -195,6 +197,7 @@ impl<T: Session> DriveSync<T> {
             run: AsyncMutex::new(()),
             wake: Notify::new(),
             on_status,
+            stopped: AtomicBool::new(false),
         }
     }
 
@@ -217,11 +220,30 @@ impl<T: Session> DriveSync<T> {
         result
     }
 
+    fn halted(&self) -> bool {
+        self.stopped.load(Ordering::SeqCst)
+    }
+
+    pub async fn stop(&self) {
+        self.stopped.store(true, Ordering::SeqCst);
+        self.edit(|inner| {
+            inner.dirty.clear();
+            inner.retry_at = None;
+            inner.next_pull = None;
+        });
+        let _guard = self.run.lock().await;
+    }
+
+    pub fn resume(&self) {
+        self.stopped.store(false, Ordering::SeqCst);
+        self.wake.notify_one();
+    }
+
     pub fn notify_write(&self, store: &str) {
         let Some(&(name, _)) = SYNCED.iter().find(|(known, _)| *known == store) else {
             return;
         };
-        if !self.tokens.connected() {
+        if !self.tokens.connected() || self.halted() {
             return;
         }
         let now = Instant::now();
@@ -236,7 +258,7 @@ impl<T: Session> DriveSync<T> {
     }
 
     pub async fn sync_now(&self) -> Status {
-        if self.tokens.connected() {
+        if self.tokens.connected() && !self.halted() {
             if let Ok(_guard) = self.run.try_lock() {
                 self.run_stores(&all_stores(), true).await;
             }
@@ -245,7 +267,7 @@ impl<T: Session> DriveSync<T> {
     }
 
     pub async fn flush(&self) {
-        if !self.tokens.connected() {
+        if !self.tokens.connected() || self.halted() {
             return;
         }
         self.edit(|inner| inner.retry_at = None);
@@ -276,6 +298,9 @@ impl<T: Session> DriveSync<T> {
     }
 
     async fn tick(&self) {
+        if self.halted() {
+            return;
+        }
         if !self.tokens.connected() {
             self.edit(|inner| {
                 inner.dirty.clear();
@@ -491,6 +516,43 @@ impl<T: Session> DriveSync<T> {
         Ok(())
     }
 
+    pub async fn erase_app_data(&self) -> Result<usize, String> {
+        let mut ids = Vec::new();
+        let mut page: Option<String> = None;
+        loop {
+            let mut query = vec![
+                ("spaces", "appDataFolder"),
+                ("fields", "nextPageToken,files(id)"),
+                ("pageSize", "1000"),
+            ];
+            if let Some(token) = page.as_deref() {
+                query.push(("pageToken", token));
+            }
+            let text = self.send(Method::GET, "/drive/v3/files", &query, None).await?;
+            let reply: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
+            ids.extend(
+                reply["files"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|entry| entry["id"].as_str().map(str::to_owned)),
+            );
+            match reply["nextPageToken"].as_str() {
+                Some(next) => page = Some(next.to_owned()),
+                None => break,
+            }
+        }
+        for id in &ids {
+            let (status, text) = self
+                .send_raw(Method::DELETE, &format!("/drive/v3/files/{id}"), &[], None)
+                .await?;
+            if status != 404 {
+                check(status, text)?;
+            }
+        }
+        Ok(ids.len())
+    }
+
     async fn send(
         &self,
         method: Method,
@@ -498,17 +560,28 @@ impl<T: Session> DriveSync<T> {
         query: &[(&str, &str)],
         body: Option<(String, Vec<u8>)>,
     ) -> Result<String, String> {
+        let (status, text) = self.send_raw(method, path, query, body).await?;
+        check(status, text)
+    }
+
+    async fn send_raw(
+        &self,
+        method: Method,
+        path: &str,
+        query: &[(&str, &str)],
+        body: Option<(String, Vec<u8>)>,
+    ) -> Result<(u16, String), String> {
         let token = self.tokens.token(false).await.map_err(token_error)?;
         let (status, text) = self.dispatch(&method, path, query, body.as_ref(), &token).await?;
         if status != 401 {
-            return check(status, text);
+            return Ok((status, text));
         }
         let token = self.tokens.token(true).await.map_err(token_error)?;
         let (status, text) = self.dispatch(&method, path, query, body.as_ref(), &token).await?;
         if status == 401 {
             return Err(MSG_NOT_SIGNED_IN.to_owned());
         }
-        check(status, text)
+        Ok((status, text))
     }
 
     async fn dispatch(
@@ -569,6 +642,7 @@ mod tests {
         files: Mutex<Vec<Stored>>,
         seen: Mutex<Vec<String>>,
         fail: Mutex<VecDeque<u16>>,
+        refuse: Mutex<Vec<String>>,
     }
 
     impl DriveMock {
@@ -617,7 +691,7 @@ mod tests {
                     .lock()
                     .unwrap()
                     .iter()
-                    .filter(|file| file.name == name)
+                    .filter(|file| wanted.is_empty() || file.name == name)
                     .map(|file| json!({"id": file.id, "name": file.name, "modifiedTime": "2026-11-09T00:00:00Z"}))
                     .collect();
                 (StatusCode::OK, json!({"files": files}).to_string())
@@ -639,6 +713,20 @@ mod tests {
                 let id = format!("file-{}", files.len() + 1);
                 files.push(Stored { id: id.clone(), name, body: content.to_owned() });
                 (StatusCode::OK, json!({"id": id}).to_string())
+            }
+            ("DELETE", _) if path.starts_with("/drive/v3/files/") => {
+                let id = path["/drive/v3/files/".len()..].to_owned();
+                if mock.refuse.lock().unwrap().contains(&id) {
+                    return (StatusCode::INTERNAL_SERVER_ERROR, "{}".to_owned());
+                }
+                let mut files = mock.files.lock().unwrap();
+                let before = files.len();
+                files.retain(|file| file.id != id);
+                if files.len() == before {
+                    (StatusCode::NOT_FOUND, "{}".to_owned())
+                } else {
+                    (StatusCode::NO_CONTENT, String::new())
+                }
             }
             ("PATCH", _) if path.starts_with("/upload/drive/v3/files/") => {
                 let id = &path["/upload/drive/v3/files/".len()..];
@@ -701,6 +789,35 @@ mod tests {
 
     async fn local(root: &std::path::Path, store: &str, state: Value) {
         persist::write(root, OWNER, store, &json!({"state": state, "version": 1})).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn erase_removes_every_app_data_file() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let (base, mock) = start_mock().await;
+        mock.seed("settings.json", "{}");
+        mock.seed("library-meta.json", "{}");
+        let (drive, _) = make(root.path(), &base, session(true));
+        assert_eq!(drive.erase_app_data().await, Ok(2));
+        assert!(mock.files.lock().unwrap().is_empty());
+        assert_eq!(drive.erase_app_data().await, Ok(0));
+    }
+
+    #[tokio::test]
+    async fn a_failed_erase_leaves_this_computer_alone_and_a_retry_finishes() {
+        let root = tempfile::tempdir().expect("temp dir");
+        local(root.path(), "settings", json!({"theme": "system"})).await;
+        let (base, mock) = start_mock().await;
+        mock.seed("settings.json", "{}");
+        mock.seed("library-meta.json", "{}");
+        mock.refuse.lock().unwrap().push("file-2".to_owned());
+        let (drive, _) = make(root.path(), &base, session(true));
+        assert!(drive.erase_app_data().await.is_err());
+        assert_eq!(mock.files.lock().unwrap().len(), 1);
+        assert!(persist::store_path(root.path(), "guest", "settings").exists());
+        mock.refuse.lock().unwrap().clear();
+        assert_eq!(drive.erase_app_data().await, Ok(1));
+        assert!(mock.files.lock().unwrap().is_empty());
     }
 
     #[tokio::test(start_paused = true)]

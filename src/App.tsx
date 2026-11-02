@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect } from "react";
 import { ContextMenu } from "./components/ContextMenu";
 import { Dialog } from "./components/Dialog";
+import { EraseDialog } from "./components/EraseDialog";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LyricsCenter } from "./components/LyricsCenter";
 import { NowPlaying } from "./components/NowPlaying";
@@ -166,6 +167,7 @@ export default function App() {
       <Toasts />
       <FileDrop />
       <Dialog />
+      <EraseDialog />
       <PlaylistPicker />
       <ContextMenu />
     </div>
