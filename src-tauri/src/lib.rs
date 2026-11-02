@@ -1,4 +1,8 @@
 mod analysis;
+#[allow(dead_code)]
+mod cloud_payload;
+#[allow(dead_code)]
+mod deletion_sync;
 mod downloads;
 mod google_auth;
 mod local_library;
@@ -7,6 +11,8 @@ mod persist;
 mod reveal;
 mod stats;
 mod stream;
+#[allow(dead_code)]
+mod sync_merge;
 mod sync_queue;
 mod yt_data_api;
 mod yt_innertube_auth;
