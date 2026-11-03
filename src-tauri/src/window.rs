@@ -1,11 +1,95 @@
 use serde_json::Value;
-use tauri::{AppHandle, Manager, Window, WindowEvent};
+use tauri::{AppHandle, LogicalSize, Manager, Runtime, Window, WebviewWindow, WindowEvent};
+use tauri::plugin::TauriPlugin;
+use tauri_plugin_window_state::{StateFlags, WindowExt};
 
 use crate::{persist, tray, DataPaths};
 
 pub const MAIN: &str = "main";
 const OWNER: &str = "guest";
 const SETTINGS: &str = "settings";
+const STATE_FILE: &str = "window-state.json";
+const STATE_FLAGS: StateFlags = StateFlags::SIZE.union(StateFlags::POSITION).union(StateFlags::MAXIMIZED);
+const DEFAULT_WIDTH: f64 = 1280.0;
+const DEFAULT_HEIGHT: f64 = 820.0;
+const MIN_VISIBLE_PX: i64 = 56;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Rect {
+    pub x: i64,
+    pub y: i64,
+    pub width: i64,
+    pub height: i64,
+}
+
+pub fn visible_enough(window: Rect, area: Rect) -> bool {
+    let width = (window.x + window.width).min(area.x + area.width) - window.x.max(area.x);
+    let height = (window.y + window.height).min(area.y + area.height) - window.y.max(area.y);
+    width >= MIN_VISIBLE_PX && height >= MIN_VISIBLE_PX
+}
+
+pub fn on_any_area(window: Rect, areas: &[Rect]) -> bool {
+    areas.iter().any(|area| visible_enough(window, *area))
+}
+
+pub fn state_plugin<R: Runtime>() -> TauriPlugin<R> {
+    tauri_plugin_window_state::Builder::new()
+        .with_state_flags(STATE_FLAGS)
+        .with_filename(STATE_FILE)
+        .skip_initial_state(MAIN)
+        .build()
+}
+
+pub fn restore_main(app: &AppHandle) {
+    let Some(window) = app.get_webview_window(MAIN) else {
+        return;
+    };
+    let had_state = app
+        .path()
+        .app_config_dir()
+        .is_ok_and(|dir| dir.join(STATE_FILE).exists());
+    if let Err(error) = window.restore_state(STATE_FLAGS) {
+        tracing::warn!(%error, "could not restore the window state");
+    }
+    keep_on_screen(&window);
+    if !had_state && !cfg!(target_os = "macos") {
+        let _ = window.maximize();
+    }
+}
+
+fn keep_on_screen(window: &WebviewWindow) {
+    if window.is_maximized().unwrap_or(false) {
+        return;
+    }
+    let (Ok(position), Ok(size), Ok(monitors)) =
+        (window.outer_position(), window.outer_size(), window.available_monitors())
+    else {
+        return;
+    };
+    let areas: Vec<Rect> = monitors
+        .iter()
+        .map(|monitor| {
+            let area = monitor.work_area();
+            Rect {
+                x: i64::from(area.position.x),
+                y: i64::from(area.position.y),
+                width: i64::from(area.size.width),
+                height: i64::from(area.size.height),
+            }
+        })
+        .collect();
+    let restored = Rect {
+        x: i64::from(position.x),
+        y: i64::from(position.y),
+        width: i64::from(size.width),
+        height: i64::from(size.height),
+    };
+    if areas.is_empty() || on_any_area(restored, &areas) {
+        return;
+    }
+    let _ = window.set_size(LogicalSize::new(DEFAULT_WIDTH, DEFAULT_HEIGHT));
+    let _ = window.center();
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum CloseAction {
@@ -98,6 +182,28 @@ mod tests {
     fn close_to_tray_reads_the_stored_value() {
         assert!(!close_to_tray_setting(Some(&json!({ "state": { "closeToTray": false } }))));
         assert!(close_to_tray_setting(Some(&json!({ "state": { "closeToTray": true } }))));
+    }
+
+    fn screen(x: i64, y: i64) -> Rect {
+        Rect { x, y, width: 1920, height: 1040 }
+    }
+
+    #[test]
+    fn a_window_needs_56_px_of_overlap_on_both_axes() {
+        let area = screen(0, 0);
+        assert!(visible_enough(Rect { x: 100, y: 100, width: 1000, height: 640 }, area));
+        assert!(visible_enough(Rect { x: 1920 - 56, y: 1040 - 56, width: 1000, height: 640 }, area));
+        assert!(!visible_enough(Rect { x: 1920 - 55, y: 100, width: 1000, height: 640 }, area));
+        assert!(!visible_enough(Rect { x: 100, y: 1040 - 55, width: 1000, height: 640 }, area));
+        assert!(!visible_enough(Rect { x: -5000, y: 100, width: 1000, height: 640 }, area));
+    }
+
+    #[test]
+    fn a_window_on_a_second_screen_is_kept_when_that_screen_is_known() {
+        let window = Rect { x: 2100, y: 200, width: 1280, height: 820 };
+        assert!(!on_any_area(window, &[screen(0, 0)]));
+        assert!(on_any_area(window, &[screen(0, 0), screen(1920, 0)]));
+        assert!(!on_any_area(window, &[]));
     }
 
     #[tokio::test]

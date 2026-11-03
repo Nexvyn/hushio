@@ -5,6 +5,7 @@ mod disconnect;
 mod downloads;
 mod drive_sync;
 mod google_auth;
+mod launch;
 mod local_library;
 mod lyrics;
 mod persist;
@@ -30,6 +31,7 @@ use tracing_subscriber::registry::LookupSpan;
 const APP_NAME: &str = "Hushio";
 const APP_SLUG: &str = "hushio";
 const DATA_DIR_ENV: &str = "HUSHIO_DATA_DIR";
+const ALLOW_MULTI_ENV: &str = "HUSHIO_ALLOW_MULTI";
 
 struct DataPaths {
     root: PathBuf,
@@ -477,7 +479,16 @@ pub fn run() {
         .with_max_level(tracing::Level::INFO)
         .init();
 
-    let app = tauri::Builder::default()
+    let mut builder = tauri::Builder::<tauri::Wry>::default();
+    if std::env::var(ALLOW_MULTI_ENV).ok().as_deref() != Some("1") {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+            launch::receive(app, &argv, std::path::Path::new(&cwd));
+            window::show_main(app);
+        }));
+    }
+    let app = builder
+        .plugin(tauri_plugin_deep_link::init())
+        .plugin(window::state_plugin())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -508,6 +519,12 @@ pub fn run() {
             app.manage(DataPaths { root });
             app.manage(tray::Tray::default());
             tray::setup(app.handle());
+            app.manage(launch::Pending::default());
+            launch::register_scheme(app.handle());
+            let argv: Vec<String> = std::env::args().collect();
+            let cwd = std::env::current_dir().unwrap_or_default();
+            launch::receive(app.handle(), &argv, &cwd);
+            window::restore_main(app.handle());
             let registry = stream::Registry::default();
             app.manage(registry.clone());
             let proxy = stream::StreamProxy::new(registry);
@@ -601,7 +618,8 @@ pub fn run() {
             disconnect::erase_revoke,
             disconnect::erase_keyring,
             disconnect::erase_local_data,
-            tray::tray_set_playing
+            tray::tray_set_playing,
+            launch::launch_take
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

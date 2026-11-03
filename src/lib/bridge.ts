@@ -517,3 +517,13 @@ export function setTrayPlaying(playing: boolean): Promise<void> {
 export function listenMenuCommands(onCommand: (command: string) => void): Promise<UnlistenFn> {
   return listen<string>("menu:command", (event) => onCommand(event.payload));
 }
+
+export type LaunchAction = { type: "file"; path: string } | { type: "playlist"; id: string };
+
+export function launchTake(): Promise<LaunchAction[]> {
+  return call<LaunchAction[]>("launch_take");
+}
+
+export function listenLaunchPending(onPending: () => void): Promise<UnlistenFn> {
+  return listen("launch:pending", () => onPending());
+}
