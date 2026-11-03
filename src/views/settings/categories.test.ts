@@ -112,6 +112,14 @@ describe("Sound rows on Windows", () => {
     expect(group?.body).toBeDefined();
   });
 
+  it("turns Reduce transparency on through the Display row", () => {
+    const display = buildCategories(context("windows")).find((category) => category.id === "display");
+    const reduce = display?.groups.flatMap((group) => group.rows).find((candidate) => candidate.id === "reduce-transparency");
+    expect(reduce?.toggle?.checked).toBe(false);
+    reduce?.toggle?.onChange(true);
+    expect(useSettings.getState().reduceDynamicBlur).toBe(true);
+  });
+
   it("turns the equalizer on through the switch", () => {
     row("windows", "equalizer").toggle?.onChange(true);
     expect(useSettings.getState().eqEnabled).toBe(true);

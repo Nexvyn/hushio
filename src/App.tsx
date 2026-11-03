@@ -17,6 +17,7 @@ import { watchFullScreen } from "./lib/bridge";
 import { listenForDownloadProgress } from "./lib/downloads";
 import { startLaunchActions } from "./lib/launch";
 import { startMenuCommands } from "./lib/menuCommands";
+import { startWindowGlass } from "./lib/windowGlass";
 import { useKeyboardShortcuts, useSwipeNavigation } from "./lib/shortcuts";
 import { startGoogleAuth } from "./stores/auth";
 import { startYtSync } from "./stores/sync";
@@ -96,6 +97,7 @@ export default function App() {
   useEffect(() => startGoogleAuth(), []);
   useEffect(() => startYtSync(), []);
   useEffect(() => startMenuCommands(), []);
+  useEffect(() => startWindowGlass(), []);
   useEffect(() => startLaunchActions(), []);
 
   useEffect(() => {

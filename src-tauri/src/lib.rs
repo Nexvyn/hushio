@@ -14,6 +14,7 @@ mod stats;
 mod stream;
 mod sync_merge;
 mod sync_queue;
+mod taskbar;
 mod tray;
 mod window;
 mod yt_data_api;
@@ -495,6 +496,11 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .on_window_event(window::on_window_event)
+        .on_page_load(|webview, payload| {
+            if payload.event() == tauri::webview::PageLoadEvent::Started {
+                window::on_navigation_started(webview.app_handle());
+            }
+        })
         .register_uri_scheme_protocol("localart", |context, request| {
             let art_dir = context.app_handle().state::<local_library::Service>().art_dir();
             local_library::serve_art(&art_dir, request.uri().path())
@@ -518,13 +524,16 @@ pub fn run() {
             let drive_root = root.clone();
             app.manage(DataPaths { root });
             app.manage(tray::Tray::default());
+            app.manage(window::Glass::default());
             tray::setup(app.handle());
+            taskbar::setup(app.handle());
             app.manage(launch::Pending::default());
             launch::register_scheme(app.handle());
             let argv: Vec<String> = std::env::args().collect();
             let cwd = std::env::current_dir().unwrap_or_default();
             launch::receive(app.handle(), &argv, &cwd);
             window::restore_main(app.handle());
+            window::apply_glass(app.handle());
             let registry = stream::Registry::default();
             app.manage(registry.clone());
             let proxy = stream::StreamProxy::new(registry);
@@ -619,6 +628,8 @@ pub fn run() {
             disconnect::erase_keyring,
             disconnect::erase_local_data,
             tray::tray_set_playing,
+            window::window_intro_done,
+            window::window_set_reduce_transparency,
             launch::launch_take
         ])
         .build(tauri::generate_context!())

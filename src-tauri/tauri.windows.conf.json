@@ -1,0 +1,19 @@
+{
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Hushio",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 1000,
+        "minHeight": 640,
+        "resizable": true,
+        "decorations": false,
+        "transparent": true,
+        "backgroundColor": "#00000000",
+        "visible": false
+      }
+    ]
+  }
+}

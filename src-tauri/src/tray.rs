@@ -25,6 +25,10 @@ impl Tray {
     pub fn quitting(&self) -> bool {
         self.quitting.load(Ordering::SeqCst)
     }
+
+    pub fn playing(&self) -> bool {
+        self.playing.load(Ordering::SeqCst)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -167,6 +171,7 @@ pub fn tray_set_playing(app: AppHandle, tray: State<'_, Tray>, playing: bool) ->
     if previous == playing {
         return Ok(());
     }
+    crate::taskbar::set_playing(&app, playing);
     if let Some(icon) = tray.icon.get() {
         let menu = build_menu(&app, playing).map_err(|error| error.to_string())?;
         icon.set_menu(Some(menu)).map_err(|error| error.to_string())?;

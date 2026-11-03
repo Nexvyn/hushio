@@ -514,6 +514,14 @@ export function setTrayPlaying(playing: boolean): Promise<void> {
   return call<void>("tray_set_playing", { playing });
 }
 
+export function introDone(): Promise<void> {
+  return call<void>("window_intro_done");
+}
+
+export function setReduceTransparency(reduce: boolean): Promise<void> {
+  return call<void>("window_set_reduce_transparency", { reduce });
+}
+
 export function listenMenuCommands(onCommand: (command: string) => void): Promise<UnlistenFn> {
   return listen<string>("menu:command", (event) => onCommand(event.payload));
 }

@@ -1,5 +1,7 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use serde_json::Value;
-use tauri::{AppHandle, LogicalSize, Manager, Runtime, Window, WebviewWindow, WindowEvent};
+use tauri::{AppHandle, LogicalSize, Manager, Runtime, State, Window, WebviewWindow, WindowEvent};
 use tauri::plugin::TauriPlugin;
 use tauri_plugin_window_state::{StateFlags, WindowExt};
 
@@ -91,6 +93,60 @@ fn keep_on_screen(window: &WebviewWindow) {
     let _ = window.center();
 }
 
+#[derive(Default)]
+pub struct Glass {
+    intro_done: AtomicBool,
+    reduce_transparency: AtomicBool,
+}
+
+pub fn glass_on(windows: bool, intro_done: bool, reduce_transparency: bool) -> bool {
+    windows && !intro_done && !reduce_transparency
+}
+
+pub fn apply_glass(app: &AppHandle) {
+    let Some(window) = app.get_webview_window(MAIN) else {
+        return;
+    };
+    let glass = app.state::<Glass>();
+    let on = glass_on(
+        cfg!(target_os = "windows"),
+        glass.intro_done.load(Ordering::SeqCst),
+        glass.reduce_transparency.load(Ordering::SeqCst),
+    );
+    #[cfg(target_os = "windows")]
+    {
+        let material = if on {
+            window_vibrancy::apply_acrylic(&window, None)
+        } else {
+            window_vibrancy::clear_acrylic(&window)
+        };
+        if let Err(error) = material {
+            tracing::warn!(?error, "could not change the window material");
+        }
+        let ground = if on { tauri::window::Color(0, 0, 0, 0) } else { tauri::window::Color(10, 10, 10, 255) };
+        let _ = window.set_background_color(Some(ground));
+    }
+    #[cfg(not(target_os = "windows"))]
+    let _ = (window, on);
+}
+
+pub fn on_navigation_started(app: &AppHandle) {
+    app.state::<Glass>().intro_done.store(false, Ordering::SeqCst);
+    apply_glass(app);
+}
+
+#[tauri::command]
+pub fn window_intro_done(app: AppHandle, glass: State<'_, Glass>) {
+    glass.intro_done.store(true, Ordering::SeqCst);
+    apply_glass(&app);
+}
+
+#[tauri::command]
+pub fn window_set_reduce_transparency(app: AppHandle, glass: State<'_, Glass>, reduce: bool) {
+    glass.reduce_transparency.store(reduce, Ordering::SeqCst);
+    apply_glass(&app);
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum CloseAction {
     Close,
@@ -169,6 +225,14 @@ mod tests {
     #[test]
     fn close_quits_on_linux_even_with_the_setting_and_a_tray() {
         assert_eq!(close_action(false, false, true, true), CloseAction::Close);
+    }
+
+    #[test]
+    fn glass_is_on_only_on_windows_before_the_intro_ends_and_without_reduce_transparency() {
+        assert!(glass_on(true, false, false));
+        assert!(!glass_on(true, true, false));
+        assert!(!glass_on(true, false, true));
+        assert!(!glass_on(false, false, false));
     }
 
     #[test]
