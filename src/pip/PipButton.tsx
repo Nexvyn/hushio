@@ -40,7 +40,7 @@ export function PipButton() {
           .then(setOpen)
           .catch(() => {});
       }}
-      className={`grid h-8 w-8 shrink-0 place-items-center rounded-full motion-safe:transition-colors motion-safe:duration-150 ${open ? "text-ink-1" : "text-ink-2 hover:text-ink-1"}`}
+      className={`grid h-8 w-8 shrink-0 place-items-center rounded-full motion-safe:transition-colors motion-safe:duration-quick ${open ? "text-ink-1" : "text-ink-2 hover:text-ink-1"}`}
     >
       <Icon icon={open ? PictureInPictureOnIcon : PictureInPictureIcon} />
     </button>

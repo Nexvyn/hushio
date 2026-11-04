@@ -11,6 +11,13 @@ export default {
           "sans-serif",
         ],
       },
+      transitionDuration: {
+        DEFAULT: "var(--dur-quick)",
+        quick: "var(--dur-quick)",
+        fade: "var(--dur-fade)",
+        swap: "var(--dur-swap)",
+        reading: "var(--dur-reading)",
+      },
       colors: {
         base: "rgb(var(--base) / <alpha-value>)",
         surface: "rgb(var(--surface) / <alpha-value>)",

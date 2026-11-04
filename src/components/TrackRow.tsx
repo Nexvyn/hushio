@@ -1,6 +1,7 @@
 import { PlayIcon } from "@hugeicons/core-free-icons";
 import { ActionMenu } from "./ActionMenu";
 import { EqBars } from "./EqBars";
+import { FitText } from "./FitText";
 import { ExplicitBadge } from "./ExplicitBadge";
 import { Icon } from "./Icon";
 import { LikeButton } from "./LikeButton";
@@ -79,7 +80,7 @@ export function TrackRow({
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="flex min-w-0 items-center text-[14px] font-medium text-ink-1">
             {song.explicit && <ExplicitBadge />}
-            <span className="truncate">{song.title}</span>
+            <FitText text={song.title} />
           </span>
           <span className="block truncate text-[13px] text-ink-2">{song.artist}</span>
         </span>

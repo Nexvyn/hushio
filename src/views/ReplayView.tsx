@@ -76,7 +76,7 @@ function PeriodSwitch({ value, onChange }: { value: ReplayPeriod; onChange: (per
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(item.id)}
             onKeyDown={(event) => onKeyDown(event, index)}
-            className={`rounded-full px-3 py-1.5 text-[12.5px] font-medium motion-safe:transition-colors motion-safe:duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+            className={`rounded-full px-3 py-1.5 text-[12.5px] font-medium motion-safe:transition-colors motion-safe:duration-quick focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
               selected ? "bg-accent text-on-accent" : "text-ink-2 hover:text-ink-1"
             }`}
           >
@@ -427,7 +427,7 @@ export function ReplayView() {
       </header>
 
       {load.status === "loading" && (
-        <div aria-busy="true" aria-label="Loading your Replay" className="h-[340px] rounded-[26px] bg-wash motion-safe:animate-pulse" />
+        <div aria-busy="true" aria-label="Loading your Replay" className="h-[340px] rounded-[26px] bg-wash bt-skeleton" />
       )}
 
       {load.status === "error" && (

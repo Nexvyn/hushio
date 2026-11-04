@@ -136,7 +136,7 @@ function LocalTrackRow({ track, onPlay, onRemove }: { track: LocalTrack; onPlay:
 function Spinner() {
   return (
     <p className="flex items-center gap-2 text-[14px] text-ink-2" role="status">
-      <span className="motion-safe:animate-spin">
+      <span className="bt-spin">
         <Icon icon={RefreshIcon} />
       </span>
       Reading tags and artwork…
@@ -246,7 +246,7 @@ function IndexView({ onOpen }: { onOpen: (param: string) => void }) {
           disabled={scanning || folders.length === 0}
           onClick={() => void scan()}
         >
-          <span className={scanning ? "motion-safe:animate-spin" : undefined}>
+          <span className={scanning ? "bt-spin" : undefined}>
             <Icon icon={RefreshIcon} />
           </span>
         </button>
@@ -478,7 +478,7 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
             disabled={scanning}
             onClick={() => void scan()}
           >
-            <span className={scanning ? "motion-safe:animate-spin" : undefined}>
+            <span className={scanning ? "bt-spin" : undefined}>
               <Icon icon={RefreshIcon} />
             </span>
           </button>

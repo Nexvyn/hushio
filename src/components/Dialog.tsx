@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { type DialogRequest, useUI } from "../stores/ui";
+import { restartClass } from "../lib/motion";
 
 type Failure = { request: DialogRequest; message: string };
 
@@ -89,7 +90,15 @@ export function Dialog() {
   const hasInput = request.initialValue !== undefined;
   const confirm = () => {
     const value = hasInput ? inputRef.current?.value ?? request.initialValue ?? "" : "";
-    commit(request, value, (message) => setFailure({ request, message }), closeDialog);
+    commit(
+      request,
+      value,
+      (message) => {
+        setFailure({ request, message });
+        restartClass(inputRef.current, "bt-shake");
+      },
+      closeDialog,
+    );
   };
 
   return (

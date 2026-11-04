@@ -141,7 +141,7 @@ function useSearchResults(query: string, filter: SearchFilter) {
 
 function ListSkeleton({ rows }: { rows: number }) {
   return (
-    <div aria-hidden="true" className="motion-safe:animate-pulse">
+    <div aria-hidden="true" className="bt-skeleton">
       {Array.from({ length: rows }, (_, index) => (
         <div key={index} className="flex h-[52px] items-center gap-3 px-2">
           <span className="h-10 w-10 shrink-0 rounded-md bg-wash" />
@@ -332,7 +332,7 @@ export function SearchView() {
         {loading && (
           <span
             aria-hidden="true"
-            className="flex h-7 w-7 items-center justify-center text-ink-2 motion-safe:animate-spin"
+            className="flex h-7 w-7 items-center justify-center text-ink-2 bt-spin"
           >
             <Icon icon={Loading03Icon} />
           </span>

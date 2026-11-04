@@ -91,7 +91,7 @@ export function ReplayShareSheet({ card, onClose }: ReplayShareSheetProps) {
               className="block aspect-[9/16] w-full rounded-[11px] outline outline-1 -outline-offset-1 outline-black/10 [[data-theme=dark]_&]:outline-white/10"
             />
           ) : (
-            !failed && <div aria-hidden="true" className="aspect-[9/16] w-full motion-safe:animate-pulse rounded-[11px] bg-wash" />
+            !failed && <div aria-hidden="true" className="aspect-[9/16] w-full bt-skeleton rounded-[11px] bg-wash" />
           )}
         </div>
         {failed && (

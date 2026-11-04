@@ -2,19 +2,19 @@ import { memo, useEffect, useRef } from "react";
 import { ArrowLeft01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { Icon } from "./Icon";
 import type { SwipeDir } from "../lib/swipe";
+import { discPose, SIDEBAR_COMMIT_PX } from "../lib/swipeFeel";
 
 const HIDDEN = -60;
 const REST = 22;
-const STRETCH = 16;
 const OVERSHOOT = 18;
 const FADE_MS = 340;
+const DISC_BASE_PX = 10;
 const OPACITY_RUN = 36;
 const EASE_TRACK = 0.64;
 const EASE_LEAVE = 0.8;
 
-function offsetFor(progress: number) {
-  if (progress <= 1) return HIDDEN + (REST - HIDDEN) * progress;
-  return REST + STRETCH * (1 - Math.exp(-(progress - 1) * 2));
+function poseFor(progress: number, back: boolean, going: boolean) {
+  return discPose(progress * SIDEBAR_COMMIT_PX, back, going);
 }
 
 export type ArrowControl = {
@@ -47,6 +47,7 @@ export const SwipeArrow = memo(function SwipeArrow() {
     let dir: SwipeDir = "back";
     let at = HIDDEN;
     let to = HIDDEN;
+    let scale = 1;
     let mode: "idle" | "track" | "leave" | "go" = "idle";
     let raf = 0;
     let lastFrame = 0;
@@ -54,7 +55,7 @@ export const SwipeArrow = memo(function SwipeArrow() {
 
     function paint() {
       const opacity = Math.min(1, Math.max(0, (at - HIDDEN) / OPACITY_RUN));
-      node.style.transform = `translate3d(${dir === "back" ? at : -at}px, 0, 0)`;
+      node.style.transform = `translate3d(${dir === "back" ? at : -at}px, 0, 0) scale(${scale})`;
       node.style.opacity = String(opacity);
     }
 
@@ -69,6 +70,7 @@ export const SwipeArrow = memo(function SwipeArrow() {
       mode = "idle";
       at = HIDDEN;
       to = HIDDEN;
+      scale = 1;
       paint();
       node.classList.remove("is-on", "is-armed", "is-go");
     }
@@ -104,7 +106,9 @@ export const SwipeArrow = memo(function SwipeArrow() {
         at = HIDDEN;
       }
       mode = "track";
-      to = progress > 0 ? offsetFor(progress) : HIDDEN;
+      const pose = poseFor(progress, dir === "back", false);
+      to = progress > 0 ? REST + pose.offsetX - DISC_BASE_PX : HIDDEN;
+      scale = pose.scale;
       node.classList.add("is-on");
       node.classList.toggle("is-armed", progress >= 1);
       run();
@@ -115,6 +119,7 @@ export const SwipeArrow = memo(function SwipeArrow() {
       clearFade();
       mode = "go";
       to = Math.max(at, REST) + OVERSHOOT;
+      scale = poseFor(1, dir === "back", true).scale;
       node.classList.add("is-on", "is-armed", "is-go");
       fade = setTimeout(hide, FADE_MS);
       run();
@@ -125,6 +130,7 @@ export const SwipeArrow = memo(function SwipeArrow() {
       clearFade();
       mode = "leave";
       to = HIDDEN;
+      scale = 1;
       node.classList.remove("is-armed");
       run();
     };

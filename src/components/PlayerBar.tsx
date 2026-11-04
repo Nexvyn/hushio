@@ -55,7 +55,7 @@ function TransportButton({ label, icon, active = false, pressed, disabled = fals
       aria-pressed={pressed}
       disabled={disabled}
       onClick={onClick}
-      className={`relative grid h-8 w-8 shrink-0 place-items-center rounded-full motion-safe:transition-colors motion-safe:duration-150 disabled:opacity-[var(--disabled-opacity)] ${active ? "text-ink-1" : "text-ink-2 hover:text-ink-1"}`}
+      className={`relative grid h-8 w-8 shrink-0 place-items-center rounded-full motion-safe:transition-colors motion-safe:duration-quick disabled:opacity-[var(--disabled-opacity)] ${active ? "text-ink-1" : "text-ink-2 hover:text-ink-1"}`}
     >
       <Icon icon={icon} />
       {active && (
@@ -104,7 +104,7 @@ function SleepTimer() {
           const header: MenuItem = { label: status ?? "Sleep timer", header: true };
           ui.openContextMenu(rect.left, rect.top, [header, ...sleepMenuItems()], { owner, above: true });
         }}
-        className={`relative grid h-8 w-8 shrink-0 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-safe:transition-colors motion-safe:duration-150 ${status ? "text-ink-1" : "text-ink-2 hover:text-ink-1"}`}
+        className={`relative grid h-8 w-8 shrink-0 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-safe:transition-colors motion-safe:duration-quick ${status ? "text-ink-1" : "text-ink-2 hover:text-ink-1"}`}
       >
         <Icon icon={MoonIcon} />
         {status && (
@@ -184,10 +184,10 @@ function PlayDisc() {
       title={label}
       aria-label={label}
       onClick={toggle}
-      className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-on-primary motion-safe:transition-transform motion-safe:duration-150 motion-safe:hover:scale-[1.06] motion-safe:active:scale-95"
+      className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-on-primary motion-safe:transition-transform motion-safe:duration-quick motion-safe:active:scale-[0.97]"
     >
       {buffering ? (
-        <span className="grid place-items-center motion-safe:animate-spin">
+        <span className="grid place-items-center bt-spin">
           <Icon icon={Loading03Icon} />
         </span>
       ) : (

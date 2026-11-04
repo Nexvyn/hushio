@@ -217,8 +217,8 @@ export function MoodView() {
 
       {page === undefined ? (
         <div className="mt-10 space-y-9">
-          <div className="h-[200px] rounded-[14px] bg-wash motion-safe:animate-pulse" />
-          <div className="h-[200px] rounded-[14px] bg-wash motion-safe:animate-pulse" />
+          <div className="h-[200px] rounded-[14px] bg-wash bt-skeleton" />
+          <div className="h-[200px] rounded-[14px] bg-wash bt-skeleton" />
         </div>
       ) : !page || page.shelves.length === 0 ? (
         <p className="mt-10 text-[14px] text-ink-2">This page couldn't be loaded right now. Try again in a moment.</p>

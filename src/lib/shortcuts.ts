@@ -216,7 +216,6 @@ export function useSwipeNavigation() {
           event,
           (dx) => scrollsSideways(event.target, dx),
           can,
-          window.innerWidth,
         ),
       );
       lift = setTimeout(() => apply(swipe.quiet(performance.now())), SWIPE_LIFT_MS + 10);

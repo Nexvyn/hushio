@@ -8,14 +8,12 @@ import {
 import type { IconSvgElement } from "@hugeicons/react";
 import { Icon } from "./Icon";
 import { DEFAULT_TOAST_MS, useUI, type Toast } from "../stores/ui";
-
-const RING_C = 2 * Math.PI * 16.75;
+import { DURATION_MS } from "../lib/motion";
 
 type KindStyle = {
   icon: IconSvgElement;
   tint: string;
   badge: string;
-  ring: string;
   glow: string;
 };
 
@@ -24,28 +22,24 @@ const KIND_STYLES: Record<Toast["kind"], KindStyle> = {
     icon: InformationCircleIcon,
     tint: "text-ink-1",
     badge: "bg-ink-1/[0.14]",
-    ring: "rgb(var(--ink-1) / 0.75)",
     glow: "--ink-1",
   },
   success: {
     icon: Tick02Icon,
     tint: "text-safe",
     badge: "bg-safe/[0.16]",
-    ring: "rgb(var(--safe) / 0.9)",
     glow: "--safe",
   },
   error: {
     icon: Cancel01Icon,
     tint: "text-danger-text",
     badge: "bg-danger/[0.16]",
-    ring: "rgb(var(--danger) / 0.9)",
     glow: "--danger",
   },
   warning: {
     icon: Alert02Icon,
     tint: "text-warn",
     badge: "bg-warn/[0.16]",
-    ring: "rgb(var(--warn) / 0.9)",
     glow: "--warn",
   },
 };
@@ -63,7 +57,7 @@ function ToastCard({ toast }: { toast: Toast }) {
     if (closing.current) return;
     closing.current = true;
     setLeaving(true);
-    setTimeout(() => dismissToast(toast.id), 340);
+    setTimeout(() => dismissToast(toast.id), DURATION_MS.settle);
   }, [dismissToast, toast.id]);
 
   useEffect(() => {
@@ -79,9 +73,7 @@ function ToastCard({ toast }: { toast: Toast }) {
   return (
     <div
       role="status"
-      className={`group pointer-events-auto relative ${leaving ? "toast-lift" : "toast-drop"} ${
-        toast.kind === "error" && !leaving ? "toast-shake" : ""
-      }`}
+      className={`group pointer-events-auto relative ${leaving ? "toast-leave" : "toast-enter"}`}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocusCapture={() => setPaused(true)}
@@ -91,39 +83,16 @@ function ToastCard({ toast }: { toast: Toast }) {
     >
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute -inset-5 rounded-full blur-lg transition-opacity duration-500"
+        className="pointer-events-none absolute -inset-5 rounded-full blur-lg motion-safe:transition-opacity motion-safe:duration-swap"
         style={{
           background: `radial-gradient(closest-side, rgb(var(${style.glow}) / 0.20), transparent)`,
           opacity: paused ? 1 : 0.5,
         }}
       />
-      <div className="toast-beacon relative flex min-w-[320px] max-w-[440px] items-center gap-3 overflow-hidden rounded-full py-1.5 pl-1.5 pr-2 motion-safe:transition-transform motion-safe:duration-300 motion-safe:hover:scale-[1.015]">
-        <span className="toast-sheen pointer-events-none absolute inset-y-0 left-0 w-1/3" />
+      <div className="toast-beacon relative flex min-w-[320px] max-w-[440px] items-center gap-3 overflow-hidden rounded-full py-1.5 pl-1.5 pr-2">
         <span className="relative h-9 w-9 shrink-0">
-          <svg viewBox="0 0 36 36" className="h-9 w-9 -rotate-90">
-            <circle
-              cx="18"
-              cy="18"
-              r="16.75"
-              fill="none"
-              stroke="rgba(255,255,255,0.09)"
-              strokeWidth="1.5"
-            />
-            <circle
-              cx="18"
-              cy="18"
-              r="16.75"
-              fill="none"
-              stroke={style.ring}
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeDasharray={RING_C}
-              className="toast-ring"
-              style={{
-                animationDuration: `${duration}ms`,
-                animationPlayState: paused ? "paused" : "running",
-              }}
-            />
+          <svg viewBox="0 0 36 36" className="h-9 w-9 -rotate-90" aria-hidden="true">
+            <circle cx="18" cy="18" r="16.75" fill="none" stroke="rgba(255,255,255,0.09)" strokeWidth="1.5" />
           </svg>
           <span
             className={`absolute inset-[6px] grid place-items-center rounded-full ${style.badge} ${style.tint}`}
@@ -151,7 +120,7 @@ function ToastCard({ toast }: { toast: Toast }) {
           title="Dismiss"
           aria-label="Dismiss notification"
           onClick={close}
-          className="relative ml-auto grid h-6 w-6 shrink-0 place-items-center rounded-full text-ink-2 opacity-0 transition-all duration-200 hover:bg-ink-1/10 hover:text-ink-1 focus:opacity-100 group-hover:opacity-100"
+          className="relative ml-auto grid h-6 w-6 shrink-0 place-items-center rounded-full text-ink-2 opacity-0 motion-safe:transition-[opacity,background-color,color] motion-safe:duration-quick hover:bg-ink-1/10 hover:text-ink-1 focus:opacity-100 group-hover:opacity-100"
         >
           <Icon icon={Cancel01Icon} />
         </button>

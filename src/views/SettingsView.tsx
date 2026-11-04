@@ -119,7 +119,7 @@ function CategoryNav({ categories, active, onSelect }: CategoryNavProps) {
     <nav aria-label="Settings categories" className="relative flex flex-col gap-0.5">
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 rounded-[9px] bg-ink-1/[0.08] motion-safe:transition-[transform,height] motion-safe:duration-200 motion-safe:ease-out"
+        className="pointer-events-none absolute inset-x-0 rounded-[9px] bg-ink-1/[0.08] motion-safe:transition-transform motion-safe:duration-swap motion-safe:ease-out"
         style={{ transform: `translateY(${light.top}px)`, height: light.height }}
       />
       {categories.map((category, index) => {
@@ -231,7 +231,7 @@ export function SettingsView() {
           )
         ) : (
           current && (
-            <div key={current.id} className="settings-pane">
+            <div key={current.id}>
               <header>
                 <h2 className="text-[22px] font-semibold tracking-[-0.02em] text-ink-1">{current.label}</h2>
                 <p className="mt-1 text-[13px] text-ink-2">{current.lede}</p>

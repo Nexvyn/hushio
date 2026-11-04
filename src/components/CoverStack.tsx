@@ -9,8 +9,8 @@ export const STACK_GRID = "grid grid-cols-[repeat(auto-fill,minmax(176px,1fr))] 
 
 const FAN = [
   "z-30",
-  "z-20 translate-x-[5px] -translate-y-[4px] rotate-[2deg] motion-safe:transition-transform [@media(hover:hover)]:group-hover:translate-x-[10px] [@media(hover:hover)]:group-hover:-translate-y-[8px] [@media(hover:hover)]:group-hover:rotate-[5deg]",
-  "z-10 -translate-x-[5px] -translate-y-[2px] -rotate-[2deg] motion-safe:transition-transform [@media(hover:hover)]:group-hover:-translate-x-[10px] [@media(hover:hover)]:group-hover:-translate-y-[4px] [@media(hover:hover)]:group-hover:-rotate-[5deg]",
+  "z-20 translate-x-[5px] -translate-y-[4px] rotate-[2deg]",
+  "z-10 -translate-x-[5px] -translate-y-[2px] -rotate-[2deg]",
 ];
 
 type CoverStackProps = {

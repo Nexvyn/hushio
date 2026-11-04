@@ -87,7 +87,7 @@ export function SearchSuggestions({
       id={listId}
       role="listbox"
       aria-label="Search suggestions"
-      className="absolute left-0 right-0 top-full z-50 mt-2 max-h-[min(600px,calc(100vh-88px))] overflow-y-auto rounded-[14px] border border-separator bg-elevated p-1.5 shadow-[var(--shadow-list)]"
+      className="animate-fade-in absolute left-0 right-0 top-full z-50 mt-2 max-h-[min(600px,calc(100vh-88px))] overflow-y-auto rounded-[14px] border border-separator bg-elevated p-1.5 shadow-[var(--shadow-list)]"
     >
       <div
         id={optionId(listId, 0)}

@@ -164,7 +164,7 @@ export function Sidebar() {
           data-drop-target={dropTargetOf(entry)}
           aria-current={current ? "page" : undefined}
           onClick={() => navigate(info.view)}
-          className={`flex w-full items-center gap-3 rounded-[9px] p-2 text-left motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus data-[drop-hover=true]:bg-ink-1/[0.1] ${
+          className={`flex w-full items-center gap-3 rounded-[9px] p-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus data-[drop-hover=true]:bg-ink-1/[0.1] ${
             current ? "bg-ink-1/[0.08]" : "hover:bg-ink-1/[0.05] active:bg-ink-1/[0.1]"
           }`}
         >
@@ -198,7 +198,7 @@ export function Sidebar() {
         <button
           type="button"
           onClick={() => navigate({ name: "library" })}
-          className="flex items-center gap-2 text-[14px] font-semibold text-ink-2 transition-colors hover:text-ink-1"
+          className="flex items-center gap-2 text-[14px] font-semibold text-ink-2 hover:text-ink-1"
         >
           <Icon icon={LibraryIcon} />
           Your Library
@@ -220,7 +220,7 @@ export function Sidebar() {
           type="button"
           aria-current={view.name === "settings" ? "page" : undefined}
           onClick={() => navigate({ name: "settings" })}
-          className={`flex w-full items-center gap-3 rounded-[9px] p-2 text-left text-[14px] font-semibold transition-colors ${
+          className={`flex w-full items-center gap-3 rounded-[9px] p-2 text-left text-[14px] font-semibold ${
             view.name === "settings"
               ? "bg-ink-1/[0.08] text-ink-1"
               : "text-ink-2 hover:bg-ink-1/[0.05] hover:text-ink-1"

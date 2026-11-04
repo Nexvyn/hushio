@@ -1,7 +1,7 @@
 export function BrowseSkeleton({ rows }: { rows: number }) {
   return (
     <div role="status" aria-label="Loading" className="space-y-6">
-      <div className="h-[320px] rounded-[18px] bg-wash motion-safe:animate-pulse" />
+      <div className="h-[320px] rounded-[18px] bg-wash bt-skeleton" />
       <div className="space-y-2">
         {Array.from({ length: rows }, (_, index) => (
           <div key={index} className="flex h-[52px] items-center gap-3 px-2">

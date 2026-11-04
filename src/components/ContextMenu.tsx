@@ -183,7 +183,7 @@ const MenuPanel = forwardRef<HTMLDivElement, PanelProps>(function MenuPanel(
         onPanelLeave?.();
       }}
       style={style}
-      className={`${submenu ? `${SUB_PANEL} menu-sub` : `${PANEL} menu-sheet`}${above ? " is-above" : ""}${flipped ? " is-flipped" : ""}`}
+      className={`${submenu ? `${SUB_PANEL} animate-fade-in` : `${PANEL} menu-sheet`}${above ? " is-above" : ""}${flipped ? " is-flipped" : ""}`}
     >
       <span ref={lightRef} aria-hidden="true" className="menu-light" />
       {subject && (

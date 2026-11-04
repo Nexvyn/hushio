@@ -12,7 +12,7 @@ const SKELETON_CARDS = 5;
 
 function ShelfSkeleton() {
   return (
-    <div aria-hidden="true" className="mt-10 motion-safe:animate-pulse">
+    <div aria-hidden="true" className="mt-10 bt-skeleton">
       <div className="mb-3 h-[22px] w-48 rounded bg-wash" />
       <div className="flex gap-3 overflow-hidden">
         {Array.from({ length: SKELETON_CARDS }, (_, index) => (

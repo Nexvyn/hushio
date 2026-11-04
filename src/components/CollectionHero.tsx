@@ -28,7 +28,7 @@ export function CollectionHero({ icon, kind, title, covers, facts, children }: C
         {rows.map((row) => (
           <div
             key={row.index}
-            className="cover-wall-row flex w-max"
+            className="cover-wall-row animate-fade-in flex w-max"
             style={{
               animationDuration: `${row.seconds}s`,
               animationDirection: row.index % 2 === 1 ? "reverse" : "normal",

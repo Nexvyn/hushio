@@ -17,7 +17,7 @@ type Load = { status: "loading" } | { status: "error" } | { status: "ready"; pag
 
 function HeroSkeleton() {
   return (
-    <div aria-hidden="true" className="flex flex-col gap-6 motion-safe:animate-pulse sm:flex-row">
+    <div aria-hidden="true" className="flex flex-col gap-6 bt-skeleton sm:flex-row">
       <div className="h-[176px] w-[176px] shrink-0 rounded-[16px] bg-wash" />
       <div className="flex-1 space-y-3 pt-2">
         <div className="h-3 w-24 rounded bg-wash" />
@@ -30,7 +30,7 @@ function HeroSkeleton() {
 
 function ListSkeleton({ rows }: { rows: number }) {
   return (
-    <div aria-hidden="true" className="flex flex-col gap-1 motion-safe:animate-pulse">
+    <div aria-hidden="true" className="flex flex-col gap-1 bt-skeleton">
       {Array.from({ length: rows }, (_, index) => (
         <div key={index} className="flex items-center gap-4 p-3">
           <span className="h-24 w-24 shrink-0 rounded-[8px] bg-wash" />

@@ -1,0 +1,152 @@
+@keyframes bt-shake {
+  0% { transform: translateX(0); }
+  8.33% { transform: translateX(6.42px); }
+  16.67% { transform: translateX(0); }
+  25% { transform: translateX(-5.25px); }
+  33.33% { transform: translateX(0); }
+  41.67% { transform: translateX(4.08px); }
+  50% { transform: translateX(0); }
+  58.33% { transform: translateX(-2.92px); }
+  66.67% { transform: translateX(0); }
+  75% { transform: translateX(1.75px); }
+  83.33% { transform: translateX(0); }
+  91.67% { transform: translateX(-0.58px); }
+  100% { transform: translateX(0); }
+}
+
+.bt-shake {
+  animation: bt-shake var(--dur-shake) var(--ease-out);
+}
+
+@keyframes bt-breath {
+  from { transform: scale(0.97); opacity: 0.65; }
+  to { transform: scale(1.03); opacity: 1; }
+}
+
+.bt-breath {
+  box-shadow: 0 0 26px 0 rgb(var(--ink-1) / 0.07);
+  animation: bt-breath var(--dur-breath) var(--ease-in-out) infinite alternate;
+}
+
+@keyframes bt-pulse {
+  0% { transform: scale(1); animation-timing-function: var(--ease-in-out); }
+  40% { transform: scale(1.35); animation-timing-function: var(--ease-out); }
+  100% { transform: scale(1); }
+}
+
+.bt-pulse {
+  animation: bt-pulse var(--dur-pulse) linear;
+}
+
+@keyframes bt-sheen {
+  from { transform: translateX(-133.333%); }
+  to { transform: translateX(133.333%); }
+}
+
+.bt-sheen {
+  position: absolute;
+  inset: 0;
+  width: 60%;
+  background: linear-gradient(90deg, transparent, var(--sheen) 50%, transparent);
+  animation: bt-sheen var(--dur-sheen) var(--ease-in-out) infinite;
+}
+
+:root { --sheen: #393939; }
+:root[data-theme="light"] { --sheen: #f9f9f9; }
+:root[data-theme="dark"] { --sheen: #393939; }
+
+@keyframes bt-spin {
+  to { transform: rotate(360deg); }
+}
+
+.bt-spin {
+  animation: bt-spin var(--dur-spin) linear infinite;
+}
+
+@keyframes bt-eq {
+  from { transform: scaleY(0.25); }
+  to { transform: scaleY(1); }
+}
+
+.bt-eq {
+  transform-origin: bottom;
+  animation: bt-eq var(--dur-eq) var(--ease-in-out) infinite alternate;
+}
+
+@keyframes bt-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes bt-pop-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes bt-rise-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bt-sink-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(12px); }
+}
+
+.animate-fade-in {
+  animation: bt-fade-in var(--dur-fade) var(--ease-out) both;
+}
+
+.animate-pop-in {
+  animation: bt-pop-in var(--dur-settle) var(--ease-settle) both;
+}
+
+.toast-enter {
+  animation: bt-rise-in var(--dur-settle) var(--ease-settle) both;
+}
+
+.toast-leave {
+  animation: bt-sink-out var(--dur-settle) var(--ease-settle) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+:root.reduce-motion *,
+:root.reduce-motion *::before,
+:root.reduce-motion *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
+:root.reduce-blur *,
+:root.reduce-blur *::before,
+:root.reduce-blur *::after {
+  backdrop-filter: none !important;
+}
+
+.animate-slide-up {
+  animation: bt-fade-in var(--dur-fade) var(--ease-out) both;
+}
+
+.bt-skeleton {
+  position: relative;
+  overflow: hidden;
+}
+
+.bt-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 60%;
+  background: linear-gradient(90deg, transparent, var(--sheen) 50%, transparent);
+  animation: bt-sheen var(--dur-sheen) var(--ease-in-out) infinite;
+}

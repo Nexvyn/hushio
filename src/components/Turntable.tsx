@@ -3,11 +3,7 @@ type TurntableProps = { cover: string | null; spinning: boolean };
 export function Turntable({ cover, spinning }: TurntableProps) {
   return (
     <div aria-hidden="true" className="pointer-events-none relative h-[200px] w-[200px] shrink-0">
-      <div
-        className={`absolute inset-0 rounded-full bg-[#15110f] shadow-lg motion-safe:animate-[spin_3.2s_linear_infinite] ${
-          spinning ? "motion-safe:[animation-play-state:running]" : "motion-safe:[animation-play-state:paused]"
-        }`}
-      >
+      <div className="absolute inset-0 rounded-full bg-[#15110f] shadow-lg">
         <span className="absolute inset-[18%] overflow-hidden rounded-full bg-white/10">
           {cover && (
             <img
@@ -22,7 +18,7 @@ export function Turntable({ cover, spinning }: TurntableProps) {
         </span>
       </div>
       <span
-        className={`absolute right-2 top-0 h-[120px] w-[3px] origin-top rounded-full bg-white/80 motion-safe:transition-transform motion-safe:duration-300 ${
+        className={`absolute right-2 top-0 h-[120px] w-[3px] origin-top rounded-full bg-white/80 motion-safe:transition-transform motion-safe:duration-swap ${
           spinning ? "rotate-[18deg]" : "rotate-[-6deg]"
         }`}
       />

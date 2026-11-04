@@ -79,7 +79,7 @@ describe("PodcastsView", () => {
     loadPodcasts.mockReturnValue(new Promise(() => {}));
     const { container } = render(<PodcastsView />);
     expect(screen.getByRole("heading", { level: 1, name: "Podcasts" })).toBeTruthy();
-    expect(container.querySelectorAll(".motion-safe\\:animate-pulse")).toHaveLength(2);
+    expect(container.querySelectorAll(".bt-skeleton")).toHaveLength(2);
   });
 
   it("says the podcasts could not load when there is nothing to show", async () => {

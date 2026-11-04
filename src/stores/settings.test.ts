@@ -167,16 +167,8 @@ describe("appearance", () => {
   it("updates the page as soon as a setting changes", () => {
     const unsubscribe = useSettings.subscribe(applyAppearance);
     try {
-      useSettings.getState().setReduceAnimation(true);
-      useSettings.getState().setReduceDynamicBlur(true);
-      expect(document.documentElement.classList.contains("reduce-motion")).toBe(true);
-      expect(document.documentElement.classList.contains("reduce-blur")).toBe(true);
-
       useSettings.getState().setTheme("light");
       expect(document.documentElement.dataset.theme).toBe("light");
-
-      useSettings.getState().setReduceAnimation(false);
-      expect(document.documentElement.classList.contains("reduce-motion")).toBe(false);
     } finally {
       unsubscribe();
     }
@@ -193,17 +185,5 @@ describe("appearance", () => {
     } finally {
       setDesktopAppearance(NO_DESKTOP_APPEARANCE);
     }
-  });
-
-  it("turns reduce motion on when either the app or the desktop asks for it", () => {
-    setDesktopAppearance({ colorScheme: "none", reduceMotion: true });
-    try {
-      applyAppearance({ theme: "dark", reduceAnimation: false, reduceDynamicBlur: false });
-      expect(document.documentElement.classList.contains("reduce-motion")).toBe(true);
-    } finally {
-      setDesktopAppearance(NO_DESKTOP_APPEARANCE);
-    }
-    applyAppearance({ theme: "dark", reduceAnimation: false, reduceDynamicBlur: false });
-    expect(document.documentElement.classList.contains("reduce-motion")).toBe(false);
   });
 });

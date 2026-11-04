@@ -60,10 +60,7 @@ function useIdleChrome(active: boolean): boolean {
 
 function vizBar(index: number): CSSProperties {
   const r1 = ((index * 137) % 101) / 101;
-  const r2 = ((index * 61) % 97) / 97;
   return {
-    "--dur": `${(2.2 + r1 * 1.6).toFixed(2)}s`,
-    "--delay": `${(-r2 * 3).toFixed(2)}s`,
     "--rest": (0.12 + r1 * 0.1).toFixed(2),
   } as CSSProperties;
 }
@@ -149,13 +146,13 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
   const chrome = idle
     ? "pointer-events-none opacity-0 focus-within:pointer-events-auto focus-within:opacity-100"
     : "opacity-100";
-  const chromeMotion = "motion-safe:transition-opacity duration-200";
+  const chromeMotion = "motion-safe:transition-opacity motion-safe:duration-fade";
 
   return (
     <section
       aria-label="Now Playing"
       data-idle={idle}
-      className={`fixed inset-0 z-[100] flex flex-col overflow-hidden bg-surface ${exiting ? "opacity-0 motion-safe:transition-opacity duration-200" : "animate-fade-in"} ${idle ? "cursor-none" : ""}`}
+      className={`fixed inset-0 z-[100] flex flex-col overflow-hidden bg-surface ${exiting ? "opacity-0 motion-safe:transition-opacity motion-safe:duration-fade" : "animate-fade-in"} ${idle ? "cursor-none" : ""}`}
     >
       <div
         aria-hidden="true"
@@ -165,7 +162,7 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
       <p
         role="status"
         aria-live="polite"
-        className={`pointer-events-none absolute left-1/2 top-2 z-30 -translate-x-1/2 motion-safe:transition-[opacity,transform] duration-300 ${hintVisible ? "translate-y-0 opacity-100" : "-translate-y-3 opacity-0"}`}
+        className={`pointer-events-none absolute left-1/2 top-2 z-30 -translate-x-1/2 motion-safe:transition-[opacity,transform] motion-safe:duration-swap ${hintVisible ? "translate-y-0 opacity-100" : "-translate-y-3 opacity-0"}`}
       >
         <span className="flex items-center gap-3 rounded-lg border border-separator bg-panel px-4 py-3 text-[14.5px] text-ink-1">
           To exit full screen, press
@@ -194,7 +191,7 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
               <>
                 <div className="relative aspect-square w-[min(42vh,460px)] max-w-full overflow-hidden rounded-[10px] bg-wash outline outline-1 -outline-offset-1 outline-white/10">
                   {cover ? (
-                    <img src={cover} alt="" className="h-full w-full object-cover" />
+                    <img key={cover} src={cover} alt="" className="animate-fade-in h-full w-full object-cover" />
                   ) : (
                     <div className="grid h-full w-full place-items-center text-ink-2">
                       <Icon icon={MusicNote01Icon} />
@@ -202,10 +199,10 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
                   )}
                   {showClip && clip && <CoverClip key={clip.url} url={clip.url} playing={playing} />}
                 </div>
-                <h2 className="mt-7 max-w-full truncate text-[26px] font-bold tracking-[-0.03em] text-ink-1 xl:text-[30px]">
+                <h2 key={track.id} className="animate-fade-in mt-7 max-w-full truncate text-[26px] font-bold tracking-[-0.03em] text-ink-1 xl:text-[30px]">
                   {track.title}
                 </h2>
-                <p className="mt-1.5 max-w-full truncate text-[14px] text-ink-2 xl:text-[15px]">{track.artist}</p>
+                <p key={track.id} className="animate-fade-in mt-1.5 max-w-full truncate text-[14px] text-ink-2 xl:text-[15px]">{track.artist}</p>
                 <div className={`mt-4 ${chrome} ${chromeMotion}`}>
                   <button
                     type="button"

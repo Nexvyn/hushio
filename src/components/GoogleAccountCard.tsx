@@ -55,7 +55,7 @@ export function GoogleAccountCard({ account, signingIn, onSignIn, onCancelSignIn
         {signingIn ? (
           <>
             <Button disabled className="gap-2">
-              <span className="grid place-items-center motion-safe:animate-spin">
+              <span className="grid place-items-center bt-spin">
                 <Icon icon={Loading03Icon} />
               </span>
               Waiting for Google…

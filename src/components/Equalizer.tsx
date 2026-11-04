@@ -36,7 +36,7 @@ const BAND_INPUT =
 
 export function EqBoard({ gains, enabled, onBandChange }: BoardProps) {
   return (
-    <div className={`motion-safe:transition-opacity motion-safe:duration-150 ${enabled ? "" : "opacity-[var(--disabled-opacity)]"}`}>
+    <div className={`motion-safe:transition-opacity motion-safe:duration-quick ${enabled ? "" : "opacity-[var(--disabled-opacity)]"}`}>
       <div className="relative" style={{ height: EQ_H }}>
         {EQ_RULES.map((rule) => (
           <span

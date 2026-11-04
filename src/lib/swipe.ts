@@ -1,9 +1,7 @@
+import { commitDistance, shouldCommit } from "./swipeFeel";
 export const SWIPE_LIFT_MS = 140;
 
 const SWIPE_GAP_MS = 300;
-const FIRST_PX = 150;
-const CHROME_SHARE = 0.3;
-const CHROME_MIN_PX = 180;
 const AXIS_PX = 8;
 const COAST_RUN = 5;
 
@@ -23,10 +21,6 @@ export type SwipeWheel = {
   ctrlKey: boolean;
   defaultPrevented: boolean;
 };
-
-export function swipeLine(width: number) {
-  return (FIRST_PX + Math.max(CHROME_MIN_PX, width * CHROME_SHARE)) / 2;
-}
 
 export function createSwipeNav(direction: () => number = () => 1) {
   let last = 0;
@@ -57,7 +51,6 @@ export function createSwipeNav(direction: () => number = () => 1) {
     event: SwipeWheel,
     scrolls: (dx: number) => boolean,
     can: (dir: SwipeDir) => boolean,
-    width: number,
   ): SwipeUpdate {
     if (event.ctrlKey || event.defaultPrevented) return null;
     if (event.timeStamp - last > SWIPE_GAP_MS) reset();
@@ -113,8 +106,8 @@ export function createSwipeNav(direction: () => number = () => 1) {
 
     dir = x < 0 ? "back" : "forward";
     const held = run >= 2 && !coasting ? runFrom : x;
-    const progress = can(dir) ? Math.abs(held) / swipeLine(width) : 0;
-    armed = progress >= 1;
+    const progress = can(dir) ? Math.abs(held) / commitDistance("sidebar") : 0;
+    armed = can(dir) && shouldCommit(held, "sidebar");
 
     if (coasting) {
       if (armed) {

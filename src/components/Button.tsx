@@ -16,7 +16,7 @@ export function Button({ variant = "secondary", className = "", ...props }: Butt
   return (
     <button
       type="button"
-      className={`inline-flex items-center justify-center rounded-[9px] px-3 py-1.5 text-[13px] font-medium disabled:opacity-[var(--disabled-opacity)] motion-safe:transition-colors motion-safe:duration-150 motion-safe:ease-out ${variants[variant]} ${className}`}
+      className={`inline-flex items-center justify-center rounded-[9px] px-3 py-1.5 text-[13px] font-medium disabled:opacity-[var(--disabled-opacity)] motion-safe:transition-[background-color,color,transform] motion-safe:duration-quick motion-safe:ease-out motion-safe:active:scale-[0.97] ${variants[variant]} ${className}`}
       {...props}
     />
   );

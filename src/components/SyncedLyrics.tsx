@@ -22,8 +22,7 @@ const ANCHOR = 0.5;
 const GLIDE_MS = 600;
 const LOADING_DELAY_MS = 300;
 const GLIDE_CANCEL_SCREENS = 1.5;
-const GAP_DOT_DELAYS = ["0s", "0.22s", "0.44s"];
-const DEPTH_TRANSITION = "opacity 500ms ease-out, filter 500ms ease-out, transform 500ms ease-out";
+const DEPTH_TRANSITION = "opacity var(--dur-quick) var(--ease-out)";
 const EDGE_MASK = "linear-gradient(to right, transparent 0%, black 24px, black calc(100% - 24px), transparent 100%)";
 const FADE_MASK = "linear-gradient(to bottom, transparent 0%, black 14%, black 86%, transparent 100%)";
 const GLOW = "drop-shadow(0 0 22px rgb(var(--ink-1) / 0.28))";
@@ -72,7 +71,7 @@ function scrollTargetFor(scroller: HTMLElement, line: HTMLElement): number {
   return Math.max(0, middle - scroller.clientHeight * ANCHOR);
 }
 
-function LoadingLine({ phrase, still }: { phrase: string; still: boolean }) {
+function LoadingLine({ phrase }: { phrase: string }) {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     const timer = window.setTimeout(() => setVisible(true), LOADING_DELAY_MS);
@@ -82,7 +81,7 @@ function LoadingLine({ phrase, still }: { phrase: string; still: boolean }) {
     <div className="flex justify-center py-12">
       {visible && (
         <p
-          className={`font-display text-[28px] font-extrabold tracking-[-0.02em] text-ink-1/55 ${still ? "" : "animate-pulse"}`}
+          className={`font-display text-[28px] font-extrabold tracking-[-0.02em] text-ink-1/55`}
         >
           {phrase}
         </p>
@@ -146,7 +145,7 @@ function WordLine({
   );
 }
 
-function GapDots({ active, opacity, still }: { active: boolean; opacity: number; still: boolean }) {
+function GapDots({ opacity }: { opacity: number }) {
   return (
     <div
       role="img"
@@ -155,12 +154,8 @@ function GapDots({ active, opacity, still }: { active: boolean; opacity: number;
       className="flex items-center gap-1.5 py-1"
       style={{ opacity: Math.max(0.15, opacity) }}
     >
-      {GAP_DOT_DELAYS.map((delay) => (
-        <span
-          key={delay}
-          className={`h-1.5 w-1.5 rounded-full bg-ink-1/80 ${active && !still ? "animate-pulse" : ""}`}
-          style={{ animationDelay: delay, boxShadow: "0 0 12px rgba(255,255,255,0.5)" }}
-        />
+      {[0, 1, 2].map((dot) => (
+        <span key={dot} className="h-1.5 w-1.5 rounded-full bg-ink-1/80" style={{ boxShadow: "0 0 12px rgba(255,255,255,0.5)" }} />
       ))}
     </div>
   );
@@ -239,7 +234,7 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey }: SyncedLy
     return () => cancelAnimationFrame(frame);
   }, [activeIndex, lines, still]);
 
-  if (loading) return <LoadingLine phrase={phrase} still={still} />;
+  if (loading) return <LoadingLine phrase={phrase} />;
 
   if (!staticText) return <EmptyText />;
 
@@ -268,7 +263,7 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey }: SyncedLy
     if (line.gap) {
       return (
         <div key={index} style={{ ...motionStyle, opacity: depth.opacity }}>
-          <GapDots active={index === activeIndex} opacity={depth.opacity} still={still} />
+          <GapDots opacity={depth.opacity} />
         </div>
       );
     }

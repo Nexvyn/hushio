@@ -25,7 +25,7 @@ export function PodcastCard({ title, subtitle, thumb, playable = false, onActiva
             src={thumb}
             alt=""
             loading="lazy"
-            className="block h-full w-full object-cover outline outline-1 -outline-offset-1 outline-black/10 motion-safe:transition-transform motion-safe:duration-300 [@media(hover:hover)]:group-hover:scale-105 [[data-theme=dark]_&]:outline-white/10"
+            className="block h-full w-full object-cover outline outline-1 -outline-offset-1 outline-black/10 [[data-theme=dark]_&]:outline-white/10"
           />
         ) : (
           <span aria-hidden="true" className="block h-full w-full bg-wash" />

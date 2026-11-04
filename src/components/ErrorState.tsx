@@ -10,7 +10,7 @@ export function ErrorState({ title, message, action }: ErrorStateProps) {
   return (
     <section
       role="alert"
-      className="rounded-[11px] border border-danger/35 bg-panel px-6 py-10 text-center"
+      className="animate-fade-in rounded-[11px] border border-danger/35 bg-panel px-6 py-10 text-center"
     >
       <h2 className="text-[17px] font-semibold text-danger-text">{title}</h2>
       <p className="mt-1 text-[12.5px] text-ink-2">{message}</p>

@@ -1,4 +1,5 @@
 @import "./styles/tokens.css";
+@import "./styles/motion.css";
 
 @tailwind base;
 @tailwind components;
@@ -27,6 +28,68 @@ body {
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+.overlay-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.12) transparent;
+}
+
+.overlay-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.overlay-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.overlay-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.12);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.overlay-scroll:hover::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 0.22);
+  background-clip: padding-box;
+}
+
+.edge-fades {
+  --fade-start: 0px;
+  --fade-end: 0px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent 100%);
+}
+
+.edge-fades[data-fade-x] {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent 100%);
+}
+
+.edge-fades[data-fade-start="true"] {
+  --fade-start: 24px;
+}
+
+.edge-fades[data-fade-end="true"] {
+  --fade-end: 24px;
+}
+
+.fit-text {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fit-text-2 {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 @media (width < 840px) {
@@ -58,142 +121,10 @@ body {
   box-shadow: var(--shadow-plate);
 }
 
-@keyframes pop-in {
-  from {
-    opacity: 0;
-    transform: scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-.animate-pop-in {
-  animation: pop-in 180ms var(--ease-out);
-}
-
-.animate-fade-in {
-  animation: fade-in 120ms var(--ease-out);
-}
-
-@keyframes slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-}
-
-.animate-slide-up {
-  animation: slide-up 240ms var(--ease-out) backwards;
-}
-
-:root.reduce-motion .animate-slide-up {
-  animation: none;
-}
-
-@keyframes cover-wall-drift {
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-.cover-wall-row {
-  animation: cover-wall-drift linear infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cover-wall-row {
-    animation: none;
-  }
-}
-
-:root.reduce-motion .cover-wall-row {
-  animation: none;
-}
-
 .toast-beacon {
   background: rgb(var(--elevated));
   border: 1px solid rgb(var(--separator));
   box-shadow: var(--shadow-toast);
-}
-
-.toast-sheen {
-  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.1), transparent);
-}
-
-@keyframes toast-drop {
-  from {
-    opacity: 0;
-    transform: translateY(-28px) scale(0.9);
-  }
-  74% {
-    opacity: 1;
-    transform: translateY(3px) scale(1.012);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes toast-lift {
-  to {
-    opacity: 0;
-    transform: translateY(-20px) scale(0.93);
-  }
-}
-
-@keyframes toast-ring {
-  to {
-    stroke-dashoffset: 105.24;
-  }
-}
-
-@keyframes toast-shake {
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-  20% {
-    transform: translateX(-5px);
-  }
-  40% {
-    transform: translateX(4px);
-  }
-  60% {
-    transform: translateX(-3px);
-  }
-  80% {
-    transform: translateX(2px);
-  }
-}
-
-.toast-drop {
-  animation: toast-drop 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards;
-}
-
-.toast-lift {
-  animation: toast-lift 0.34s cubic-bezier(0.55, 0, 0.85, 0.5) forwards;
-}
-
-.toast-shake {
-  animation: toast-shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) 0.3s backwards;
-}
-
-.toast-ring {
-  animation-name: toast-ring;
-  animation-timing-function: linear;
-  animation-fill-mode: forwards;
 }
 
 .swipe-arrow {
@@ -253,92 +184,12 @@ body {
 }
 
 .swipe-arrow.is-on .swipe-arrow__bubble {
-  animation: swipe-arrow-pop 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: bt-pop-in var(--dur-quick) var(--ease-out);
 }
 
 .swipe-arrow.is-armed .swipe-arrow__bubble {
   background: rgb(var(--ink-1));
   color: rgb(var(--base));
-}
-
-.swipe-arrow.is-armed .swipe-arrow__ring {
-  animation: swipe-arrow-ripple 320ms cubic-bezier(0, 0, 0.58, 1);
-}
-
-@keyframes swipe-arrow-pop {
-  from {
-    transform: scale(0.82);
-  }
-  to {
-    transform: scale(1);
-  }
-}
-
-@keyframes swipe-arrow-ripple {
-  from {
-    opacity: 0.8;
-    transform: scale(0.7);
-  }
-  to {
-    opacity: 0;
-    transform: scale(1.5);
-  }
-}
-
-:root.reduce-motion .animate-pop-in,
-:root.reduce-motion .animate-fade-in,
-:root.reduce-motion .toast-drop,
-:root.reduce-motion .toast-lift,
-:root.reduce-motion .toast-shake,
-:root.reduce-motion .toast-ring,
-:root.reduce-motion .swipe-arrow.is-on .swipe-arrow__bubble,
-:root.reduce-motion .swipe-arrow.is-armed .swipe-arrow__ring,
-:root.reduce-motion .settings-pane {
-  animation: none;
-}
-
-@keyframes settings-pane-rise {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-}
-
-.settings-pane {
-  animation: settings-pane-rise 220ms cubic-bezier(0, 0, 0.58, 1) backwards;
-}
-
-:root.reduce-motion .toast-drop,
-:root.reduce-motion .toast-lift {
-  opacity: 1;
-  transform: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .animate-pop-in,
-  .animate-fade-in,
-  .animate-slide-up,
-  .toast-drop,
-  .toast-lift,
-  .toast-shake,
-  .toast-ring,
-  .swipe-arrow.is-on .swipe-arrow__bubble,
-  .swipe-arrow.is-armed .swipe-arrow__ring,
-  .settings-pane {
-    animation: none;
-  }
-
-  .toast-drop,
-  .toast-lift {
-    opacity: 1;
-    transform: none;
-  }
-
-  .fs-viz-bar,
-  .fs-viz.is-playing .fs-viz-bar {
-    animation: none;
-    transition: none;
-  }
 }
 
 .fs-viz-bar {
@@ -347,28 +198,8 @@ body {
   border-radius: 999px;
   background: rgb(var(--ink-1) / 0.2);
   transform: scaleY(var(--rest));
-  transition:
-    transform 900ms cubic-bezier(0.2, 0.8, 0.3, 1),
-    background-color 900ms ease;
 }
 
 .fs-viz.is-playing .fs-viz-bar {
   background-color: rgb(var(--ink-1) / 0.32);
-  animation: fs-viz-dance var(--dur) ease-in-out var(--delay) infinite;
-}
-
-@keyframes fs-viz-dance {
-  0%,
-  100% {
-    transform: scaleY(0.12);
-  }
-  50% {
-    transform: scaleY(1);
-  }
-}
-
-:root.reduce-motion .fs-viz-bar,
-:root.reduce-motion .fs-viz.is-playing .fs-viz-bar {
-  animation: none;
-  transition: none;
 }

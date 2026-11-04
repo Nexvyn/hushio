@@ -36,7 +36,7 @@ export function StreakChip() {
       title="Open Replay"
       aria-label={`Listening streak: ${label}`}
       onClick={() => navigate({ name: "replay" })}
-      className="flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-wash px-3 text-[12.5px] font-medium tabular-nums text-ink-1 motion-safe:transition-colors motion-safe:duration-150 hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-base"
+      className="flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-wash px-3 text-[12.5px] font-medium tabular-nums text-ink-1 motion-safe:transition-colors motion-safe:duration-quick hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-base"
     >
       <span className={current > 0 ? "text-accent" : "text-ink-3"}>
         <Icon icon={FireIcon} />

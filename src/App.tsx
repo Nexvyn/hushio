@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect } from "react";
+import { EdgeFades } from "./components/EdgeFades";
 import { ContextMenu } from "./components/ContextMenu";
 import { Dialog } from "./components/Dialog";
 import { EraseDialog } from "./components/EraseDialog";
@@ -148,10 +149,10 @@ export default function App() {
         <Sidebar />
 
         <main className="relative min-w-0 flex-1 overflow-hidden rounded-2xl border border-card-edge/[0.08] bg-surface shadow-[var(--shadow-card)]">
-          <div id="view-scroll" className="no-scrollbar h-full overflow-y-auto">
+          <EdgeFades id="view-scroll" className="h-full">
             <div
               key={`${viewReloadNonce}:${view.name}:${view.name === "settings" ? "" : (view.param ?? "")}`}
-              className="px-10 pb-6 pt-5"
+              className="animate-fade-in px-10 pb-6 pt-5"
             >
               <ErrorBoundary
                 scope="view"
@@ -160,7 +161,7 @@ export default function App() {
                 <CurrentView view={view} />
               </ErrorBoundary>
             </div>
-          </div>
+          </EdgeFades>
           {lyricsCenter && <LyricsCenter />}
           <SwipeArrow />
         </main>

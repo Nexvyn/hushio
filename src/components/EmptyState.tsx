@@ -14,9 +14,9 @@ type EmptyStateProps = {
 
 export function EmptyState({ title, message, icon, action, secondaryAction }: EmptyStateProps) {
   return (
-    <section className="rounded-[11px] border border-separator bg-panel px-6 py-10 text-center">
+    <section className="animate-fade-in rounded-[11px] border border-separator bg-panel px-6 py-10 text-center">
       {icon && (
-        <span aria-hidden="true" className="mb-3 inline-flex text-ink-2">
+        <span aria-hidden="true" className="bt-breath mb-3 inline-flex rounded-full p-2 text-ink-2">
           <Icon icon={icon} />
         </span>
       )}

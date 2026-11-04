@@ -2,8 +2,10 @@ export const START_PX = 5;
 export const TOUCH_HOLD_MS = 400;
 export const TOUCH_SLOP_PX = 10;
 export const EDGE_PX = 48;
-export const SETTLE_MS = 180;
-export const SETTLE_EASE = "cubic-bezier(0.2, 0.8, 0.2, 1)";
+import { DURATION_MS } from "./motion";
+
+export const SETTLE_MS = DURATION_MS.settle;
+export const SETTLE_EASE = "var(--ease-settle)";
 export const LIFT_SHADOW = "0 10px 28px rgba(0, 0, 0, 0.5)";
 
 export type Box = { top: number; height: number };

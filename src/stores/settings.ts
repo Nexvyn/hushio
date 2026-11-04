@@ -102,9 +102,6 @@ export function applyAppearance(
 ) {
   const desktop = desktopAppearance();
   applyTheme(settings.theme, desktop.colorScheme);
-  const root = document.documentElement;
-  root.classList.toggle("reduce-motion", settings.reduceAnimation || desktop.reduceMotion);
-  root.classList.toggle("reduce-blur", settings.reduceDynamicBlur);
 }
 
 function isThemeMode(value: unknown): value is ThemeMode {

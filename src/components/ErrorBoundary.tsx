@@ -43,7 +43,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           scope === "root" ? "h-screen w-screen" : "h-full w-full"
         } grid place-items-center bg-base text-ink-1`}
       >
-        <div className="animate-pop-in max-w-md px-6 text-center">
+        <div className="animate-fade-in max-w-md px-6 text-center">
           <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-2xl border border-separator bg-panel text-warn">
             <Icon icon={Alert02Icon} />
           </div>

@@ -118,7 +118,7 @@ describe("PlayerBar with a queue", () => {
     usePlayer.setState({ buffering: true });
     const { container } = render(<PlayerBar />);
 
-    expect(container.querySelector('[class*="animate-spin"]')).not.toBeNull();
+    expect(container.querySelector('.bt-spin')).not.toBeNull();
   });
 
   it("moves to the next song from the next button", async () => {
