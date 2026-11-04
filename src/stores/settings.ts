@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import { persistStorage } from "../lib/persist";
 import { type MatchLanguage } from "../lib/importLanguage";
 import { type EqPreset, flatGains, normalizeEqGains, normalizeEqPresets } from "../lib/eq";
+import { desktopAppearance } from "../lib/desktopAppearance";
 import { applyTheme, type ThemeMode } from "../lib/theme";
 
 export const DEVICE_SETTINGS_KEYS = [
@@ -99,9 +100,10 @@ export function syncableSettings(settings: SettingsValues): Partial<SettingsValu
 export function applyAppearance(
   settings: Pick<SettingsValues, "theme" | "reduceAnimation" | "reduceDynamicBlur">,
 ) {
-  applyTheme(settings.theme);
+  const desktop = desktopAppearance();
+  applyTheme(settings.theme, desktop.colorScheme);
   const root = document.documentElement;
-  root.classList.toggle("reduce-motion", settings.reduceAnimation);
+  root.classList.toggle("reduce-motion", settings.reduceAnimation || desktop.reduceMotion);
   root.classList.toggle("reduce-blur", settings.reduceDynamicBlur);
 }
 

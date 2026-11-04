@@ -35,6 +35,7 @@ type Shown = {
 
 export function trackPayload(track: Track, duration: number): MediaTrackPayload {
   return {
+    id: track.id,
     title: track.title,
     artist: track.artist,
     album: APP_NAME,

@@ -53,7 +53,12 @@ windows = { version = "0.58", features = ["Win32_UI_Shell", "Win32_Foundation", 
 keyring = { version = "3", features = ["apple-native"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
+ashpd = { version = "0.11", default-features = false, features = ["tokio"] }
+futures-util = "0.3"
+gtk = "0.18"
 keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }
+mpris-server = "0.9"
+zbus = "5"
 
 [profile.release]
 codegen-units = 1

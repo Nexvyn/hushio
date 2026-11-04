@@ -5,6 +5,7 @@ import { Icon } from "./Icon";
 import { SearchSuggestions, optionId, useTypeAhead } from "./SearchSuggestions";
 import { StreakChip } from "./StreakChip";
 import { platform } from "../lib/bridge";
+import { hasCaptionButtons } from "../lib/desktopPlatform";
 import { openSuggestion, submitSearch } from "../lib/searchActions";
 import type { SuggestionRow } from "../lib/searchParse";
 import { useNavigation } from "../stores/navigation";
@@ -160,7 +161,7 @@ export function TopBar() {
 
       <StreakChip />
 
-      {platform === "windows" || platform === "linux" ? <CaptionButtons /> : null}
+      {hasCaptionButtons(platform) ? <CaptionButtons /> : null}
     </header>
   );
 }

@@ -6,6 +6,8 @@ mod downloads;
 mod drive_sync;
 mod google_auth;
 mod launch;
+mod linux_portal;
+mod linux_session;
 mod local_library;
 mod lyrics;
 mod media_controls;
@@ -532,6 +534,8 @@ pub fn run() {
             app.manage(tray::Tray::default());
             app.manage(window::Glass::default());
             app.manage(pip::Pip::default());
+            linux_session::setup(app.handle());
+            linux_portal::start(app.handle());
             tray::setup(app.handle());
             taskbar::setup(app.handle());
             let controls = media_controls::Controls::default();
@@ -588,6 +592,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             os_scroll_direction,
+            linux_portal::linux_appearance_read,
+            linux_session::linux_session_rules,
             persist_read,
             persist_write,
             stream_proxy_port,

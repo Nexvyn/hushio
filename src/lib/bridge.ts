@@ -6,6 +6,7 @@ import { Image } from "@tauri-apps/api/image";
 import { writeImage } from "@tauri-apps/plugin-clipboard-manager";
 import type { PipCommand, PipSnapshot } from "../pip/types";
 import type { JournalEntry, ReplayData } from "./replay";
+import type { DesktopScheme } from "./theme";
 
 export type Platform = "windows" | "macos" | "linux" | "android";
 
@@ -528,6 +529,7 @@ export function listenMenuCommands(onCommand: (command: string) => void): Promis
 }
 
 export type MediaTrackPayload = {
+  id: string;
   title: string;
   artist: string;
   album: string;
@@ -559,6 +561,16 @@ export function listenMediaButton(onAction: (action: MediaButton) => void): Prom
 
 export function listenMediaSeek(onSeek: (seconds: number) => void): Promise<UnlistenFn> {
   return listen<number>("media:seek", (event) => onSeek(event.payload));
+}
+
+export type DesktopAppearance = { colorScheme: DesktopScheme; reduceMotion: boolean };
+
+export function readDesktopAppearance(): Promise<DesktopAppearance> {
+  return call<DesktopAppearance>("linux_appearance_read");
+}
+
+export function listenDesktopAppearance(onChange: (appearance: DesktopAppearance) => void): Promise<UnlistenFn> {
+  return listen<DesktopAppearance>("linux:appearance", (event) => onChange(event.payload));
 }
 
 export type LaunchAction = { type: "file"; path: string } | { type: "playlist"; id: string };

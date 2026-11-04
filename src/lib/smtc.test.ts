@@ -93,6 +93,7 @@ describe("trackPayload", () => {
   it("names the app as album and upgrades https covers to 1200", () => {
     const payload = trackPayload(track(0, "https://i.ytimg.com/vi/abc/hqdefault.jpg"), 215);
     expect(payload).toEqual({
+      id: "t0",
       title: "Track 0",
       artist: "Artist 0",
       album: "Hushio",

@@ -90,6 +90,10 @@ pub fn setup(app: &AppHandle) {
     if !cfg!(any(target_os = "windows", target_os = "linux")) {
         return;
     }
+    if !watcher_available() {
+        tracing::warn!("tray unavailable: no StatusNotifierWatcher");
+        return;
+    }
     match create(app) {
         Ok(icon) => {
             let _ = app.state::<Tray>().icon.set(icon);
@@ -100,6 +104,33 @@ pub fn setup(app: &AppHandle) {
 
 pub fn send_command(app: &AppHandle, command: &str) {
     let _ = app.emit(MENU_COMMAND, command);
+}
+
+pub fn quit(app: &AppHandle) {
+    app.state::<Tray>().quitting.store(true, Ordering::SeqCst);
+    app.exit(0);
+}
+
+fn watcher_available() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        watcher_on_session_bus()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        true
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn watcher_on_session_bus() -> bool {
+    let Ok(name) = zbus::names::BusName::try_from("org.kde.StatusNotifierWatcher") else {
+        return false;
+    };
+    zbus::blocking::Connection::session()
+        .and_then(|connection| zbus::blocking::fdo::DBusProxy::new(&connection))
+        .and_then(|proxy| proxy.name_has_owner(name))
+        .unwrap_or(false)
 }
 
 fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {
@@ -153,10 +184,7 @@ fn on_menu(app: &AppHandle, id: &str) {
     };
     match item {
         Item::Open => window::show_main(app),
-        Item::Quit => {
-            app.state::<Tray>().quitting.store(true, Ordering::SeqCst);
-            app.exit(0);
-        }
+        Item::Quit => quit(app),
         other => {
             if let Some(command) = other.command() {
                 send_command(app, command);

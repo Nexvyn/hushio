@@ -8,6 +8,8 @@ import { pause, setBlendHooks } from "./lib/audio";
 import { startOutputWatch } from "./lib/outputDevices";
 import { startMediaSession } from "./lib/mediaSession";
 import { startSmtc } from "./lib/smtc";
+import { startDesktopAppearance } from "./lib/desktopAppearance";
+import { usesNativeMediaControls } from "./lib/desktopPlatform";
 import { PipApp } from "./pip/PipApp";
 import { startPipSync } from "./pip/pipSync";
 import { useLocalLibrary } from "./stores/localLibrary";
@@ -32,8 +34,13 @@ function mountPip() {
 
 function mountMain() {
   setBlendHooks({ upNext: nextBlendTarget, onComplete: finishBlend });
-  if (platform === "windows") startSmtc();
+  if (usesNativeMediaControls(platform)) startSmtc();
   else startMediaSession();
+  if (platform === "linux") {
+    startDesktopAppearance(() => applyAppearance(useSettings.getState())).catch((error) =>
+      console.warn(`[hushio] desktop appearance unavailable: ${String(error)}`),
+    );
+  }
   if (platform === "windows") {
     startOutputWatch({
       isPlaying: () => usePlayer.getState().playing,

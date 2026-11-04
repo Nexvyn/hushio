@@ -39,7 +39,12 @@
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
+      "icons/16x16.png",
+      "icons/24x24.png",
+      "icons/48x48.png",
+      "icons/64x64.png",
       "icons/128x128@2x.png",
+      "icons/512x512.png",
       "icons/icon.icns",
       "icons/icon.ico"
     ],
@@ -51,7 +56,67 @@
         "role": "Viewer",
         "rank": "Alternate"
       }
-    ]
+    ],
+    "linux": {
+      "deb": {
+        "depends": [
+          "libwebkit2gtk-4.1-0",
+          "libayatana-appindicator3-1",
+          "librsvg2-2",
+          "gstreamer1.0-plugins-base",
+          "gstreamer1.0-plugins-good",
+          "gstreamer1.0-plugins-bad",
+          "gstreamer1.0-libav",
+          "libsecret-1-0",
+          "xdg-utils",
+          "xdg-desktop-portal"
+        ],
+        "section": "sound",
+        "priority": "optional",
+        "desktopTemplate": "linux/hushio.desktop",
+        "files": {
+          "/usr/share/icons/hicolor/16x16/apps/hushio.png": "icons/16x16.png",
+          "/usr/share/icons/hicolor/24x24/apps/hushio.png": "icons/24x24.png",
+          "/usr/share/icons/hicolor/32x32/apps/hushio.png": "icons/32x32.png",
+          "/usr/share/icons/hicolor/48x48/apps/hushio.png": "icons/48x48.png",
+          "/usr/share/icons/hicolor/64x64/apps/hushio.png": "icons/64x64.png",
+          "/usr/share/icons/hicolor/128x128/apps/hushio.png": "icons/128x128.png",
+          "/usr/share/icons/hicolor/256x256/apps/hushio.png": "icons/128x128@2x.png",
+          "/usr/share/icons/hicolor/512x512/apps/hushio.png": "icons/512x512.png",
+          "/usr/share/icons/hicolor/scalable/apps/hushio.svg": "icons/scalable/hushio.svg"
+        }
+      },
+      "rpm": {
+        "release": "1",
+        "depends": [
+          "webkit2gtk4.1",
+          "libayatana-appindicator-gtk3",
+          "librsvg2",
+          "gstreamer1-plugins-base",
+          "gstreamer1-plugins-good",
+          "gstreamer1-plugins-bad-free",
+          "gstreamer1-libav",
+          "libsecret",
+          "xdg-utils",
+          "xdg-desktop-portal"
+        ],
+        "desktopTemplate": "linux/hushio.desktop",
+        "files": {
+          "/usr/share/icons/hicolor/16x16/apps/hushio.png": "icons/16x16.png",
+          "/usr/share/icons/hicolor/24x24/apps/hushio.png": "icons/24x24.png",
+          "/usr/share/icons/hicolor/32x32/apps/hushio.png": "icons/32x32.png",
+          "/usr/share/icons/hicolor/48x48/apps/hushio.png": "icons/48x48.png",
+          "/usr/share/icons/hicolor/64x64/apps/hushio.png": "icons/64x64.png",
+          "/usr/share/icons/hicolor/128x128/apps/hushio.png": "icons/128x128.png",
+          "/usr/share/icons/hicolor/256x256/apps/hushio.png": "icons/128x128@2x.png",
+          "/usr/share/icons/hicolor/512x512/apps/hushio.png": "icons/512x512.png",
+          "/usr/share/icons/hicolor/scalable/apps/hushio.svg": "icons/scalable/hushio.svg"
+        }
+      },
+      "appimage": {
+        "bundleMediaFramework": true
+      }
+    }
   },
   "plugins": {
     "deep-link": {

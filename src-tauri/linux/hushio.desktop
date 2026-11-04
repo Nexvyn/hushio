@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=Hushio
+GenericName=Music Player
+Comment=Free, ad-free music player
+Exec=hushio-desktop %U
+TryExec=hushio-desktop
+Icon=hushio
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+Keywords=music;player;stream;playlist;
+StartupNotify=true
+StartupWMClass=hushio
+MimeType=audio/mpeg;audio/mp4;audio/aac;audio/flac;audio/x-flac;audio/ogg;audio/opus;audio/wav;audio/x-wav;audio/webm;x-scheme-handler/hushio;

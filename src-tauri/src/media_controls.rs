@@ -1,17 +1,33 @@
-#![cfg_attr(not(target_os = "windows"), allow(dead_code))]
+#![allow(dead_code)]
 
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 use tauri::State;
 
 use crate::local_library;
+use crate::linux_portal::xdg_dir;
 
 pub const BUTTON_EVENT: &str = "media:button";
 pub const SEEK_EVENT: &str = "media:seek";
 const TEXT_LIMIT: usize = 500;
 const THUMB_LIMIT: usize = 4096;
 const ART_PREFIX: &str = "localart://";
+const TRACK_PATH_PREFIX: &str = "/com/hushio/track/";
+const NO_TRACK_PATH: &str = "/org/mpris/MediaPlayer2/TrackList/NoTrack";
+pub const AUDIO_MIME_TYPES: &[&str] = &[
+    "audio/mpeg",
+    "audio/mp4",
+    "audio/aac",
+    "audio/flac",
+    "audio/x-flac",
+    "audio/ogg",
+    "audio/opus",
+    "audio/wav",
+    "audio/x-wav",
+    "audio/webm",
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Button {
@@ -35,6 +51,8 @@ impl Button {
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct MediaTrack {
+    #[serde(default)]
+    pub id: String,
     pub title: String,
     pub artist: String,
     pub album: String,
@@ -89,6 +107,86 @@ pub fn clamp_position(position: f64, duration: f64) -> Option<f64> {
         return None;
     }
     Some(position.clamp(0.0, duration))
+}
+
+pub fn track_path(id: &str) -> String {
+    if id.is_empty() {
+        return NO_TRACK_PATH.to_owned();
+    }
+    let safe: String = id
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' })
+        .collect();
+    format!("{TRACK_PATH_PREFIX}{safe}")
+}
+
+pub fn micros(seconds: f64) -> Option<i64> {
+    (seconds.is_finite() && seconds > 0.0).then(|| (seconds * 1_000_000.0).round() as i64)
+}
+
+pub fn seek_target(position: f64, offset_micros: i64, duration: f64) -> Option<f64> {
+    clamp_position(position + offset_micros as f64 / 1_000_000.0, duration)
+}
+
+pub fn set_position_target(
+    current_path: &str,
+    requested_path: &str,
+    position_micros: i64,
+    duration: f64,
+) -> Option<f64> {
+    if current_path != requested_path {
+        return None;
+    }
+    clamp_position(position_micros as f64 / 1_000_000.0, duration)
+}
+
+pub fn play_pause_button(playing: bool) -> Button {
+    if playing { Button::Pause } else { Button::Play }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MprisFields {
+    pub track_id: String,
+    pub title: String,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    pub length_micros: Option<i64>,
+    pub art_url: Option<String>,
+}
+
+pub fn mpris_fields(track: &MediaTrack, art_url: Option<String>) -> MprisFields {
+    let album = clip(&track.album);
+    let artist = clip(&track.artist);
+    MprisFields {
+        track_id: track_path(&track.id),
+        title: clip(&track.title),
+        artist: (!artist.is_empty()).then_some(artist),
+        album: (!album.is_empty()).then_some(album),
+        length_micros: micros(track.duration),
+        art_url,
+    }
+}
+
+pub fn file_uri(path: &str) -> String {
+    let mut uri = String::from("file://");
+    for byte in path.bytes() {
+        if byte.is_ascii_alphanumeric() || b"/._-~".contains(&byte) {
+            uri.push(byte as char);
+        } else {
+            uri.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    uri
+}
+
+pub fn cover_file_name(source: &str) -> String {
+    let digest = Sha256::digest(source.as_bytes());
+    let hex: String = digest.iter().map(|byte| format!("{byte:02x}")).collect();
+    format!("{hex}.jpg")
+}
+
+pub fn art_cache_dir(xdg_cache: Option<&str>, home: Option<&str>) -> Option<PathBuf> {
+    Some(xdg_dir(xdg_cache, home, ".cache")?.join(crate::APP_SLUG).join("art"))
 }
 
 #[cfg(target_os = "windows")]
@@ -267,14 +365,461 @@ mod platform {
     }
 }
 
+#[cfg(target_os = "linux")]
+mod mpris {
+    use std::path::{Path, PathBuf};
+    use std::sync::{Arc, Mutex, MutexGuard};
+    use std::time::Duration;
+
+    use mpris_server::zbus::{self, fdo, zvariant::ObjectPath};
+    use mpris_server::{
+        LoopStatus, Metadata, Property, PlaybackStatus, PlayerInterface, RootInterface, Server, Signal, Time, TrackId,
+    };
+    use tauri::{AppHandle, Emitter};
+    use tokio::sync::mpsc;
+
+    use super::{
+        art_cache_dir, cover_file_name, cover_url, file_uri, mpris_fields, play_pause_button, seek_target,
+        set_position_target, track_path, Button, MediaTrack, BUTTON_EVENT, SEEK_EVENT,
+    };
+    use crate::{tray, window, APP_NAME, APP_SLUG};
+
+    const MAX_COVER_BYTES: usize = 10 * 1024 * 1024;
+    const COVER_TIMEOUT: Duration = Duration::from_secs(10);
+
+    #[derive(Default)]
+    struct Now {
+        track: Option<MediaTrack>,
+        track_id: String,
+        art: Option<String>,
+        playing: bool,
+        position: f64,
+        duration: f64,
+    }
+
+    type Shared = Arc<Mutex<Now>>;
+
+    enum Update {
+        Track { track: MediaTrack, art_dir: PathBuf },
+        Playing,
+        Clear,
+        Seeked(Time),
+    }
+
+    fn lock(now: &Shared) -> MutexGuard<'_, Now> {
+        now.lock().unwrap_or_else(|error| error.into_inner())
+    }
+
+    fn track_id(path: &str) -> TrackId {
+        ObjectPath::try_from(path.to_owned())
+            .map(TrackId::from)
+            .unwrap_or(TrackId::NO_TRACK)
+    }
+
+    fn loaded(now: &Now) -> bool {
+        now.track.is_some()
+    }
+
+    fn status(now: &Now) -> PlaybackStatus {
+        if !loaded(now) {
+            PlaybackStatus::Stopped
+        } else if now.playing {
+            PlaybackStatus::Playing
+        } else {
+            PlaybackStatus::Paused
+        }
+    }
+
+    fn metadata(now: &Now) -> Metadata {
+        let Some(track) = &now.track else {
+            return Metadata::new();
+        };
+        let fields = mpris_fields(track, now.art.clone());
+        let mut builder = Metadata::builder()
+            .trackid(track_id(&fields.track_id))
+            .title(fields.title);
+        if let Some(artist) = fields.artist {
+            builder = builder.artist([artist]);
+        }
+        if let Some(album) = fields.album {
+            builder = builder.album(album);
+        }
+        if let Some(length) = fields.length_micros {
+            builder = builder.length(Time::from_micros(length));
+        }
+        if let Some(url) = fields.art_url {
+            builder = builder.art_url(url);
+        }
+        builder.build()
+    }
+
+    fn status_properties(now: &Now) -> Vec<Property> {
+        vec![Property::PlaybackStatus(status(now))]
+    }
+
+    fn full_properties(now: &Now) -> Vec<Property> {
+        let loaded = loaded(now);
+        vec![
+            Property::PlaybackStatus(status(now)),
+            Property::Metadata(metadata(now)),
+            Property::CanGoNext(loaded),
+            Property::CanGoPrevious(loaded),
+            Property::CanPlay(loaded),
+            Property::CanPause(loaded),
+            Property::CanSeek(now.duration > 0.0),
+        ]
+    }
+
+    async fn fetch_cover(url: &str) -> Option<Vec<u8>> {
+        let client = reqwest::Client::builder().timeout(COVER_TIMEOUT).build().ok()?;
+        let response = client.get(url).send().await.ok()?.error_for_status().ok()?;
+        let is_image = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.starts_with("image/"));
+        if !is_image {
+            return None;
+        }
+        let bytes = response.bytes().await.ok()?;
+        (bytes.len() <= MAX_COVER_BYTES).then(|| bytes.to_vec())
+    }
+
+    async fn cover_for(track: &MediaTrack, art_dir: &Path) -> Option<String> {
+        let source = cover_url(track.thumb.as_deref(), art_dir)?;
+        let cache = art_cache_dir(
+            std::env::var("XDG_CACHE_HOME").ok().as_deref(),
+            std::env::var("HOME").ok().as_deref(),
+        )?;
+        let target = cache.join(cover_file_name(&source));
+        if !target.exists() {
+            std::fs::create_dir_all(&cache).ok()?;
+            match source.strip_prefix("file://") {
+                Some(local) => {
+                    std::fs::copy(local, &target).ok()?;
+                }
+                None => {
+                    let bytes = fetch_cover(&source).await?;
+                    std::fs::write(&target, bytes).ok()?;
+                }
+            }
+        }
+        Some(file_uri(&target.to_string_lossy()))
+    }
+
+    pub struct Player {
+        app: AppHandle,
+        now: Shared,
+        tx: mpsc::UnboundedSender<Update>,
+    }
+
+    impl Player {
+        fn press(&self, button: Button) {
+            if loaded(&lock(&self.now)) {
+                let _ = self.app.emit(BUTTON_EVENT, button.action());
+            }
+        }
+
+        fn seek_to(&self, target: f64) {
+            let _ = self.app.emit(SEEK_EVENT, target);
+            let _ = self.tx.send(Update::Seeked(Time::from_micros((target * 1_000_000.0).round() as i64)));
+        }
+    }
+
+    impl RootInterface for Player {
+        async fn raise(&self) -> fdo::Result<()> {
+            window::show_main(&self.app);
+            Ok(())
+        }
+
+        async fn quit(&self) -> fdo::Result<()> {
+            tray::quit(&self.app);
+            Ok(())
+        }
+
+        async fn can_quit(&self) -> fdo::Result<bool> {
+            Ok(true)
+        }
+
+        async fn fullscreen(&self) -> fdo::Result<bool> {
+            Ok(false)
+        }
+
+        async fn set_fullscreen(&self, _fullscreen: bool) -> zbus::Result<()> {
+            Ok(())
+        }
+
+        async fn can_set_fullscreen(&self) -> fdo::Result<bool> {
+            Ok(false)
+        }
+
+        async fn can_raise(&self) -> fdo::Result<bool> {
+            Ok(true)
+        }
+
+        async fn has_track_list(&self) -> fdo::Result<bool> {
+            Ok(false)
+        }
+
+        async fn identity(&self) -> fdo::Result<String> {
+            Ok(APP_NAME.to_owned())
+        }
+
+        async fn desktop_entry(&self) -> fdo::Result<String> {
+            Ok(APP_SLUG.to_owned())
+        }
+
+        async fn supported_uri_schemes(&self) -> fdo::Result<Vec<String>> {
+            Ok(Vec::new())
+        }
+
+        async fn supported_mime_types(&self) -> fdo::Result<Vec<String>> {
+            Ok(super::AUDIO_MIME_TYPES.iter().map(|mime| (*mime).to_owned()).collect())
+        }
+    }
+
+    impl PlayerInterface for Player {
+        async fn next(&self) -> fdo::Result<()> {
+            self.press(Button::Next);
+            Ok(())
+        }
+
+        async fn previous(&self) -> fdo::Result<()> {
+            self.press(Button::Previous);
+            Ok(())
+        }
+
+        async fn pause(&self) -> fdo::Result<()> {
+            self.press(Button::Pause);
+            Ok(())
+        }
+
+        async fn play_pause(&self) -> fdo::Result<()> {
+            let playing = lock(&self.now).playing;
+            self.press(play_pause_button(playing));
+            Ok(())
+        }
+
+        async fn stop(&self) -> fdo::Result<()> {
+            self.press(Button::Pause);
+            Ok(())
+        }
+
+        async fn play(&self) -> fdo::Result<()> {
+            self.press(Button::Play);
+            Ok(())
+        }
+
+        async fn seek(&self, offset: Time) -> fdo::Result<()> {
+            let (position, duration) = {
+                let now = lock(&self.now);
+                (now.position, now.duration)
+            };
+            if let Some(target) = seek_target(position, offset.as_micros(), duration) {
+                self.seek_to(target);
+            }
+            Ok(())
+        }
+
+        async fn set_position(&self, requested: TrackId, position: Time) -> fdo::Result<()> {
+            let target = {
+                let now = lock(&self.now);
+                set_position_target(&now.track_id, requested.as_str(), position.as_micros(), now.duration)
+            };
+            if let Some(target) = target {
+                self.seek_to(target);
+            }
+            Ok(())
+        }
+
+        async fn open_uri(&self, _uri: String) -> fdo::Result<()> {
+            Err(fdo::Error::NotSupported("OpenUri is not supported".to_owned()))
+        }
+
+        async fn playback_status(&self) -> fdo::Result<PlaybackStatus> {
+            Ok(status(&lock(&self.now)))
+        }
+
+        async fn loop_status(&self) -> fdo::Result<LoopStatus> {
+            Ok(LoopStatus::None)
+        }
+
+        async fn set_loop_status(&self, _loop_status: LoopStatus) -> zbus::Result<()> {
+            Ok(())
+        }
+
+        async fn rate(&self) -> fdo::Result<f64> {
+            Ok(1.0)
+        }
+
+        async fn set_rate(&self, _rate: f64) -> zbus::Result<()> {
+            Ok(())
+        }
+
+        async fn shuffle(&self) -> fdo::Result<bool> {
+            Ok(false)
+        }
+
+        async fn set_shuffle(&self, _shuffle: bool) -> zbus::Result<()> {
+            Ok(())
+        }
+
+        async fn metadata(&self) -> fdo::Result<Metadata> {
+            Ok(metadata(&lock(&self.now)))
+        }
+
+        async fn volume(&self) -> fdo::Result<f64> {
+            Ok(1.0)
+        }
+
+        async fn set_volume(&self, _volume: f64) -> zbus::Result<()> {
+            Ok(())
+        }
+
+        async fn position(&self) -> fdo::Result<Time> {
+            Ok(Time::from_micros((lock(&self.now).position * 1_000_000.0).round() as i64))
+        }
+
+        async fn minimum_rate(&self) -> fdo::Result<f64> {
+            Ok(0.5)
+        }
+
+        async fn maximum_rate(&self) -> fdo::Result<f64> {
+            Ok(2.0)
+        }
+
+        async fn can_go_next(&self) -> fdo::Result<bool> {
+            Ok(loaded(&lock(&self.now)))
+        }
+
+        async fn can_go_previous(&self) -> fdo::Result<bool> {
+            Ok(loaded(&lock(&self.now)))
+        }
+
+        async fn can_play(&self) -> fdo::Result<bool> {
+            Ok(loaded(&lock(&self.now)))
+        }
+
+        async fn can_pause(&self) -> fdo::Result<bool> {
+            Ok(loaded(&lock(&self.now)))
+        }
+
+        async fn can_seek(&self) -> fdo::Result<bool> {
+            Ok(lock(&self.now).duration > 0.0)
+        }
+
+        async fn can_control(&self) -> fdo::Result<bool> {
+            Ok(true)
+        }
+    }
+
+    async fn run(server: Server<Player>, mut rx: mpsc::UnboundedReceiver<Update>, now: Shared) {
+        while let Some(update) = rx.recv().await {
+            let outcome = match update {
+                Update::Track { track, art_dir } => {
+                    let id = track_path(&track.id);
+                    let art = cover_for(&track, &art_dir).await;
+                    let properties = {
+                        let mut state = lock(&now);
+                        if state.track_id == id {
+                            state.art = art;
+                        }
+                        full_properties(&state)
+                    };
+                    server.properties_changed(properties).await
+                }
+                Update::Playing => {
+                    let properties = status_properties(&lock(&now));
+                    server.properties_changed(properties).await
+                }
+                Update::Clear => {
+                    let properties = full_properties(&lock(&now));
+                    server.properties_changed(properties).await
+                }
+                Update::Seeked(position) => server.emit(Signal::Seeked { position }).await,
+            };
+            if let Err(error) = outcome {
+                tracing::warn!(%error, "media controls update failed");
+            }
+        }
+    }
+
+    #[derive(Default)]
+    pub struct Controls {
+        now: Shared,
+        tx: Mutex<Option<mpsc::UnboundedSender<Update>>>,
+    }
+
+    impl Controls {
+        pub fn install(&self, app: &AppHandle) {
+            let (tx, rx) = mpsc::unbounded_channel();
+            *self.tx.lock().unwrap_or_else(|error| error.into_inner()) = Some(tx.clone());
+            let player = Player {
+                app: app.clone(),
+                now: self.now.clone(),
+                tx,
+            };
+            let now = self.now.clone();
+            tauri::async_runtime::spawn(async move {
+                match Server::new(APP_SLUG, player).await {
+                    Ok(server) => run(server, rx, now).await,
+                    Err(error) => tracing::warn!(%error, "media controls unavailable: no session bus"),
+                }
+            });
+        }
+
+        fn send(&self, update: Update) {
+            if let Some(tx) = self.tx.lock().unwrap_or_else(|error| error.into_inner()).as_ref() {
+                let _ = tx.send(update);
+            }
+        }
+
+        pub fn set_track(&self, track: &MediaTrack, art_dir: &Path) {
+            {
+                let mut now = lock(&self.now);
+                now.track = Some(track.clone());
+                now.track_id = track_path(&track.id);
+                now.art = None;
+                now.position = 0.0;
+                now.duration = if track.duration.is_finite() && track.duration > 0.0 { track.duration } else { 0.0 };
+            }
+            self.send(Update::Track {
+                track: track.clone(),
+                art_dir: art_dir.to_path_buf(),
+            });
+        }
+
+        pub fn set_playing(&self, playing: bool) {
+            lock(&self.now).playing = playing;
+            self.send(Update::Playing);
+        }
+
+        pub fn set_position(&self, position: f64, duration: f64) {
+            if let Some(at) = super::clamp_position(position, duration) {
+                let mut now = lock(&self.now);
+                now.position = at;
+                now.duration = duration;
+            }
+        }
+
+        pub fn clear(&self) {
+            *lock(&self.now) = Now::default();
+            self.send(Update::Clear);
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub use mpris::Controls;
+
 #[cfg(target_os = "windows")]
 pub use platform::Controls;
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 #[derive(Default)]
 pub struct Controls;
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 impl Controls {
     pub fn install(&self, _app: &tauri::AppHandle) {}
 
@@ -324,6 +869,7 @@ mod tests {
 
     fn track(thumb: Option<&str>, duration: f64) -> MediaTrack {
         MediaTrack {
+            id: "dQw4w9WgXcQ".into(),
             title: "Song".into(),
             artist: "Artist".into(),
             album: "Hushio".into(),
@@ -404,5 +950,104 @@ mod tests {
         assert_eq!(Button::Pause.action(), "pause");
         assert_eq!(Button::Next.action(), "next");
         assert_eq!(Button::Previous.action(), "previous");
+    }
+
+    #[test]
+    fn track_paths_keep_word_characters_and_mark_no_track() {
+        assert_eq!(track_path("dQw4w9WgXcQ"), "/com/hushio/track/dQw4w9WgXcQ");
+        assert_eq!(track_path("a-b.c/d"), "/com/hushio/track/a_b_c_d");
+        assert_eq!(track_path(""), "/org/mpris/MediaPlayer2/TrackList/NoTrack");
+    }
+
+    #[test]
+    fn mpris_metadata_has_the_spec_keys() {
+        let song = track(Some("https://i.ytimg.com/vi/abc/hq.jpg"), 215.5);
+        let fields = mpris_fields(&song, Some("file:///cache/a.jpg".into()));
+        assert_eq!(fields.track_id, "/com/hushio/track/dQw4w9WgXcQ");
+        assert_eq!(fields.title, "Song");
+        assert_eq!(fields.artist.as_deref(), Some("Artist"));
+        assert_eq!(fields.album.as_deref(), Some("Hushio"));
+        assert_eq!(fields.length_micros, Some(215_500_000));
+        assert_eq!(fields.art_url.as_deref(), Some("file:///cache/a.jpg"));
+    }
+
+    #[test]
+    fn mpris_metadata_omits_empty_album_length_and_cover() {
+        let mut song = track(None, 0.0);
+        song.album = String::new();
+        let fields = mpris_fields(&song, None);
+        assert_eq!(fields.album, None);
+        assert_eq!(fields.length_micros, None);
+        assert_eq!(fields.art_url, None);
+    }
+
+    #[test]
+    fn mpris_metadata_omits_the_artist_when_it_is_empty() {
+        let mut song = track(None, 10.0);
+        song.artist = String::new();
+        assert_eq!(mpris_fields(&song, None).artist, None);
+    }
+
+    #[test]
+    fn mpris_text_is_clipped_like_the_other_platforms() {
+        let mut song = track(None, 10.0);
+        song.title = "t".repeat(700);
+        assert_eq!(mpris_fields(&song, None).title.chars().count(), 500);
+    }
+
+    #[test]
+    fn micro_lengths_need_a_finite_positive_value() {
+        assert_eq!(micros(1.5), Some(1_500_000));
+        assert_eq!(micros(0.0), None);
+        assert_eq!(micros(f64::NAN), None);
+    }
+
+    #[test]
+    fn relative_seeks_clamp_to_the_track() {
+        assert_eq!(seek_target(10.0, 5_000_000, 100.0), Some(15.0));
+        assert_eq!(seek_target(2.0, -5_000_000, 100.0), Some(0.0));
+        assert_eq!(seek_target(98.0, 5_000_000, 100.0), Some(100.0));
+        assert_eq!(seek_target(10.0, 5_000_000, 0.0), None);
+    }
+
+    #[test]
+    fn absolute_seeks_only_apply_to_the_current_track() {
+        let current = track_path("abc");
+        assert_eq!(set_position_target(&current, &current, 3_000_000, 10.0), Some(3.0));
+        assert_eq!(set_position_target(&current, &track_path("other"), 3_000_000, 10.0), None);
+    }
+
+    #[test]
+    fn play_pause_sends_the_absolute_command_for_the_current_state() {
+        assert_eq!(play_pause_button(true), Button::Pause);
+        assert_eq!(play_pause_button(false), Button::Play);
+    }
+
+    #[test]
+    fn file_uris_percent_encode_unsafe_bytes() {
+        assert_eq!(file_uri("/home/u/My Art/a.jpg"), "file:///home/u/My%20Art/a.jpg");
+        assert_eq!(file_uri("/x/é.jpg"), "file:///x/%C3%A9.jpg");
+    }
+
+    #[test]
+    fn cover_cache_names_are_sha256_jpg() {
+        let name = cover_file_name("https://i.ytimg.com/vi/abc/hq.jpg");
+        assert_eq!(name.len(), 64 + ".jpg".len());
+        assert!(name.ends_with(".jpg"));
+        assert_eq!(name, cover_file_name("https://i.ytimg.com/vi/abc/hq.jpg"));
+        assert_ne!(name, cover_file_name("https://i.ytimg.com/vi/abd/hq.jpg"));
+    }
+
+    #[test]
+    fn art_cache_follows_xdg_then_home() {
+        assert_eq!(
+            art_cache_dir(Some("/xdg"), Some("/home/u")),
+            Some(PathBuf::from("/xdg").join("hushio").join("art"))
+        );
+        assert_eq!(
+            art_cache_dir(None, Some("/home/u")),
+            Some(PathBuf::from("/home/u/.cache").join("hushio").join("art"))
+        );
+        assert_eq!(art_cache_dir(Some(""), None), None);
     }
 }

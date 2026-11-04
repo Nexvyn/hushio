@@ -27,6 +27,7 @@ vi.mock("../lib/persist", () => ({
   }),
 }));
 
+import { NO_DESKTOP_APPEARANCE, setDesktopAppearance } from "../lib/desktopAppearance";
 import {
   applyAppearance,
   clampLyricsOffset,
@@ -179,5 +180,30 @@ describe("appearance", () => {
     } finally {
       unsubscribe();
     }
+  });
+
+  it("follows the desktop color scheme only while the theme is System", () => {
+    setDesktopAppearance({ colorScheme: "dark", reduceMotion: false });
+    try {
+      applyAppearance({ theme: "system", reduceAnimation: false, reduceDynamicBlur: false });
+      expect(document.documentElement.dataset.theme).toBe("dark");
+
+      applyAppearance({ theme: "light", reduceAnimation: false, reduceDynamicBlur: false });
+      expect(document.documentElement.dataset.theme).toBe("light");
+    } finally {
+      setDesktopAppearance(NO_DESKTOP_APPEARANCE);
+    }
+  });
+
+  it("turns reduce motion on when either the app or the desktop asks for it", () => {
+    setDesktopAppearance({ colorScheme: "none", reduceMotion: true });
+    try {
+      applyAppearance({ theme: "dark", reduceAnimation: false, reduceDynamicBlur: false });
+      expect(document.documentElement.classList.contains("reduce-motion")).toBe(true);
+    } finally {
+      setDesktopAppearance(NO_DESKTOP_APPEARANCE);
+    }
+    applyAppearance({ theme: "dark", reduceAnimation: false, reduceDynamicBlur: false });
+    expect(document.documentElement.classList.contains("reduce-motion")).toBe(false);
   });
 });
