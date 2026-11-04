@@ -4,6 +4,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Image } from "@tauri-apps/api/image";
 import { writeImage } from "@tauri-apps/plugin-clipboard-manager";
+import type { PipCommand, PipSnapshot } from "../pip/types";
 import type { JournalEntry, ReplayData } from "./replay";
 
 export type Platform = "windows" | "macos" | "linux" | "android";
@@ -568,4 +569,64 @@ export function launchTake(): Promise<LaunchAction[]> {
 
 export function listenLaunchPending(onPending: () => void): Promise<UnlistenFn> {
   return listen("launch:pending", () => onPending());
+}
+
+export function pipToggle(): Promise<boolean> {
+  return call<boolean>("pip_toggle");
+}
+
+export function pipIsOpen(): Promise<boolean> {
+  return call<boolean>("pip_is_open");
+}
+
+export function pipClose(): Promise<void> {
+  return call<void>("pip_close");
+}
+
+export function pipMinimize(): Promise<void> {
+  return call<void>("pip_minimize");
+}
+
+export function pipSetCompact(on: boolean): Promise<void> {
+  return call<void>("pip_set_compact", { on });
+}
+
+export function pipShowMain(): Promise<void> {
+  return call<void>("pip_show_main");
+}
+
+export function pipReady(): Promise<void> {
+  return call<void>("pip_ready");
+}
+
+export function pipSendState(payload: PipSnapshot): Promise<void> {
+  return call<void>("pip_send_state", { payload });
+}
+
+export function pipSendCommand(payload: PipCommand): Promise<void> {
+  return call<void>("pip_send_command", { payload });
+}
+
+export function pipSessionErased(): Promise<void> {
+  return call<void>("pip_session_erased");
+}
+
+export function listenPipState(onState: (snapshot: PipSnapshot) => void): Promise<UnlistenFn> {
+  return listen<PipSnapshot>("pip:state", (event) => onState(event.payload));
+}
+
+export function listenPipCommand(onCommand: (command: unknown) => void): Promise<UnlistenFn> {
+  return listen<unknown>("pip:command", (event) => onCommand(event.payload));
+}
+
+export function listenPipOpenChanged(onChange: (open: boolean) => void): Promise<UnlistenFn> {
+  return listen<boolean>("pip:open-changed", (event) => onChange(event.payload));
+}
+
+export function listenPipNeedState(onNeed: () => void): Promise<UnlistenFn> {
+  return listen("pip:need-state", () => onNeed());
+}
+
+export function listenSessionErased(onErased: () => void): Promise<UnlistenFn> {
+  return listen("session:erased", () => onErased());
 }

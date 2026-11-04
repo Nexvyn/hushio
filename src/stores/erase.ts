@@ -7,6 +7,7 @@ import {
   eraseRevoke,
   eraseStopSync,
   eraseYoutubePlaylists,
+  pipSessionErased,
 } from "../lib/bridge";
 import type { EraseSteps } from "../lib/disconnect";
 import { useLibrary } from "./library";
@@ -39,7 +40,9 @@ export function bridgeSteps(): EraseSteps {
     deleteDriveFiles: eraseDriveFiles,
     revokeTokens: eraseRevoke,
     removeKeyring: eraseKeyring,
-    wipeLocal: (deleteDownloads) =>
-      eraseLocalData(deleteDownloads, deleteDownloads ? downloadPaths() : []),
+    wipeLocal: async (deleteDownloads) => {
+      await eraseLocalData(deleteDownloads, deleteDownloads ? downloadPaths() : []);
+      await pipSessionErased().catch(() => {});
+    },
   };
 }

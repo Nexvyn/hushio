@@ -5,7 +5,7 @@ use tauri::{AppHandle, LogicalSize, Manager, Runtime, State, Window, WebviewWind
 use tauri::plugin::TauriPlugin;
 use tauri_plugin_window_state::{StateFlags, WindowExt};
 
-use crate::{persist, tray, DataPaths};
+use crate::{persist, pip, tray, DataPaths};
 
 pub const MAIN: &str = "main";
 const OWNER: &str = "guest";
@@ -39,6 +39,7 @@ pub fn state_plugin<R: Runtime>() -> TauriPlugin<R> {
         .with_state_flags(STATE_FLAGS)
         .with_filename(STATE_FILE)
         .skip_initial_state(MAIN)
+        .with_denylist(&[pip::LABEL])
         .build()
 }
 

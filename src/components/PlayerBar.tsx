@@ -19,6 +19,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { Icon } from "./Icon";
 import { LikeButton } from "./LikeButton";
+import { PipButton } from "../pip/PipButton";
 import { upgradeArtwork } from "../lib/artwork";
 import { sleepMenuItems, sleepStatus } from "../lib/sleepActions";
 import { formatSleepLeft } from "../lib/sleepTimer";
@@ -295,6 +296,7 @@ export function PlayerBar() {
 
         <div className="flex items-center justify-end gap-2">
           <SleepTimer />
+          <PipButton />
           <TransportButton
             label="Lyrics"
             icon={Mic01Icon}

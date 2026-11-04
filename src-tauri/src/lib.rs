@@ -10,6 +10,7 @@ mod local_library;
 mod lyrics;
 mod media_controls;
 mod persist;
+mod pip;
 mod reveal;
 mod stats;
 mod stream;
@@ -497,7 +498,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_clipboard_manager::init())
-        .on_window_event(window::on_window_event)
+        .on_window_event(|window, event| {
+            window::on_window_event(window, event);
+            pip::on_window_event(window, event);
+        })
         .on_page_load(|webview, payload| {
             if payload.event() == tauri::webview::PageLoadEvent::Started {
                 window::on_navigation_started(webview.app_handle());
@@ -527,6 +531,7 @@ pub fn run() {
             app.manage(DataPaths { root });
             app.manage(tray::Tray::default());
             app.manage(window::Glass::default());
+            app.manage(pip::Pip::default());
             tray::setup(app.handle());
             taskbar::setup(app.handle());
             let controls = media_controls::Controls::default();
@@ -639,7 +644,17 @@ pub fn run() {
             media_controls::media_clear,
             window::window_intro_done,
             window::window_set_reduce_transparency,
-            launch::launch_take
+            launch::launch_take,
+            pip::pip_toggle,
+            pip::pip_is_open,
+            pip::pip_close,
+            pip::pip_minimize,
+            pip::pip_set_compact,
+            pip::pip_show_main,
+            pip::pip_ready,
+            pip::pip_send_state,
+            pip::pip_send_command,
+            pip::pip_session_erased
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
