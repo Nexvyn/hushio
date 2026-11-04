@@ -7,6 +7,7 @@ import { platform, showMainWindow } from "./lib/bridge";
 import { pause, setBlendHooks } from "./lib/audio";
 import { startOutputWatch } from "./lib/outputDevices";
 import { startMediaSession } from "./lib/mediaSession";
+import { startSmtc } from "./lib/smtc";
 import { useLocalLibrary } from "./stores/localLibrary";
 import { applyAppearance, useSettings } from "./stores/settings";
 import { finishBlend, nextBlendTarget, usePlayer } from "./stores/player";
@@ -14,7 +15,8 @@ import { finishBlend, nextBlendTarget, usePlayer } from "./stores/player";
 applyAppearance(useSettings.getState());
 useSettings.subscribe(applyAppearance);
 setBlendHooks({ upNext: nextBlendTarget, onComplete: finishBlend });
-startMediaSession();
+if (platform === "windows") startSmtc();
+else startMediaSession();
 if (platform === "windows") {
   startOutputWatch({
     isPlaying: () => usePlayer.getState().playing,

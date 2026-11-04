@@ -8,6 +8,7 @@ mod google_auth;
 mod launch;
 mod local_library;
 mod lyrics;
+mod media_controls;
 mod persist;
 mod reveal;
 mod stats;
@@ -479,6 +480,7 @@ pub fn run() {
         .event_format(LogPrefix)
         .with_max_level(tracing::Level::INFO)
         .init();
+    media_controls::set_app_id();
 
     let mut builder = tauri::Builder::<tauri::Wry>::default();
     if std::env::var(ALLOW_MULTI_ENV).ok().as_deref() != Some("1") {
@@ -527,6 +529,9 @@ pub fn run() {
             app.manage(window::Glass::default());
             tray::setup(app.handle());
             taskbar::setup(app.handle());
+            let controls = media_controls::Controls::default();
+            controls.install(app.handle());
+            app.manage(controls);
             app.manage(launch::Pending::default());
             launch::register_scheme(app.handle());
             let argv: Vec<String> = std::env::args().collect();
@@ -628,6 +633,10 @@ pub fn run() {
             disconnect::erase_keyring,
             disconnect::erase_local_data,
             tray::tray_set_playing,
+            media_controls::media_set_track,
+            media_controls::media_set_playing,
+            media_controls::media_set_position,
+            media_controls::media_clear,
             window::window_intro_done,
             window::window_set_reduce_transparency,
             launch::launch_take

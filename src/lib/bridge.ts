@@ -526,6 +526,40 @@ export function listenMenuCommands(onCommand: (command: string) => void): Promis
   return listen<string>("menu:command", (event) => onCommand(event.payload));
 }
 
+export type MediaTrackPayload = {
+  title: string;
+  artist: string;
+  album: string;
+  thumb: string | null;
+  duration: number;
+};
+
+export type MediaButton = "play" | "pause" | "next" | "previous";
+
+export function setMediaTrack(track: MediaTrackPayload): Promise<void> {
+  return call<void>("media_set_track", { track });
+}
+
+export function setMediaPlaying(playing: boolean): Promise<void> {
+  return call<void>("media_set_playing", { playing });
+}
+
+export function setMediaPosition(position: number, duration: number): Promise<void> {
+  return call<void>("media_set_position", { position, duration });
+}
+
+export function clearMedia(): Promise<void> {
+  return call<void>("media_clear");
+}
+
+export function listenMediaButton(onAction: (action: MediaButton) => void): Promise<UnlistenFn> {
+  return listen<MediaButton>("media:button", (event) => onAction(event.payload));
+}
+
+export function listenMediaSeek(onSeek: (seconds: number) => void): Promise<UnlistenFn> {
+  return listen<number>("media:seek", (event) => onSeek(event.payload));
+}
+
 export type LaunchAction = { type: "file"; path: string } | { type: "playlist"; id: string };
 
 export function launchTake(): Promise<LaunchAction[]> {
