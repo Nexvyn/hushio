@@ -907,6 +907,33 @@ mod tests {
     }
 
     #[test]
+    fn cover_at_the_length_limit_is_kept() {
+        let url = format!("https://example.com/{}", "x".repeat(THUMB_LIMIT - "https://example.com/".len()));
+        assert_eq!(url.len(), THUMB_LIMIT);
+        assert_eq!(cover_url(Some(&url), &art_dir()), Some(url.clone()));
+    }
+
+    #[test]
+    fn surrounding_spaces_around_a_cover_are_ignored() {
+        assert_eq!(
+            cover_url(Some("  https://i.ytimg.com/vi/abc/hq.jpg \n"), &art_dir()),
+            Some("https://i.ytimg.com/vi/abc/hq.jpg".to_owned())
+        );
+    }
+
+    #[test]
+    fn asset_and_ftp_covers_are_dropped() {
+        let dir = art_dir();
+        assert_eq!(cover_url(Some("asset://localhost/a.jpg"), &dir), None);
+        assert_eq!(cover_url(Some("ftp://example.com/a.jpg"), &dir), None);
+    }
+
+    #[test]
+    fn local_art_from_another_host_is_dropped() {
+        assert_eq!(cover_url(Some(&format!("localart://otherhost/{ART}")), &art_dir()), None);
+    }
+
+    #[test]
     fn local_art_maps_to_a_file_url_in_the_art_folder() {
         let dir = art_dir();
         let expected = format!("file://{}", dir.join(ART).display());
@@ -960,6 +987,16 @@ mod tests {
     }
 
     #[test]
+    fn track_paths_replace_every_non_word_character() {
+        assert_eq!(track_path("é1"), "/com/hushio/track/_1");
+    }
+
+    #[test]
+    fn track_ids_differing_only_by_dash_or_underscore_share_a_path() {
+        assert_eq!(track_path("a-b"), track_path("a_b"));
+    }
+
+    #[test]
     fn mpris_metadata_has_the_spec_keys() {
         let song = track(Some("https://i.ytimg.com/vi/abc/hq.jpg"), 215.5);
         let fields = mpris_fields(&song, Some("file:///cache/a.jpg".into()));
@@ -996,10 +1033,42 @@ mod tests {
     }
 
     #[test]
+    fn mpris_artist_and_album_are_clipped_like_the_title() {
+        let mut song = track(None, 10.0);
+        song.artist = "a".repeat(700);
+        song.album = "é".repeat(700);
+        let fields = mpris_fields(&song, None);
+        assert_eq!(fields.artist.unwrap().chars().count(), 500);
+        assert_eq!(fields.album.as_deref().map(|text| text.chars().count()), Some(500));
+    }
+
+    #[test]
+    fn mpris_clipping_never_splits_a_character() {
+        let mut song = track(None, 10.0);
+        song.title = format!("{}🎵🎵", "a".repeat(499));
+        let title = mpris_fields(&song, None).title;
+        assert_eq!(title.chars().count(), 500);
+        assert!(title.ends_with('🎵'));
+    }
+
+    #[test]
+    fn mpris_empty_title_stays_empty_text() {
+        let mut song = track(None, 10.0);
+        song.title = String::new();
+        assert_eq!(mpris_fields(&song, None).title, "");
+    }
+
+    #[test]
     fn micro_lengths_need_a_finite_positive_value() {
         assert_eq!(micros(1.5), Some(1_500_000));
         assert_eq!(micros(0.0), None);
         assert_eq!(micros(f64::NAN), None);
+    }
+
+    #[test]
+    fn micro_lengths_reject_infinity_and_negative_values() {
+        assert_eq!(micros(f64::INFINITY), None);
+        assert_eq!(micros(-1.0), None);
     }
 
     #[test]
@@ -1018,6 +1087,14 @@ mod tests {
     }
 
     #[test]
+    fn absolute_seeks_clamp_to_the_track() {
+        let current = track_path("abc");
+        assert_eq!(set_position_target(&current, &current, -2_000_000, 10.0), Some(0.0));
+        assert_eq!(set_position_target(&current, &current, 30_000_000, 10.0), Some(10.0));
+        assert_eq!(set_position_target(&current, &current, 3_000_000, 0.0), None);
+    }
+
+    #[test]
     fn play_pause_sends_the_absolute_command_for_the_current_state() {
         assert_eq!(play_pause_button(true), Button::Pause);
         assert_eq!(play_pause_button(false), Button::Play);
@@ -1027,6 +1104,19 @@ mod tests {
     fn file_uris_percent_encode_unsafe_bytes() {
         assert_eq!(file_uri("/home/u/My Art/a.jpg"), "file:///home/u/My%20Art/a.jpg");
         assert_eq!(file_uri("/x/é.jpg"), "file:///x/%C3%A9.jpg");
+    }
+
+    #[test]
+    fn file_uris_escape_percent_hash_and_question_mark() {
+        assert_eq!(file_uri("/x/100%#?.jpg"), "file:///x/100%25%23%3F.jpg");
+    }
+
+    #[test]
+    fn cover_cache_names_are_the_sha256_of_the_source() {
+        assert_eq!(
+            cover_file_name(""),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.jpg"
+        );
     }
 
     #[test]
@@ -1049,5 +1139,32 @@ mod tests {
             Some(PathBuf::from("/home/u/.cache").join("hushio").join("art"))
         );
         assert_eq!(art_cache_dir(Some(""), None), None);
+    }
+
+    #[test]
+    fn track_paths_turn_every_non_word_character_into_an_underscore() {
+        assert_eq!(track_path("\u{e9} \u{fc}"), "/com/hushio/track/___");
+        assert_eq!(track_path("a b"), "/com/hushio/track/a_b");
+    }
+
+    #[test]
+    fn a_track_with_no_title_still_yields_the_spec_keys() {
+        let mut song = track(None, 10.0);
+        song.title = String::new();
+        let fields = mpris_fields(&song, None);
+        assert_eq!(fields.title, "");
+        assert_eq!(fields.artist.as_deref(), Some("Artist"));
+    }
+
+    #[test]
+    fn mpris_length_is_omitted_for_nan_and_infinite_durations() {
+        assert_eq!(mpris_fields(&track(None, f64::NAN), None).length_micros, None);
+        assert_eq!(mpris_fields(&track(None, f64::INFINITY), None).length_micros, None);
+    }
+
+    #[test]
+    fn the_art_cache_is_unset_without_any_home_or_xdg_dir() {
+        assert_eq!(art_cache_dir(None, None), None);
+        assert_eq!(art_cache_dir(Some(""), Some("")), None);
     }
 }

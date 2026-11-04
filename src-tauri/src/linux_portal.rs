@@ -108,6 +108,18 @@ mod platform {
         }
     }
 
+    #[cfg(test)]
+    mod tests {
+        use super::{scheme_number, ColorScheme};
+
+        #[test]
+        fn every_portal_color_scheme_maps_to_its_number() {
+            assert_eq!(scheme_number(ColorScheme::NoPreference), 0);
+            assert_eq!(scheme_number(ColorScheme::PreferDark), 1);
+            assert_eq!(scheme_number(ColorScheme::PreferLight), 2);
+        }
+    }
+
     pub fn start(app: &AppHandle) {
         let app = app.clone();
         tauri::async_runtime::spawn(async move {
@@ -184,6 +196,20 @@ mod tests {
         let other = "[General]\nAnimationDurationFactor=0\n[KDE]\nSingleClick=false\n";
         assert!(!kdeglobals_reduces(other));
         assert!(!kdeglobals_reduces(""));
+    }
+
+    #[test]
+    fn kde_factor_accepts_zero_forms_and_ignores_garbage() {
+        assert!(kdeglobals_reduces("[KDE]\nAnimationDurationFactor=0.0\n"));
+        assert!(kdeglobals_reduces("[KDE]\nAnimationDurationFactor= 0 \n"));
+        assert!(!kdeglobals_reduces("[KDE]\nAnimationDurationFactor=abc\n"));
+        assert!(!kdeglobals_reduces("[KDE]\nAnimationDurationFactor=\n"));
+    }
+
+    #[test]
+    fn kde_first_factor_wins_over_a_duplicate_key() {
+        let text = "[KDE]\nAnimationDurationFactor=1\n[KDE]\nAnimationDurationFactor=0\n";
+        assert!(!kdeglobals_reduces(text));
     }
 
     #[test]

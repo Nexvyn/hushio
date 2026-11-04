@@ -115,4 +115,30 @@ mod tests {
         assert!(!rules(Session::Wayland, "plasmaKDE").always_on_top);
         assert!(rules(Session::Wayland, "GNOME:KDE").always_on_top);
     }
+
+    #[test]
+    fn kde_desktop_match_ignores_case() {
+        assert!(rules(Session::Wayland, "kde").always_on_top);
+        assert!(!rules(Session::Wayland, "").always_on_top);
+    }
+
+    #[test]
+    fn x11_rules_hold_without_a_desktop_name() {
+        let bare = rules(Session::X11, "");
+        assert!(bare.store_position);
+        assert!(bare.always_on_top);
+    }
+
+    #[test]
+    fn wayland_and_unknown_session_labels() {
+        assert_eq!(rules(Session::Wayland, "").session, "wayland");
+        assert_eq!(rules(Session::Unknown, "").session, "unknown");
+    }
+
+    #[test]
+    fn display_type_names_must_match_exactly() {
+        assert_eq!(session_from_display(""), Session::Unknown);
+        assert_eq!(session_from_display("gdkx11display"), Session::Unknown);
+        assert_eq!(session_from_display("GdkX11Display "), Session::Unknown);
+    }
 }
