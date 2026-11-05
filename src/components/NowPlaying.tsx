@@ -243,7 +243,7 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
                     type="button"
                     aria-pressed={mode === item.id}
                     onClick={() => setMode(item.id)}
-                    className={`h-8 rounded-full px-4 text-[13px] font-semibold motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${mode === item.id ? "bg-elevated text-ink-1" : "text-ink-2 hover:text-ink-1"}`}
+                    className={`hit-area h-8 rounded-full px-4 text-[13px] font-semibold motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${mode === item.id ? "bg-elevated text-ink-1" : "text-ink-2 hover:text-ink-1"}`}
                   >
                     {item.label}
                   </button>

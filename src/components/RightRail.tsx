@@ -1,7 +1,9 @@
 import { Cancel01Icon, MusicNote01Icon, ThumbsDownIcon } from "@hugeicons/core-free-icons";
 import { type MenuSource, openMenuAtPointer, openMenuFromKey } from "./ContextMenu";
+import { useRef } from "react";
 import { Icon } from "./Icon";
 import { upgradeArtwork } from "../lib/artwork";
+import { useRovingKeys } from "../lib/useRovingKeys";
 import { historyMenuItems, songOf, trackMenuItems } from "../lib/trackActions";
 import { useLibrary } from "../stores/library";
 import { currentTrack, usePlayer } from "../stores/player";
@@ -42,7 +44,7 @@ function SongDetails() {
 }
 
 const ICON_BUTTON =
-  "grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink-2 motion-safe:transition-colors hover:text-ink-1";
+  "hit-area grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink-2 motion-safe:transition-colors hover:text-ink-1";
 
 type TrackRowProps = {
   track: Track;
@@ -189,6 +191,8 @@ export function QueuePanel() {
 }
 
 export function RightRail() {
+  const tabs = useRef<HTMLDivElement>(null);
+  useRovingKeys(tabs, "[role=tab]", "horizontal");
   const panel = useUI((state) => state.rightPanel);
   const setRightPanel = useUI((state) => state.setRightPanel);
 
@@ -197,7 +201,7 @@ export function RightRail() {
       aria-label="Now playing panel"
       className="shell-rail flex w-[328px] shrink-0 flex-col overflow-hidden"
     >
-      <div role="tablist" aria-label="Now playing tabs" className="flex gap-1 px-3 pt-3">
+      <div ref={tabs} role="tablist" aria-label="Now playing tabs" className="flex gap-1 px-3 pt-3">
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -206,6 +210,7 @@ export function RightRail() {
             id={`rail-tab-${tab.id}`}
             aria-selected={panel === tab.id}
             aria-controls="rail-panel"
+            tabIndex={panel === tab.id ? 0 : -1}
             onClick={() => setRightPanel(tab.id)}
             className={`rounded-full px-3 py-1.5 text-[13px] font-medium motion-safe:transition-colors ${panel === tab.id ? "bg-wash text-ink-1" : "text-ink-2 hover:text-ink-1"}`}
           >

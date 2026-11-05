@@ -82,7 +82,7 @@ function SearchBox({ value, onChange }: { value: string; onChange: (value: strin
           type="button"
           aria-label="Clear search"
           onClick={() => onChange("")}
-          className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-ink-2 transition-colors hover:text-ink-1"
+          className="hit-area absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-ink-2 transition-colors hover:text-ink-1"
         >
           <Icon icon={Cancel01Icon} />
         </button>

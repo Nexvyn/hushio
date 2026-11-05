@@ -203,3 +203,25 @@ body {
 .fs-viz.is-playing .fs-viz-bar {
   background-color: rgb(var(--ink-1) / 0.32);
 }
+
+:root {
+  --hit-min: 40px;
+}
+
+:root.platform-android {
+  --hit-min: 48px;
+}
+
+.hit-area:not(.absolute):not(.relative):not(.fixed) {
+  position: relative;
+}
+
+.hit-area::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, var(--hit-min));
+  height: max(100%, var(--hit-min));
+  transform: translate(-50%, -50%);
+}

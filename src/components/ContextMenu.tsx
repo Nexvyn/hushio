@@ -35,7 +35,7 @@ const PANEL =
 const SUB_PANEL =
   "fixed z-[101] max-h-[340px] min-w-[200px] max-w-[320px] overflow-y-auto rounded-2xl bg-elevated p-1.5 shadow-[var(--shadow-menu)] ring-1 ring-card-edge/[0.08]";
 const ROW =
-  "relative flex min-h-9 w-full items-center gap-3 rounded-[10px] px-3 py-2 text-left text-[13.5px] text-ink-1 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus disabled:opacity-[var(--disabled-opacity)] data-[danger=true]:text-danger-text";
+  "hit-area relative flex min-h-9 w-full items-center gap-3 rounded-[10px] px-3 py-2 text-left text-[13.5px] text-ink-1 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus disabled:opacity-[var(--disabled-opacity)] data-[danger=true]:text-danger-text";
 
 let sheetSeq = 0;
 

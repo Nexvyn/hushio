@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App";
+import { SessionGate } from "./components/SessionGate";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import "./index.css";
 import { platform, showMainWindow } from "./lib/bridge";
@@ -62,7 +62,7 @@ function mountMain() {
     <React.StrictMode>
       <ErrorBoundary>
         <MotionRoot>
-          <App />
+          <SessionGate />
         </MotionRoot>
       </ErrorBoundary>
     </React.StrictMode>,

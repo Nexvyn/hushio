@@ -3,7 +3,7 @@ import { Icon } from "./Icon";
 import { describeLyricsShift, LYRICS_NUDGE_STEP, useLyricsNudge } from "../stores/lyricsNudge";
 
 const STEP_BUTTON =
-  "grid h-7 w-7 place-items-center rounded-full text-ink-1 hover:bg-white/10 motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+  "hit-area grid h-7 w-7 place-items-center rounded-full text-ink-1 hover:bg-white/10 motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
 export function LyricsTiming({ trackId, className = "" }: { trackId: string; className?: string }) {
   const nudge = useLyricsNudge((state) => state.nudges[trackId] ?? 0);

@@ -165,7 +165,7 @@ export function Dialog() {
             <button
               type="button"
               onClick={closeDialog}
-              className="h-9 rounded-xl px-4 text-[13px] font-medium text-ink-2 transition-colors hover:bg-hover hover:text-ink-1"
+              className="hit-area h-9 rounded-xl px-4 text-[13px] font-medium text-ink-2 transition-colors hover:bg-hover hover:text-ink-1"
             >
               {request.cancelLabel ?? "Cancel"}
             </button>
@@ -173,7 +173,7 @@ export function Dialog() {
           <button
             type="button"
             onClick={confirm}
-            className={`h-9 rounded-xl px-4 text-[13px] font-medium transition-[filter] hover:brightness-110 ${
+            className={`hit-area h-9 rounded-xl px-4 text-[13px] font-medium transition-[filter] hover:brightness-110 ${
               request.danger
                 ? "bg-danger text-white"
                 : "bg-accent text-on-accent"

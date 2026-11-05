@@ -15,6 +15,7 @@ export const DURATION_MS = {
   sheen: 1300,
   spin: 850,
   breath: 2600,
+  intro: 160,
 } as const;
 
 export type DurationName = keyof typeof DURATION_MS;
@@ -22,6 +23,10 @@ export type DurationName = keyof typeof DURATION_MS;
 export const LOOPING_DURATIONS: readonly DurationName[] = ["eq", "sheen", "spin", "breath"];
 
 export const MOTION_MAX_MS = 500;
+
+export const INTRO_HOLD_MS = 800;
+export const INTRO_READY_CAP_MS = 6000;
+export const INTRO_POLL_MS = 50;
 
 export function motionVars(reduced: boolean): Record<string, string> {
   const vars: Record<string, string> = {};
@@ -44,6 +49,7 @@ export const fade: Transition = { duration: DURATION_MS.fade / 1000, ease: EASE_
 export const swap: Transition = { duration: DURATION_MS.swap / 1000, ease: EASE_OUT };
 export const readingFill: Transition = { duration: DURATION_MS.reading / 1000, ease: EASE_OUT };
 export const instant: Transition = { duration: 0 };
+export const introFade: Transition = { duration: DURATION_MS.intro / 1000, ease: EASE_OUT };
 
 export const give = { scale: 0.97 } as const;
 
@@ -106,3 +112,31 @@ export function restartClass(node: HTMLElement | null, className: string): void 
   void node.offsetWidth;
   node.classList.add(className);
 }
+
+export const INTRO_TIMING = {
+  popDelay: 0.12,
+  popDuration: 0.72,
+  groundDelay: 0.84,
+  groundDuration: 0.16,
+  settleDelay: 2.05,
+  settleDuration: 0.65,
+  slideStart: 152.75,
+  slideMid: 76.375,
+  letterStart: 2.35,
+  letterStep: 0.05,
+  letterDuration: 0.6,
+  breathDelay: 3.3,
+  breathDuration: 1.8,
+  oneShotCapMs: 4000,
+  flightDuration: 0.7,
+  wordGap: 14,
+  wordWidth: 268.5,
+} as const;
+
+export const INTRO_POP_EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
+export const INTRO_LETTER_EASE: [number, number, number, number] = [0.33, 1, 0.68, 1];
+export const INTRO_SETTLE_EASES: [[number, number, number, number], [number, number, number, number]] = [
+  [0.32, 0, 0.67, 0],
+  [0.33, 1, 0.68, 1],
+];
+export const INTRO_FLIGHT_EASE: [number, number, number, number] = [0.65, 0, 0.35, 1];

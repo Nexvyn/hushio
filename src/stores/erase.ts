@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { create, type StoreApi } from "zustand";
 import {
   eraseDriveFiles,
   eraseKeyring,
@@ -9,8 +9,21 @@ import {
   eraseYoutubePlaylists,
   pipSessionErased,
 } from "../lib/bridge";
+import { pause } from "../lib/audio";
 import type { EraseSteps } from "../lib/disconnect";
+import { useArtistBundles } from "./artistBundles";
+import { useArtistMeta } from "./artistMeta";
+import { useAuth } from "./auth";
+import { useHomeCache } from "./homeCache";
+import { useHomeEngagement } from "./homeEngagement";
 import { useLibrary } from "./library";
+import { useLyricsNudge } from "./lyricsNudge";
+import { useNavigation } from "./navigation";
+import { usePlayer } from "./player";
+import { useRecents, useRecentItems } from "./recents";
+import { useSession } from "./session";
+import { useSettings } from "./settings";
+import { useSync } from "./sync";
 
 export type EraseMode = "google" | "guest" | "reset";
 
@@ -45,4 +58,26 @@ export function bridgeSteps(): EraseSteps {
       await pipSessionErased().catch(() => {});
     },
   };
+}
+
+function resetStore<T extends object>(store: StoreApi<T>) {
+  store.setState(store.getInitialState(), true);
+}
+
+export function resetStoresAfterErase(): void {
+  pause();
+  resetStore(usePlayer);
+  resetStore(useLibrary);
+  resetStore(useSettings);
+  resetStore(useRecents);
+  resetStore(useRecentItems);
+  resetStore(useArtistMeta);
+  resetStore(useArtistBundles);
+  resetStore(useHomeCache);
+  resetStore(useHomeEngagement);
+  resetStore(useLyricsNudge);
+  resetStore(useSync);
+  resetStore(useNavigation);
+  void useAuth.getState().load();
+  useSession.getState().resetAfterErase();
 }

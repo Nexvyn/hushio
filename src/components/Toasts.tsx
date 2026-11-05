@@ -91,9 +91,6 @@ function ToastCard({ toast }: { toast: Toast }) {
       />
       <div className="toast-beacon relative flex min-w-[320px] max-w-[440px] items-center gap-3 overflow-hidden rounded-full py-1.5 pl-1.5 pr-2">
         <span className="relative h-9 w-9 shrink-0">
-          <svg viewBox="0 0 36 36" className="h-9 w-9 -rotate-90" aria-hidden="true">
-            <circle cx="18" cy="18" r="16.75" fill="none" stroke="rgba(255,255,255,0.09)" strokeWidth="1.5" />
-          </svg>
           <span
             className={`absolute inset-[6px] grid place-items-center rounded-full ${style.badge} ${style.tint}`}
           >
@@ -120,7 +117,7 @@ function ToastCard({ toast }: { toast: Toast }) {
           title="Dismiss"
           aria-label="Dismiss notification"
           onClick={close}
-          className="relative ml-auto grid h-6 w-6 shrink-0 place-items-center rounded-full text-ink-2 opacity-0 motion-safe:transition-[opacity,background-color,color] motion-safe:duration-quick hover:bg-ink-1/10 hover:text-ink-1 focus:opacity-100 group-hover:opacity-100"
+          className="hit-area relative ml-auto grid h-6 w-6 shrink-0 place-items-center rounded-full text-ink-2 opacity-0 motion-safe:transition-[opacity,background-color,color] motion-safe:duration-quick hover:bg-ink-1/10 hover:text-ink-1 focus:opacity-100 group-hover:opacity-100"
         >
           <Icon icon={Cancel01Icon} />
         </button>

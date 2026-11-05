@@ -28,6 +28,7 @@ import {
   playlistMenuItems,
 } from "../lib/collectionActions";
 import { moveKey } from "../lib/libraryOrder";
+import { useRovingKeys } from "../lib/useRovingKeys";
 import { plural } from "../lib/plural";
 import { useSortable } from "../lib/useSortable";
 import { type PinnedSingles, useLibrary } from "../stores/library";
@@ -121,6 +122,8 @@ function isOpen(view: View, target: View): boolean {
 }
 
 export function Sidebar() {
+  const navRef = useRef<HTMLElement>(null);
+  useRovingKeys(navRef, "button:not([disabled])", "vertical");
   const view = useNavigation((state) => state.view);
   const navigate = useNavigation((state) => state.navigate);
   const playlists = useLibrary((state) => state.playlists);
@@ -208,7 +211,7 @@ export function Sidebar() {
         </div>
       </div>
 
-      <nav aria-label="Library" className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-2 pb-2 pt-1">
+      <nav ref={navRef} aria-label="Library" className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-2 pb-2 pt-1">
         <ul ref={listRef} className="space-y-0.5" {...sortable.listProps}>
           {fixed.map((entry) => renderRow(entry, true))}
           {movable.map((entry) => renderRow(entry, false))}

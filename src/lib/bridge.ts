@@ -520,6 +520,10 @@ export function introDone(): Promise<void> {
   return call<void>("window_intro_done");
 }
 
+export function guestDetectMarker(): Promise<boolean> {
+  return call<boolean>("guest_detect_marker");
+}
+
 export function setReduceTransparency(reduce: boolean): Promise<void> {
   return call<void>("window_set_reduce_transparency", { reduce });
 }

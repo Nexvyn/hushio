@@ -11,6 +11,7 @@ mod linux_session;
 mod local_library;
 mod lyrics;
 mod media_controls;
+mod install_marker;
 mod persist;
 mod pip;
 mod reveal;
@@ -649,6 +650,7 @@ pub fn run() {
             media_controls::media_set_position,
             media_controls::media_clear,
             window::window_intro_done,
+            install_marker::guest_detect_marker,
             window::window_set_reduce_transparency,
             launch::launch_take,
             pip::pip_toggle,

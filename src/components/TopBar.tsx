@@ -12,7 +12,7 @@ import { useNavigation } from "../stores/navigation";
 import { useUI } from "../stores/ui";
 
 const circleButton =
-  "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-2 transition-colors hover:bg-ink-1/[0.06] hover:text-ink-1 disabled:pointer-events-none disabled:opacity-[var(--disabled-opacity)]";
+  "hit-area flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-2 transition-colors hover:bg-ink-1/[0.06] hover:text-ink-1 disabled:pointer-events-none disabled:opacity-[var(--disabled-opacity)]";
 
 export function TopBar() {
   const view = useNavigation((state) => state.view);
@@ -72,6 +72,7 @@ export function TopBar() {
     >
       <button
         type="button"
+        data-intro-target
         onClick={() => navigate({ name: "home" })}
         className="rounded-[9px] px-2 py-1 text-[14px] font-semibold text-ink-1 transition-colors hover:bg-ink-1/[0.06]"
       >

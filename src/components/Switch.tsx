@@ -11,7 +11,7 @@ export function Switch({ checked, onCheckedChange, className = "", ...props }: S
       type="button"
       role="switch"
       aria-checked={checked}
-      className={`inline-flex h-6 w-11 shrink-0 items-center rounded-full p-1 disabled:opacity-[var(--disabled-opacity)] motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out ${
+      className={`hit-area inline-flex h-6 w-11 shrink-0 items-center rounded-full p-1 disabled:opacity-[var(--disabled-opacity)] motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out ${
         checked ? "bg-primary" : "bg-wash"
       } ${className}`}
       {...props}

@@ -33,7 +33,7 @@ export function LyricsCenter() {
         title="Close lyrics (Esc)"
         aria-label="Close lyrics"
         onClick={closeLyrics}
-        className="absolute right-4 top-4 z-10 grid h-9 w-9 place-items-center rounded-full bg-black/40 text-ink-1 hover:bg-black/60 motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+        className="hit-area absolute right-4 top-4 z-10 grid h-9 w-9 place-items-center rounded-full bg-black/40 text-ink-1 hover:bg-black/60 motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
       >
         <Icon icon={Cancel01Icon} />
       </button>

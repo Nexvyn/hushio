@@ -20,7 +20,6 @@ import { startLaunchActions } from "./lib/launch";
 import { startMenuCommands } from "./lib/menuCommands";
 import { startWindowGlass } from "./lib/windowGlass";
 import { useKeyboardShortcuts, useSwipeNavigation } from "./lib/shortcuts";
-import { startGoogleAuth } from "./stores/auth";
 import { startYtSync } from "./stores/sync";
 import { useNavigation, type View } from "./stores/navigation";
 import { useUI } from "./stores/ui";
@@ -95,7 +94,6 @@ export default function App() {
   useKeyboardShortcuts();
   useSwipeNavigation();
 
-  useEffect(() => startGoogleAuth(), []);
   useEffect(() => startYtSync(), []);
   useEffect(() => startMenuCommands(), []);
   useEffect(() => startWindowGlass(), []);

@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { APP_NAME } from "../lib/app";
 import { runErase, type EraseOptions, type EraseStage, type EraseSteps } from "../lib/disconnect";
-import { bridgeSteps, useErase, type EraseMode } from "../stores/erase";
+import { bridgeSteps, resetStoresAfterErase, useErase, type EraseMode } from "../stores/erase";
+import { useSession } from "../stores/session";
 import { useUI } from "../stores/ui";
 
 type Props = {
@@ -44,15 +45,11 @@ function remoteText(message: string) {
     : "Couldn't reach Google. Nothing was erased. Try again.";
 }
 
-function reloadApp() {
-  window.setTimeout(() => window.location.reload(), 1200);
-}
-
 const BUTTON =
-  "h-9 rounded-xl px-4 text-[13px] font-medium transition-[filter,colors] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-[var(--disabled-opacity)]";
+  "hit-area h-9 rounded-xl px-4 text-[13px] font-medium transition-[filter,colors] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-[var(--disabled-opacity)]";
 const SECONDARY = `${BUTTON} text-ink-2 hover:bg-hover hover:text-ink-1`;
 const DANGER = `${BUTTON} bg-danger text-white hover:brightness-110`;
-const CHECKBOX = "h-4 w-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+const CHECKBOX = "hit-area h-4 w-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
 
 type PanelProps = { mode: EraseMode; steps: EraseSteps; onErased: () => void };
 
@@ -202,6 +199,18 @@ function ErasePanel({ mode, steps, onErased }: PanelProps) {
           <button ref={cancelRef} type="button" onClick={dismiss} disabled={working} className={SECONDARY}>
             Cancel
           </button>
+          {phase === "confirm" && mode === "guest" && (
+            <button
+              type="button"
+              onClick={() => {
+                close();
+                useSession.getState().openOnboarding("choose");
+              }}
+              className={SECONDARY}
+            >
+              Sign in with Google
+            </button>
+          )}
           {phase === "confirm" && (
             <button type="button" onClick={() => void run(options, "remote")} className={DANGER}>
               {copy.confirm}
@@ -237,7 +246,7 @@ function ErasePanel({ mode, steps, onErased }: PanelProps) {
   );
 }
 
-export function EraseDialog({ steps, onErased = reloadApp }: Props) {
+export function EraseDialog({ steps, onErased = resetStoresAfterErase }: Props) {
   const mode = useErase((state) => state.mode);
   if (!mode) return null;
   return <ErasePanel key={mode} mode={mode} steps={steps ?? bridgeSteps()} onErased={onErased} />;

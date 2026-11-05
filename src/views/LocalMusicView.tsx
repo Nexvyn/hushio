@@ -124,7 +124,7 @@ function LocalTrackRow({ track, onPlay, onRemove }: { track: LocalTrack; onPlay:
           aria-label={`Remove ${track.title} from Opened files`}
           title="Remove from Opened files"
           onClick={onRemove}
-          className={`${ROUND} h-9 w-9 shrink-0`}
+          className={`${ROUND} hit-area h-9 w-9 shrink-0`}
         >
           <Icon icon={Cancel01Icon} />
         </button>
