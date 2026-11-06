@@ -1,0 +1,173 @@
+name: release
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build (empty = current ref)"
+        required: false
+        default: ""
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+env:
+  PNPM_VERSION: 10.34.5
+  LINUX_DEPS: build-essential curl wget file libxdo-dev libssl-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libsecret-1-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav xvfb dbus-x11 gnome-keyring
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4.4.0
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: pnpm/action-setup@v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: "22"
+          cache: pnpm
+      - uses: actions-rust-lang/setup-rust-toolchain@v1.17.0
+      - uses: swatinem/rust-cache@v2.9.3
+        with:
+          workspaces: src-tauri
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y $LINUX_DEPS
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+  build:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4.4.0
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: pnpm/action-setup@v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: "22"
+          cache: pnpm
+      - uses: actions-rust-lang/setup-rust-toolchain@v1.17.0
+      - uses: swatinem/rust-cache@v2.9.3
+        with:
+          workspaces: src-tauri
+      - run: pnpm install --frozen-lockfile
+      - uses: tauri-apps/tauri-action@v0.6.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ inputs.tag || github.ref_name }}
+          releaseName: "Hushio ${{ inputs.tag || github.ref_name }}"
+          releaseDraft: false
+          includeUpdaterJson: true
+      - name: Rename Windows release files and update latest.json
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          NSIS=src-tauri/target/release/bundle/nsis
+          WORK="$RUNNER_TEMP/rename"
+          mkdir -p "$WORK"
+          gh release download "$TAG" --pattern latest.json --dir "$WORK" --clobber
+          for old in "$NSIS"/Hushio_"$VERSION"_x64-setup.exe "$NSIS"/Hushio_"$VERSION"_x64-setup.nsis.zip "$NSIS"/Hushio_"$VERSION"_x64-setup.nsis.zip.sig; do
+            name=$(basename "$old")
+            new=${name/Hushio_${VERSION}_/Hushio-${VERSION}-}
+            cp "$old" "$WORK/$new"
+            gh release upload "$TAG" "$WORK/$new" --clobber
+            gh release delete-asset "$TAG" "$name" --yes
+            sed -i "s|/${name}\"|/${new}\"|" "$WORK/latest.json"
+          done
+          gh release upload "$TAG" "$WORK/latest.json" --clobber
+  linux:
+    needs: build
+    runs-on: ubuntu-22.04
+    env:
+      APPIMAGE_EXTRACT_AND_RUN: "1"
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4.4.0
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: pnpm/action-setup@v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: "22"
+          cache: pnpm
+      - uses: actions-rust-lang/setup-rust-toolchain@v1.17.0
+      - uses: swatinem/rust-cache@v2.9.3
+        with:
+          workspaces: src-tauri
+      - name: Install Linux build dependencies
+        run: sudo apt-get update && sudo apt-get install -y $LINUX_DEPS
+      - run: pnpm install --frozen-lockfile
+      - uses: tauri-apps/tauri-action@v0.6.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ inputs.tag || github.ref_name }}
+          releaseName: "Hushio ${{ inputs.tag || github.ref_name }}"
+          releaseDraft: false
+          includeUpdaterJson: true
+          args: --bundles appimage,deb,rpm
+      - name: Verify Linux bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE=src-tauri/target/release/bundle
+          ls "$BUNDLE"/appimage/*.AppImage "$BUNDLE"/appimage/*.AppImage.tar.gz "$BUNDLE"/appimage/*.AppImage.tar.gz.sig
+          dpkg-deb --info "$BUNDLE"/deb/*.deb | grep -E 'Depends|Package'
+          sudo apt-get install -y rpm
+          rpm -qpR "$BUNDLE"/rpm/*.rpm | grep -E 'webkit2gtk4.1|gstreamer1-libav'
+          sha256sum "$BUNDLE"/appimage/*.AppImage "$BUNDLE"/deb/*.deb "$BUNDLE"/rpm/*.rpm
+      - name: Rename Linux release files and update latest.json
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          BUNDLE=src-tauri/target/release/bundle
+          WORK="$RUNNER_TEMP/rename"
+          mkdir -p "$WORK"
+          new_name() {
+            case "$1" in
+              *.AppImage.tar.gz.sig) echo "Hushio-${VERSION}-linux-x86_64.AppImage.tar.gz.sig" ;;
+              *.AppImage.tar.gz) echo "Hushio-${VERSION}-linux-x86_64.AppImage.tar.gz" ;;
+              *.AppImage) echo "Hushio-${VERSION}-linux-x86_64.AppImage" ;;
+              *.deb) echo "Hushio-${VERSION}-linux-amd64.deb" ;;
+              *.rpm) echo "Hushio-${VERSION}-linux-x86_64.rpm" ;;
+            esac
+          }
+          gh release download "$TAG" --pattern latest.json --dir "$WORK" --clobber
+          for old in "$BUNDLE"/appimage/*.AppImage "$BUNDLE"/appimage/*.AppImage.tar.gz "$BUNDLE"/appimage/*.AppImage.tar.gz.sig "$BUNDLE"/deb/*.deb "$BUNDLE"/rpm/*.rpm; do
+            name=$(basename "$old")
+            new=$(new_name "$name")
+            cp "$old" "$WORK/$new"
+            gh release upload "$TAG" "$WORK/$new" --clobber
+            gh release delete-asset "$TAG" "$name" --yes
+            sed -i "s|/${name}\"|/${new}\"|" "$WORK/latest.json"
+          done
+          gh release upload "$TAG" "$WORK/latest.json" --clobber
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: linux-bundles
+          path: src-tauri/target/release/bundle/**
