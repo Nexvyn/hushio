@@ -55,6 +55,7 @@ import { Slider } from "../../components/Slider";
 import { APP_NAME, APP_SLUG } from "../../lib/app";
 import type { DriveSyncStatus, GoogleAccount, Platform, YtSyncStatus, YtTvCode } from "../../lib/bridge";
 import { driveStatusText } from "../../lib/driveSync";
+import { DOWNLOAD_PAGE, RELEASES_PAGE, actionLabel, updateCopy, type UpdateState } from "../../lib/updates";
 import { MATCH_LANGUAGE_OPTIONS } from "../../lib/importLanguage";
 import { failedText, quotaText, syncStatusText } from "../../lib/ytSync";
 import { chooseDownloadFolder } from "../../lib/downloads";
@@ -126,12 +127,21 @@ export type SyncContext = {
   tv: TvContext;
 };
 
+export type UpdatesContext = {
+  state: UpdateState;
+  check: () => void;
+  install: () => void;
+  restart: () => void;
+  openPage: (url: string) => void;
+};
+
 export type BuildContext = {
   settings: SettingsState;
   version: string | null;
   platform: Platform;
   navigate: (view: View) => void;
   auth: AuthContext;
+  updates: UpdatesContext;
   sync: SyncContext;
 };
 
@@ -770,7 +780,40 @@ function dataCategory({ navigate }: BuildContext): SettingsCategory {
   };
 }
 
-function aboutCategory({ version }: BuildContext): SettingsCategory {
+function updateControl({ state, check, install, restart, openPage }: UpdatesContext): ReactNode {
+  switch (state.status) {
+    case "available":
+      if (state.route === "flathub") return undefined;
+      return (
+        <>
+          {state.route === "inApp" && (
+            <Button variant="ghost" onClick={() => openPage(RELEASES_PAGE)}>
+              Release notes
+            </Button>
+          )}
+          <Button variant="primary" onClick={() => install()}>
+            {actionLabel(state.route)}
+          </Button>
+        </>
+      );
+    case "ready":
+      return (
+        <Button variant="primary" onClick={() => restart()}>
+          Restart to update
+        </Button>
+      );
+    case "downloading":
+      return undefined;
+    case "checking":
+      return <Button disabled>Check for updates</Button>;
+    default:
+      if (state.route === "flathub") return undefined;
+      return <Button onClick={() => check()}>Check for updates</Button>;
+  }
+}
+
+function aboutCategory({ version, updates }: BuildContext): SettingsCategory {
+  const copy = updateCopy(updates.state);
   return {
     id: "about",
     label: "About",
@@ -789,17 +832,16 @@ function aboutCategory({ version }: BuildContext): SettingsCategory {
           {
             id: "updates",
             icon: CloudDownloadIcon,
-            title: "Updates",
-            note: version ? `You have version ${version}` : undefined,
-            disabled: true,
-            control: <Button disabled>Check for updates</Button>,
+            title: copy.title,
+            note: copy.note,
+            control: updateControl(updates),
           },
           {
             id: "website",
             icon: GlobeIcon,
             title: `${APP_NAME} website`,
             note: `${APP_SLUG}.space: downloads, news and help`,
-            control: <Button disabled>Open</Button>,
+            control: <Button onClick={() => updates.openPage(DOWNLOAD_PAGE)}>Open</Button>,
           },
         ],
       },

@@ -9,6 +9,7 @@ vi.mock("../../lib/persist", () => ({
 }));
 
 import { buildCategories, type BuildContext, type RowSpec } from "./categories";
+import { INITIAL_UPDATE_STATE } from "../../lib/updates";
 import { useSettings } from "../../stores/settings";
 
 const IDLE = { state: "idle" as const, done: 0, total: 0, playlistName: null, backend: "official" as const, quotaUsedToday: 0, quotaLimit: 10000, failedJobs: 0, lastError: null, lastSyncedAt: null, pulledPlaylists: 0 };
@@ -21,6 +22,7 @@ function context(mode: "guest" | "google", requestSignOut = vi.fn(), syncNow = v
     version: null,
     platform: "windows",
     navigate: vi.fn(),
+    updates: { state: INITIAL_UPDATE_STATE, check: vi.fn(), install: vi.fn(), restart: vi.fn(), openPage: vi.fn() },
     auth: {
       account: { ...ACCOUNT, mode },
       signingIn: false,

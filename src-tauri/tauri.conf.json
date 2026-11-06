@@ -35,7 +35,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis", "dmg", "app"],
+    "category": "Music",
+    "shortDescription": "Hushio — desktop music player for Windows & macOS",
+    "longDescription": "Hushio — desktop music player for Windows & macOS",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -48,15 +51,36 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "createUpdaterArtifacts": true,
     "fileAssociations": [
       {
-        "ext": ["mp3", "m4a", "aac", "flac", "ogg", "oga", "opus", "wav", "webm", "wma", "aiff", "aif", "aifc"],
+        "ext": ["mp3", "m4a", "aac", "flac", "ogg", "oga", "opus", "wav", "webm"],
         "name": "Audio file",
         "description": "Audio file",
         "role": "Viewer",
         "rank": "Alternate"
       }
     ],
+    "windows": {
+      "digestAlgorithm": "sha256",
+      "webviewInstallMode": { "type": "downloadBootstrapper" },
+      "allowDowngrades": true,
+      "nsis": {
+        "installMode": "currentUser",
+        "installerHooks": "windows/hooks.nsi",
+        "startMenuFolder": "Hushio",
+        "displayLanguageSelector": false
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "13.0",
+      "signingIdentity": "-",
+      "hardenedRuntime": false,
+      "dmg": {
+        "appPosition": { "x": 130, "y": 220 },
+        "applicationFolderPosition": { "x": 410, "y": 220 }
+      }
+    },
     "linux": {
       "deb": {
         "depends": [
@@ -119,6 +143,13 @@
     }
   },
   "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg4RThCQ0I1RTVFNjVBMzUKUldRMVd1Ymx0YnpvaUhPdWVnQ04xNHp1RHl4SmJJaW9DRDdBenJhczVHamM1ajZLdEM4dFRZclMK",
+      "endpoints": [
+        "https://github.com/Nexvyn/hushio/releases/latest/download/latest.json"
+      ],
+      "windows": { "installMode": "passive" }
+    },
     "deep-link": {
       "desktop": {
         "schemes": ["hushio"]

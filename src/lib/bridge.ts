@@ -4,9 +4,11 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Image } from "@tauri-apps/api/image";
 import { writeImage } from "@tauri-apps/plugin-clipboard-manager";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import type { PipCommand, PipSnapshot } from "../pip/types";
 import type { JournalEntry, ReplayData } from "./replay";
 import type { DesktopScheme } from "./theme";
+import type { UpdateState } from "./updates";
 
 export type Platform = "windows" | "macos" | "linux" | "android";
 
@@ -82,6 +84,30 @@ export function persistRead<T>(name: string, owner: string): Promise<T | null> {
 
 export function persistWrite(name: string, data: unknown, owner: string): Promise<boolean> {
   return call<boolean>("persist_write", { name, data, owner });
+}
+
+export function updatesState(): Promise<UpdateState> {
+  return call<UpdateState>("updates_state");
+}
+
+export function updatesCheck(): Promise<void> {
+  return call<void>("updates_check");
+}
+
+export function updatesInstall(): Promise<void> {
+  return call<void>("updates_install");
+}
+
+export function updatesRestart(): Promise<void> {
+  return call<void>("updates_restart");
+}
+
+export function listenUpdates(onChange: (state: UpdateState) => void): Promise<UnlistenFn> {
+  return listen<UpdateState>("updates:changed", (event) => onChange(event.payload));
+}
+
+export function openExternal(url: string): Promise<void> {
+  return openUrl(url);
 }
 
 export type PlaybackKind = "start" | "resume" | "pause" | "progress" | "stop";

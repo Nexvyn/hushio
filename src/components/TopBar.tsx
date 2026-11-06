@@ -4,6 +4,7 @@ import { CaptionButtons } from "./CaptionButtons";
 import { Icon } from "./Icon";
 import { SearchSuggestions, optionId, useTypeAhead } from "./SearchSuggestions";
 import { StreakChip } from "./StreakChip";
+import { UpdateChip } from "./UpdateChip";
 import { platform } from "../lib/bridge";
 import { hasCaptionButtons } from "../lib/desktopPlatform";
 import { openSuggestion, submitSearch } from "../lib/searchActions";
@@ -160,6 +161,7 @@ export function TopBar() {
         )}
       </div>
 
+      <UpdateChip />
       <StreakChip />
 
       {hasCaptionButtons(platform) ? <CaptionButtons /> : null}

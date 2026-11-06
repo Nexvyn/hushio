@@ -9,6 +9,7 @@ vi.mock("../../lib/persist", () => ({
 }));
 
 import { buildCategories, type BuildContext, type RowSpec } from "./categories";
+import { INITIAL_UPDATE_STATE } from "../../lib/updates";
 import { useSettings } from "../../stores/settings";
 
 function auth(mode: "guest" | "google" = "guest"): BuildContext["auth"] {
@@ -27,6 +28,7 @@ function context(platform: BuildContext["platform"], mode: "guest" | "google" = 
     version: null,
     platform,
     navigate: vi.fn(),
+    updates: { state: INITIAL_UPDATE_STATE, check: vi.fn(), install: vi.fn(), restart: vi.fn(), openPage: vi.fn() },
     auth: auth(mode),
     sync: { drive: { mode: "google" as const, lastSyncAt: null, restoreSeq: 0, restoredStores: [], state: "idle" as const, lastError: null, pending: 0 }, status: { state: "idle" as const, done: 0, total: 0, playlistName: null, backend: "official" as const, quotaUsedToday: 0, quotaLimit: 10000, failedJobs: 0, lastError: null, lastSyncedAt: null, pulledPlaylists: 0 }, syncNow: vi.fn(), tv: { connected: false, code: null, busy: false, error: null, connect: vi.fn(), cancel: vi.fn(), open: vi.fn(), disconnect: vi.fn() } },
   };

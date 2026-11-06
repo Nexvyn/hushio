@@ -5,6 +5,7 @@ import { SettingRow } from "../components/SettingRow";
 import { appVersion, platform } from "../lib/bridge";
 import { useAuth } from "../stores/auth";
 import { useSync } from "../stores/sync";
+import { useUpdates } from "../stores/updates";
 import { useNavigation } from "../stores/navigation";
 import { useSettings } from "../stores/settings";
 import {
@@ -155,6 +156,7 @@ export function SettingsView() {
   const navigate = useNavigation((state) => state.navigate);
   const settings = useSettings();
   const version = useAppVersion();
+  const updateState = useUpdates((store) => store.state);
   const account = useAuth((state) => state.account);
   const signingIn = useAuth((state) => state.signingIn);
   const syncStatus = useSync((state) => state.status);
@@ -171,6 +173,13 @@ export function SettingsView() {
     version,
     platform,
     navigate,
+    updates: {
+      state: updateState,
+      check: () => void useUpdates.getState().check(),
+      install: () => void useUpdates.getState().install(),
+      restart: () => void useUpdates.getState().restart(),
+      openPage: (url: string) => useUpdates.getState().openPage(url),
+    },
     auth: {
       account,
       signingIn,

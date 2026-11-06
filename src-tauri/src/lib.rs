@@ -21,6 +21,7 @@ mod sync_merge;
 mod sync_queue;
 mod taskbar;
 mod tray;
+mod updates;
 mod window;
 mod yt_data_api;
 mod yt_innertube_auth;
@@ -493,6 +494,10 @@ pub fn run() {
             window::show_main(app);
         }));
     }
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
     let app = builder
         .plugin(tauri_plugin_deep_link::init())
         .plugin(window::state_plugin())
@@ -501,6 +506,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_process::init())
         .on_window_event(|window, event| {
             window::on_window_event(window, event);
             pip::on_window_event(window, event);
@@ -533,6 +539,9 @@ pub fn run() {
             let drive_root = root.clone();
             app.manage(DataPaths { root });
             app.manage(tray::Tray::default());
+            let updates = updates::Service::shared(app.package_info().version.to_string());
+            app.manage(updates);
+            updates::start(app.handle().clone());
             app.manage(window::Glass::default());
             app.manage(pip::Pip::default());
             linux_session::setup(app.handle());
@@ -662,7 +671,11 @@ pub fn run() {
             pip::pip_ready,
             pip::pip_send_state,
             pip::pip_send_command,
-            pip::pip_session_erased
+            pip::pip_session_erased,
+            updates::updates_state,
+            updates::updates_check,
+            updates::updates_install,
+            updates::updates_restart
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

@@ -10,6 +10,7 @@ vi.mock("../../lib/persist", () => ({
 
 import type { DriveSyncStatus } from "../../lib/bridge";
 import { buildCategories, type BuildContext } from "./categories";
+import { INITIAL_UPDATE_STATE } from "../../lib/updates";
 import { useSettings } from "../../stores/settings";
 
 const IDLE_DRIVE: DriveSyncStatus = { mode: "google", lastSyncAt: null, restoreSeq: 0, restoredStores: [], state: "idle", lastError: null, pending: 0 };
@@ -20,6 +21,7 @@ function context(drive: DriveSyncStatus, mode: "guest" | "google"): BuildContext
     version: null,
     platform: "windows",
     navigate: vi.fn(),
+    updates: { state: INITIAL_UPDATE_STATE, check: vi.fn(), install: vi.fn(), restart: vi.fn(), openPage: vi.fn() },
     auth: {
       account: { mode, googleSub: mode === "google" ? "sub" : null, name: null, email: null, pictureUrl: null, configured: true, keyringAvailable: true },
       signingIn: false,

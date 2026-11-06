@@ -19,6 +19,7 @@ import { listenForDownloadProgress } from "./lib/downloads";
 import { startLaunchActions } from "./lib/launch";
 import { startMenuCommands } from "./lib/menuCommands";
 import { startWindowGlass } from "./lib/windowGlass";
+import { startUpdates } from "./stores/updates";
 import { useKeyboardShortcuts, useSwipeNavigation } from "./lib/shortcuts";
 import { startYtSync } from "./stores/sync";
 import { useNavigation, type View } from "./stores/navigation";
@@ -98,6 +99,7 @@ export default function App() {
   useEffect(() => startMenuCommands(), []);
   useEffect(() => startWindowGlass(), []);
   useEffect(() => startLaunchActions(), []);
+  useEffect(() => startUpdates(), []);
 
   useEffect(() => {
     let stop: (() => void) | undefined;
