@@ -10,8 +10,9 @@ mod linux_portal;
 mod linux_session;
 mod local_library;
 mod lyrics;
-mod media_controls;
 mod install_marker;
+mod macos_window;
+mod media_controls;
 mod persist;
 mod pip;
 mod reveal;
@@ -598,6 +599,8 @@ pub fn run() {
             app.manage(drive.clone());
             tauri::async_runtime::spawn(drive.run());
             tauri::async_runtime::spawn(keep_google_session(app.handle().clone(), google));
+            #[cfg(target_os = "macos")]
+            macos_window::install(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -680,13 +683,23 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
-    app.run(|app, event| {
-        if let RunEvent::ExitRequested { .. } = event {
+    app.run(|app, event| match event {
+        RunEvent::ExitRequested { .. } => {
+            macos_window::mark_quitting();
             app.state::<downloads::Downloads<AppHandle>>().abandon();
             let drive = app.state::<Arc<drive_sync::Drive>>();
             let _ = tauri::async_runtime::block_on(tokio::time::timeout(drive_sync::QUIT_FLUSH, drive.flush()));
             tauri::async_runtime::block_on(app.state::<Arc<stats::Service>>().flush());
         }
+        #[cfg(target_os = "macos")]
+        RunEvent::Reopen {
+            has_visible_windows,
+        } => {
+            if !has_visible_windows {
+                macos_window::show_main(app);
+            }
+        }
+        _ => {}
     });
 }
 

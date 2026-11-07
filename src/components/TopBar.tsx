@@ -8,6 +8,7 @@ import { UpdateChip } from "./UpdateChip";
 import { platform } from "../lib/bridge";
 import { hasCaptionButtons } from "../lib/desktopPlatform";
 import { openSuggestion, submitSearch } from "../lib/searchActions";
+import { topBarLeadingInset } from "../lib/windowChrome";
 import type { SuggestionRow } from "../lib/searchParse";
 import { useNavigation } from "../stores/navigation";
 import { useUI } from "../stores/ui";
@@ -70,6 +71,7 @@ export function TopBar() {
     <header
       data-tauri-drag-region
       className="flex h-14 shrink-0 items-center gap-3 px-3"
+      style={{ paddingLeft: topBarLeadingInset(platform) }}
     >
       <button
         type="button"

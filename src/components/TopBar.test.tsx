@@ -2,12 +2,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const { audio, playStream, seekTo, typeAhead, peekTypeAhead } = vi.hoisted(() => ({
+import type { Platform } from "../lib/bridge";
+
+const { audio, playStream, seekTo, typeAhead, peekTypeAhead, chrome } = vi.hoisted(() => ({
   audio: new Audio(),
   playStream: vi.fn(),
   seekTo: vi.fn(),
   typeAhead: vi.fn(),
   peekTypeAhead: vi.fn(),
+  chrome: { platform: "windows" as Platform },
+}));
+
+vi.mock("../lib/bridge", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/bridge")>()),
+  get platform() {
+    return chrome.platform;
+  },
 }));
 
 vi.mock("../lib/audio", () => ({
@@ -185,5 +195,28 @@ describe("TopBar search", () => {
     await user.keyboard("{Escape}");
 
     await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull());
+  });
+});
+
+describe("TopBar window chrome", () => {
+  afterEach(() => {
+    chrome.platform = "windows";
+    cleanup();
+  });
+
+  it("hides the caption buttons and leaves 84 px for the traffic lights on macOS", () => {
+    chrome.platform = "macos";
+    render(<TopBar />);
+
+    expect(screen.queryByRole("button", { name: "Minimize" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
+    expect(screen.getByRole("banner").style.paddingLeft).toBe("84px");
+  });
+
+  it("draws the caption buttons and keeps the normal padding on Windows", () => {
+    render(<TopBar />);
+
+    expect(screen.getByRole("button", { name: "Close" })).toBeTruthy();
+    expect(screen.getByRole("banner").style.paddingLeft).toBe("");
   });
 });

@@ -12,8 +12,7 @@ import type { UpdateState } from "./updates";
 
 export type Platform = "windows" | "macos" | "linux" | "android";
 
-function detectPlatform(): Platform {
-  const ua = navigator.userAgent;
+export function detectPlatform(ua: string): Platform {
   if (/Android/.test(ua)) return "android";
   if (/Linux/.test(ua)) return "linux";
   if (/Macintosh|Mac OS X/.test(ua)) return "macos";
@@ -21,7 +20,7 @@ function detectPlatform(): Platform {
   throw new Error(`Unsupported platform: ${ua}`);
 }
 
-export const platform: Platform = detectPlatform();
+export const platform: Platform = detectPlatform(navigator.userAgent);
 
 export async function call<T>(command: string, args?: InvokeArgs): Promise<T> {
   try {
