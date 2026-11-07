@@ -17,10 +17,11 @@ import { TopBar } from "./components/TopBar";
 import { watchFullScreen } from "./lib/bridge";
 import { listenForDownloadProgress } from "./lib/downloads";
 import { startLaunchActions } from "./lib/launch";
-import { startMenuCommands } from "./lib/menuCommands";
 import { startWindowGlass } from "./lib/windowGlass";
 import { startUpdates } from "./stores/updates";
 import { useKeyboardShortcuts, useSwipeNavigation } from "./lib/shortcuts";
+import { useMenuCommands } from "./lib/menuWiring";
+import { startTraySync } from "./lib/traySync";
 import { startYtSync } from "./stores/sync";
 import { useNavigation, type View } from "./stores/navigation";
 import { useUI } from "./stores/ui";
@@ -94,9 +95,10 @@ export default function App() {
 
   useKeyboardShortcuts();
   useSwipeNavigation();
+  useMenuCommands();
 
   useEffect(() => startYtSync(), []);
-  useEffect(() => startMenuCommands(), []);
+  useEffect(() => startTraySync(), []);
   useEffect(() => startWindowGlass(), []);
   useEffect(() => startLaunchActions(), []);
   useEffect(() => startUpdates(), []);

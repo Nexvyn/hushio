@@ -526,6 +526,16 @@ export function eraseLocalData(deleteDownloads: boolean, downloadPaths: string[]
   return call<void>("erase_local_data", { deleteDownloads, downloadPaths });
 }
 
+export function listenMenuCommands(onCommand: (command: string) => void): Promise<UnlistenFn> {
+  return listen<string>("menu:command", (event) => onCommand(event.payload));
+}
+
+export type MenuPlaybackState = { playing: boolean; shuffle: boolean; repeat: "off" | "all" | "one" };
+
+export function menuSetPlaybackState(state: MenuPlaybackState): Promise<void> {
+  return call<void>("menu_set_playback_state", { state });
+}
+
 export async function listenFileDrop(onEvent: (event: FileDropEvent) => void): Promise<UnlistenFn> {
   return getCurrentWindow().onDragDropEvent((event) => {
     const payload = event.payload;
@@ -551,10 +561,6 @@ export function guestDetectMarker(): Promise<boolean> {
 
 export function setReduceTransparency(reduce: boolean): Promise<void> {
   return call<void>("window_set_reduce_transparency", { reduce });
-}
-
-export function listenMenuCommands(onCommand: (command: string) => void): Promise<UnlistenFn> {
-  return listen<string>("menu:command", (event) => onCommand(event.payload));
 }
 
 export type MediaTrackPayload = {

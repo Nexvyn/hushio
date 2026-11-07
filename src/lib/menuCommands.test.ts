@@ -1,86 +1,125 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, type Mock } from "vitest";
+import { dispatchMenuCommand, historyCommand, isMenuCommand, MENU_COMMANDS, type MenuDeps } from "./menuCommands";
 
-const hoisted = vi.hoisted(() => {
-  const player = {
-    playing: false,
-    toggle: vi.fn(),
-    next: vi.fn(),
-    prev: vi.fn(),
-  };
+function anyCalled(deps: MenuDeps) {
+  return Object.values(deps).some((fn) => ((fn as unknown as Mock).mock?.calls.length ?? 0) > 0);
+}
+
+function fakeDeps(overrides: Partial<MenuDeps> = {}): MenuDeps {
   return {
-    player,
-    getState: vi.fn(() => player),
-    subscribers: new Set<(state: typeof player, previous: typeof player) => void>(),
-    subscribe: vi.fn((listener: (state: typeof player, previous: typeof player) => void) => {
-      hoisted.subscribers.add(listener);
-      return () => hoisted.subscribers.delete(listener);
-    }),
-    listen: vi.fn(async () => () => {}),
-    setTrayPlaying: vi.fn(async () => {}),
+    toggle: vi.fn(),
+    pause: vi.fn(),
+    next: vi.fn(),
+    previous: vi.fn(),
+    toggleShuffle: vi.fn(),
+    setRepeat: vi.fn(),
+    sleep: vi.fn(),
+    sleepAtSongEnd: vi.fn(),
+    cancelSleep: vi.fn(),
+    toggleQueue: vi.fn(),
+    toggleLyrics: vi.fn(),
+    toggleNowPlaying: vi.fn(),
+    openSettings: vi.fn(),
+    focusSearch: vi.fn(),
+    goBack: vi.fn(),
+    goForward: vi.fn(),
+    layered: () => false,
+    ...overrides,
   };
+}
+
+describe("dispatchMenuCommand", () => {
+  it.each([
+    ["play-pause", "toggle"],
+    ["pause", "pause"],
+    ["next", "next"],
+    ["previous", "previous"],
+    ["shuffle", "toggleShuffle"],
+    ["sleep-end", "sleepAtSongEnd"],
+    ["sleep-off", "cancelSleep"],
+    ["queue", "toggleQueue"],
+    ["lyrics", "toggleLyrics"],
+    ["now-playing", "toggleNowPlaying"],
+    ["settings", "openSettings"],
+    ["focus-search", "focusSearch"],
+    ["history-back", "goBack"],
+    ["history-forward", "goForward"],
+  ] as const)("%s calls %s", (command, method) => {
+    const deps = fakeDeps();
+    expect(dispatchMenuCommand(command, deps)).toBe(true);
+    expect(deps[method]).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["repeat-off", "off"],
+    ["repeat-all", "all"],
+    ["repeat-one", "one"],
+  ] as const)("%s sets the repeat mode directly", (command, mode) => {
+    const deps = fakeDeps();
+    expect(dispatchMenuCommand(command, deps)).toBe(true);
+    expect(deps.setRepeat).toHaveBeenCalledWith(mode);
+  });
+
+  it.each([
+    ["sleep-15", 15],
+    ["sleep-30", 30],
+    ["sleep-60", 60],
+  ] as const)("%s starts a %d minute timer", (command, minutes) => {
+    const deps = fakeDeps();
+    expect(dispatchMenuCommand(command, deps)).toBe(true);
+    expect(deps.sleep).toHaveBeenCalledWith(minutes);
+  });
+
+  it("ignores focus-search while a dialog, menu or picker is open", () => {
+    const deps = fakeDeps({ layered: () => true });
+    expect(dispatchMenuCommand("focus-search", deps)).toBe(false);
+    expect(deps.focusSearch).not.toHaveBeenCalled();
+  });
+
+  it("returns false for commands whose feature is not built yet", () => {
+    const deps = fakeDeps();
+    for (const command of ["miniplayer", "updates", "import-backup", "export-backup"]) {
+      expect(dispatchMenuCommand(command, deps)).toBe(false);
+    }
+    expect(anyCalled(deps)).toBe(false);
+  });
+
+  it("returns false and does nothing for an unknown command", () => {
+    const deps = fakeDeps();
+    expect(dispatchMenuCommand("format-disk", deps)).toBe(false);
+    expect(anyCalled(deps)).toBe(false);
+  });
+
+  it("knows every command the native menu sends", () => {
+    const sentByMenu = [
+      "play-pause", "next", "previous", "shuffle", "repeat-off", "repeat-all", "repeat-one",
+      "sleep-15", "sleep-30", "sleep-60", "sleep-end", "sleep-off", "queue", "lyrics",
+      "now-playing", "miniplayer", "settings", "updates", "focus-search", "import-backup",
+      "export-backup",
+    ];
+    for (const command of sentByMenu) {
+      expect(isMenuCommand(command), command).toBe(true);
+    }
+    expect(MENU_COMMANDS).toContain("history-back");
+  });
 });
 
-vi.mock("../stores/player", () => ({
-  usePlayer: { getState: hoisted.getState, subscribe: hoisted.subscribe },
-}));
+describe("historyCommand", () => {
+  const base = { code: "", metaKey: true, ctrlKey: false, altKey: false, shiftKey: false };
 
-vi.mock("./bridge", () => ({
-  listenMenuCommands: hoisted.listen,
-  setTrayPlaying: hoisted.setTrayPlaying,
-}));
-
-import { routeMenuCommand, startMenuCommands } from "./menuCommands";
-
-describe("menu commands", () => {
-  beforeEach(() => {
-    hoisted.player.playing = false;
-    hoisted.player.toggle.mockClear();
-    hoisted.player.next.mockClear();
-    hoisted.player.prev.mockClear();
-    hoisted.setTrayPlaying.mockClear();
-    hoisted.subscribers.clear();
+  it("maps Cmd+[ and Cmd+] to back and forward", () => {
+    expect(historyCommand({ ...base, code: "BracketLeft" })).toBe("history-back");
+    expect(historyCommand({ ...base, code: "BracketRight" })).toBe("history-forward");
   });
 
-  it("play-pause toggles playback", () => {
-    routeMenuCommand("play-pause");
-    expect(hoisted.player.toggle).toHaveBeenCalledTimes(1);
+  it("needs Cmd and no other modifier", () => {
+    expect(historyCommand({ ...base, code: "BracketLeft", metaKey: false })).toBeNull();
+    expect(historyCommand({ ...base, code: "BracketLeft", shiftKey: true })).toBeNull();
+    expect(historyCommand({ ...base, code: "BracketLeft", altKey: true })).toBeNull();
+    expect(historyCommand({ ...base, code: "BracketLeft", ctrlKey: true })).toBeNull();
   });
 
-  it("pause only toggles when something is playing", () => {
-    routeMenuCommand("pause");
-    expect(hoisted.player.toggle).not.toHaveBeenCalled();
-    hoisted.player.playing = true;
-    routeMenuCommand("pause");
-    expect(hoisted.player.toggle).toHaveBeenCalledTimes(1);
-  });
-
-  it("next and previous move through the queue", () => {
-    routeMenuCommand("next");
-    routeMenuCommand("previous");
-    expect(hoisted.player.next).toHaveBeenCalledWith(true);
-    expect(hoisted.player.prev).toHaveBeenCalledTimes(1);
-  });
-
-  it("ignores unknown commands", () => {
-    routeMenuCommand("updates");
-    expect(hoisted.player.toggle).not.toHaveBeenCalled();
-    expect(hoisted.player.next).not.toHaveBeenCalled();
-    expect(hoisted.player.prev).not.toHaveBeenCalled();
-  });
-
-  it("tells the tray the playback state at start and on every change", () => {
-    const stop = startMenuCommands();
-    expect(hoisted.setTrayPlaying).toHaveBeenLastCalledWith(false);
-    for (const listener of hoisted.subscribers) {
-      listener({ ...hoisted.player, playing: true }, hoisted.player);
-    }
-    expect(hoisted.setTrayPlaying).toHaveBeenLastCalledWith(true);
-    hoisted.setTrayPlaying.mockClear();
-    for (const listener of hoisted.subscribers) {
-      listener({ ...hoisted.player, playing: true }, { ...hoisted.player, playing: true });
-    }
-    expect(hoisted.setTrayPlaying).not.toHaveBeenCalled();
-    stop();
-    expect(hoisted.subscribers.size).toBe(0);
+  it("ignores other keys", () => {
+    expect(historyCommand({ ...base, code: "KeyF" })).toBeNull();
   });
 });

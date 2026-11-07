@@ -13,6 +13,7 @@ mod lyrics;
 mod install_marker;
 mod macos_window;
 mod media_controls;
+mod menu;
 mod persist;
 mod pip;
 mod reveal;
@@ -601,6 +602,8 @@ pub fn run() {
             tauri::async_runtime::spawn(keep_google_session(app.handle().clone(), google));
             #[cfg(target_os = "macos")]
             macos_window::install(app.handle());
+            #[cfg(target_os = "macos")]
+            menu::install(app.handle())?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -609,6 +612,7 @@ pub fn run() {
             linux_session::linux_session_rules,
             persist_read,
             persist_write,
+            menu::menu_set_playback_state,
             stream_proxy_port,
             stream_register,
             lyrics_get,

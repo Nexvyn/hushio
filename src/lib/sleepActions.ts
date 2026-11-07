@@ -16,12 +16,12 @@ export function sleepStatus(state: SleepSnapshot, now: number): string | null {
   return null;
 }
 
-function startFor(minutes: number, label: string) {
+export function startFor(minutes: number, label: string) {
   useSleepTimer.getState().start(minutes);
   useUI.getState().toast(`Music stops in ${label}`);
 }
 
-function startAtSongEnd() {
+export function startAtSongEnd() {
   useSleepTimer.getState().startEndOfSong();
   useUI.getState().toast("Music stops after this song");
 }

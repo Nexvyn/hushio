@@ -63,7 +63,7 @@ function playbackKey(event: KeyboardEvent): boolean {
   }
 }
 
-function focusSearch() {
+export function focusSearch() {
   const settings = document.getElementById("settings-filter");
   const target = settings ?? document.getElementById("global-search");
   if (!(target instanceof HTMLInputElement)) return;
