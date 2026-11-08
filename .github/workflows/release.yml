@@ -92,8 +92,209 @@ jobs:
             sed -i "s|/${name}\"|/${new}\"|" "$WORK/latest.json"
           done
           gh release upload "$TAG" "$WORK/latest.json" --clobber
-  linux:
+  build-macos:
     needs: build
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - arch: arm64
+            target: aarch64-apple-darwin
+            platform: darwin-aarch64
+          - arch: x64
+            target: x86_64-apple-darwin
+            platform: darwin-x86_64
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4.4.0
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: pnpm/action-setup@v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: "22"
+          cache: pnpm
+      - uses: actions-rust-lang/setup-rust-toolchain@v1.17.0
+        with:
+          target: ${{ matrix.target }}
+      - uses: swatinem/rust-cache@v2.9.3
+        with:
+          workspaces: src-tauri
+      - run: pnpm install --frozen-lockfile
+      - name: Select macOS signing mode
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "$APPLE_CERTIFICATE" ]; then
+            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          {
+            echo "HUSHIO_DEVELOPER_ID=1"
+            echo "APPLE_CERTIFICATE=$APPLE_CERTIFICATE"
+            echo "APPLE_CERTIFICATE_PASSWORD=$APPLE_CERTIFICATE_PASSWORD"
+            echo "APPLE_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY"
+            echo "APPLE_ID=$APPLE_ID"
+            echo "APPLE_PASSWORD=$APPLE_PASSWORD"
+            echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"
+          } >> "$GITHUB_ENV"
+      - name: Turn off Spotlight
+        run: sudo mdutil -a -i off
+      - uses: tauri-apps/tauri-action@v0.6.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ inputs.tag || github.ref_name }}
+          releaseName: "Hushio ${{ inputs.tag || github.ref_name }}"
+          releaseDraft: false
+          includeUpdaterJson: true
+          args: --target ${{ matrix.target }} --bundles app
+      - name: Rename macOS archive and update latest.json
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+          ARCH: ${{ matrix.arch }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          BUNDLE="src-tauri/target/${{ matrix.target }}/release/bundle"
+          ARCHIVE=$(ls "$BUNDLE"/macos/*.app.tar.gz)
+          ORIG=$(basename "$ARCHIVE")
+          NAME="Hushio-${VERSION}-${ARCH}.app.tar.gz"
+          WORK="$RUNNER_TEMP/rename"
+          mkdir -p "$WORK"
+          cp "$ARCHIVE" "$WORK/$NAME"
+          cp "$ARCHIVE.sig" "$WORK/$NAME.sig"
+          gh release download "$TAG" --pattern latest.json --dir "$WORK" --clobber
+          gh release upload "$TAG" "$WORK/$NAME" "$WORK/$NAME.sig" --clobber
+          gh release delete-asset "$TAG" "$ORIG" --yes
+          gh release delete-asset "$TAG" "$ORIG.sig" --yes
+          node -e '
+            const fs = require("node:fs");
+            const [file, key, url, sig] = process.argv.slice(1);
+            const manifest = JSON.parse(fs.readFileSync(file, "utf8"));
+            manifest.platforms = {
+              ...(manifest.platforms ?? {}),
+              [key]: { signature: fs.readFileSync(sig, "utf8").trim(), url },
+            };
+            fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + "\n");
+          ' "$WORK/latest.json" "$PLATFORM" "https://github.com/$GH_REPO/releases/download/$TAG/$NAME" "$WORK/$NAME.sig"
+          gh release upload "$TAG" "$WORK/latest.json" --clobber
+      - name: Build DMG (best effort)
+        shell: bash
+        run: pnpm tauri build --target ${{ matrix.target }} --bundles dmg || true
+      - name: Publish DMG (best effort)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          VERSION="${TAG#v}"
+          DMG=$(find "src-tauri/target/${{ matrix.target }}/release/bundle/dmg" -name "*.dmg" 2>/dev/null | head -n1)
+          if [ -z "$DMG" ]; then
+            echo "::warning::No DMG was produced for $ARCH"
+            exit 0
+          fi
+          NAME="Hushio-${VERSION}-${ARCH}.dmg"
+          cp "$DMG" "$RUNNER_TEMP/$NAME"
+          gh release upload "$TAG" "$RUNNER_TEMP/$NAME" --clobber || echo "::warning::DMG upload failed for $ARCH"
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: mac-bundles-${{ matrix.arch }}
+          path: src-tauri/target/**/bundle/**
+  verify-macos:
+    needs: build-macos
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64, x64]
+    env:
+      EXPECT_DEVELOPER_ID: "${{ secrets.APPLE_CERTIFICATE != '' && '1' || '' }}"
+    steps:
+      - uses: actions/download-artifact@v4.1.8
+        with:
+          name: mac-bundles-${{ matrix.arch }}
+          path: mac-bundles
+      - name: Verify DMG, archive, signature and minimum macOS version
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORK="$RUNNER_TEMP/verify-${{ matrix.arch }}"
+          mkdir -p "$WORK"
+          check_app() {
+            local app="$1"
+            codesign --verify --deep --strict --verbose=2 "$app"
+            local info
+            info=$(codesign -dv "$app" 2>&1)
+            sed -n '1,5p' <<< "$info"
+            if [ -n "$EXPECT_DEVELOPER_ID" ]; then
+              grep -q "Authority=Developer ID Application" <<< "$info" || { echo "::error::Developer ID signature expected"; exit 1; }
+              spctl --assess --type execute -vv "$app" || { echo "::error::Gatekeeper rejected the Developer ID build"; exit 1; }
+            else
+              grep -q "Signature=adhoc" <<< "$info" || { echo "::error::ad-hoc signature expected"; exit 1; }
+              spctl --assess --type execute -vv "$app" || echo "::warning::spctl rejected (expected while ad-hoc signed)"
+            fi
+          }
+          DMG=$(find mac-bundles -name "*.dmg" | head -n1)
+          if [ -z "$DMG" ]; then
+            echo "::error::No DMG in mac-bundles-${{ matrix.arch }}"
+            exit 1
+          fi
+          MNT="$WORK/mount"
+          mkdir -p "$MNT"
+          hdiutil attach -nobrowse -readonly -mountpoint "$MNT" "$DMG"
+          trap 'hdiutil detach "$MNT" -quiet || true' EXIT
+          APP="$MNT/Hushio.app"
+          if [ ! -d "$APP" ]; then
+            echo "::error::Hushio.app is missing from the DMG"
+            exit 1
+          fi
+          check_app "$APP"
+          BIN=$(find "$APP/Contents/MacOS" -maxdepth 1 -type f | head -n1)
+          MINOS=$(vtool -show-build "$BIN" | awk '/minos/ {print $2; exit}')
+          DECL=$(/usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" "$APP/Contents/Info.plist")
+          echo "declared=$DECL binary minos=$MINOS"
+          if [ "$DECL" != "$MINOS" ] && [ "$(printf '%s\n%s\n' "$DECL" "$MINOS" | sort -V | head -n1)" = "$DECL" ]; then
+            echo "::error::declared minimum $DECL is lower than the binary minos $MINOS"
+            exit 1
+          fi
+          "$BIN" > "$WORK/launch.log" 2>&1 &
+          PID=$!
+          sleep 10
+          if ! kill -0 "$PID" 2>/dev/null; then
+            cat "$WORK/launch.log"
+            echo "::error::Hushio exited within 10 seconds of launch"
+            exit 1
+          fi
+          kill "$PID" || true
+          ARCHIVE=$(find mac-bundles -name "*.app.tar.gz" | head -n1)
+          if [ -z "$ARCHIVE" ]; then
+            echo "::error::No updater archive in mac-bundles-${{ matrix.arch }}"
+            exit 1
+          fi
+          mkdir -p "$WORK/archive"
+          tar -xzf "$ARCHIVE" -C "$WORK/archive"
+          check_app "$WORK/archive/Hushio.app"
+  linux:
+    needs: [build, build-macos]
     runs-on: ubuntu-22.04
     env:
       APPIMAGE_EXTRACT_AND_RUN: "1"

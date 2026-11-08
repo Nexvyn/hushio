@@ -7,13 +7,18 @@ type Step = {
   uses?: string;
   run?: string;
   if?: string;
+  shell?: string;
   env?: Record<string, string>;
   with?: Record<string, unknown>;
 };
 type Job = {
   needs?: string | string[];
   "runs-on": string;
-  strategy?: { matrix?: { os?: string[] } };
+  strategy?: {
+    "fail-fast"?: boolean;
+    "max-parallel"?: number;
+    matrix?: { os?: string[]; arch?: string[]; include?: Record<string, string>[] };
+  };
   env?: Record<string, string>;
   steps: Step[];
 };
@@ -28,10 +33,17 @@ const allEnvValues = [
   ...Object.values(jobs).flatMap((job) => Object.values(job.env ?? {})),
   ...allSteps.flatMap((step) => Object.values(step.env ?? {})),
 ];
+const stepNamed = (job: Job, name: string): Step => {
+  const step = job.steps.find((candidate) => candidate.name === name);
+  if (!step) throw new Error(`missing step ${name}`);
+  return step;
+};
+const macosInclude = jobs["build-macos"].strategy?.matrix?.include ?? [];
+const secretNames = new Set([...releaseYaml.matchAll(/secrets\.([A-Z_]+)/g)].map((m) => m[1]));
 
 describe("release workflow", () => {
-  it("has the test, build and linux jobs and no macOS or Android jobs yet", () => {
-    expect(Object.keys(jobs).sort()).toEqual(["build", "linux", "test"]);
+  it("has the test, build, macOS build and verify jobs plus linux, and no Android job yet", () => {
+    expect(Object.keys(jobs).sort()).toEqual(["build", "build-macos", "linux", "test", "verify-macos"]);
   });
 
   it("points every needs entry at an existing job", () => {
@@ -45,11 +57,24 @@ describe("release workflow", () => {
     expect(jobs.test.strategy?.matrix?.os).toEqual(["windows-latest", "ubuntu-22.04"]);
   });
 
-  it("gates both build jobs on test and builds Linux after the Windows release", () => {
+  it("gates both build jobs on test and builds Linux after the Windows and macOS releases", () => {
     expect(needsOf(jobs.build)).toContain("test");
-    expect(needsOf(jobs.linux)).toContain("build");
+    expect(needsOf(jobs.linux)).toEqual(expect.arrayContaining(["build", "build-macos"]));
     expect(jobs.linux["runs-on"]).toBe("ubuntu-22.04");
     expect(jobs.build["runs-on"]).toBe("windows-latest");
+  });
+
+  it("chains the macOS build behind the Windows build and the verify job behind the macOS build", () => {
+    expect(needsOf(jobs["build-macos"])).toEqual(["build"]);
+    expect(needsOf(jobs["verify-macos"])).toEqual(["build-macos"]);
+    expect(jobs["build-macos"]["runs-on"]).toBe("macos-latest");
+    expect(jobs["verify-macos"]["runs-on"]).toBe("macos-latest");
+  });
+
+  it("builds arm64 and x64 macOS bundles one at a time, because both write the same release assets", () => {
+    expect(macosInclude.map((row) => row.target)).toEqual(["aarch64-apple-darwin", "x86_64-apple-darwin"]);
+    expect(macosInclude.map((row) => row.platform)).toEqual(["darwin-aarch64", "darwin-x86_64"]);
+    expect(jobs["build-macos"].strategy?.["max-parallel"]).toBe(1);
   });
 
   it("runs the frozen install, typecheck, frontend tests and cargo tests in the test job", () => {
@@ -73,11 +98,91 @@ describe("release workflow", () => {
     expect(releaseYaml).not.toMatch(/BEGIN [A-Z ]*PRIVATE KEY/);
   });
 
-  it("uploads latest.json for the Windows and Linux updater entries", () => {
+  it("passes the Developer ID secrets only through the secrets context and only to the macOS build", () => {
+    const appleSecrets = ["APPLE_CERTIFICATE", "APPLE_CERTIFICATE_PASSWORD", "APPLE_SIGNING_IDENTITY", "APPLE_ID", "APPLE_PASSWORD", "APPLE_TEAM_ID"];
+    const signing = stepNamed(jobs["build-macos"], "Select macOS signing mode");
+    for (const name of appleSecrets) expect(signing.env?.[name]).toBe(`\${{ secrets.${name} }}`);
+    for (const name of secretNames) expect(["GITHUB_TOKEN", ...appleSecrets, "TAURI_SIGNING_PRIVATE_KEY", "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"]).toContain(name);
+    expect(jobs.build.steps.some((step) => Object.keys(step.env ?? {}).some((key) => key.startsWith("APPLE_")))).toBe(false);
+  });
+
+  it("sets HUSHIO_DEVELOPER_ID only after a Developer ID certificate secret is present", () => {
+    expect(releaseYaml.match(/HUSHIO_DEVELOPER_ID/g)).toHaveLength(1);
+    expect(allEnvValues.some((value) => value.includes("HUSHIO_DEVELOPER_ID"))).toBe(false);
+    const run = stepNamed(jobs["build-macos"], "Select macOS signing mode").run ?? "";
+    const guard = run.indexOf('if [ -z "$APPLE_CERTIFICATE" ]');
+    const exit = run.indexOf("exit 0");
+    const flag = run.indexOf("HUSHIO_DEVELOPER_ID=1");
+    expect(guard).toBeGreaterThanOrEqual(0);
+    expect(guard).toBeLessThan(exit);
+    expect(exit).toBeLessThan(flag);
+    expect(run).toContain('echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"');
+  });
+
+  it("gates the verify job's expected signature on the same certificate secret", () => {
+    expect(jobs["verify-macos"].env?.EXPECT_DEVELOPER_ID).toBe("${{ secrets.APPLE_CERTIFICATE != '' && '1' || '' }}");
+  });
+
+  it("switches off Spotlight before the macOS bundle build and builds the app bundle with tauri-action", () => {
+    const steps = jobs["build-macos"].steps;
+    const spotlight = steps.findIndex((step) => step.run === "sudo mdutil -a -i off");
+    const build = steps.findIndex((step) => step.uses?.startsWith("tauri-apps/tauri-action@"));
+    expect(spotlight).toBeGreaterThanOrEqual(0);
+    expect(spotlight).toBeLessThan(build);
+    expect(steps[build].with?.args).toBe("--target ${{ matrix.target }} --bundles app");
+    expect(steps[build].with?.includeUpdaterJson).toBe(true);
+  });
+
+  it("builds the DMG as best effort so a DMG failure never fails the matrix job", () => {
+    const dmg = stepNamed(jobs["build-macos"], "Build DMG (best effort)");
+    expect(dmg.run).toBe("pnpm tauri build --target ${{ matrix.target }} --bundles dmg || true");
+  });
+
+  it("uploads the macOS bundles as one artifact per arch, which the verify job downloads by the same name", () => {
+    const upload = jobs["build-macos"].steps.find((step) => step.uses?.startsWith("actions/upload-artifact@"));
+    expect(upload?.with?.name).toBe("mac-bundles-${{ matrix.arch }}");
+    expect(upload?.with?.path).toBe("src-tauri/target/**/bundle/**");
+    const download = jobs["verify-macos"].steps.find((step) => step.uses?.startsWith("actions/download-artifact@"));
+    expect(download?.with?.name).toBe("mac-bundles-${{ matrix.arch }}");
+  });
+
+  it("names the macOS release files by arch and writes darwin entries into latest.json", () => {
+    const rename = stepNamed(jobs["build-macos"], "Rename macOS archive and update latest.json");
+    expect(rename.run).toContain('NAME="Hushio-${VERSION}-${ARCH}.app.tar.gz"');
+    expect(rename.run).toContain("latest.json");
+    expect(rename.run).toContain("$WORK/$NAME.sig");
+    expect(rename.run).toContain('[key]: { signature: fs.readFileSync(sig, "utf8").trim(), url }');
+    expect(stepNamed(jobs["build-macos"], "Publish DMG (best effort)").run).toContain('NAME="Hushio-${VERSION}-${ARCH}.dmg"');
+    expect(rename.env?.PLATFORM).toBe("${{ matrix.platform }}");
+  });
+
+  it("uploads latest.json for the Windows, macOS and Linux updater entries", () => {
     expect(jobs.build.steps.some((step) => step.run?.includes("latest.json"))).toBe(true);
+    expect(jobs["build-macos"].steps.some((step) => step.run?.includes("latest.json"))).toBe(true);
     expect(jobs.linux.steps.some((step) => step.run?.includes("latest.json"))).toBe(true);
     expect(releaseYaml).toContain("Hushio-${VERSION}-linux-x86_64.AppImage");
     expect(releaseYaml).toContain('Hushio_"$VERSION"_x64-setup.nsis.zip');
+  });
+
+  it("verifies the DMG, the archive, the signature and the minimum macOS version", () => {
+    const script = stepNamed(jobs["verify-macos"], "Verify DMG, archive, signature and minimum macOS version").run ?? "";
+    for (const expected of [
+      "hdiutil attach",
+      'hdiutil detach "$MNT"',
+      "codesign --verify --deep --strict",
+      "codesign -dv",
+      "Signature=adhoc",
+      "Authority=Developer ID Application",
+      "spctl --assess",
+      "vtool -show-build",
+      "LSMinimumSystemVersion",
+      "::error::declared minimum",
+      'tar -xzf "$ARCHIVE"',
+      "kill -0",
+    ]) {
+      expect(script).toContain(expected);
+    }
+    expect(script).toContain("::warning::spctl rejected (expected while ad-hoc signed)");
   });
 
   it("uses no npm or npx commands", () => {
