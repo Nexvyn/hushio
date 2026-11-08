@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, type Mock } from "vitest";
 import { dispatchMenuCommand, historyCommand, isMenuCommand, MENU_COMMANDS, type MenuDeps } from "./menuCommands";
+import { fs, SRC_DIR } from "./testFiles";
 
 function anyCalled(deps: MenuDeps) {
   return Object.values(deps).some((fn) => ((fn as unknown as Mock).mock?.calls.length ?? 0) > 0);
@@ -121,5 +122,24 @@ describe("historyCommand", () => {
 
   it("ignores other keys", () => {
     expect(historyCommand({ ...base, code: "KeyF" })).toBeNull();
+  });
+});
+
+describe("native menu wiring", () => {
+  const menuRs = fs.readFileSync(`${SRC_DIR}../src-tauri/src/menu.rs`, "utf8");
+  const bridgeTs = fs.readFileSync(`${SRC_DIR}lib/bridge.ts`, "utf8");
+
+  it("only sends commands the frontend knows", () => {
+    const sent = [...menuRs.matchAll(/\b(?:command|check)\("([a-z0-9-]+)"/g)].map((match) => match[1]);
+    expect(sent.length).toBeGreaterThanOrEqual(21);
+    for (const command of sent) {
+      expect(MENU_COMMANDS, command).toContain(command);
+    }
+  });
+
+  it("listens on the event name the Rust menu emits", () => {
+    const rustEvent = menuRs.match(/pub const EVENT: &str = "([^"]+)"/)?.[1];
+    expect(rustEvent).toBe("menu:command");
+    expect(bridgeTs).toContain(`listen<string>("${rustEvent}"`);
   });
 });

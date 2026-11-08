@@ -2,13 +2,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const { audio, playStream, seekTo, cachedSearchPage, peekSearchPage, searchMore } = vi.hoisted(() => ({
+const { audio, playStream, seekTo, cachedSearchPage, peekSearchPage, searchMore, chrome } = vi.hoisted(() => ({
   audio: new Audio(),
+  chrome: { platform: "windows" as "windows" | "macos" },
   playStream: vi.fn(),
   seekTo: vi.fn(),
   cachedSearchPage: vi.fn(),
   peekSearchPage: vi.fn(),
   searchMore: vi.fn(),
+}));
+
+vi.mock("../lib/bridge", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/bridge")>()),
+  get platform() {
+    return chrome.platform;
+  },
 }));
 
 vi.mock("../lib/audio", () => ({
@@ -93,6 +101,7 @@ describe("SearchView", () => {
   });
 
   afterEach(() => {
+    chrome.platform = "windows";
     cleanup();
     vi.unstubAllGlobals();
   });
@@ -107,6 +116,17 @@ describe("SearchView", () => {
       ),
     ).toBeTruthy();
     expect(cachedSearchPage).not.toHaveBeenCalled();
+  });
+
+  it("names the Cmd+F shortcut on macOS", () => {
+    chrome.platform = "macos";
+    render(<SearchView />);
+
+    expect(
+      screen.getByText(
+        "Find songs, albums, artists and playlists from YouTube Music. Press ⌘F anywhere to jump into search.",
+      ),
+    ).toBeTruthy();
   });
 
   it("lists recent searches and runs the one that is clicked", async () => {

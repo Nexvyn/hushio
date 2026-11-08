@@ -726,6 +726,21 @@ mod tests {
             .expect("loopback connect");
     }
 
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn macos_proxies_take_separate_ephemeral_loopback_ports() {
+        let first = StreamProxy::new(Registry::default()).start().await.unwrap();
+        let second = StreamProxy::new(Registry::default()).start().await.unwrap();
+
+        assert_ne!(first, 0);
+        assert_ne!(first, second);
+        for port in [first, second] {
+            tokio::net::TcpStream::connect(("127.0.0.1", port))
+                .await
+                .expect("loopback connect");
+        }
+    }
+
     #[test]
     fn served_map_evicts_oldest_past_the_cap() {
         let mut served = Served::default();

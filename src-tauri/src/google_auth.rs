@@ -1582,4 +1582,36 @@ mod tests {
     fn keyring_service_matches_the_bundle_identifier() {
         assert_eq!(keyring_service(), "com.hushio.app");
     }
+
+    #[cfg(target_os = "macos")]
+    struct KeychainAccount(&'static str);
+
+    #[cfg(target_os = "macos")]
+    impl Drop for KeychainAccount {
+        fn drop(&mut self) {
+            let _ = KeyringSlot(self.0).clear();
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn keychain_round_trip_writes_under_the_app_service_and_removes_the_item() {
+        let account: &'static str =
+            Box::leak(format!("test-{}", uuid::Uuid::new_v4()).into_boxed_str());
+        let _cleanup = KeychainAccount(account);
+        let slot = KeyringSlot(account);
+
+        assert_eq!(slot.read().unwrap(), None);
+        slot.write("first").unwrap();
+        assert_eq!(slot.read().unwrap().as_deref(), Some("first"));
+        let direct = keyring::Entry::new("com.hushio.app", account).unwrap();
+        assert_eq!(direct.get_password().unwrap(), "first");
+
+        slot.write("second").unwrap();
+        assert_eq!(slot.read().unwrap().as_deref(), Some("second"));
+
+        slot.clear().unwrap();
+        assert_eq!(slot.read().unwrap(), None);
+        slot.clear().unwrap();
+    }
 }

@@ -802,4 +802,32 @@ mod tests {
         assert!(root.path().join(".hushio-install").exists());
         assert!(!ensure_install_marker(root.path()));
     }
+
+    fn bundle_identifier() -> String {
+        let config: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).expect("tauri.conf.json");
+        config["identifier"].as_str().expect("identifier").to_owned()
+    }
+
+    #[test]
+    fn bundle_identifier_is_the_app_identifier() {
+        assert_eq!(bundle_identifier(), "com.hushio.app");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_data_folder_sits_under_application_support_by_identifier() {
+        let home = PathBuf::from(std::env::var_os("HOME").expect("HOME is set"));
+        let root = home.join("Library/Application Support").join(bundle_identifier());
+
+        assert_eq!(
+            persist::store_path(&root, "", "player"),
+            root.join("data/guest/player.json")
+        );
+        assert_eq!(
+            persist::store_path(&root, "account-1", "library"),
+            root.join("data/account-1/library.json")
+        );
+        assert_eq!(root.file_name().and_then(|name| name.to_str()), Some("com.hushio.app"));
+    }
 }

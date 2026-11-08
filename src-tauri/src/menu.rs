@@ -645,4 +645,99 @@ mod tests {
         assert_eq!(state.repeat, Repeat::All);
         assert!(!state.playing);
     }
+
+    fn child_labels(nodes: &[Node], title: &str) -> Vec<String> {
+        let Some(Node::Menu { items, .. }) = nodes
+            .iter()
+            .find(|node| matches!(node, Node::Menu { label, .. } if label == title))
+        else {
+            panic!("no {title} menu");
+        };
+        items
+            .iter()
+            .filter_map(|node| match node {
+                Node::Command { label, .. }
+                | Node::Check { label, .. }
+                | Node::Native { label, .. }
+                | Node::Predefined { label, .. }
+                | Node::Menu { label, .. } => Some(label.clone()),
+                Node::Separator => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn file_and_playback_menus_follow_the_prd_order() {
+        let nodes = menus(false);
+        assert_eq!(
+            child_labels(&nodes, "File"),
+            ["Import Backup\u{2026}", "Export Backup\u{2026}", "Close"]
+        );
+        assert_eq!(
+            child_labels(&nodes, "Playback"),
+            [
+                "Play",
+                "Next",
+                "Previous",
+                "Shuffle",
+                "Repeat",
+                "Sleep Timer",
+                "Show Queue",
+                "Show Lyrics",
+                "Now Playing View",
+            ]
+        );
+    }
+
+    #[test]
+    fn window_menu_ends_with_miniplayer_and_bring_to_front() {
+        let labels = child_labels(&menus(false), "Window");
+        assert_eq!(labels[..2], ["Minimize", "Zoom"]);
+        assert_eq!(labels[3..], ["Hushio Miniplayer", "Bring All to Front"]);
+    }
+
+    #[test]
+    fn transport_items_have_no_accelerator_so_typing_is_never_taken() {
+        let nodes = menus(false);
+        for id in ["play-pause", "next", "previous"] {
+            let Some(Node::Command { accelerator, .. }) = leaves(&nodes)
+                .into_iter()
+                .find(|node| matches!(node, Node::Command { command, .. } if *command == id))
+            else {
+                panic!("{id} is not a command item");
+            };
+            assert_eq!(*accelerator, None, "{id} has an accelerator");
+        }
+    }
+
+    #[test]
+    fn repeat_and_sleep_submenus_hold_their_radio_and_timer_items() {
+        let nodes = menus(false);
+        let Node::Menu { items: playback, .. } = nodes
+            .iter()
+            .find(|node| matches!(node, Node::Menu { label, .. } if label == "Playback"))
+            .expect("Playback menu")
+        else {
+            unreachable!();
+        };
+        let repeat = playback
+            .iter()
+            .find_map(|node| match node {
+                Node::Menu { label, items } if label == "Repeat" => Some(items),
+                _ => None,
+            })
+            .expect("Repeat submenu");
+        assert!(repeat.iter().all(|node| matches!(node, Node::Check { .. })));
+        let sleep = playback
+            .iter()
+            .find_map(|node| match node {
+                Node::Menu { label, items } if label == "Sleep Timer" => Some(items),
+                _ => None,
+            })
+            .expect("Sleep Timer submenu");
+        assert_eq!(
+            ids(&[Node::Menu { label: "Sleep".into(), items: sleep.clone() }]),
+            ["sleep-15", "sleep-30", "sleep-60", "sleep-end", "sleep-off"]
+        );
+    }
 }
