@@ -140,12 +140,20 @@ describe("Sound rows on Windows", () => {
 });
 
 describe("Sound rows off Windows", () => {
-  it.each(["linux", "macos", "android"] as const)("shows the disabled output row on %s", (platform) => {
+  it.each(["linux", "android"] as const)("shows the disabled output row on %s", (platform) => {
     const output = row(platform, "output-device");
     expect(output.note).toBe("Follows the system output");
     expect(output.control).toBeUndefined();
     expect(output.toggle).toBeUndefined();
     expect(output.disabled).toBe(true);
+  });
+
+  it("hides the output picker on macOS and says the output follows the system", () => {
+    const output = row("macos", "output-device");
+    expect(output.note).toBe("Follows the system output");
+    expect(output.control).toBeUndefined();
+    expect(output.toggle).toBeUndefined();
+    expect(output.disabled).toBeFalsy();
   });
 
   it("keeps the equalizer on Linux", () => {

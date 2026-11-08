@@ -84,6 +84,23 @@ export function outputChangeAction(
   return next.physicalGroups.includes(prev.selectedGroup) ? "none" : "pause";
 }
 
+export type AudioOutputState = { defaultId: string; deviceIds: string[] };
+
+export function snapshotAudioOutput(state: AudioOutputState): OutputSnapshot {
+  const defaultGroup = state.defaultId === "" ? undefined : state.defaultId;
+  return { defaultGroup, selectedGroup: defaultGroup, physicalGroups: [...state.deviceIds] };
+}
+
+export function audioOutputWatch(deps: Pick<OutputWatchDeps, "isPlaying" | "pause">): (state: AudioOutputState) => void {
+  let previous: OutputSnapshot | null = null;
+  return (state) => {
+    const next = snapshotAudioOutput(state);
+    const action = outputChangeAction(previous, next, deps.isPlaying());
+    previous = next;
+    if (action === "pause") deps.pause();
+  };
+}
+
 export function startOutputWatch(deps: OutputWatchDeps): void {
   if (!navigator.mediaDevices) return;
   let previous: OutputDevice[] | null = null;

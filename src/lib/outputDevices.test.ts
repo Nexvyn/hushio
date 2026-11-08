@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  audioOutputWatch,
   deviceChoices,
   type OutputDevice,
   outputChangeAction,
   outputsOf,
   type RawDevice,
+  snapshotAudioOutput,
   snapshotOutputs,
   startOutputWatch,
 } from "./outputDevices";
@@ -227,5 +229,58 @@ describe("startOutputWatch", () => {
     start(deps);
     await settle();
     expect(deps.pause).not.toHaveBeenCalled();
+  });
+});
+
+describe("macOS audio output watch", () => {
+  const SPEAKERS = { defaultId: "uid-spk", deviceIds: ["uid-spk", "uid-hp"] };
+  const HEADPHONES = { defaultId: "uid-hp", deviceIds: ["uid-spk", "uid-hp"] };
+
+  it("follows the system default and uses device UIDs as the groups", () => {
+    expect(snapshotAudioOutput(SPEAKERS)).toEqual({
+      defaultGroup: "uid-spk",
+      selectedGroup: "uid-spk",
+      physicalGroups: ["uid-spk", "uid-hp"],
+    });
+  });
+
+  it("does not pause on the first state", () => {
+    const pause = vi.fn();
+    const onState = audioOutputWatch({ isPlaying: () => true, pause });
+    onState(SPEAKERS);
+    expect(pause).not.toHaveBeenCalled();
+  });
+
+  it("pauses once when the heard device disappears", () => {
+    const pause = vi.fn();
+    const onState = audioOutputWatch({ isPlaying: () => true, pause });
+    onState(SPEAKERS);
+    onState({ defaultId: "uid-hp", deviceIds: ["uid-hp"] });
+    onState({ defaultId: "uid-hp", deviceIds: ["uid-hp"] });
+    expect(pause).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps playing when the default moves to a device that was just plugged in", () => {
+    const pause = vi.fn();
+    const onState = audioOutputWatch({ isPlaying: () => true, pause });
+    onState(SPEAKERS);
+    onState(HEADPHONES);
+    expect(pause).not.toHaveBeenCalled();
+  });
+
+  it("does not pause while stopped", () => {
+    const pause = vi.fn();
+    const onState = audioOutputWatch({ isPlaying: () => false, pause });
+    onState(SPEAKERS);
+    onState({ defaultId: "uid-spk", deviceIds: ["uid-spk"] });
+    expect(pause).not.toHaveBeenCalled();
+  });
+
+  it("treats an empty default id as an unknown heard device", () => {
+    const pause = vi.fn();
+    const onState = audioOutputWatch({ isPlaying: () => true, pause });
+    onState({ defaultId: "", deviceIds: [] });
+    onState({ defaultId: "", deviceIds: ["uid-spk"] });
+    expect(pause).not.toHaveBeenCalled();
   });
 });

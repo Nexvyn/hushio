@@ -3,9 +3,9 @@ import ReactDOM from "react-dom/client";
 import { SessionGate } from "./components/SessionGate";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import "./index.css";
-import { platform, showMainWindow } from "./lib/bridge";
+import { audioOutputState, listenAudioOutputChanged, platform, showMainWindow } from "./lib/bridge";
 import { pause, setBlendHooks } from "./lib/audio";
-import { startOutputWatch } from "./lib/outputDevices";
+import { audioOutputWatch, startOutputWatch } from "./lib/outputDevices";
 import { startMediaSession } from "./lib/mediaSession";
 import { startSmtc } from "./lib/smtc";
 import { startDesktopAppearance } from "./lib/desktopAppearance";
@@ -33,6 +33,11 @@ function mountPip() {
       </ErrorBoundary>
     </React.StrictMode>,
   );
+}
+if (platform === "macos") {
+  const onOutput = audioOutputWatch({ isPlaying: () => usePlayer.getState().playing, pause });
+  void listenAudioOutputChanged(onOutput);
+  void audioOutputState().then(onOutput);
 }
 
 function mountMain() {

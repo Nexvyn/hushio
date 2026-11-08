@@ -456,7 +456,24 @@ function playbackCategory(context: BuildContext): SettingsCategory {
   };
 }
 
-function soundCategory({ settings: s, platform }: BuildContext): SettingsCategory {
+function outputRow({ settings: s, platform }: BuildContext): RowSpec {
+  if (platform === "windows") {
+    return {
+      id: "output-device",
+      icon: Speaker01Icon,
+      title: "Output device",
+      note: s.audioSinkId ? "Pinned to this device" : "Following the system default",
+      control: <OutputDevicePicker />,
+    };
+  }
+  if (platform === "macos") {
+    return { id: "output-device", icon: Speaker01Icon, title: "Output device", note: "Follows the system output" };
+  }
+  return { id: "output-device", icon: Speaker01Icon, title: "Output device", note: "Follows the system output", disabled: true };
+}
+
+function soundCategory(context: BuildContext): SettingsCategory {
+  const { settings: s } = context;
   return {
     id: "sound",
     label: "Sound",
@@ -493,21 +510,7 @@ function soundCategory({ settings: s, platform }: BuildContext): SettingsCategor
               />
             ),
           },
-          platform === "windows"
-            ? {
-                id: "output-device",
-                icon: Speaker01Icon,
-                title: "Output device",
-                note: s.audioSinkId ? "Pinned to this device" : "Following the system default",
-                control: <OutputDevicePicker />,
-              }
-            : {
-                id: "output-device",
-                icon: Speaker01Icon,
-                title: "Output device",
-                note: "Follows the system output",
-                disabled: true,
-              },
+          outputRow(context),
         ],
       },
       {

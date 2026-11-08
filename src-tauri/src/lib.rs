@@ -2,6 +2,7 @@ mod analysis;
 mod cloud_payload;
 mod deletion_sync;
 mod disconnect;
+mod audio_output;
 mod downloads;
 mod drive_sync;
 mod google_auth;
@@ -604,12 +605,15 @@ pub fn run() {
             macos_window::install(app.handle());
             #[cfg(target_os = "macos")]
             menu::install(app.handle())?;
+            #[cfg(target_os = "macos")]
+            audio_output::install(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             os_scroll_direction,
             linux_portal::linux_appearance_read,
             linux_session::linux_session_rules,
+            audio_output::audio_output_state,
             persist_read,
             persist_write,
             menu::menu_set_playback_state,

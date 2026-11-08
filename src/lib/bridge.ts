@@ -6,6 +6,7 @@ import { Image } from "@tauri-apps/api/image";
 import { writeImage } from "@tauri-apps/plugin-clipboard-manager";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { PipCommand, PipSnapshot } from "../pip/types";
+import type { AudioOutputState } from "./outputDevices";
 import type { JournalEntry, ReplayData } from "./replay";
 import type { DesktopScheme } from "./theme";
 import type { UpdateState } from "./updates";
@@ -398,6 +399,14 @@ export function googleSignOut(): Promise<GoogleAccount> {
 
 export function listenGoogleAuthChanged(onChange: (account: GoogleAccount) => void): Promise<UnlistenFn> {
   return listen<GoogleAccount>("google-auth-changed", (event) => onChange(event.payload));
+}
+
+export function audioOutputState(): Promise<AudioOutputState> {
+  return call<AudioOutputState>("audio_output_state");
+}
+
+export function listenAudioOutputChanged(onChange: (state: AudioOutputState) => void): Promise<UnlistenFn> {
+  return listen<AudioOutputState>("audio-output-changed", (event) => onChange(event.payload));
 }
 
 export type YtSyncState = "idle" | "running" | "paused_sign_in" | "error";
