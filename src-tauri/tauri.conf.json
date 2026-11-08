@@ -72,15 +72,6 @@
         "displayLanguageSelector": false
       }
     },
-    "macOS": {
-      "minimumSystemVersion": "13.0",
-      "signingIdentity": "-",
-      "hardenedRuntime": false,
-      "dmg": {
-        "appPosition": { "x": 130, "y": 220 },
-        "applicationFolderPosition": { "x": 410, "y": 220 }
-      }
-    },
     "linux": {
       "deb": {
         "depends": [

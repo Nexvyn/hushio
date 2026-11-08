@@ -90,6 +90,8 @@ describe("About update rows", () => {
   it("opens the download page on the website route", async () => {
     setUpdate({ status: "available", version: "1.2.0", route: "website" });
     render(<SettingsView />);
+
+    expect(screen.getByText("You have version 1.1.1. Get it from hushio.space.")).toBeTruthy();
     await userEvent.setup().click(screen.getByRole("button", { name: "Download" }));
 
     expect(bridgeMock.openExternal).toHaveBeenCalledWith("https://hushio.space");

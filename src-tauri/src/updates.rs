@@ -100,7 +100,7 @@ impl UpdateState {
     }
 
     pub fn begin_download(&mut self) -> bool {
-        if self.status != Status::Available {
+        if self.status != Status::Available || self.route != Route::InApp {
             return false;
         }
         self.status = Status::Downloading;
@@ -197,7 +197,32 @@ pub fn may_check(status: Status) -> bool {
     !matches!(status, Status::Checking | Status::Downloading | Status::Ready)
 }
 
-fn route_for(os: Os, packaged: bool, appimage_writable: Option<bool>, flatpak: bool) -> Route {
+const HAS_DEVELOPER_ID: bool = match option_env!("HUSHIO_DEVELOPER_ID") {
+    Some(value) => !value.is_empty(),
+    None => false,
+};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum InstallMode {
+    InPlace,
+    OpenDownloadPage,
+}
+
+fn install_mode(os: Os, has_developer_id: bool) -> InstallMode {
+    match os {
+        Os::Windows | Os::Linux => InstallMode::InPlace,
+        Os::MacOs if has_developer_id => InstallMode::InPlace,
+        Os::MacOs | Os::Other => InstallMode::OpenDownloadPage,
+    }
+}
+
+fn route_for(
+    os: Os,
+    packaged: bool,
+    appimage_writable: Option<bool>,
+    flatpak: bool,
+    has_developer_id: bool,
+) -> Route {
     if !packaged {
         return Route::Website;
     }
@@ -206,7 +231,10 @@ fn route_for(os: Os, packaged: bool, appimage_writable: Option<bool>, flatpak: b
         Os::Linux if flatpak => Route::Flathub,
         Os::Linux if appimage_writable == Some(true) => Route::InApp,
         Os::Linux => Route::Releases,
-        Os::MacOs | Os::Other => Route::Website,
+        Os::MacOs | Os::Other => match install_mode(os, has_developer_id) {
+            InstallMode::InPlace => Route::InApp,
+            InstallMode::OpenDownloadPage => Route::Website,
+        },
     }
 }
 
@@ -217,6 +245,7 @@ fn detect_route() -> Route {
         packaged(),
         appimage,
         std::env::var_os("FLATPAK_ID").is_some(),
+        HAS_DEVELOPER_ID,
     )
 }
 
@@ -478,13 +507,41 @@ mod tests {
 
     #[test]
     fn route_depends_on_how_the_app_was_installed() {
-        assert_eq!(route_for(Os::Windows, true, None, false), Route::InApp);
-        assert_eq!(route_for(Os::MacOs, true, None, false), Route::Website);
-        assert_eq!(route_for(Os::Linux, true, Some(true), false), Route::InApp);
-        assert_eq!(route_for(Os::Linux, true, Some(false), false), Route::Releases);
-        assert_eq!(route_for(Os::Linux, true, None, false), Route::Releases);
-        assert_eq!(route_for(Os::Linux, true, Some(true), true), Route::Flathub);
-        assert_eq!(route_for(Os::Windows, false, None, false), Route::Website);
+        assert_eq!(route_for(Os::Windows, true, None, false, false), Route::InApp);
+        assert_eq!(route_for(Os::MacOs, true, None, false, false), Route::Website);
+        assert_eq!(route_for(Os::Linux, true, Some(true), false, false), Route::InApp);
+        assert_eq!(route_for(Os::Linux, true, Some(false), false, false), Route::Releases);
+        assert_eq!(route_for(Os::Linux, true, None, false, false), Route::Releases);
+        assert_eq!(route_for(Os::Linux, true, Some(true), true, false), Route::Flathub);
+        assert_eq!(route_for(Os::Windows, false, None, false, false), Route::Website);
+    }
+
+    #[test]
+    fn install_mode_needs_a_developer_id_on_macos() {
+        assert_eq!(install_mode(Os::MacOs, false), InstallMode::OpenDownloadPage);
+        assert_eq!(install_mode(Os::MacOs, true), InstallMode::InPlace);
+        assert_eq!(install_mode(Os::Windows, false), InstallMode::InPlace);
+        assert_eq!(install_mode(Os::Linux, false), InstallMode::InPlace);
+        assert_eq!(install_mode(Os::Other, true), InstallMode::OpenDownloadPage);
+    }
+
+    #[test]
+    fn macos_route_follows_the_install_mode() {
+        assert_eq!(route_for(Os::MacOs, true, None, false, false), Route::Website);
+        assert_eq!(route_for(Os::MacOs, true, None, false, true), Route::InApp);
+    }
+
+    #[test]
+    fn macos_without_a_developer_id_offers_the_page_and_never_downloads() {
+        let route = route_for(Os::MacOs, true, None, false, false);
+        let mut state = UpdateState::new("1.1.1".into(), route);
+        assert!(state.begin_check());
+        state.found(Some("1.2.0".into()));
+        assert_eq!(state.status, Status::Available);
+        assert_eq!(state.route, Route::Website);
+        assert!(!state.begin_download());
+        assert_eq!(state.status, Status::Available);
+        assert_eq!(state.percent, None);
     }
 
     #[test]

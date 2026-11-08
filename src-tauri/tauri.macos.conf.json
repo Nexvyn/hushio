@@ -17,5 +17,19 @@
         "visible": false
       }
     ]
+  },
+  "bundle": {
+    "copyright": "Copyright © 2026 Nexvyn",
+    "macOS": {
+      "minimumSystemVersion": "13.0",
+      "signingIdentity": "-",
+      "hardenedRuntime": false,
+      "entitlements": null,
+      "dmg": {
+        "windowSize": { "width": 660, "height": 400 },
+        "appPosition": { "x": 130, "y": 220 },
+        "applicationFolderPosition": { "x": 410, "y": 220 }
+      }
+    }
   }
 }
