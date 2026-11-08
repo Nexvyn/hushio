@@ -5,5 +5,5 @@ export function hasCaptionButtons(platform: Platform): boolean {
 }
 
 export function usesNativeMediaControls(platform: Platform): boolean {
-  return platform === "windows" || platform === "linux";
+  return platform === "windows" || platform === "linux" || platform === "macos";
 }

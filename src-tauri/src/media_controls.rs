@@ -74,6 +74,14 @@ pub fn clip(text: &str) -> String {
 }
 
 pub fn cover_url(thumb: Option<&str>, art_dir: &Path) -> Option<String> {
+    cover_with(thumb, art_dir, |path| format!("file://{}", path.display()))
+}
+
+pub fn macos_cover_url(thumb: Option<&str>, art_dir: &Path) -> Option<String> {
+    cover_with(thumb, art_dir, |path| file_uri(&path.to_string_lossy()))
+}
+
+fn cover_with(thumb: Option<&str>, art_dir: &Path, local: impl Fn(&Path) -> String) -> Option<String> {
     let thumb = thumb?.trim();
     if thumb.is_empty() || thumb.len() > THUMB_LIMIT {
         return None;
@@ -85,7 +93,7 @@ pub fn cover_url(thumb: Option<&str>, art_dir: &Path) -> Option<String> {
     if !local_library::is_art_name(name) {
         return None;
     }
-    Some(format!("file://{}", art_dir.join(name).display()))
+    Some(local(&art_dir.join(name)))
 }
 
 fn seconds(value: f64) -> f64 {
@@ -93,11 +101,19 @@ fn seconds(value: f64) -> f64 {
 }
 
 pub fn metadata(track: &MediaTrack, art_dir: &Path) -> Metadata {
+    with_cover(track, cover_url(track.thumb.as_deref(), art_dir))
+}
+
+pub fn macos_metadata(track: &MediaTrack, art_dir: &Path) -> Metadata {
+    with_cover(track, macos_cover_url(track.thumb.as_deref(), art_dir))
+}
+
+fn with_cover(track: &MediaTrack, cover: Option<String>) -> Metadata {
     Metadata {
         title: clip(&track.title),
         artist: clip(&track.artist),
         album: clip(&track.album),
-        cover: cover_url(track.thumb.as_deref(), art_dir),
+        cover,
         duration: seconds(track.duration),
     }
 }
@@ -203,26 +219,52 @@ pub fn set_app_id() {
 #[cfg(not(target_os = "windows"))]
 pub fn set_app_id() {}
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 mod platform {
+    use std::ffi::c_void;
     use std::path::Path;
-    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
     use souvlaki::{
         MediaControlEvent, MediaControls, MediaMetadata, MediaPlayback, MediaPosition, PlatformConfig,
     };
-    use tauri::{AppHandle, Emitter, Manager};
+    use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 
-    use super::{clamp_position, metadata, Button, MediaTrack, BUTTON_EVENT, SEEK_EVENT};
+    #[cfg(target_os = "macos")]
+    use super::macos_metadata;
+    #[cfg(target_os = "windows")]
+    use super::metadata;
+    use super::{clamp_position, play_pause_button, Button, MediaTrack, Metadata, BUTTON_EVENT, SEEK_EVENT};
     use crate::{window, APP_NAME};
 
     pub struct Session {
         controls: MediaControls,
         app: AppHandle,
         attached: bool,
-        playing: bool,
+        playing: Arc<AtomicBool>,
         progress: Option<f64>,
+    }
+
+    #[cfg(target_os = "windows")]
+    fn window_handle(window: &WebviewWindow) -> Result<Option<*mut c_void>, String> {
+        window.hwnd().map(|hwnd| Some(hwnd.0)).map_err(|error| error.to_string())
+    }
+
+    #[cfg(target_os = "macos")]
+    fn window_handle(_window: &WebviewWindow) -> Result<Option<*mut c_void>, String> {
+        Ok(None)
+    }
+
+    #[cfg(target_os = "windows")]
+    fn now_playing(track: &MediaTrack, art_dir: &Path) -> Metadata {
+        metadata(track, art_dir)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn now_playing(track: &MediaTrack, art_dir: &Path) -> Metadata {
+        macos_metadata(track, art_dir)
     }
 
     impl Session {
@@ -230,26 +272,27 @@ mod platform {
             let window = app
                 .get_webview_window(window::MAIN)
                 .ok_or_else(|| "main window is missing".to_owned())?;
-            let hwnd = window.hwnd().map_err(|error| error.to_string())?;
+            let hwnd = window_handle(&window)?;
             let controls = MediaControls::new(PlatformConfig {
                 display_name: APP_NAME,
                 dbus_name: "hushio",
-                hwnd: Some(hwnd.0),
+                hwnd,
             })
             .map_err(|error| error.to_string())?;
             Ok(Self {
                 controls,
                 app: app.clone(),
                 attached: false,
-                playing: false,
+                playing: Arc::new(AtomicBool::new(false)),
                 progress: None,
             })
         }
 
         fn attach(&mut self) -> Result<(), String> {
             let app = self.app.clone();
+            let playing = Arc::clone(&self.playing);
             self.controls
-                .attach(move |event| on_event(&app, event))
+                .attach(move |event| on_event(&app, &playing, event))
                 .map_err(|error| error.to_string())?;
             self.attached = true;
             Ok(())
@@ -259,7 +302,7 @@ mod platform {
             if !self.attached {
                 self.attach()?;
             }
-            let meta = metadata(track, art_dir);
+            let meta = now_playing(track, art_dir);
             self.controls
                 .set_metadata(MediaMetadata {
                     title: Some(&meta.title),
@@ -272,7 +315,7 @@ mod platform {
         }
 
         fn set_playing(&mut self, playing: bool) -> Result<(), String> {
-            self.playing = playing;
+            self.playing.store(playing, Ordering::SeqCst);
             self.apply()
         }
 
@@ -287,7 +330,7 @@ mod platform {
         }
 
         fn clear(&mut self) -> Result<(), String> {
-            self.playing = false;
+            self.playing.store(false, Ordering::SeqCst);
             self.progress = None;
             if self.attached {
                 self.controls.detach().map_err(|error| error.to_string())?;
@@ -300,7 +343,7 @@ mod platform {
 
         fn apply(&mut self) -> Result<(), String> {
             let progress = self.progress.map(|at| MediaPosition(Duration::from_secs_f64(at)));
-            let playback = if self.playing {
+            let playback = if self.playing.load(Ordering::SeqCst) {
                 MediaPlayback::Playing { progress }
             } else {
                 MediaPlayback::Paused { progress }
@@ -311,10 +354,11 @@ mod platform {
         }
     }
 
-    fn on_event(app: &AppHandle, event: MediaControlEvent) {
+    fn on_event(app: &AppHandle, playing: &AtomicBool, event: MediaControlEvent) {
         let button = match event {
             MediaControlEvent::Play => Button::Play,
             MediaControlEvent::Pause => Button::Pause,
+            MediaControlEvent::Toggle => play_pause_button(playing.load(Ordering::SeqCst)),
             MediaControlEvent::Next => Button::Next,
             MediaControlEvent::Previous => Button::Previous,
             MediaControlEvent::SetPosition(MediaPosition(at)) => {
@@ -812,14 +856,14 @@ mod mpris {
 #[cfg(target_os = "linux")]
 pub use mpris::Controls;
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub use platform::Controls;
 
-#[cfg(not(any(target_os = "windows", target_os = "linux")))]
+#[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
 #[derive(Default)]
 pub struct Controls;
 
-#[cfg(not(any(target_os = "windows", target_os = "linux")))]
+#[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
 impl Controls {
     pub fn install(&self, _app: &tauri::AppHandle) {}
 
@@ -947,6 +991,91 @@ mod tests {
         assert_eq!(cover_url(Some("localart://../secret.jpg"), &dir), None);
         assert_eq!(cover_url(Some("localart://0123456789abcdeg.jpg"), &dir), None);
         assert_eq!(cover_url(Some("localart://0123456789abcdef.gif"), &dir), None);
+    }
+
+    #[test]
+    fn macos_local_art_is_a_percent_encoded_file_uri() {
+        let dir = PathBuf::from("/Users/me/Library/Application Support/hushio/local-art");
+        let url = macos_cover_url(Some(&format!("localart://{ART}")), &dir).unwrap();
+        assert!(url.starts_with("file:///Users/me/Library/Application%20Support/hushio/local-art"));
+        assert!(!url.contains(' '));
+    }
+
+    #[test]
+    fn macos_covers_keep_https_and_drop_unsafe_local_art() {
+        let url = "https://i.ytimg.com/vi/abc/hqdefault.jpg";
+        assert_eq!(macos_cover_url(Some(url), &art_dir()), Some(url.to_owned()));
+        assert_eq!(macos_cover_url(Some("localart://../secret.jpg"), &art_dir()), None);
+        assert_eq!(macos_cover_url(Some("file:///etc/passwd"), &art_dir()), None);
+    }
+
+    #[test]
+    fn macos_metadata_sends_the_encoded_cover_and_keeps_the_text() {
+        let dir = PathBuf::from("/Users/me/Library/Application Support/hushio/local-art");
+        let meta = macos_metadata(&track(Some(&format!("localart://{ART}")), 215.5), &dir);
+        assert!(meta.cover.as_deref().is_some_and(|cover| cover.starts_with("file:///Users/me/Library/Application%20Support/")));
+        assert_eq!((meta.title.as_str(), meta.album.as_str(), meta.duration), ("Song", "Hushio", 215.5));
+    }
+
+    #[test]
+    fn macos_cover_is_dropped_for_empty_or_unnamed_art() {
+        let dir = art_dir();
+        assert_eq!(macos_cover_url(Some(""), &dir), None);
+        assert_eq!(macos_cover_url(Some("localart://"), &dir), None);
+        assert_eq!(macos_cover_url(Some("localart://localhost/"), &dir), None);
+    }
+
+    #[test]
+    fn macos_file_uris_encode_spaces_unicode_hash_question_and_percent() {
+        let dir = PathBuf::from("/Users/é/My #1?/100%/local-art");
+        let url = macos_cover_url(Some(&format!("localart://{ART}")), &dir).unwrap();
+        for encoded in ["%C3%A9", "%20", "%23", "%3F", "%25"] {
+            assert!(url.contains(encoded), "{url} lacks {encoded}");
+        }
+        assert!(url.starts_with("file:///Users/%C3%A9/My%20%231%3F/100%25/local-art"));
+    }
+
+    #[test]
+    fn macos_windows_style_art_paths_are_encoded_not_split() {
+        let dir = PathBuf::from(r"C:\Users\me\AppData\local-art");
+        let url = macos_cover_url(Some(&format!("localart://{ART}")), &dir).unwrap();
+        assert!(url.starts_with("file://C%3A%5CUsers%5Cme%5CAppData%5Clocal-art"));
+    }
+
+    #[test]
+    fn macos_covers_over_the_length_limit_are_dropped() {
+        let url = format!("https://example.com/{}", "x".repeat(THUMB_LIMIT));
+        assert_eq!(macos_cover_url(Some(&url), &art_dir()), None);
+    }
+
+    #[test]
+    fn macos_metadata_keeps_missing_artist_and_album_empty() {
+        let mut song = track(None, 120.0);
+        song.artist = String::new();
+        song.album = String::new();
+        let meta = macos_metadata(&song, &art_dir());
+        assert_eq!((meta.artist.as_str(), meta.album.as_str()), ("", ""));
+        assert_eq!(meta.duration, 120.0);
+    }
+
+    #[test]
+    fn macos_metadata_zeroes_nan_and_infinite_duration() {
+        assert_eq!(macos_metadata(&track(None, f64::NAN), &art_dir()).duration, 0.0);
+        assert_eq!(macos_metadata(&track(None, f64::INFINITY), &art_dir()).duration, 0.0);
+        assert_eq!(macos_metadata(&track(None, -4.0), &art_dir()).duration, 0.0);
+    }
+
+    #[test]
+    fn macos_metadata_clips_long_titles() {
+        let mut song = track(None, 1.0);
+        song.title = "t".repeat(700);
+        assert_eq!(macos_metadata(&song, &art_dir()).title.chars().count(), 500);
+    }
+
+    #[test]
+    fn toggle_sends_the_frontend_action_for_the_playing_flag() {
+        assert_eq!(play_pause_button(true).action(), "pause");
+        assert_eq!(play_pause_button(false).action(), "play");
     }
 
     #[test]

@@ -15,13 +15,13 @@ describe("caption buttons", () => {
 });
 
 describe("native media controls", () => {
-  it("uses the Rust session on Windows (SMTC) and Linux (MPRIS)", () => {
+  it("uses the Rust session on Windows (SMTC), Linux (MPRIS) and macOS (Now Playing)", () => {
     expect(usesNativeMediaControls("windows")).toBe(true);
     expect(usesNativeMediaControls("linux")).toBe(true);
+    expect(usesNativeMediaControls("macos")).toBe(true);
   });
 
-  it("keeps the page session on macOS and Android", () => {
-    expect(usesNativeMediaControls("macos")).toBe(false);
+  it("keeps the page session on Android", () => {
     expect(usesNativeMediaControls("android")).toBe(false);
   });
 });

@@ -9,7 +9,7 @@ import { usePlayer } from "../stores/player";
 import { useSleepTimer } from "../stores/sleepTimer";
 import { useUI } from "../stores/ui";
 
-function storeDeps(): MenuDeps {
+export function storeDeps(): MenuDeps {
   return {
     toggle: () => usePlayer.getState().toggle(),
     pause: () => {
