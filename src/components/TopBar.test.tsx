@@ -49,6 +49,7 @@ import { GUEST_ACCOUNT, useAuth } from "../stores/auth";
 import { useNavigation } from "../stores/navigation";
 import { usePlayer } from "../stores/player";
 import { useRecents } from "../stores/recents";
+import { useSettings } from "../stores/settings";
 import { useUI } from "../stores/ui";
 
 const initialPlayer = usePlayer.getState();
@@ -331,7 +332,7 @@ describe("TopBar profile menu", () => {
     await user.click(profileButton());
     const menu = await screen.findByRole("menu");
     const labels = within(menu).getAllByRole("menuitem").map((item) => item.textContent);
-    expect(labels).toEqual(["Account", "Settings", "Recents", "Sync statusOff", "Sign in"]);
+    expect(labels).toEqual(["Account", "Settings", "ThemeSystem", "Recents", "Sync statusOff", "Sign in"]);
     expect(profileButton().getAttribute("aria-expanded")).toBe("true");
 
     await user.keyboard("{Escape}");
@@ -388,5 +389,40 @@ describe("TopBar profile menu", () => {
     await user.click(menu.getByRole("menuitem", { name: "Sign out" }));
 
     expect(requestSignOut).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("TopBar theme button", () => {
+  beforeEach(() => {
+    useSettings.setState({ theme: "light" });
+  });
+
+  afterEach(cleanup);
+
+  it("cycles Light, Dark and System through the settings store", async () => {
+    const user = userEvent.setup();
+    render(<TopBar />);
+    const button = () => screen.getByRole("button", { name: /^Switch to .+ theme$/ });
+
+    expect(button().getAttribute("aria-label")).toBe("Switch to dark theme");
+    await user.click(button());
+    expect(useSettings.getState().theme).toBe("dark");
+    expect(button().getAttribute("aria-label")).toBe("Switch to system theme");
+
+    await user.click(button());
+    expect(useSettings.getState().theme).toBe("system");
+    expect(button().getAttribute("aria-label")).toBe("Switch to light theme");
+
+    await user.click(button());
+    expect(useSettings.getState().theme).toBe("light");
+  });
+
+  it("sits in the top bar as a focusable button", () => {
+    render(<TopBar />);
+    const button = screen.getByRole("button", { name: "Switch to dark theme" });
+
+    expect(button.closest("header")).not.toBeNull();
+    expect(button.tabIndex).toBeGreaterThanOrEqual(0);
+    expect(button.getAttribute("title")).toBe("Switch to dark theme");
   });
 });

@@ -1,13 +1,16 @@
 import { useId } from "react";
 import { Clock01Icon, Login01Icon, Logout01Icon, Settings02Icon, UserIcon } from "@hugeicons/core-free-icons";
 import { Icon } from "./Icon";
+import { THEME_CHOICES, themeChoice } from "./ThemeButton";
 import type { GoogleAccount } from "../lib/bridge";
 import { useAuth } from "../stores/auth";
 import { useNavigation } from "../stores/navigation";
+import { useSettings } from "../stores/settings";
 import { useUI, type MenuItem } from "../stores/ui";
 
 export function profileMenuItems(account: GoogleAccount): MenuItem[] {
   const navigate = useNavigation.getState().navigate;
+  const theme = useSettings.getState().theme;
   const signedIn = account.mode === "google";
   const header = signedIn ? (account.name ?? account.email ?? "Google account") : "Not signed in";
   const auth: MenuItem = signedIn
@@ -17,6 +20,17 @@ export function profileMenuItems(account: GoogleAccount): MenuItem[] {
     { label: header, header: true },
     { label: "Account", onSelect: () => navigate({ name: "settings", param: "account" }) },
     { label: "Settings", icon: Settings02Icon, onSelect: () => navigate({ name: "settings" }) },
+    {
+      label: "Theme",
+      note: themeChoice(theme).label,
+      icon: themeChoice(theme).icon,
+      children: THEME_CHOICES.map((choice) => ({
+        label: choice.label,
+        icon: choice.icon,
+        checked: theme === choice.mode,
+        onSelect: () => useSettings.getState().setTheme(choice.mode),
+      })),
+    },
     { label: "Recents", icon: Clock01Icon, onSelect: () => navigate({ name: "library" }) },
     {
       label: "Sync status",

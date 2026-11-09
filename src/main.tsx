@@ -78,3 +78,5 @@ function mountMain() {
 
 if (isPip) mountPip();
 else mountMain();
+
+if (import.meta.env.DEV && !isPip) void import("./devTools").then((module) => module.mountDevTools());

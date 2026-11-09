@@ -17,7 +17,7 @@ const captionButton =
   "flex h-full w-11 items-center justify-center text-ink-2 motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out hover:bg-ink-1/[0.06] hover:text-ink-1";
 
 const closeButton =
-  "flex h-full w-11 items-center justify-center text-ink-2 motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out hover:bg-[rgb(var(--danger))] hover:text-white";
+  "flex h-full w-11 items-center justify-center text-ink-2 motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out hover:bg-[rgb(var(--danger))] hover:text-on-danger";
 
 export function CaptionButtons() {
   const [maximized, setMaximized] = useState(false);

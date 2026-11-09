@@ -25,5 +25,6 @@ export default defineConfig({
     setupFiles: ["./src/setupTests.ts"],
     testTimeout: 20000,
     hookTimeout: 30000,
+    css: { include: [/tokens.css/] },
   },
 });

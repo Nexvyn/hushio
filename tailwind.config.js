@@ -40,6 +40,7 @@ export default {
         "on-accent": "rgb(var(--on-accent) / <alpha-value>)",
         primary: "rgb(var(--primary) / <alpha-value>)",
         "on-primary": "rgb(var(--on-primary) / <alpha-value>)",
+        "on-danger": "rgb(var(--on-danger) / <alpha-value>)",
         focus: "rgb(var(--focus) / <alpha-value>)",
         safe: "rgb(var(--safe) / <alpha-value>)",
         warn: "rgb(var(--warn) / <alpha-value>)",

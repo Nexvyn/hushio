@@ -5,6 +5,7 @@ import { Icon } from "./Icon";
 import { ProfileButton } from "./ProfileButton";
 import { SearchSuggestions, optionId, useTypeAhead } from "./SearchSuggestions";
 import { StreakChip } from "./StreakChip";
+import { ThemeButton } from "./ThemeButton";
 import { UpdateChip } from "./UpdateChip";
 import { platform } from "../lib/bridge";
 import { hasCaptionButtons } from "../lib/desktopPlatform";
@@ -190,6 +191,7 @@ export function TopBar() {
       <div data-tauri-drag-region className="flex h-full items-center justify-self-end gap-2">
         <UpdateChip />
         <StreakChip />
+        <ThemeButton className={circleButton} />
         <ProfileButton />
         {hasCaptionButtons(platform) ? <CaptionButtons /> : null}
       </div>
