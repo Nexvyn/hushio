@@ -62,10 +62,66 @@ describe("Add to playlists picker", () => {
     expect(screen.getByText("Choose where 2 songs should go.")).toBeTruthy();
   });
 
-  it("tells the listener when there are no playlists", () => {
+  it("tells the listener when there are no playlists, and offers a new one", () => {
     openWith([song("s1")], []);
-    expect(screen.getByText("You don't have any playlists yet.")).toBeTruthy();
+    expect(screen.getByText("No playlists yet")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "New playlist" })).toBeTruthy();
     expect((screen.getByRole("button", { name: "Add" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("separates groups with spacing, never with divider elements", () => {
+    const { container } = openWith([song("s1")], [playlist("a", "Mix"), playlist("b", "Road")]);
+
+    expect(container.querySelectorAll('hr, [role="separator"], .h-px, [class*="border-t"], [class*="border-b"]').length).toBe(0);
+  });
+
+  it("lists New playlist first and moves focus between rows with the arrow keys", async () => {
+    openWith([song("s1")], [playlist("a", "Mix"), playlist("b", "Road")]);
+    const mix = screen.getByRole("checkbox", { name: /Mix/ });
+    const road = screen.getByRole("checkbox", { name: /Road/ });
+    await waitFor(() => expect(document.activeElement).toBe(mix));
+
+    fireEvent.keyDown(mix, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(road);
+    fireEvent.keyDown(road, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "New playlist" }));
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(road);
+  });
+
+  it("opens beside the rect it was given and flips up near the bottom of the window", () => {
+    const rect = (left: number, top: number) => ({ left, top, right: left + 40, bottom: top + 40, width: 40, height: 40 });
+    useLibrary.setState({ playlists: [playlist("a", "Mix")] });
+
+    act(() => useUI.getState().openPlaylistPicker([song("s1")], rect(100, 100)));
+    const below = render(<PlaylistPicker />);
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.style.left).toBe("100px");
+    expect(dialog.style.top).toBe("148px");
+    expect(dialog.style.transformOrigin).toBe("top left");
+    below.unmount();
+
+    act(() => useUI.getState().openPlaylistPicker([song("s1")], rect(300, 700)));
+    render(<PlaylistPicker />);
+    const above = screen.getByRole("dialog");
+    expect(above.style.bottom).toBe(`${window.innerHeight - 692}px`);
+    expect(above.style.top).toBe("");
+    expect(above.style.transformOrigin).toBe("bottom left");
+  });
+
+  it("returns focus to the opener as soon as it closes", () => {
+    render(
+      <>
+        <button type="button">Open</button>
+        <PlaylistPicker />
+      </>,
+    );
+    screen.getByRole("button", { name: "Open" }).focus();
+    useLibrary.setState({ playlists: [playlist("a", "Mix")] });
+    act(() => useUI.getState().openPlaylistPicker([song("s1")]));
+    act(() => useUI.getState().closePlaylistPicker());
+
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Open" }));
   });
 
   it("keeps Add disabled until a playlist is ticked, and unticking clears it again", () => {
@@ -151,12 +207,15 @@ describe("Add to playlists picker", () => {
     const cancel = screen.getByRole("button", { name: "Cancel" });
     await waitFor(() => expect(document.activeElement).toBe(first));
 
+    const newPlaylist = screen.getByRole("button", { name: "New playlist" });
+
     cancel.focus();
     fireEvent.keyDown(cancel, { key: "Tab" });
-    expect(document.activeElement).toBe(first);
+    expect(document.activeElement).toBe(newPlaylist);
 
-    fireEvent.keyDown(first, { key: "Tab", shiftKey: true });
+    fireEvent.keyDown(newPlaylist, { key: "Tab", shiftKey: true });
     expect(document.activeElement).toBe(cancel);
+    expect(first).toBeTruthy();
   });
 
   it("returns focus to the control that opened it", async () => {

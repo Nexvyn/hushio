@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { IconSvgElement } from "@hugeicons/react";
+import type { Box } from "../lib/pickerLayout";
 import type { SearchFilter } from "../lib/searchParse";
 import type { Track } from "../types";
 
@@ -9,7 +10,7 @@ export type MenuItem = {
   label: string;
   icon?: IconSvgElement;
   note?: string;
-  onSelect?: () => void;
+  onSelect?: (anchor?: Box) => void;
   disabled?: boolean;
   danger?: boolean;
   checked?: boolean;
@@ -69,6 +70,7 @@ type UIState = {
   openContextMenu: (x: number, y: number, items: MenuItem[], options?: ContextMenuOptions) => void;
   closeContextMenu: () => void;
   playlistPicker: Track[] | null;
+  playlistPickerAnchor: Box | null;
   dialog: DialogRequest | null;
   searchQuery: string;
   searchFilter: SearchFilter;
@@ -89,13 +91,13 @@ type UIState = {
   closePanels: () => void;
   openDialog: (request: DialogRequest) => void;
   closeDialog: () => void;
-  openPlaylistPicker: (tracks: Track[]) => void;
+  openPlaylistPicker: (tracks: Track[], anchor?: Box | null) => void;
   closePlaylistPicker: () => void;
 };
 
 export const useUI = create<UIState>()((set) => ({
   rightPanel: "details",
-  railSheetOpen: true,
+  railSheetOpen: false,
   setRailSheetOpen: (open) => set({ railSheetOpen: open }),
   lyricsCenter: false,
   nowPlayingOpen: false,
@@ -105,6 +107,7 @@ export const useUI = create<UIState>()((set) => ({
   pendingToasts: [],
   contextMenu: null,
   playlistPicker: null,
+  playlistPickerAnchor: null,
   dialog: null,
   searchQuery: "",
   searchFilter: "all",
@@ -171,9 +174,9 @@ export const useUI = create<UIState>()((set) => ({
 
   closeDialog: () => set({ dialog: null }),
 
-  openPlaylistPicker: (tracks) => {
-    if (tracks.length > 0) set({ playlistPicker: tracks });
+  openPlaylistPicker: (tracks, anchor = null) => {
+    if (tracks.length > 0) set({ playlistPicker: tracks, playlistPickerAnchor: anchor });
   },
 
-  closePlaylistPicker: () => set({ playlistPicker: null }),
+  closePlaylistPicker: () => set({ playlistPicker: null, playlistPickerAnchor: null }),
 }));

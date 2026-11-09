@@ -19,8 +19,20 @@ const captionButton =
 const closeButton =
   "flex h-full w-11 items-center justify-center text-ink-2 motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out hover:bg-[rgb(var(--danger))] hover:text-on-danger";
 
-export function CaptionButtons() {
+const compactBase =
+  "flex h-10 w-10 items-center justify-center rounded-[12px] [corner-shape:squircle] text-ink-2 motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+
+const compactButton = `${compactBase} hover:bg-ink-1/[0.06] hover:text-ink-1`;
+
+const compactCloseButton = `${compactBase} hover:bg-[rgb(var(--danger))] hover:text-on-danger`;
+
+type CaptionButtonsProps = {
+  variant?: "default" | "compact";
+};
+
+export function CaptionButtons({ variant = "default" }: CaptionButtonsProps) {
   const [maximized, setMaximized] = useState(false);
+  const compact = variant === "compact";
 
   useEffect(() => {
     let stop: (() => void) | undefined;
@@ -37,16 +49,16 @@ export function CaptionButtons() {
     };
   }, []);
 
-  const maximizeLabel = maximized ? "Restore" : "Maximize";
+  const maximizeLabel = maximized ? "Restore" : "Maximise";
 
   return (
-    <div className="-mr-3 flex h-full shrink-0 items-stretch">
+    <div className={compact ? "flex h-full shrink-0 items-center gap-0" : "-mr-3 flex h-full shrink-0 items-stretch"}>
       <button
         type="button"
         aria-label="Minimize"
         title="Minimize"
         onClick={() => void minimizeWindow()}
-        className={captionButton}
+        className={compact ? compactButton : captionButton}
       >
         <Icon icon={MinusSignIcon} />
       </button>
@@ -55,7 +67,7 @@ export function CaptionButtons() {
         aria-label={maximizeLabel}
         title={maximizeLabel}
         onClick={() => void toggleMaximizeWindow()}
-        className={captionButton}
+        className={compact ? compactButton : captionButton}
       >
         <Icon icon={maximized ? SquareStackIcon : SquareIcon} />
       </button>
@@ -64,7 +76,7 @@ export function CaptionButtons() {
         aria-label="Close"
         title="Close"
         onClick={() => void closeWindow()}
-        className={closeButton}
+        className={compact ? compactCloseButton : closeButton}
       >
         <Icon icon={Cancel01Icon} />
       </button>

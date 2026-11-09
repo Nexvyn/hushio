@@ -1,12 +1,11 @@
 :root {
-  --bp-phone: 600px;
-  --bp-tablet: 840px;
 }
 
 :root,
 :root[data-theme="dark"] {
   color-scheme: dark;
 
+  --font-lyric: "Segoe UI Variable Display", "Segoe UI", "Yu Gothic UI", "Meiryo UI", "Microsoft YaHei UI", "Malgun Gothic", "Noto Sans CJK JP", system-ui, sans-serif;
   --base: 19 19 19;
   --surface: 28 28 28;
   --panel: 28 28 28;
@@ -15,20 +14,17 @@
   --ink-1: 237 237 237;
   --ink-2: 148 148 148;
   --ink-3: 82 82 82;
-  --ink-4: 148 148 148;
 
   --separator: 51 51 51;
+  --line: 42 42 42;
   --wash: 45 45 45;
   --selected: 45 45 45;
   --hover: 38 38 38;
   --pressed: 54 54 54;
 
-  --sidebar-hover: 33 33 33;
   --sidebar-selected: 40 40 40;
-  --sidebar-tile: 29 29 29;
-  --sidebar-selected-pinned: 48 48 48;
 
-  --accent: 237 237 237;
+  --accent: 255 138 101;
   --on-accent: 28 28 28;
   --primary: 237 237 237;
   --on-primary: 28 28 28;
@@ -43,36 +39,22 @@
   --danger-text: 255 69 58;
 
   --card-edge: 255 255 255;
-  --card-edge-alpha: 0.08;
-  --menu-edge: 255 255 255;
-  --menu-edge-alpha: 0.18;
-  --menu-fill: 40 40 40;
-  --menu-fill-alpha: 0.85;
   --scrim: 0 0 0;
   --scrim-alpha: 0.10;
-  --scrim-peek-alpha: 0.22;
 
   --shadow-card: 0 1px 6px rgba(0, 0, 0, 0.07);
-  --shadow-popover: 0 3px 12px rgba(0, 0, 0, 0.08);
+  --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.14);
+  --shadow-popover: var(--shadow-float);
   --shadow-chip: 0 3px 10px rgba(0, 0, 0, 0.10);
-  --shadow-plate: 0 12px 34px rgba(0, 0, 0, 0.16);
-  --shadow-toast: 0 6px 18px rgba(0, 0, 0, 0.10);
-  --shadow-menu: 0 8px 28px rgba(0, 0, 0, 0.14);
+  --shadow-plate: var(--shadow-float);
+  --shadow-toast: var(--shadow-float);
   --shadow-held: 0 3px 10px rgba(0, 0, 0, 0.16);
-  --shadow-held-pill: 0 4px 12px rgba(0, 0, 0, 0.14);
   --shadow-disc: 0 6px 16px rgba(0, 0, 0, 0.12);
-  --shadow-download: 0 5px 14px rgba(0, 0, 0, 0.16);
   --shadow-list: 0 6px 20px rgba(0, 0, 0, 0.07);
-
-  --art: 0 0 0;
-  --art-alpha: 0.06;
 
   --ease-out: cubic-bezier(0, 0, 0.58, 1);
   --ease-in-out: cubic-bezier(0.42, 0, 0.58, 1);
-  --ease-glide: linear(0, 0.06, 0.194, 0.353, 0.507, 0.643, 0.754, 0.84, 0.903, 0.947, 0.976, 0.994, 1.004, 1.009, 1.011, 1.011, 1.009, 1.008, 1.006, 1.004, 1.003, 1.002, 1.001, 1.001, 1);
   --ease-settle: linear(0, 0.074, 0.231, 0.407, 0.568, 0.701, 0.803, 0.877, 0.928, 0.962, 0.983, 0.995, 1.001, 1.004, 1.005, 1.005, 1.004, 1.003, 1.002, 1.002, 1.001, 1.001, 1, 1, 1);
-  --ease-fold-out: linear(0, 0.078, 0.241, 0.421, 0.584, 0.717, 0.818, 0.889, 0.938, 0.969, 0.987, 0.998, 1.003, 1.005, 1.005, 1.004, 1.004, 1.003, 1.002, 1.001, 1.001, 1);
-  --ease-fold-in: linear(0, 0.085, 0.252, 0.425, 0.576, 0.695, 0.785, 0.851, 0.898, 0.931, 0.954, 0.969, 0.979, 0.986, 0.991, 0.994, 0.996, 0.998, 0.998, 0.999, 0.999, 1);
 }
 
 :root[data-theme="light"] {
@@ -86,20 +68,17 @@
   --ink-1: 23 23 23;
   --ink-2: 96 96 96;
   --ink-3: 212 212 212;
-  --ink-4: 96 96 96;
 
   --separator: 232 232 232;
+  --line: 226 226 226;
   --wash: 236 236 236;
   --selected: 228 228 228;
   --hover: 234 234 234;
   --pressed: 226 226 226;
 
-  --sidebar-hover: 233 233 233;
   --sidebar-selected: 228 228 228;
-  --sidebar-tile: 236 236 236;
-  --sidebar-selected-pinned: 219 219 219;
 
-  --accent: 23 23 23;
+  --accent: 180 67 42;
   --on-accent: 255 255 255;
   --primary: 23 23 23;
   --on-primary: 255 255 255;
@@ -113,25 +92,17 @@
   --danger-text: 215 0 21;
 
   --card-edge: 0 0 0;
-  --card-edge-alpha: 0.08;
-  --menu-edge: 0 0 0;
-  --menu-edge-alpha: 0.26;
-  --menu-fill: 246 246 246;
-  --menu-fill-alpha: 0.85;
   --scrim: 0 0 0;
   --scrim-alpha: 0.10;
-  --scrim-peek-alpha: 0.22;
 
   --shadow-card: 0 1px 6px rgba(0, 0, 0, 0.07);
-  --shadow-popover: 0 3px 12px rgba(0, 0, 0, 0.08);
+  --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.14);
+  --shadow-popover: var(--shadow-float);
   --shadow-chip: 0 3px 10px rgba(0, 0, 0, 0.10);
-  --shadow-plate: 0 12px 34px rgba(0, 0, 0, 0.16);
-  --shadow-toast: 0 6px 18px rgba(0, 0, 0, 0.10);
-  --shadow-menu: 0 8px 28px rgba(0, 0, 0, 0.14);
+  --shadow-plate: var(--shadow-float);
+  --shadow-toast: var(--shadow-float);
   --shadow-held: 0 3px 10px rgba(0, 0, 0, 0.16);
-  --shadow-held-pill: 0 4px 12px rgba(0, 0, 0, 0.14);
   --shadow-disc: 0 6px 16px rgba(0, 0, 0, 0.12);
-  --shadow-download: 0 5px 14px rgba(0, 0, 0, 0.16);
   --shadow-list: 0 6px 20px rgba(0, 0, 0, 0.07);
 }
 
@@ -147,20 +118,17 @@
     --ink-1: 23 23 23;
     --ink-2: 96 96 96;
     --ink-3: 212 212 212;
-    --ink-4: 96 96 96;
 
     --separator: 232 232 232;
+    --line: 226 226 226;
     --wash: 236 236 236;
     --selected: 228 228 228;
     --hover: 234 234 234;
     --pressed: 226 226 226;
 
-    --sidebar-hover: 233 233 233;
     --sidebar-selected: 228 228 228;
-    --sidebar-tile: 236 236 236;
-    --sidebar-selected-pinned: 219 219 219;
 
-    --accent: 23 23 23;
+    --accent: 180 67 42;
     --on-accent: 255 255 255;
     --primary: 23 23 23;
     --on-primary: 255 255 255;
@@ -174,25 +142,39 @@
     --danger-text: 215 0 21;
 
     --card-edge: 0 0 0;
-    --card-edge-alpha: 0.08;
-    --menu-edge: 0 0 0;
-    --menu-edge-alpha: 0.26;
-    --menu-fill: 246 246 246;
-    --menu-fill-alpha: 0.85;
     --scrim: 0 0 0;
     --scrim-alpha: 0.10;
-    --scrim-peek-alpha: 0.22;
 
     --shadow-card: 0 1px 6px rgba(0, 0, 0, 0.07);
-    --shadow-popover: 0 3px 12px rgba(0, 0, 0, 0.08);
+    --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.14);
+    --shadow-popover: var(--shadow-float);
     --shadow-chip: 0 3px 10px rgba(0, 0, 0, 0.10);
-    --shadow-plate: 0 12px 34px rgba(0, 0, 0, 0.16);
-    --shadow-toast: 0 6px 18px rgba(0, 0, 0, 0.10);
-    --shadow-menu: 0 8px 28px rgba(0, 0, 0, 0.14);
+    --shadow-plate: var(--shadow-float);
+    --shadow-toast: var(--shadow-float);
     --shadow-held: 0 3px 10px rgba(0, 0, 0, 0.16);
-    --shadow-held-pill: 0 4px 12px rgba(0, 0, 0, 0.14);
     --shadow-disc: 0 6px 16px rgba(0, 0, 0, 0.12);
-    --shadow-download: 0 5px 14px rgba(0, 0, 0, 0.16);
     --shadow-list: 0 6px 20px rgba(0, 0, 0, 0.07);
+  }
+}
+
+:root {
+  --ambient-0: 60 60 64;
+  --ambient-1: 40 40 44;
+  --on-art: 255 255 255;
+  --on-art-alpha: 1;
+  --on-art-track: 0.22;
+}
+
+:root[data-theme="light"] {
+  --on-art: 17 17 17;
+  --on-art-alpha: 1.4;
+  --on-art-track: 0.5;
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-theme="system"] {
+    --on-art: 17 17 17;
+  --on-art-alpha: 1.4;
+  --on-art-track: 0.5;
   }
 }

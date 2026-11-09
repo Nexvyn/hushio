@@ -65,7 +65,7 @@ describe("applying html classes", () => {
     applyHtmlClasses(root, { ...base, reduceAnimation: true });
     expect(root.classList.contains("reduce-motion")).toBe(true);
     expect(root.style.getPropertyValue("--dur-quick")).toBe("0ms");
-    expect(root.style.getPropertyValue("--dur-breath")).toBe("0ms");
+    expect(root.style.getPropertyValue("--dur-spin")).toBe("0ms");
   });
 
   it("exposes every motion token as a css var", () => {

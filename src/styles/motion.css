@@ -18,37 +18,9 @@
   animation: bt-shake var(--dur-shake) var(--ease-out);
 }
 
-@keyframes bt-breath {
-  from { transform: scale(0.97); opacity: 0.65; }
-  to { transform: scale(1.03); opacity: 1; }
-}
-
-.bt-breath {
-  box-shadow: 0 0 26px 0 rgb(var(--ink-1) / 0.07);
-  animation: bt-breath var(--dur-breath) var(--ease-in-out) infinite alternate;
-}
-
-@keyframes bt-pulse {
-  0% { transform: scale(1); animation-timing-function: var(--ease-in-out); }
-  40% { transform: scale(1.35); animation-timing-function: var(--ease-out); }
-  100% { transform: scale(1); }
-}
-
-.bt-pulse {
-  animation: bt-pulse var(--dur-pulse) linear;
-}
-
 @keyframes bt-sheen {
   from { transform: translateX(-133.333%); }
   to { transform: translateX(133.333%); }
-}
-
-.bt-sheen {
-  position: absolute;
-  inset: 0;
-  width: 60%;
-  background: linear-gradient(90deg, transparent, var(--sheen) 50%, transparent);
-  animation: bt-sheen var(--dur-sheen) var(--ease-in-out) infinite;
 }
 
 :root { --sheen: #393939; }
@@ -164,4 +136,26 @@
   width: 60%;
   background: linear-gradient(90deg, transparent, var(--sheen) 50%, transparent);
   animation: bt-sheen var(--dur-sheen) var(--ease-in-out) infinite;
+}
+
+.bt-ambient-in {
+  animation: bt-fade-in var(--dur-settle) var(--ease-out) both;
+}
+
+@keyframes bt-page-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.bt-page-in {
+  animation: bt-page-in var(--dur-pageIn) var(--ease-out) both;
+}
+
+@keyframes bt-page-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.bt-page-out {
+  animation: bt-page-out var(--dur-pageOut) var(--ease-out) both;
 }

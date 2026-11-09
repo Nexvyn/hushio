@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type KeyboardEvent, type MutableRefObject } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent, type MutableRefObject } from "react";
 import { getPlaybackPosition } from "../lib/audio";
 import type { LyricsResult, SyncedLyricLine, SyncedLyricWord } from "../lib/bridge";
 import {
@@ -19,16 +19,27 @@ import { usePlayer } from "../stores/player";
 import { useSettings } from "../stores/settings";
 
 const ANCHOR = 0.5;
+const ART_ANCHOR = 0.4;
 const GLIDE_MS = 600;
 const LOADING_DELAY_MS = 300;
 const GLIDE_CANCEL_SCREENS = 1.5;
-const DEPTH_TRANSITION = "opacity var(--dur-quick) var(--ease-out)";
+const DEPTH_TRANSITION = "opacity var(--dur-quick) var(--ease-out), filter var(--dur-quick) var(--ease-out)";
+const LINE_BLUR_PX = [0, 0, 1.5, 3];
+const ART_TRANSITION = "opacity var(--dur-quick) var(--ease-out), color var(--dur-quick) var(--ease-out), transform var(--dur-quick) var(--ease-out), filter var(--dur-quick) var(--ease-out)";
+const BROWSE_IDLE_MS = 3000;
+const BROWSE_DRAG_PX = 6;
+const CLICK_MOVE_PX = 5;
+const MANUAL_SCROLL_GUARD_MS = 250;
 const EDGE_MASK = "linear-gradient(to right, transparent 0%, black 24px, black calc(100% - 24px), transparent 100%)";
 const FADE_MASK = "linear-gradient(to bottom, transparent 0%, black 14%, black 86%, transparent 100%)";
+const ART_FADE_MASK = "linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%)";
 const GLOW = "drop-shadow(0 0 22px rgb(var(--ink-1) / 0.28))";
 const FOCUS_RING = "rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 const LINE_CLASS = "font-display text-[40px] leading-[1.25] tracking-[-0.03em] font-extrabold";
+const ART_LINE_CLASS = "text-[30px] leading-[1.28] tracking-[-0.01em] font-medium [font-family:var(--font-lyric)] font-synthesis-none";
+const ART_ACTIVE_CLASS = "text-[30px] leading-[1.28] tracking-[-0.01em] font-semibold [font-family:var(--font-lyric)] font-synthesis-none";
 const SUB_CLASS = "font-display text-[22px] leading-[1.3] font-bold";
+const ART_SUB_CLASS = "text-[22px] leading-[1.3] font-medium [font-family:var(--font-lyric)] font-synthesis-none";
 
 type Glide = { frame: number; from: number; to: number; start: number };
 type GlideRef = MutableRefObject<Glide | null>;
@@ -39,6 +50,7 @@ type SyncedLyricsProps = {
   loading: boolean;
   offset?: number;
   trackKey?: string;
+  onArt?: boolean;
 };
 
 function stopGlide(glideRef: GlideRef) {
@@ -64,14 +76,14 @@ function stepGlide(glideRef: GlideRef, scroller: HTMLElement) {
   glide.frame = requestAnimationFrame(frame);
 }
 
-function scrollTargetFor(scroller: HTMLElement, line: HTMLElement): number {
+function scrollTargetFor(scroller: HTMLElement, line: HTMLElement, anchor: number): number {
   const lineBox = line.getBoundingClientRect();
   const scrollerBox = scroller.getBoundingClientRect();
   const middle = scroller.scrollTop + lineBox.top - scrollerBox.top + lineBox.height / 2;
-  return Math.max(0, middle - scroller.clientHeight * ANCHOR);
+  return Math.max(0, middle - scroller.clientHeight * anchor);
 }
 
-function LoadingLine({ phrase }: { phrase: string }) {
+function LoadingLine({ phrase, onArt }: { phrase: string; onArt: boolean }) {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     const timer = window.setTimeout(() => setVisible(true), LOADING_DELAY_MS);
@@ -80,9 +92,7 @@ function LoadingLine({ phrase }: { phrase: string }) {
   return (
     <div className="flex justify-center py-12">
       {visible && (
-        <p
-          className={`font-display text-[28px] font-extrabold tracking-[-0.02em] text-ink-1/55`}
-        >
+        <p className={`font-display text-[28px] tracking-[-0.02em] ${onArt ? "font-semibold text-art/[0.55]" : "font-extrabold text-ink-1/55"}`}>
           {phrase}
         </p>
       )}
@@ -94,14 +104,14 @@ function WordLine({
   words,
   spans,
   offset,
-  glowStyle,
   still,
+  onArt,
 }: {
   words: Words;
   spans: WordSpan[];
   offset: number;
-  glowStyle?: CSSProperties;
   still: boolean;
+  onArt: boolean;
 }) {
   const playing = usePlayer((state) => state.playing);
   const [, redraw] = useReducer((count: number) => (count + 1) % 1000000, 0);
@@ -122,7 +132,7 @@ function WordLine({
   }, [playing, offset, still]);
 
   return (
-    <span className={LINE_CLASS} style={glowStyle}>
+    <span className={onArt ? ART_ACTIVE_CLASS : LINE_CLASS}>
       {words.map((word: SyncedLyricWord, index) => {
         const percent = wordPercent(position.current, spans[index] ?? { start: word.start, end: word.end });
         return (
@@ -130,7 +140,9 @@ function WordLine({
             {index > 0 ? " " : ""}
             <span
               style={{
-                backgroundImage: `linear-gradient(90deg, rgb(var(--ink-1)) ${percent}%, rgb(var(--ink-1) / 0.28) ${percent}%)`,
+                backgroundImage: onArt
+                  ? `linear-gradient(90deg, rgb(var(--on-art)) ${percent}%, rgb(var(--on-art) / 0.18) ${percent}%)`
+                  : `linear-gradient(90deg, rgb(var(--ink-1)) ${percent}%, rgb(var(--ink-1) / 0.28) ${percent}%)`,
                 WebkitBackgroundClip: "text",
                 backgroundClip: "text",
                 WebkitTextFillColor: "transparent",
@@ -145,7 +157,7 @@ function WordLine({
   );
 }
 
-function GapDots({ opacity }: { opacity: number }) {
+function GapDots({ opacity, onArt }: { opacity: number; onArt: boolean }) {
   return (
     <div
       role="img"
@@ -155,22 +167,26 @@ function GapDots({ opacity }: { opacity: number }) {
       style={{ opacity: Math.max(0.15, opacity) }}
     >
       {[0, 1, 2].map((dot) => (
-        <span key={dot} className="h-1.5 w-1.5 rounded-full bg-ink-1/80" style={{ boxShadow: "0 0 12px rgba(255,255,255,0.5)" }} />
+        <span
+          key={dot}
+          className={`h-1.5 w-1.5 rounded-full ${onArt ? "bg-art" : "bg-ink-1/80"}`}
+          style={onArt ? undefined : { boxShadow: "0 0 12px rgba(255,255,255,0.5)" }}
+        />
       ))}
     </div>
   );
 }
 
-function SourceCredit({ source }: { source: string }) {
+function SourceCredit({ source, onArt }: { source: string; onArt: boolean }) {
   if (!source) return null;
-  return <p className="pt-4 text-[12px] font-medium text-ink-2">Lyrics from {source}</p>;
+  return <p className={`pt-4 text-[12px] font-medium ${onArt ? "text-art/[0.55]" : "text-ink-2"}`}>Lyrics from {source}</p>;
 }
 
-function EmptyText() {
-  return <p className="py-16 text-center text-base text-ink-2">No lyrics available for this track.</p>;
+function EmptyText({ onArt }: { onArt: boolean }) {
+  return <p className={`py-16 text-center text-base ${onArt ? "text-art/[0.55]" : "text-ink-2"}`}>No lyrics available for this track.</p>;
 }
 
-export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey }: SyncedLyricsProps) {
+export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = false }: SyncedLyricsProps) {
   const position = usePlayer((state) => state.position);
   const seek = usePlayer((state) => state.seek);
   const syncedOn = useSettings((state) => state.syncedLyrics);
@@ -178,9 +194,9 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey }: SyncedLy
   const romanOn = useSettings((state) => state.romanizeLyrics);
   const reduceAnimation = useSettings((state) => state.reduceAnimation);
   const reduceBlur = useSettings((state) => state.reduceDynamicBlur);
-  const blurLines = blurOn && !reduceBlur;
-  const glowLines = blurOn && !reduceAnimation && !reduceBlur;
   const still = reduceAnimation || reducedMotion();
+  const anchor = onArt ? ART_ANCHOR : ANCHOR;
+  const blurLines = blurOn && !still && !reduceBlur;
   const source = lyrics?.source ?? "";
   const phrase = useMemo(() => pickLyricsLine(LYRICS_LOADING_LINES, trackKey ?? source), [trackKey, source]);
 
@@ -202,21 +218,53 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey }: SyncedLy
   const activeIndex = lines ? activeLineIndex(lines, position - offset) : -1;
 
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [fits, setFits] = useState(false);
   const activeRef = useRef<HTMLButtonElement | null>(null);
   const glideRef: GlideRef = useRef<Glide | null>(null);
   const lastActive = useRef(-1);
+  const [browsing, setBrowsing] = useState(false);
+  const browsingRef = useRef(false);
+  const idleTimer = useRef<number | null>(null);
+  const pressAt = useRef<{ x: number; y: number } | null>(null);
+  const dragged = useRef(false);
+  const manualAt = useRef(Number.NEGATIVE_INFINITY);
 
-  useEffect(() => () => stopGlide(glideRef), []);
+  const endBrowsing = useCallback(() => {
+    if (idleTimer.current !== null) window.clearTimeout(idleTimer.current);
+    idleTimer.current = null;
+    browsingRef.current = false;
+    setBrowsing(false);
+  }, []);
+
+  const markBrowsing = useCallback(() => {
+    stopGlide(glideRef);
+    manualAt.current = performance.now();
+    if (idleTimer.current !== null) window.clearTimeout(idleTimer.current);
+    idleTimer.current = window.setTimeout(endBrowsing, BROWSE_IDLE_MS);
+    if (browsingRef.current) return;
+    browsingRef.current = true;
+    lastActive.current = -1;
+    setBrowsing(true);
+  }, [endBrowsing]);
+
+  useEffect(
+    () => () => {
+      stopGlide(glideRef);
+      if (idleTimer.current !== null) window.clearTimeout(idleTimer.current);
+    },
+    [],
+  );
 
   useEffect(() => {
-    if (activeIndex < 0) return;
+    if (activeIndex < 0 || browsing) return;
     const moved = lastActive.current !== activeIndex;
     lastActive.current = activeIndex;
     const frame = requestAnimationFrame(() => {
       const scroller = scrollerRef.current;
       const line = activeRef.current;
       if (!scroller || !line) return;
-      const target = scrollTargetFor(scroller, line);
+      const target = scrollTargetFor(scroller, line, anchor);
       if (!moved) {
         if (glideRef.current) glideRef.current.to = target;
         else scroller.scrollTop = target;
@@ -232,20 +280,34 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey }: SyncedLy
       stepGlide(glideRef, scroller);
     });
     return () => cancelAnimationFrame(frame);
-  }, [activeIndex, lines, still]);
+  }, [activeIndex, lines, still, browsing, anchor]);
 
-  if (loading) return <LoadingLine phrase={phrase} />;
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    const content = contentRef.current;
+    if (!onArt || !scroller || !content || typeof ResizeObserver === "undefined") return;
+    const measure = () => setFits(content.offsetHeight <= scroller.clientHeight);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(scroller);
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [onArt, lines, loading, staticText]);
 
-  if (!staticText) return <EmptyText />;
+  if (loading) return <LoadingLine phrase={phrase} onArt={onArt} />;
+
+  if (!staticText) return <EmptyText onArt={onArt} />;
 
   if (!syncedOn || !lines) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto no-scrollbar">
-        <pre className="whitespace-pre-wrap py-2 font-sans text-[15px] leading-7 text-ink-2">{staticText}</pre>
-        <SourceCredit source={source} />
+        <pre className={`whitespace-pre-wrap py-2 font-sans text-[15px] leading-7 ${onArt ? "text-art/[0.55]" : "text-ink-2"}`}>{staticText}</pre>
+        <SourceCredit source={source} onArt={onArt} />
       </div>
     );
   }
+
+  const fadeMask = onArt ? ART_FADE_MASK : FADE_MASK;
 
   const moveFocus = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
@@ -258,29 +320,37 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey }: SyncedLy
   };
 
   const renderLine = (line: SyncedLyricLine, index: number) => {
-    const depth = depthStyle(index - activeIndex, index < activeIndex, blurLines);
-    const motionStyle = still ? { transition: "none" } : { transition: DEPTH_TRANSITION };
+    const focus = !browsing;
+    const distance = Math.abs(index - activeIndex);
+    const depth = depthStyle(index - activeIndex, index < activeIndex, false);
+    const opacity = focus && !onArt ? depth.opacity : 1;
+    const motionStyle = still ? { transition: "none" } : { transition: onArt ? ART_TRANSITION : DEPTH_TRANSITION };
     if (line.gap) {
       return (
-        <div key={index} style={{ ...motionStyle, opacity: depth.opacity }}>
-          <GapDots opacity={depth.opacity} />
+        <div key={index} style={{ ...motionStyle, opacity }}>
+          <GapDots opacity={opacity} onArt={onArt} />
         </div>
       );
     }
     if (isSectionLabel(line.text)) {
       return (
-        <h3 key={index} className="pt-2 text-[15px] font-semibold text-ink-2">
+        <h3 key={index} className={`pt-2 text-[15px] ${onArt ? "font-medium text-art/[0.45]" : "font-semibold text-ink-2"}`}>
           {line.text.trim().slice(1, -1)}
         </h3>
       );
     }
 
     const active = index === activeIndex;
-    const glowStyle: CSSProperties | undefined = active && glowLines ? { filter: GLOW } : undefined;
+    const artBlur = focus && !still && !reduceBlur && distance > 2 ? 1 : 0;
+    const blurPx = onArt ? artBlur : focus && blurLines ? LINE_BLUR_PX[Math.min(distance, LINE_BLUR_PX.length - 1)] : 0;
+    const filters = [blurPx > 0 ? `blur(${blurPx}px)` : "", !onArt && active && focus && blurLines ? GLOW : ""].filter(Boolean).join(" ");
     const roman = romanOn ? (line.roman ?? romanize(line.text)) : null;
     const words = line.words ?? [];
     const wordSynced = active && words.length > 0;
     const [spanStart, spanEnd] = wordSynced ? sweepWindow(lines, index) : [0, 0];
+    const ink = onArt ? (active ? "text-art" : "text-art/[0.45]") : "text-ink-1";
+    const subInk = onArt ? "text-art/[0.45]" : "text-ink-2";
+    const subClass = onArt ? ART_SUB_CLASS : SUB_CLASS;
 
     return (
       <button
@@ -289,13 +359,17 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey }: SyncedLy
         type="button"
         data-line
         title="Jump here"
-        onClick={() => seek(Math.max(0, line.time + offset - SEEK_LEAD_IN_S))}
-        className={`block w-full origin-left text-left text-ink-1 ${FOCUS_RING}`}
+        onClick={() => {
+          if (dragged.current || performance.now() - manualAt.current < MANUAL_SCROLL_GUARD_MS) return;
+          endBrowsing();
+          seek(Math.max(0, line.time + offset - SEEK_LEAD_IN_S));
+        }}
+        className={`block w-full origin-left text-left ${ink} ${FOCUS_RING}`}
         style={{
           ...motionStyle,
-          opacity: depth.opacity,
-          filter: depth.filter,
-          transform: depth.transform,
+          opacity,
+          filter: filters || undefined,
+          transform: onArt ? (active && focus && !still ? "scale(1.06)" : undefined) : focus ? depth.transform : undefined,
           transformOrigin: "left center",
         }}
       >
@@ -304,16 +378,16 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey }: SyncedLy
             words={words}
             spans={resolveWordSpans(words, spanStart, spanEnd)}
             offset={offset}
-            glowStyle={glowStyle}
             still={still}
+            onArt={onArt}
           />
         ) : (
-          <span className={LINE_CLASS} style={glowStyle}>
+          <span className={onArt ? (active ? ART_ACTIVE_CLASS : ART_LINE_CLASS) : LINE_CLASS}>
             {line.text}
           </span>
         )}
-        {line.bg && <span className={`mt-1 block opacity-70 ${SUB_CLASS}`}>{line.bg.text}</span>}
-        {roman && <span className={`mt-1 block text-ink-2 ${SUB_CLASS}`}>{roman}</span>}
+        {line.bg && <span className={`mt-1 block opacity-70 ${subClass}`}>{line.bg.text}</span>}
+        {roman && <span className={`mt-1 block ${subInk} ${subClass}`}>{roman}</span>}
       </button>
     );
   };
@@ -322,17 +396,37 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey }: SyncedLy
     <div className="relative -mx-6 flex min-h-0 flex-1" style={{ maskImage: EDGE_MASK, WebkitMaskImage: EDGE_MASK }}>
       <div
         ref={scrollerRef}
-        className="no-scrollbar absolute inset-0 overflow-y-auto px-6"
-        style={{ maskImage: FADE_MASK, WebkitMaskImage: FADE_MASK }}
-        onWheel={() => stopGlide(glideRef)}
-        onPointerDown={() => stopGlide(glideRef)}
+        className="no-scrollbar absolute inset-0 touch-pan-y overflow-x-hidden overflow-y-auto px-6"
+        style={{ maskImage: fadeMask, WebkitMaskImage: fadeMask }}
+        onWheel={markBrowsing}
+        onTouchMove={markBrowsing}
+        onPointerDown={(event) => {
+          stopGlide(glideRef);
+          dragged.current = false;
+          pressAt.current = { x: event.clientX, y: event.clientY };
+        }}
+        onPointerMove={(event) => {
+          const press = pressAt.current;
+          if (press && Math.hypot(event.clientX - press.x, event.clientY - press.y) > BROWSE_DRAG_PX) markBrowsing();
+        }}
+        onPointerUp={(event) => {
+          const press = pressAt.current;
+          dragged.current = press !== null && Math.hypot(event.clientX - press.x, event.clientY - press.y) > CLICK_MOVE_PX;
+          pressAt.current = null;
+        }}
+        onPointerCancel={() => {
+          dragged.current = true;
+          pressAt.current = null;
+        }}
       >
-        <div style={{ height: "calc(10% + 4px)" }} />
-        <div className="flex flex-col space-y-5" onKeyDown={moveFocus}>
-          {lines.map(renderLine)}
+        {!(onArt && fits) && <div style={{ height: "calc(10% + 4px)" }} />}
+        <div className={onArt && fits ? "flex min-h-full flex-col justify-center" : undefined}>
+          <div ref={contentRef} className="flex flex-col space-y-5" onKeyDown={moveFocus}>
+            {lines.map(renderLine)}
+          </div>
+          <SourceCredit source={source} onArt={onArt} />
         </div>
-        <SourceCredit source={source} />
-        <div style={{ height: `max(12px, calc(${ANCHOR * 100}% - 28px))` }} />
+        {!(onArt && fits) && <div style={{ height: `max(12px, calc(${anchor * 100}% - 28px))` }} />}
       </div>
     </div>
   );

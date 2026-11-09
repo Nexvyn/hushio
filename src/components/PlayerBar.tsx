@@ -1,71 +1,32 @@
-import { useEffect, useId, useState } from "react";
-import type { IconSvgElement } from "@hugeicons/react";
+import { useEffect, useId, useMemo, useState } from "react";
+import { normalizeCredit } from "../lib/credits";
 import {
   FullScreenIcon,
-  Loading03Icon,
   Mic01Icon,
   MoonIcon,
+  ListPlusIcon,
   MusicNote01Icon,
-  NextIcon,
-  PauseIcon,
-  PlayIcon,
-  PlayListAddIcon,
-  PreviousIcon,
   Queue01Icon,
-  RepeatIcon,
-  RepeatOne01Icon,
-  ShuffleIcon,
   VolumeHighIcon,
   VolumeOffIcon,
 } from "@hugeicons/core-free-icons";
 import { Icon } from "./Icon";
+import { Groove } from "./Groove";
 import { LikeButton } from "./LikeButton";
+import { PlaybackControls, TransportButton } from "./PlaybackControls";
 import { PipButton } from "../pip/PipButton";
 import { setFullScreen } from "../lib/bridge";
 import { upgradeArtwork } from "../lib/artwork";
 import { sleepMenuItems, sleepStatus } from "../lib/sleepActions";
 import { formatSleepLeft } from "../lib/sleepTimer";
-import { fmtTime } from "../lib/format";
+import { visibleLyricLines } from "../lib/lyricsLines";
 import { playerAddMenuItems, songOf } from "../lib/trackActions";
-import { currentTrack, usePlayer, type RepeatMode } from "../stores/player";
+import { useTrackLyrics } from "../lib/useTrackLyrics";
+import { currentTrack, usePlayer } from "../stores/player";
 import { useSettings } from "../stores/settings";
 import { useSleepTimer } from "../stores/sleepTimer";
 import { type MenuItem, useUI } from "../stores/ui";
 import type { Track } from "../types";
-
-const REPEAT_LABEL: Record<RepeatMode, string> = {
-  off: "Enable repeat",
-  all: "Disable repeat",
-  one: "Disable repeat one",
-};
-
-type TransportButtonProps = {
-  label: string;
-  icon: IconSvgElement;
-  active?: boolean;
-  pressed?: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-};
-
-function TransportButton({ label, icon, active = false, pressed, disabled = false, onClick }: TransportButtonProps) {
-  return (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      aria-pressed={pressed}
-      disabled={disabled}
-      onClick={onClick}
-      className={`relative hit-area grid h-8 w-8 shrink-0 place-items-center rounded-full motion-safe:transition-colors motion-safe:duration-quick disabled:opacity-[var(--disabled-opacity)] ${active ? "text-ink-1" : "text-ink-2 hover:text-ink-1"}`}
-    >
-      <Icon icon={icon} />
-      {active && (
-        <span aria-hidden="true" className="absolute bottom-0 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-ink-1" />
-      )}
-    </button>
-  );
-}
 
 function SleepTimer() {
   const owner = useId();
@@ -106,19 +67,17 @@ function SleepTimer() {
           const header: MenuItem = { label: status ?? "Sleep timer", header: true };
           ui.openContextMenu(rect.left, rect.top, [header, ...sleepMenuItems()], { owner, above: true });
         }}
-        className={`relative hit-area grid h-8 w-8 shrink-0 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-safe:transition-colors motion-safe:duration-quick ${status ? "text-ink-1" : "text-ink-2 hover:text-ink-1"}`}
+        className={`relative hit-area grid h-9 w-9 shrink-0 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${status ? "text-ink-1" : "text-ink-2 hover:text-ink-1"}`}
       >
         <Icon icon={MoonIcon} />
-        {status && (
-          <span aria-hidden="true" className="absolute bottom-0 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-ink-1" />
-        )}
+        {status && <span aria-hidden="true" className="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-accent" />}
       </button>
       {left && <span className="-ml-0.5 mr-1 text-[11px] tabular-nums text-ink-2">{left}</span>}
     </span>
   );
 }
 
-function AddToPlaylist({ track }: { track: Track | null }) {
+export function AddToPlaylist({ track, onArt = false }: { track: Track | null; onArt?: boolean }) {
   const owner = useId();
   const open = useUI((state) => state.contextMenu?.owner === owner);
   return (
@@ -142,9 +101,9 @@ function AddToPlaylist({ track }: { track: Track | null }) {
         const rect = event.currentTarget.getBoundingClientRect();
         ui.openContextMenu(rect.left, rect.top, playerAddMenuItems(songOf(track)), { owner, above: true });
       }}
-      className="hit-area grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink-2 hover:text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-[var(--disabled-opacity)] motion-safe:transition-colors"
+      className={`hit-area grid ${onArt ? "h-10 w-10 text-art/[0.72] hover:text-art" : "h-9 w-9 text-ink-2 hover:text-ink-1"} shrink-0 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-[var(--disabled-opacity)]`}
     >
-      <Icon icon={PlayListAddIcon} />
+      <Icon icon={ListPlusIcon} />
     </button>
   );
 }
@@ -166,7 +125,7 @@ function NowPlaying({ track }: { track: Track | null }) {
       <div className="ml-2.5 min-w-0">
         <p className="truncate text-[14px] leading-[19px] text-ink-1">{track?.title ?? "Nothing playing"}</p>
         <p className="truncate text-[12px] leading-[17px] text-ink-2">
-          {track?.artist ?? "Search for something to play"}
+          {track ? normalizeCredit(track.artist) : "Search for something to play"}
         </p>
       </div>
       <LikeButton track={track} className="hit-area ml-1 h-8 w-8" />
@@ -175,51 +134,24 @@ function NowPlaying({ track }: { track: Track | null }) {
   );
 }
 
-function PlayDisc() {
-  const playing = usePlayer((state) => state.playing);
-  const buffering = usePlayer((state) => state.buffering);
-  const toggle = usePlayer((state) => state.toggle);
-  const label = playing ? "Pause" : "Play";
-  return (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      onClick={toggle}
-      className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary text-on-primary motion-safe:transition-transform motion-safe:duration-quick motion-safe:active:scale-[0.97]"
-    >
-      {buffering ? (
-        <span className="grid place-items-center bt-spin">
-          <Icon icon={Loading03Icon} />
-        </span>
-      ) : (
-        <Icon icon={playing ? PauseIcon : PlayIcon} />
-      )}
-    </button>
-  );
-}
-
-function SeekBar() {
+function PlayerGroove({ track }: { track: Track | null }) {
   const position = usePlayer((state) => state.position);
   const duration = usePlayer((state) => state.duration);
+  const playing = usePlayer((state) => state.playing);
   const seek = usePlayer((state) => state.seek);
-  const max = duration > 0 ? duration : 1;
+  const { lyrics } = useTrackLyrics(track, duration);
+  const synced = lyrics?.synced ?? null;
+  const lines = useMemo(() => (synced ? visibleLyricLines(synced) : []), [synced]);
   return (
-    <div className="flex w-full items-center gap-2 text-[11px] tabular-nums text-ink-2">
-      <span className="w-10 text-right">{fmtTime(position)}</span>
-      <input
-        type="range"
-        aria-label="Seek"
-        min={0}
-        max={max}
-        step={0.1}
-        value={Math.min(position, max)}
-        disabled={duration === 0}
-        onChange={(event) => seek(Number(event.target.value))}
-        className="min-w-0 flex-1 cursor-pointer accent-ink-1 disabled:cursor-default disabled:opacity-[var(--disabled-opacity)]"
-      />
-      <span className="w-10">{fmtTime(duration)}</span>
-    </div>
+    <Groove
+      profile="bar"
+      seed={track?.id ?? ""}
+      position={position}
+      duration={duration}
+      onSeek={seek}
+      lyrics={lines}
+      playing={playing}
+    />
   );
 }
 
@@ -228,11 +160,13 @@ function VolumeControl() {
   const muted = usePlayer((state) => state.muted);
   const setVolume = usePlayer((state) => state.setVolume);
   const toggleMute = usePlayer((state) => state.toggleMute);
+  const level = muted ? 0 : volume;
   const silent = muted || volume === 0;
   return (
     <div className="flex items-center gap-1">
       <TransportButton
         label={muted ? "Unmute" : "Mute"}
+        hint="M"
         icon={silent ? VolumeOffIcon : VolumeHighIcon}
         onClick={toggleMute}
       />
@@ -242,9 +176,9 @@ function VolumeControl() {
         min={0}
         max={1}
         step={0.01}
-        value={muted ? 0 : volume}
+        value={level}
         onChange={(event) => setVolume(Number(event.target.value))}
-        className="w-24 cursor-pointer accent-ink-1"
+        className="w-24 cursor-pointer rounded-full accent-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
       />
     </div>
   );
@@ -262,72 +196,57 @@ function FullScreenButton() {
   );
 }
 
-export function PlayerBar() {
+export function PlayerBar({ trackInfo = true, transport = true, surface = "bar" }: { trackInfo?: boolean; transport?: boolean; surface?: "bar" | "none" }) {
+  const surfaceClass = surface === "bar" ? "bg-base" : "";
   const track = usePlayer(currentTrack);
-  const queueLength = usePlayer((state) => state.queue.length);
-  const shuffle = usePlayer((state) => state.shuffle);
-  const repeat = usePlayer((state) => state.repeat);
-  const toggleShuffle = usePlayer((state) => state.toggleShuffle);
-  const cycleRepeat = usePlayer((state) => state.cycleRepeat);
-  const prev = usePlayer((state) => state.prev);
-  const next = usePlayer((state) => state.next);
   const rightPanel = useUI((state) => state.rightPanel);
   const toggleQueue = useUI((state) => state.toggleQueue);
   const lyricsCenter = useUI((state) => state.lyricsCenter);
   const toggleLyrics = useUI((state) => state.toggleLyrics);
   const hideVolumeBar = useSettings((state) => state.hideVolumeBar);
-  const empty = queueLength === 0;
+
+  const utilities = (
+    <div className="flex items-center justify-end gap-1">
+      <SleepTimer />
+      <TransportButton
+        label="Lyrics"
+        hint="L"
+        icon={Mic01Icon}
+        active={lyricsCenter}
+        pressed={lyricsCenter}
+        onClick={toggleLyrics}
+      />
+      <TransportButton
+        label="Queue"
+        hint="Q"
+        icon={Queue01Icon}
+        active={rightPanel === "queue"}
+        pressed={rightPanel === "queue"}
+        onClick={toggleQueue}
+      />
+      {!hideVolumeBar && <VolumeControl />}
+      <PipButton />
+      <FullScreenButton />
+    </div>
+  );
+
+  if (!transport) {
+    return (
+      <footer aria-label="Player" className={`flex h-14 shrink-0 items-center justify-end px-3 ${surfaceClass}`}>
+        {utilities}
+      </footer>
+    );
+  }
 
   return (
-    <footer aria-label="Player" className="h-[88px] shrink-0 bg-base px-3">
+    <footer aria-label="Player" className={`relative h-[88px] shrink-0 px-3 ${surfaceClass}`}>
       <div className="grid h-full grid-cols-[minmax(0,3fr)_minmax(0,4fr)_minmax(0,3fr)] items-center gap-4">
-        <NowPlaying track={track} />
-
+        {trackInfo ? <NowPlaying track={track} /> : <div aria-hidden="true" />}
         <div className="flex flex-col justify-center gap-2">
-          <div className="flex w-full items-center gap-4">
-            <div className="flex flex-1 items-center justify-end gap-2">
-              <TransportButton
-                label={shuffle ? "Disable Shuffle" : "Enable Shuffle"}
-                icon={ShuffleIcon}
-                active={shuffle}
-                onClick={toggleShuffle}
-              />
-              <TransportButton label="Previous" icon={PreviousIcon} disabled={empty} onClick={prev} />
-            </div>
-            <PlayDisc />
-            <div className="flex flex-1 items-center gap-2">
-              <TransportButton label="Next" icon={NextIcon} disabled={empty} onClick={() => next(true)} />
-              <TransportButton
-                label={REPEAT_LABEL[repeat]}
-                icon={repeat === "one" ? RepeatOne01Icon : RepeatIcon}
-                active={repeat !== "off"}
-                onClick={cycleRepeat}
-              />
-            </div>
-          </div>
-          <SeekBar />
+          <PlaybackControls />
+          <PlayerGroove track={track} />
         </div>
-
-        <div className="flex items-center justify-end gap-1">
-          <SleepTimer />
-          <TransportButton
-            label="Lyrics"
-            icon={Mic01Icon}
-            active={lyricsCenter}
-            pressed={lyricsCenter}
-            onClick={toggleLyrics}
-          />
-          <TransportButton
-            label="Queue"
-            icon={Queue01Icon}
-            active={rightPanel === "queue"}
-            pressed={rightPanel === "queue"}
-            onClick={toggleQueue}
-          />
-          {!hideVolumeBar && <VolumeControl />}
-          <PipButton />
-          <FullScreenButton />
-        </div>
+        {utilities}
       </div>
     </footer>
   );

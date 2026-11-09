@@ -17,6 +17,7 @@ import {
   Playlist01Icon,
   UserIcon,
 } from "@hugeicons/core-free-icons";
+import type { Box } from "./pickerLayout";
 import { copyLink } from "./browseActions";
 import { openNewPlaylistWith, toSong } from "./collectionActions";
 import { addSongsToPlaylists } from "./devicePlaylists";
@@ -104,7 +105,7 @@ export function trackMenuItems(track: SearchSong): MenuItem[] {
     })),
   ];
   if (playlists.length > 1) {
-    items.push({ label: "Add to playlists", icon: PlayListAddIcon, onSelect: () => useUI.getState().openPlaylistPicker([track]) });
+    items.push({ label: "Add to playlists", icon: PlayListAddIcon, onSelect: (anchor?: Box) => useUI.getState().openPlaylistPicker([track], anchor) });
   }
   items.push({ label: "New playlist", icon: Playlist01Icon, onSelect: () => openNewPlaylistWith(track) });
 
@@ -224,7 +225,7 @@ export function playerAddMenuItems(track: SearchSong): MenuItem[] {
   const children: MenuItem[] = [
     ...picks,
     ...(playlists.length > PLAYLIST_CAP
-      ? [{ label: "Add to playlists", icon: PlayListAddIcon, onSelect: () => useUI.getState().openPlaylistPicker([track]) }]
+      ? [{ label: "Add to playlists", icon: PlayListAddIcon, onSelect: (anchor?: Box) => useUI.getState().openPlaylistPicker([track], anchor) }]
       : []),
     {
       label: "New playlist",

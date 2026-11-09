@@ -32,7 +32,7 @@ describe("CaptionButtons", () => {
     render(<CaptionButtons />);
 
     expect(screen.getByRole("button", { name: "Minimize" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Maximize" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Maximise" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Close" })).toBeTruthy();
     expect(screen.getAllByRole("button")).toHaveLength(3);
   });
@@ -44,7 +44,7 @@ describe("CaptionButtons", () => {
     await user.click(screen.getByRole("button", { name: "Minimize" }));
     expect(bridge.minimizeWindow).toHaveBeenCalledTimes(1);
 
-    await user.click(screen.getByRole("button", { name: "Maximize" }));
+    await user.click(screen.getByRole("button", { name: "Maximise" }));
     expect(bridge.toggleMaximizeWindow).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole("button", { name: "Close" }));
@@ -56,7 +56,28 @@ describe("CaptionButtons", () => {
     render(<CaptionButtons />);
 
     expect(await screen.findByRole("button", { name: "Restore" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Maximize" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Maximise" })).toBeNull();
+  });
+
+  it("uses the 40px squircle shape in the compact variant and keeps the danger hover on Close", () => {
+    render(<CaptionButtons variant="compact" />);
+    for (const name of ["Minimize", "Maximise", "Close"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button.className).toContain("h-10");
+      expect(button.className).toContain("w-10");
+      expect(button.className).toContain("rounded-[12px]");
+      expect(button.className).toContain("[corner-shape:squircle]");
+      expect(button.querySelector("svg")).not.toBeNull();
+    }
+    expect(screen.getByRole("button", { name: "Close" }).className).toContain("hover:bg-[rgb(var(--danger))]");
+    expect(screen.getByRole("button", { name: "Minimize" }).className).not.toContain("hover:bg-[rgb(var(--danger))]");
+  });
+
+  it("packs the compact buttons with no gap", () => {
+    render(<CaptionButtons variant="compact" />);
+    const group = screen.getByRole("button", { name: "Minimize" }).parentElement;
+    expect(group?.className).toContain("gap-0");
+    expect(group?.className).not.toContain("gap-2");
   });
 
   it("moves focus through Minimize, Maximize and Close in order with Tab", async () => {
@@ -67,7 +88,7 @@ describe("CaptionButtons", () => {
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Minimize" }));
 
     await user.tab();
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Maximize" }));
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Maximise" }));
 
     await user.tab();
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Close" }));

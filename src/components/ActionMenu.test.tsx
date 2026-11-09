@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PlayIcon } from "@hugeicons/core-free-icons";
 import { ActionMenu } from "./ActionMenu";
@@ -40,7 +40,7 @@ describe("ActionMenu", () => {
 
     const trigger = screen.getByRole("button", { name: "More options" });
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
-    expect(screen.queryByRole("menu")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
 
     await user.click(trigger);
 
@@ -57,7 +57,7 @@ describe("ActionMenu", () => {
     await user.click(screen.getByRole("menuitem", { name: "Play now" }));
 
     expect(onSelect).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("menu")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
   });
 
   it("does not run a disabled item", async () => {
@@ -81,7 +81,7 @@ describe("ActionMenu", () => {
     await user.click(trigger);
 
     expect(screen.getByRole("button", { name: "More options" }).getAttribute("aria-expanded")).toBe("false");
-    expect(screen.queryByRole("menu")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
   });
 
   it("opens nothing when its items are empty", async () => {
@@ -95,6 +95,6 @@ describe("ActionMenu", () => {
 
     await user.click(screen.getByRole("button", { name: "More options" }));
 
-    expect(screen.queryByRole("menu")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
   });
 });

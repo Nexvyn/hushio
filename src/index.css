@@ -30,14 +30,25 @@ body {
   display: none;
 }
 
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+input[type="search"]::-ms-clear {
+  display: none;
+}
+
 .overlay-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgb(255 255 255 / 0.12) transparent;
+  scrollbar-color: rgb(var(--ink-1) / 0.18) transparent;
 }
 
 .overlay-scroll::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 .overlay-scroll::-webkit-scrollbar-track {
@@ -46,14 +57,15 @@ body {
 
 .overlay-scroll::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgb(255 255 255 / 0.12);
-  border: 2px solid transparent;
-  background-clip: padding-box;
+  background: rgb(var(--ink-1) / 0.18);
 }
 
 .overlay-scroll:hover::-webkit-scrollbar-thumb {
-  background: rgb(255 255 255 / 0.22);
-  background-clip: padding-box;
+  background: rgb(var(--ink-1) / 0.3);
+}
+
+.overlay-scroll::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 .edge-fades {
@@ -101,12 +113,18 @@ body {
 
 :where(button, a, [role="button"], [role="menuitem"], [role="option"], [role="tab"],
        [role="switch"], [role="radio"], [role="slider"], input, select, textarea, summary, [tabindex]):focus-visible {
-  outline: 2px solid rgb(var(--focus));
+  outline: 2px solid rgb(var(--focus) / 0.6);
   outline-offset: 2px;
 }
 
 :focus:not(:focus-visible) {
   outline: none;
+}
+
+input:not([type="checkbox"], [type="radio"], [type="range"]):focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px rgb(var(--ink-1) / 0.12);
 }
 
 @media (forced-colors: active) {
@@ -192,18 +210,6 @@ body {
   color: rgb(var(--base));
 }
 
-.fs-viz-bar {
-  width: 3px;
-  height: 100%;
-  border-radius: 999px;
-  background: rgb(var(--ink-1) / 0.2);
-  transform: scaleY(var(--rest));
-}
-
-.fs-viz.is-playing .fs-viz-bar {
-  background-color: rgb(var(--ink-1) / 0.32);
-}
-
 :root {
   --hit-min: 40px;
 }
@@ -232,9 +238,6 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-.hero-fallback {
-  background-color: rgb(var(--wash));
-  background-image:
-    repeating-linear-gradient(135deg, rgb(var(--ink-1) / 0.05) 0 2px, transparent 2px 22px),
-    linear-gradient(160deg, rgb(var(--accent) / 0.08), transparent 70%);
+.volume-art {
+  background: linear-gradient(to right, rgb(var(--on-art)) var(--level), rgb(var(--on-art) / var(--on-art-track)) var(--level));
 }

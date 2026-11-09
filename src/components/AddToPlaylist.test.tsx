@@ -1,6 +1,6 @@
 import { ContextMenu } from "./ContextMenu";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const { audio, playStream, play, pause, seekTo, setVolume, setMuted } = vi.hoisted(() => ({
   audio: new Audio(),
@@ -51,13 +51,13 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Add to playlist button in the player bar", () => {
-  it("is disabled when nothing is playing", () => {
+  it("is disabled when nothing is playing", async () => {
     render(<><PlayerBar /><ContextMenu /></>);
 
     expect((screen.getByRole("button", { name: "Add to playlist" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("opens the add-to-playlist menu for the playing song", () => {
+  it("opens the add-to-playlist menu for the playing song", async () => {
     usePlayer.setState({ queue: [track], index: 0 });
     render(<><PlayerBar /><ContextMenu /></>);
 
@@ -68,7 +68,7 @@ describe("Add to playlist button in the player bar", () => {
     expect(screen.getByRole("menuitem", { name: "Add to playlist" })).toBeTruthy();
   });
 
-  it("closes its menu on a second press", () => {
+  it("closes its menu on a second press", async () => {
     usePlayer.setState({ queue: [track], index: 0 });
     render(<><PlayerBar /><ContextMenu /></>);
 
@@ -76,6 +76,6 @@ describe("Add to playlist button in the player bar", () => {
     fireEvent.click(button);
     fireEvent.click(button);
 
-    expect(screen.queryByRole("menu")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
   });
 });

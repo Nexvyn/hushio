@@ -1,22 +1,36 @@
 import { useEffect, useRef, useState } from "react";
-import { Tick02Icon } from "@hugeicons/core-free-icons";
+import { AnimatePresence, motion } from "motion/react";
+import { PlayListAddIcon, Tick02Icon } from "@hugeicons/core-free-icons";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
 import { shortTitle } from "../lib/browseText";
 import { addSongsToPlaylists } from "../lib/devicePlaylists";
 import { plural } from "../lib/plural";
+import { type Box, placePicker, pickerMotion, PICKER_WIDTH } from "../lib/pickerLayout";
+import { reducedMotion } from "../lib/motion";
 import { type Playlist, useLibrary } from "../stores/library";
 import { useUI } from "../stores/ui";
 import type { Track } from "../types";
 
+const ITEM = "[data-picker-item]:not(:disabled)";
+const ROW =
+  "hit-area flex h-10 w-full shrink-0 items-center gap-2 rounded-lg px-3 text-left text-[14px] text-ink-1 outline-none enabled:hover:bg-ink-1/[0.06] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus motion-safe:transition-colors";
+
 export function PlaylistPicker() {
   const tracks = useUI((state) => state.playlistPicker);
-  if (!tracks) return null;
-  return <Picker tracks={tracks} />;
+  const anchor = useUI((state) => state.playlistPickerAnchor);
+  return <AnimatePresence>{tracks && <Picker key="picker" tracks={tracks} anchor={anchor} />}</AnimatePresence>;
 }
 
 function holdsAll(playlist: Playlist, tracks: readonly Track[]): boolean {
   return tracks.every((track) => playlist.tracks.some((item) => item.id === track.id));
+}
+
+function measure(element: Element | null): Box | null {
+  if (!(element instanceof HTMLElement) || !element.isConnected || element === document.body) return null;
+  const rect = element.getBoundingClientRect();
+  if (rect.width === 0 && rect.height === 0) return null;
+  return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height };
 }
 
 function trapTab(event: KeyboardEvent, panel: HTMLElement | null) {
@@ -39,14 +53,29 @@ function trapTab(event: KeyboardEvent, panel: HTMLElement | null) {
   }
 }
 
-function Picker({ tracks }: { tracks: Track[] }) {
+function moveFocus(event: KeyboardEvent, panel: HTMLElement | null) {
+  if (!panel) return;
+  const items = Array.from(panel.querySelectorAll<HTMLElement>(ITEM));
+  if (items.length === 0) return;
+  event.preventDefault();
+  const at = items.indexOf(document.activeElement as HTMLElement);
+  const step = event.key === "ArrowDown" ? 1 : -1;
+  const next = at === -1 ? (step === 1 ? 0 : items.length - 1) : (at + step + items.length) % items.length;
+  items[next].focus();
+}
+
+function Picker({ tracks, anchor: anchorProp }: { tracks: Track[]; anchor: Box | null }) {
   const playlists = useLibrary((state) => state.playlists);
   const closePlaylistPicker = useUI((state) => state.closePlaylistPicker);
   const panelRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
-  const [returnFocus] = useState<HTMLElement | null>(() =>
-    document.activeElement instanceof HTMLElement ? document.activeElement : null,
-  );
+  const [frame] = useState(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return { opener, anchor: anchorProp ?? measure(opener) };
+  });
+  const [reduced] = useState(() => reducedMotion());
+  const [edges, setEdges] = useState({ top: false, bottom: false });
 
   useEffect(() => {
     setPicked(new Set());
@@ -56,6 +85,8 @@ function Picker({ tracks }: { tracks: Track[] }) {
         closePlaylistPicker();
       } else if (event.key === "Tab") {
         trapTab(event, panelRef.current);
+      } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        moveFocus(event, panelRef.current);
       }
     };
     window.addEventListener("keydown", onKeyDown, true);
@@ -70,7 +101,24 @@ function Picker({ tracks }: { tracks: Track[] }) {
     };
   }, [tracks, closePlaylistPicker]);
 
-  useEffect(() => () => returnFocus?.focus(), [returnFocus]);
+  useEffect(
+    () =>
+      useUI.subscribe((state, previous) => {
+        if (previous.playlistPicker && !state.playlistPicker) frame.opener?.focus({ preventScroll: true });
+      }),
+    [frame],
+  );
+
+  function syncEdges() {
+    const list = listRef.current;
+    if (!list) return;
+    setEdges({
+      top: list.scrollTop > 2,
+      bottom: list.scrollTop + list.clientHeight < list.scrollHeight - 2,
+    });
+  }
+
+  useEffect(syncEdges, [playlists.length]);
 
   function toggle(id: string) {
     setPicked((current) => {
@@ -87,31 +135,78 @@ function Picker({ tracks }: { tracks: Track[] }) {
     closePlaylistPicker();
   }
 
+  function createAndAdd() {
+    const suggested = `Playlist ${playlists.length + 1}`;
+    closePlaylistPicker();
+    useUI.getState().openDialog({
+      title: "New playlist",
+      body: "Give your playlist a name.",
+      initialValue: suggested,
+      placeholder: "Playlist name",
+      confirmLabel: "Create",
+      onConfirm: (value) => {
+        const name = value.trim() || suggested;
+        const id = useLibrary.getState().createPlaylist(name);
+        addSongsToPlaylists([...picked, id], tracks);
+        useUI.getState().toast(`Added to ${name}`, "success");
+      },
+    });
+  }
+
   const what = tracks.length === 1 ? `"${shortTitle(tracks[0].title)}"` : `${tracks.length} songs`;
+  const placement = placePicker(frame.anchor, { width: window.innerWidth, height: window.innerHeight });
+  const anchored = placement.mode === "anchored";
+  const panelMotion = pickerMotion(reduced);
+  const mask = `linear-gradient(to bottom, ${edges.top ? "transparent" : "#000"}, #000 12px, #000 calc(100% - 12px), ${edges.bottom ? "transparent" : "#000"})`;
 
   return (
-    <div className="fixed inset-0 z-[120] grid place-items-center animate-fade-in">
-      <div
-        className="absolute inset-0 bg-black/55 backdrop-blur-[3px]"
-        aria-hidden="true"
-        onMouseDown={closePlaylistPicker}
-      />
-      <div
+    <div
+      className={`fixed inset-0 z-[120] ${anchored ? "" : "grid place-items-center"}`}
+      data-placement={anchored ? (placement.flipped ? "up" : "down") : "center"}
+    >
+      <div className="absolute inset-0" aria-hidden="true" onMouseDown={closePlaylistPicker} />
+      <motion.div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label="Add to playlists"
         tabIndex={-1}
-        className="glass-strong animate-pop-in relative w-[min(420px,calc(100vw-48px))] rounded-2xl p-6 outline-none"
+        className={`${anchored ? "absolute" : "relative"} flex max-w-[calc(100vw-16px)] flex-col gap-2 overflow-hidden rounded-[12px] [corner-shape:squircle] bg-elevated p-2 shadow-[var(--shadow-float)] ring-1 ring-card-edge/[0.08] outline-none`}
+        style={{
+          width: PICKER_WIDTH,
+          maxHeight: placement.maxHeight,
+          transformOrigin: placement.origin,
+          ...(placement.mode === "anchored"
+            ? { left: placement.left, top: placement.top, bottom: placement.bottom }
+            : {}),
+        }}
+        initial={panelMotion.initial}
+        animate={panelMotion.animate}
+        exit={panelMotion.exit}
+        transition={panelMotion.transition}
       >
-        <h2 className="font-display text-lg font-bold tracking-tight text-ink-1">Add to playlists</h2>
-        <p className="mt-1.5 text-[13px] text-ink-2 [overflow-wrap:anywhere]">
-          Choose where {what} should go.
-        </p>
+        <div className="px-2 pb-0.5 pt-1">
+          <h2 className="text-[14px] font-semibold text-ink-1">Add to playlists</h2>
+          <p className="mt-0.5 truncate text-[12px] text-ink-2">Choose where {what} should go.</p>
+        </div>
+        <button type="button" data-picker-item className={ROW} onClick={createAndAdd}>
+          <span className="grid h-5 w-5 shrink-0 place-items-center text-ink-1">
+            <Icon icon={PlayListAddIcon} />
+          </span>
+          New playlist
+        </button>
         {playlists.length === 0 ? (
-          <p className="mt-4 text-[13px] text-ink-2">You don't have any playlists yet.</p>
+          <div className="px-2 pb-1">
+            <p className="text-[13px] font-medium text-ink-1">No playlists yet</p>
+            <p className="mt-0.5 text-[12px] text-ink-2">Create one to hold {what}.</p>
+          </div>
         ) : (
-          <div className="-mx-2 mt-4 max-h-[50vh] space-y-0.5 overflow-y-auto">
+          <div
+            ref={listRef}
+            onScroll={syncEdges}
+            className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1 py-0.5"
+            style={{ maskImage: mask, WebkitMaskImage: mask }}
+          >
             {playlists.map((playlist) => {
               const locked = holdsAll(playlist, tracks);
               const checked = locked || picked.has(playlist.id);
@@ -120,10 +215,11 @@ function Picker({ tracks }: { tracks: Track[] }) {
                   key={playlist.id}
                   type="button"
                   role="checkbox"
+                  data-picker-item
                   aria-checked={checked}
                   disabled={locked}
                   onClick={() => toggle(playlist.id)}
-                  className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left enabled:hover:bg-ink-1/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-safe:transition-colors"
+                  className={`${ROW} disabled:cursor-default`}
                 >
                   <span
                     className={`grid h-5 w-5 shrink-0 place-items-center rounded-md border ${
@@ -132,18 +228,14 @@ function Picker({ tracks }: { tracks: Track[] }) {
                   >
                     {checked && <Icon icon={Tick02Icon} />}
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[14px] text-ink-1">{playlist.name}</span>
-                    <span className="block text-[12px] text-ink-2">
-                      {locked ? "Already added" : plural(tracks.length, "song", "songs")}
-                    </span>
-                  </span>
+                  <span className="min-w-0 flex-1 truncate">{playlist.name}</span>
+                  {locked && <span className="shrink-0 text-[12px] text-ink-2">Already added</span>}
                 </button>
               );
             })}
           </div>
         )}
-        <div className="mt-6 flex items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-2 px-1 pb-0.5 pt-1">
           <Button variant="ghost" className="!rounded-xl" onClick={closePlaylistPicker}>
             Cancel
           </Button>
@@ -151,7 +243,7 @@ function Picker({ tracks }: { tracks: Track[] }) {
             Add
           </Button>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

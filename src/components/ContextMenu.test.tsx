@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ContextMenu, openMenuAtPointer, openMenuFromKey, type MenuSource } from "./ContextMenu";
 import { useUI, type MenuItem } from "../stores/ui";
@@ -47,25 +47,25 @@ function openAt(x: number, y: number, items: MenuItem[] = sampleItems()) {
 }
 
 describe("ContextMenu opening", () => {
-  it("opens at the pointer on a right-click and labels the menu with the subject title", () => {
+  it("opens at the pointer on a right-click and labels the menu with the subject title", async () => {
     openAt(100, 120);
 
     const menu = screen.getByRole("menu", { name: "Night Drive" });
     expect(menu.style.left).toBe("100px");
     expect(menu.style.top).toBe("120px");
-    expect(screen.queryByRole("menuitem", { name: "Subject row" })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("menuitem", { name: "Subject row" })).toBeNull());
   });
 
-  it("never opens with no items", () => {
+  it("never opens with no items", async () => {
     render(<Harness items={[]} />);
 
     fireEvent.contextMenu(screen.getByRole("button", { name: "Target" }), { clientX: 10, clientY: 10 });
 
     expect(useUI.getState().contextMenu).toBeNull();
-    expect(screen.queryByRole("menu")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
   });
 
-  it("opens from the keyboard menu key beside the focused element", () => {
+  it("opens from the keyboard menu key beside the focused element", async () => {
     render(<Harness items={sampleItems()} />);
     const target = screen.getByRole("button", { name: "Target" });
     target.focus();
@@ -76,7 +76,7 @@ describe("ContextMenu opening", () => {
     expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "Play now" }));
   });
 
-  it("keeps the menu inside the viewport on the right and bottom edges", () => {
+  it("keeps the menu inside the viewport on the right and bottom edges", async () => {
     openAt(1000, 760);
 
     const menu = screen.getByRole("menu");
@@ -84,7 +84,7 @@ describe("ContextMenu opening", () => {
     expect(menu.style.top).toBe(`${window.innerHeight - 320 - 8}px`);
   });
 
-  it("keeps a menu inside the viewport on the left and top edges", () => {
+  it("keeps a menu inside the viewport on the left and top edges", async () => {
     openAt(-40, -40);
 
     const menu = screen.getByRole("menu");
@@ -92,7 +92,7 @@ describe("ContextMenu opening", () => {
     expect(menu.style.top).toBe("8px");
   });
 
-  it("places an above menu above its anchor and never past the top edge", () => {
+  it("places an above menu above its anchor and never past the top edge", async () => {
     render(<Harness items={sampleItems()} />);
     act(() => useUI.getState().openContextMenu(200, 100, sampleItems(), { above: true }));
 
@@ -101,7 +101,7 @@ describe("ContextMenu opening", () => {
     expect(menu.style.left).toBe("200px");
   });
 
-  it("hangs a right-aligned menu from its anchor's right edge", () => {
+  it("hangs a right-aligned menu from its anchor's right edge", async () => {
     render(<Harness items={sampleItems()} />);
     act(() => useUI.getState().openContextMenu(400, 50, sampleItems(), { alignRight: true }));
 
@@ -115,7 +115,7 @@ describe("ContextMenu opening", () => {
 
     fireEvent.contextMenu(target, { clientX: 10, clientY: 10 });
 
-    expect(screen.getByRole("menu")).toBeTruthy();
+    await waitFor(() => expect(screen.getAllByRole("menu")).toHaveLength(1));
   });
 });
 
@@ -128,7 +128,7 @@ describe("ContextMenu rows", () => {
     await user.click(screen.getByRole("menuitem", { name: "Play now" }));
 
     expect(onFirst).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("menu")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
   });
 
   it("does not run a disabled row", async () => {
@@ -142,15 +142,16 @@ describe("ContextMenu rows", () => {
     expect(screen.getByRole("menu")).toBeTruthy();
   });
 
-  it("marks danger rows and puts a separator before a row that asks for one", () => {
+  it("marks danger rows and spaces a group apart with no separator elements", async () => {
     openAt(10, 10);
 
     expect(screen.getByRole("menuitem", { name: "Delete" }).getAttribute("data-danger")).toBe("true");
     expect(screen.getByRole("menuitem", { name: "Play now" }).getAttribute("data-danger")).toBeNull();
-    expect(screen.getByRole("menuitem", { name: "Delete" }).previousElementSibling?.getAttribute("role")).toBe("separator");
+    expect(document.querySelectorAll('[role="separator"], .h-px').length).toBe(0);
+    expect(screen.getByRole("menuitem", { name: "Delete" }).previousElementSibling?.className).toContain("h-2");
   });
 
-  it("shows checked toggles as checkboxes", () => {
+  it("shows checked toggles as checkboxes", async () => {
     openAt(10, 10, [
       { label: "Mix", toggle: true, checked: true, onSelect: () => {} },
       { label: "Other", toggle: true, checked: false, onSelect: () => {} },
@@ -160,11 +161,11 @@ describe("ContextMenu rows", () => {
     expect(screen.getByRole("menuitemcheckbox", { name: "Other" }).getAttribute("aria-checked")).toBe("false");
   });
 
-  it("renders captions as text, not as rows", () => {
+  it("renders captions as text, not as rows", async () => {
     openAt(10, 10, [{ label: "Folder", header: true }, { label: "Work", onSelect: () => {} }]);
 
     expect(screen.getByText("Folder")).toBeTruthy();
-    expect(screen.queryByRole("menuitem", { name: "Folder" })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("menuitem", { name: "Folder" })).toBeNull());
   });
 });
 
@@ -214,7 +215,7 @@ describe("ContextMenu keyboard", () => {
 
     await user.keyboard("{Escape}");
 
-    expect(screen.queryByRole("menu")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
     expect(document.activeElement).toBe(target);
   });
 
@@ -224,7 +225,7 @@ describe("ContextMenu keyboard", () => {
 
     await user.keyboard("{Tab}");
 
-    expect(screen.queryByRole("menu")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
   });
 });
 
@@ -249,7 +250,7 @@ describe("ContextMenu submenus", () => {
     expect(document.activeElement).toBe(screen.getByRole("menuitemcheckbox", { name: "Mix" }));
 
     await user.keyboard("{ArrowLeft}");
-    expect(screen.queryByRole("menu", { name: "Add to playlist" })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("menu", { name: "Add to playlist" })).toBeNull());
     expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "Add to playlist" }));
   });
 
@@ -260,12 +261,12 @@ describe("ContextMenu submenus", () => {
     await user.keyboard("{ArrowRight}");
     await user.keyboard("{Escape}");
 
-    expect(screen.queryByRole("menu", { name: "Add to playlist" })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("menu", { name: "Add to playlist" })).toBeNull());
     expect(screen.getByRole("menu", { name: "Menu" })).toBeTruthy();
     expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "Add to playlist" }));
 
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("menu")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
   });
 
   it("runs a submenu row and closes everything", async () => {
@@ -277,7 +278,7 @@ describe("ContextMenu submenus", () => {
     await user.click(screen.getByRole("menuitem", { name: "Mix" }));
 
     expect(onMix).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("menu")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
   });
 
   it("opens on hover and closes after the grace period once the pointer leaves", async () => {
@@ -289,7 +290,7 @@ describe("ContextMenu submenus", () => {
     fireEvent.pointerLeave(screen.getByRole("menu", { name: "Menu" }));
     await new Promise((resolve) => setTimeout(resolve, 220));
 
-    expect(screen.queryByRole("menu", { name: "Add to playlist" })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("menu", { name: "Add to playlist" })).toBeNull());
   });
 });
 
@@ -300,10 +301,10 @@ describe("ContextMenu dismissal", () => {
 
     await user.click(screen.getByText("outside"));
 
-    expect(screen.queryByRole("menu")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
   });
 
-  it("keeps the menu open for a press inside it", () => {
+  it("keeps the menu open for a press inside it", async () => {
     openAt(10, 10);
 
     fireEvent.pointerDown(screen.getByRole("menuitem", { name: "Sing along" }));
@@ -311,13 +312,13 @@ describe("ContextMenu dismissal", () => {
     expect(screen.getByRole("menu")).toBeTruthy();
   });
 
-  it("closes on a wheel outside the menu and ignores a wheel inside it", () => {
+  it("closes on a wheel outside the menu and ignores a wheel inside it", async () => {
     openAt(10, 10);
 
     fireEvent.wheel(screen.getByRole("menuitem", { name: "Sing along" }));
     expect(screen.getByRole("menu")).toBeTruthy();
 
     fireEvent.wheel(screen.getByText("outside"));
-    expect(screen.queryByRole("menu")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
   });
 });

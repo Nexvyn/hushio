@@ -1,5 +1,6 @@
 import {
   Fragment,
+  type ReactNode,
   forwardRef,
   useEffect,
   useLayoutEffect,
@@ -10,6 +11,9 @@ import {
   type MutableRefObject,
 } from "react";
 import { createPortal } from "react-dom";
+import { AnimatePresence, motion } from "motion/react";
+import { reducedMotion } from "../lib/motion";
+import { type Box, pickerMotion } from "../lib/pickerLayout";
 import { ArrowRight01Icon, CheckIcon } from "@hugeicons/core-free-icons";
 import { Icon } from "./Icon";
 import { useUI, type ContextMenuOptions, type ContextMenuState, type MenuItem, type MenuSubject } from "../stores/ui";
@@ -30,12 +34,13 @@ const SUB_CLOSE_MS = 150;
 const MAIN_SIZE = { width: 230, height: 320 };
 const SUB_SIZE = { width: 200, height: 340 };
 const KEY_ANCHOR_INSET = 16;
+const PANEL_SHAPE = "rounded-[12px] [corner-shape:squircle] shadow-[var(--shadow-float)] ring-1 ring-card-edge/[0.08]";
 const PANEL =
-  "fixed z-[100] max-h-[70vh] min-w-[220px] max-w-[320px] overflow-y-auto rounded-2xl bg-elevated p-1.5 shadow-[var(--shadow-menu)] ring-1 ring-card-edge/[0.08]";
+  `fixed z-[100] max-h-[70vh] min-w-[220px] max-w-[320px] overflow-y-auto bg-elevated p-2 ${PANEL_SHAPE}`;
 const SUB_PANEL =
-  "fixed z-[101] max-h-[340px] min-w-[200px] max-w-[320px] overflow-y-auto rounded-2xl bg-elevated p-1.5 shadow-[var(--shadow-menu)] ring-1 ring-card-edge/[0.08]";
+  `fixed z-[101] max-h-[340px] min-w-[200px] max-w-[320px] overflow-y-auto bg-elevated p-2 ${PANEL_SHAPE}`;
 const ROW =
-  "hit-area relative flex min-h-9 w-full items-center gap-3 rounded-[10px] px-3 py-2 text-left text-[13.5px] text-ink-1 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus disabled:opacity-[var(--disabled-opacity)] data-[danger=true]:text-danger-text";
+  "hit-area relative flex min-h-9 w-full items-center gap-2 rounded-[10px] px-3 py-2 text-left text-[13.5px] text-ink-1 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus disabled:opacity-[var(--disabled-opacity)] data-[danger=true]:text-danger-text";
 
 let sheetSeq = 0;
 
@@ -70,6 +75,11 @@ const clamp = (value: number, low: number, high: number) => Math.max(low, Math.m
 function rectOf(element: HTMLElement): Rect {
   const rect = element.getBoundingClientRect();
   return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+}
+
+function boxOf(element: HTMLElement): Box {
+  const rect = element.getBoundingClientRect();
+  return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height };
 }
 
 function pointFor(menu: ContextMenuState): Point {
@@ -142,6 +152,8 @@ const MenuPanel = forwardRef<HTMLDivElement, PanelProps>(function MenuPanel(
 ) {
   const lightRef = useRef<HTMLSpanElement>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const [reduced] = useState(reducedMotion);
+  const presence = pickerMotion(reduced);
 
   const setPanel = (node: HTMLDivElement | null) => {
     panelRef.current = node;
@@ -171,7 +183,7 @@ const MenuPanel = forwardRef<HTMLDivElement, PanelProps>(function MenuPanel(
   };
 
   return (
-    <div
+    <motion.div
       ref={setPanel}
       role="menu"
       aria-orientation="vertical"
@@ -182,13 +194,17 @@ const MenuPanel = forwardRef<HTMLDivElement, PanelProps>(function MenuPanel(
         shine(restingRow());
         onPanelLeave?.();
       }}
-      style={style}
-      className={`${submenu ? `${SUB_PANEL} animate-fade-in` : `${PANEL} menu-sheet`}${above ? " is-above" : ""}${flipped ? " is-flipped" : ""}`}
+      style={{ transformOrigin: flipped ? "top right" : "top left", ...style }}
+      initial={presence.initial}
+      animate={presence.animate}
+      exit={presence.exit}
+      transition={presence.transition}
+      className={`${submenu ? SUB_PANEL : PANEL}${above ? " is-above" : ""}${flipped ? " is-flipped" : ""}`}
     >
       <span ref={lightRef} aria-hidden="true" className="menu-light" />
       {subject && (
         <>
-          <div className="relative mb-1 flex items-center gap-3 overflow-hidden rounded-[10px] px-3 py-2">
+          <div className="relative mb-2 flex items-center gap-2 overflow-hidden rounded-[10px] px-3 py-2">
             {subject.thumb && (
               <span
                 aria-hidden="true"
@@ -210,12 +226,11 @@ const MenuPanel = forwardRef<HTMLDivElement, PanelProps>(function MenuPanel(
               {subject.subtitle && <span className="mt-px block truncate text-[12.5px] text-ink-2">{subject.subtitle}</span>}
             </span>
           </div>
-          <div role="separator" className="mx-1 mb-1 h-px bg-separator" />
         </>
       )}
       {rows.map((item, index) => (
         <Fragment key={`${index}:${item.label}`}>
-          {item.separatorBefore && index > 0 && <div role="separator" className="my-1 h-px bg-separator" />}
+          {item.separatorBefore && index > 0 && <span aria-hidden="true" className="block h-2" />}
           {item.header ? (
             <div role="presentation" className="px-3 pb-1 pt-2 text-[12px] font-medium text-ink-2">
               {item.label}
@@ -261,9 +276,13 @@ const MenuPanel = forwardRef<HTMLDivElement, PanelProps>(function MenuPanel(
           )}
         </Fragment>
       ))}
-    </div>
+    </motion.div>
   );
 });
+
+function SubLayer({ children }: { children: ReactNode }) {
+  return createPortal(children, document.body);
+}
 
 function MenuSheet({ menu }: { menu: ContextMenuState }) {
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -325,12 +344,12 @@ function MenuSheet({ menu }: { menu: ContextMenuState }) {
       else openSub(index, row);
       return;
     }
-    item.onSelect?.();
+    item.onSelect?.(boxOf(row));
     close();
   }
 
-  function activateSubRow(index: number) {
-    subRows[index].onSelect?.();
+  function activateSubRow(index: number, row: HTMLElement) {
+    subRows[index].onSelect?.(boxOf(row));
     close();
   }
 
@@ -345,10 +364,7 @@ function MenuSheet({ menu }: { menu: ContextMenuState }) {
 
   useLayoutEffect(() => {
     const panel = subRef.current;
-    if (!sub || !panel) {
-      setSubPlaced(null);
-      return;
-    }
+    if (!sub || !panel) return;
     setSubPlaced(placeSub(sub.anchor, panel.offsetWidth || SUB_SIZE.width, panel.offsetHeight || SUB_SIZE.height));
     panel.querySelector<HTMLElement>(ROWS)?.focus({ preventScroll: true });
   }, [sub]);
@@ -358,16 +374,18 @@ function MenuSheet({ menu }: { menu: ContextMenuState }) {
       target instanceof Node &&
       (Boolean(panelRef.current?.contains(target)) || (target instanceof Element && target.closest("[data-menu-portal]") !== null));
 
+    const live = () => useUI.getState().contextMenu === menu;
     const onPointerDown = (event: PointerEvent) => {
-      if (!inside(event.target)) useUI.getState().closeContextMenu();
+      if (live() && !inside(event.target)) useUI.getState().closeContextMenu();
     };
     const onPointerCapture = () => {
       byKeys.current = false;
     };
     const onWheel = (event: WheelEvent) => {
-      if (!inside(event.target)) useUI.getState().closeContextMenu();
+      if (live() && !inside(event.target)) useUI.getState().closeContextMenu();
     };
     const onKeyDown = (event: KeyboardEvent) => {
+      if (!live()) return;
       byKeys.current = true;
       const current = openSubRef.current;
       const focused = document.activeElement;
@@ -435,6 +453,22 @@ function MenuSheet({ menu }: { menu: ContextMenuState }) {
   }, []);
 
   useEffect(
+    () =>
+      useUI.subscribe((state) => {
+        if (state.contextMenu === menu) return;
+        const panels = [panelRef.current, subRef.current];
+        const hadFocus = panels.some((node) => node?.contains(document.activeElement));
+        for (const node of panels) {
+          node?.setAttribute("aria-hidden", "true");
+          node?.setAttribute("inert", "");
+        }
+        const target = opener.current;
+        if (hadFocus && target?.isConnected) target.focus({ preventScroll: true });
+      }),
+    [menu],
+  );
+
+  useEffect(
     () => () => {
       window.clearTimeout(closeTimer.current);
       const target = opener.current;
@@ -460,24 +494,26 @@ function MenuSheet({ menu }: { menu: ContextMenuState }) {
         onPanelEnter={clearSubTimer}
         onPanelLeave={scheduleSubClose}
       />
-      {sub &&
-        createPortal(
-          <MenuPanel
-            key={sub.index}
-            ref={subRef}
-            rows={subRows}
-            label={rows[sub.index].label}
-            submenu
-            flipped={subPlaced?.flipped}
-            byKeys={byKeys}
-            style={subPlaced ? { left: subPlaced.left, top: subPlaced.top } : { left: 0, top: 0, visibility: "hidden" }}
-            onRowEnter={() => {}}
-            onRowActivate={activateSubRow}
-            onPanelEnter={clearSubTimer}
-            onPanelLeave={scheduleSubClose}
-          />,
-          document.body,
+      <AnimatePresence>
+        {sub && (
+          <SubLayer key={sub.index}>
+            <MenuPanel
+              ref={subRef}
+              rows={subRows}
+              label={rows[sub.index].label}
+              submenu
+              flipped={subPlaced?.flipped}
+              byKeys={byKeys}
+              style={subPlaced ? { left: subPlaced.left, top: subPlaced.top } : { left: 0, top: 0, visibility: "hidden" }}
+              onRowEnter={() => {}}
+              onRowActivate={activateSubRow}
+              onPanelEnter={clearSubTimer}
+              onPanelLeave={scheduleSubClose}
+            />
+          </SubLayer>
         )}
+      </AnimatePresence>
+
     </>
   );
 }
@@ -485,6 +521,5 @@ function MenuSheet({ menu }: { menu: ContextMenuState }) {
 export function ContextMenu() {
   const menu = useUI((state) => state.contextMenu);
   const sheet = useMemo(() => (menu ? ++sheetSeq : 0), [menu]);
-  if (!menu) return null;
-  return <MenuSheet key={sheet} menu={menu} />;
+  return <AnimatePresence>{menu && <MenuSheet key={sheet} menu={menu} />}</AnimatePresence>;
 }

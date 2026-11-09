@@ -67,11 +67,26 @@ const FOUR_LINES = [
   { time: 4, text: "Fourth line" },
 ];
 
+const SIX_LINES = [
+  { time: 1, text: "One" },
+  { time: 2, text: "Two" },
+  { time: 3, text: "Three" },
+  { time: 4, text: "Four" },
+  { time: 5, text: "Five" },
+  { time: 6, text: "Six" },
+];
+
 let frames: FrameRequestCallback[] = [];
 
 function flushFrames(now: number) {
   const pending = frames.splice(0);
   for (const callback of pending) callback(now);
+}
+
+function firePointer(type: string, target: Element, x: number, y: number) {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.assign(event, { clientX: x, clientY: y, pointerId: 1 });
+  fireEvent(target, event);
 }
 
 function rect(top: number, height: number): DOMRect {
@@ -149,7 +164,7 @@ describe("SyncedLyrics", () => {
     expect(Number(buttons[1].style.opacity)).toBeCloseTo(1, 5);
     expect(Number(buttons[2].style.opacity)).toBeCloseTo(0.5, 5);
     expect(Number(buttons[0].style.opacity)).toBeCloseTo(0.35, 5);
-    expect(buttons[2].style.filter).toBe("blur(1.2px)");
+    expect(buttons[2].style.filter).toBe("");
   });
 
   it("uses the 0.35 s lookahead to pick the active line", () => {
@@ -280,5 +295,134 @@ describe("SyncedLyrics", () => {
     useSettings.setState({ reduceAnimation: true });
     render(<SyncedLyrics lyrics={lyricsWith(FOUR_LINES)} loading={false} />);
     expect(lineButtons()[0].style.transition).toBe("none");
+  });
+
+  it("steps the blur by distance: none near the active line, 1.5 px, then 3 px", () => {
+    render(<SyncedLyrics lyrics={lyricsWith(SIX_LINES)} loading={false} />);
+    act(() => {
+      usePlayer.setState({ position: 3.2 });
+    });
+    const filters = lineButtons().map((button) => button.style.filter);
+    expect(filters[0]).toBe("blur(1.5px)");
+    expect(filters[1]).toBe("");
+    expect(filters[2]).toContain("drop-shadow");
+    expect(filters[2]).not.toContain("blur");
+    expect(filters[3]).toBe("");
+    expect(filters[4]).toBe("blur(1.5px)");
+    expect(filters[5]).toBe("blur(3px)");
+  });
+
+  it("shows no blur under reduce motion or reduce transparency", () => {
+    useSettings.setState({ reduceDynamicBlur: true });
+    const first = render(<SyncedLyrics lyrics={lyricsWith(SIX_LINES)} loading={false} />);
+    act(() => {
+      usePlayer.setState({ position: 3.2 });
+    });
+    expect(lineButtons().some((button) => button.style.filter.includes("blur"))).toBe(false);
+    first.unmount();
+
+    useSettings.setState({ reduceDynamicBlur: false, reduceAnimation: true });
+    render(<SyncedLyrics lyrics={lyricsWith(SIX_LINES)} loading={false} />);
+    expect(lineButtons().some((button) => button.style.filter.includes("blur"))).toBe(false);
+  });
+
+  it("clears focus mode while the list is scrolled by hand and restores it 3 s after the last scroll", () => {
+    vi.useFakeTimers();
+    const { container } = render(<SyncedLyrics lyrics={lyricsWith(SIX_LINES)} loading={false} />);
+    act(() => {
+      usePlayer.setState({ position: 3.2 });
+    });
+    expect(lineButtons()[5].style.filter).toBe("blur(3px)");
+
+    fireEvent.wheel(scrollerOf(container));
+    expect(lineButtons()[5].style.filter).toBe("");
+    expect(lineButtons()[5].style.opacity).toBe("1");
+    expect(lineButtons()[0].style.opacity).toBe("1");
+
+    act(() => {
+      vi.advanceTimersByTime(2900);
+    });
+    fireEvent.wheel(scrollerOf(container));
+    act(() => {
+      vi.advanceTimersByTime(2900);
+    });
+    expect(lineButtons()[5].style.filter).toBe("");
+
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(lineButtons()[5].style.filter).toBe("blur(3px)");
+  });
+
+  it("restores focus mode at once when a line is clicked", () => {
+    const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+    const { container } = render(<SyncedLyrics lyrics={lyricsWith(SIX_LINES)} loading={false} />);
+    act(() => {
+      usePlayer.setState({ position: 3.2 });
+    });
+    fireEvent.touchMove(scrollerOf(container));
+    expect(lineButtons()[5].style.filter).toBe("");
+    now.mockReturnValue(1300);
+    fireEvent.click(lineButtons()[5]);
+    expect(lineButtons()[0].style.filter).not.toBe("");
+  });
+
+  it("seeks on a plain click with the pointer still", () => {
+    const { container } = render(<SyncedLyrics lyrics={lyricsWith(FOUR_LINES)} loading={false} />);
+    firePointer("pointerdown", scrollerOf(container), 10, 10);
+    firePointer("pointerup", scrollerOf(container), 10, 10);
+    fireEvent.click(lineButtons()[1]);
+    expect(seekTo.mock.calls.at(-1)?.[0]).toBeCloseTo(1.85, 5);
+  });
+
+  it("does not seek when a drag over the lyrics is released on a line", () => {
+    const { container } = render(<SyncedLyrics lyrics={lyricsWith(SIX_LINES)} loading={false} />);
+    firePointer("pointerdown", scrollerOf(container), 10, 100);
+    firePointer("pointermove", scrollerOf(container), 10, 180);
+    firePointer("pointerup", scrollerOf(container), 10, 180);
+    fireEvent.click(lineButtons()[2]);
+    expect(seekTo).not.toHaveBeenCalled();
+  });
+
+  it("does not seek when the pointer moved more than 5 px before release", () => {
+    const { container } = render(<SyncedLyrics lyrics={lyricsWith(FOUR_LINES)} loading={false} />);
+    firePointer("pointerdown", scrollerOf(container), 10, 10);
+    firePointer("pointerup", scrollerOf(container), 10, 16);
+    fireEvent.click(lineButtons()[1]);
+    expect(seekTo).not.toHaveBeenCalled();
+  });
+
+  it("keeps lyrics to vertical scrolling: clipped sideways and pan-y touch only", () => {
+    const { container } = render(<SyncedLyrics lyrics={lyricsWith(SIX_LINES)} loading={false} />);
+    const scroller = scrollerOf(container);
+    expect(scroller.className).toContain("overflow-x-hidden");
+    expect(scroller.className).toContain("touch-pan-y");
+    firePointer("pointerdown", scroller, 10, 100);
+    firePointer("pointermove", scroller, 120, 100);
+    firePointer("pointerup", scroller, 120, 100);
+    expect(scroller.scrollLeft).toBe(0);
+    for (const line of lineButtons()) expect(line.style.transform).not.toContain("translate");
+  });
+
+  it("ignores a line click within 250 ms of a manual scroll", () => {
+    const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+    const { container } = render(<SyncedLyrics lyrics={lyricsWith(FOUR_LINES)} loading={false} />);
+    fireEvent.wheel(scrollerOf(container));
+    now.mockReturnValue(1200);
+    fireEvent.click(lineButtons()[1]);
+    expect(seekTo).not.toHaveBeenCalled();
+    now.mockReturnValue(1300);
+    fireEvent.click(lineButtons()[1]);
+    expect(seekTo.mock.calls.at(-1)?.[0]).toBeCloseTo(1.85, 5);
+  });
+
+  it("does not leave focus mode for a plain tap on the list", () => {
+    const { container } = render(<SyncedLyrics lyrics={lyricsWith(SIX_LINES)} loading={false} />);
+    act(() => {
+      usePlayer.setState({ position: 3.2 });
+    });
+    firePointer("pointerdown", scrollerOf(container), 10, 10);
+    firePointer("pointerup", scrollerOf(container), 10, 10);
+    expect(lineButtons()[5].style.filter).toBe("blur(3px)");
   });
 });

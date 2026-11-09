@@ -1,6 +1,7 @@
 import type { IconSvgElement } from "@hugeicons/react";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
+import { useInk } from "../lib/onArt";
 
 type EmptyStateAction = { label: string; onClick: () => void };
 
@@ -13,15 +14,16 @@ type EmptyStateProps = {
 };
 
 export function EmptyState({ title, message, icon, action, secondaryAction }: EmptyStateProps) {
+  const ink = useInk();
   return (
-    <section className="animate-fade-in rounded-[11px] border border-separator bg-panel px-6 py-10 text-center">
+    <section className="animate-fade-in flex flex-col items-center px-6 py-12 text-center">
       {icon && (
-        <span aria-hidden="true" className="bt-breath mb-3 inline-flex rounded-full p-2 text-ink-2">
+        <span aria-hidden="true" className={`mb-3 grid h-11 w-11 place-items-center rounded-full ${ink.tint} ${ink.secondary}`}>
           <Icon icon={icon} />
         </span>
       )}
-      <h2 className="text-[17px] font-semibold text-ink-1">{title}</h2>
-      <p className="mt-1 text-[12.5px] text-ink-2">{message}</p>
+      <h2 className={`text-[16px] font-semibold ${ink.primary}`}>{title}</h2>
+      {message && <p className={`mt-1 max-w-sm text-[13px] ${ink.secondary}`}>{message}</p>}
       {(action || secondaryAction) && (
         <div className="mt-4 flex items-center justify-center gap-2">
           {action && (

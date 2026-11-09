@@ -18,6 +18,7 @@ import {
   VolumeHighIcon,
   VolumeOffIcon,
 } from "@hugeicons/core-free-icons";
+import { Groove } from "../components/Groove";
 import { Icon } from "../components/Icon";
 import {
   listenPipState,
@@ -29,7 +30,6 @@ import {
   pipSetCompact,
   pipShowMain,
 } from "../lib/bridge";
-import { fmtTime } from "../lib/format";
 import type { PipCommand, PipSnapshot } from "./types";
 
 const SEEK_STEP = 5;
@@ -191,20 +191,16 @@ export function PipApp() {
           />
         </div>
 
-        <div className="flex items-center gap-2 px-1 text-[11px] tabular-nums text-[#b3b3b3]">
-          <span>{fmtTime(snapshot?.position ?? 0)}</span>
-          <input
-            type="range"
-            aria-label="Seek"
-            min={0}
-            max={snapshot?.duration ?? 0}
-            step={1}
-            value={snapshot?.position ?? 0}
-            disabled={!track}
-            onChange={(event) => send({ type: "seek", sec: Number(event.target.value) })}
-            className="min-w-0 flex-1 accent-white"
+        <div className="px-1">
+          <Groove
+            profile="compact"
+            compact
+            seed={track?.id ?? ""}
+            position={snapshot?.position ?? 0}
+            duration={snapshot?.duration ?? 0}
+            playing={snapshot?.playing ?? false}
+            onSeek={(sec) => send({ type: "seek", sec })}
           />
-          <span>{fmtTime(snapshot?.duration ?? 0)}</span>
         </div>
 
         <div className="flex items-center justify-center gap-1">

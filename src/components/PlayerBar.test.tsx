@@ -83,7 +83,25 @@ describe("PlayerBar with nothing queued", () => {
     render(<PlayerBar />);
 
     expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
-    expect((screen.getByRole<HTMLInputElement>("slider", { name: "Seek" })).disabled).toBe(true);
+    expect(screen.getByRole("slider", { name: "Seek" }).getAttribute("aria-disabled")).toBe("true");
+  });
+});
+
+describe("PlayerBar surface", () => {
+  it("keeps the base background by default and has no ambient tint", () => {
+    const { container } = render(<PlayerBar />);
+
+    const footer = screen.getByLabelText("Player");
+    expect(footer.className).toContain("bg-base");
+    expect(container.querySelector('[class*="bg-ambient"]')).toBeNull();
+  });
+
+  it("renders a transparent footer with surface none", () => {
+    render(<PlayerBar trackInfo={false} transport={false} surface="none" />);
+
+    const footer = screen.getByLabelText("Player");
+    expect(footer.className).not.toContain("bg-base");
+    expect(footer.className).not.toContain("bg-ambient");
   });
 });
 
@@ -99,6 +117,14 @@ describe("PlayerBar with a queue", () => {
     expect(screen.getByText("Artist 0")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Next" }) as HTMLButtonElement).disabled).toBe(false);
     expect((screen.getByRole("button", { name: "Previous" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("leaves the song title out of the bar when the full-screen view already shows it", () => {
+    render(<PlayerBar trackInfo={false} />);
+
+    expect(screen.queryByText("Track 0")).toBeNull();
+    expect(screen.queryByText("Artist 0")).toBeNull();
+    expect(screen.getByRole("button", { name: "Next" })).toBeTruthy();
   });
 
   it("switches between Play and Pause and calls the engine", async () => {
@@ -157,14 +183,15 @@ describe("PlayerBar with a queue", () => {
     usePlayer.setState({ position: 42, duration: 200 });
     render(<PlayerBar />);
 
-    const slider = screen.getByRole<HTMLInputElement>("slider", { name: "Seek" });
-    expect(slider.disabled).toBe(false);
-    expect(slider.value).toBe("42");
+    const slider = screen.getByRole("slider", { name: "Seek" });
+    expect(slider.getAttribute("aria-disabled")).toBeNull();
+    expect(slider.getAttribute("aria-valuenow")).toBe("42");
+    expect(slider.getAttribute("aria-valuetext")).toBe("0:42 of 3:20");
     expect(screen.getByText("0:42")).toBeTruthy();
     expect(screen.getByText("3:20")).toBeTruthy();
 
-    fireEvent.change(slider, { target: { value: "30" } });
-    expect(seekTo).toHaveBeenCalledWith(30);
+    fireEvent.keyDown(slider, { key: "ArrowRight" });
+    expect(seekTo).toHaveBeenCalledWith(47);
   });
 
   it("mutes from the volume button and reports the muted state", async () => {
