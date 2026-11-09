@@ -12,6 +12,7 @@ pub struct AndroidBridges<R: Runtime> {
     pub auth: tauri::plugin::PluginHandle<R>,
     pub permission: tauri::plugin::PluginHandle<R>,
     pub audio: tauri::plugin::PluginHandle<R>,
+    pub sync: tauri::plugin::PluginHandle<R>,
 }
 
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
@@ -26,6 +27,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
                     auth: _api.register_android_plugin("com.hushio.player", "AuthPlugin")?,
                     permission: _api.register_android_plugin("com.hushio.player", "PermissionPlugin")?,
                     audio: _api.register_android_plugin("com.hushio.player", "LocalAudioPlugin")?,
+                    sync: _api.register_android_plugin("com.hushio.player", "SyncPlugin")?,
                 };
                 _app.manage(bridges);
             }

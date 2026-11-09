@@ -18,19 +18,27 @@ mod macos_window;
 mod media_controls;
 mod menu;
 mod persist;
-mod pip;
 mod reveal;
 mod stats;
 mod stream;
 mod sync_merge;
 mod sync_queue;
 mod taskbar;
+#[cfg(desktop)]
 mod tray;
+#[cfg(desktop)]
 mod updates;
+#[cfg(desktop)]
 mod window;
 mod tree_library;
 mod yt_data_api;
 mod yt_innertube_auth;
+#[cfg(desktop)]
+mod pip;
+#[cfg(mobile)]
+mod mobile;
+#[cfg(mobile)]
+use mobile::{pip, tray, updates, window};
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -45,6 +53,7 @@ const APP_NAME: &str = "Hushio";
 const APP_SLUG: &str = "hushio";
 const IMAGE_CACHE_BYTES: u64 = 64 * 1024 * 1024;
 const DATA_DIR_ENV: &str = "HUSHIO_DATA_DIR";
+#[cfg(desktop)]
 const ALLOW_MULTI_ENV: &str = "HUSHIO_ALLOW_MULTI";
 
 struct DataPaths {
@@ -381,8 +390,34 @@ fn spawn_sync(app: &AppHandle, engine: Arc<YtEngine>) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let emit = move |event: sync_queue::Event| emit_sync(&app, event);
-        engine.run(&emit).await;
+        if engine.run(&emit).await == Some(sync_queue::Halt::Offline) {
+            let _ = android::schedule_retry();
+        }
     });
+}
+
+#[cfg(target_os = "android")]
+const BACKGROUND_DONE: i32 = 0;
+#[cfg(target_os = "android")]
+const BACKGROUND_OFFLINE: i32 = 1;
+#[cfg(target_os = "android")]
+const BACKGROUND_NOT_READY: i32 = 2;
+
+#[cfg(target_os = "android")]
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_hushio_player_SyncNative_runSync(
+    _env: *mut std::ffi::c_void,
+    _class: *mut std::ffi::c_void,
+) -> i32 {
+    let Some(app) = android::app() else {
+        return BACKGROUND_NOT_READY;
+    };
+    let engine = app.state::<Arc<YtEngine>>().inner().clone();
+    let emit = |_: sync_queue::Event| {};
+    match tauri::async_runtime::block_on(engine.run(&emit)) {
+        Some(sync_queue::Halt::Offline) => BACKGROUND_OFFLINE,
+        _ => BACKGROUND_DONE,
+    }
 }
 
 #[tauri::command]
@@ -492,9 +527,11 @@ pub fn run() {
         .event_format(LogPrefix)
         .with_max_level(tracing::Level::INFO)
         .init();
+    #[cfg(desktop)]
     media_controls::set_app_id();
 
     let mut builder = tauri::Builder::<tauri::Wry>::default();
+    #[cfg(desktop)]
     if std::env::var(ALLOW_MULTI_ENV).ok().as_deref() != Some("1") {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
             launch::receive(app, &argv, std::path::Path::new(&cwd));
@@ -505,9 +542,12 @@ pub fn run() {
     {
         builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     }
+    builder = builder.plugin(tauri_plugin_deep_link::init());
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(window::state_plugin());
+    }
     let app = builder
-        .plugin(tauri_plugin_deep_link::init())
-        .plugin(window::state_plugin())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -515,13 +555,21 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_process::init())
         .on_window_event(|window, event| {
-            window::on_window_event(window, event);
-            pip::on_window_event(window, event);
+            #[cfg(desktop)]
+            {
+                window::on_window_event(window, event);
+                pip::on_window_event(window, event);
+            }
+            #[cfg(not(desktop))]
+            let _ = (window, event);
         })
         .on_page_load(|webview, payload| {
+            #[cfg(desktop)]
             if payload.event() == tauri::webview::PageLoadEvent::Started {
                 window::on_navigation_started(webview.app_handle());
             }
+            #[cfg(not(desktop))]
+            let _ = (webview, payload);
         })
         .plugin(tauri_plugin_hushio_player::init())
         .register_uri_scheme_protocol("localart", |context, request| {
@@ -559,14 +607,19 @@ pub fn run() {
             let sync_root = root.clone();
             let drive_root = root.clone();
             app.manage(DataPaths { root });
+            #[cfg(desktop)]
             app.manage(tray::Tray::default());
-            let updates = updates::Service::shared(app.package_info().version.to_string());
-            app.manage(updates);
-            updates::start(app.handle().clone());
-            app.manage(window::Glass::default());
-            app.manage(pip::Pip::default());
+            #[cfg(desktop)]
+            {
+                let updates = updates::Service::shared(app.package_info().version.to_string());
+                app.manage(updates);
+                updates::start(app.handle().clone());
+                app.manage(window::Glass::default());
+                app.manage(pip::Pip::default());
+            }
             linux_session::setup(app.handle());
             linux_portal::start(app.handle());
+            #[cfg(desktop)]
             tray::setup(app.handle());
             taskbar::setup(app.handle());
             let controls = media_controls::Controls::default();
@@ -577,7 +630,9 @@ pub fn run() {
             let argv: Vec<String> = std::env::args().collect();
             let cwd = std::env::current_dir().unwrap_or_default();
             launch::receive(app.handle(), &argv, &cwd);
+            #[cfg(desktop)]
             window::restore_main(app.handle());
+            #[cfg(desktop)]
             window::apply_glass(app.handle());
             let registry = stream::Registry::default();
             app.manage(registry.clone());

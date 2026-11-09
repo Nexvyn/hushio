@@ -14,6 +14,8 @@ use crate::persist;
 use crate::yt_data_api::{AccessTokens, ApiError, QUOTA_LIMIT, Quota, RemoteItem, YtApi, now_ms};
 use crate::yt_innertube_auth::{Innertube, MSG_CONNECT};
 
+const MSG_OFFLINE: &str = "Couldn't reach YouTube. Sync resumes when the connection is back.";
+
 pub const MAX_ATTEMPTS: u32 = 5;
 const BACKOFF_MS: [i64; 4] = [1_000, 2_000, 4_000, 8_000];
 const PACING: Duration = Duration::from_millis(250);
@@ -406,6 +408,7 @@ impl Queue {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Halt {
     SignIn,
+    Offline,
 }
 
 #[derive(Default)]
@@ -559,12 +562,13 @@ impl<T: AccessTokens> Engine<T> {
         }
     }
 
-    pub async fn run(&self, emit: Emit<'_>) {
+    pub async fn run(&self, emit: Emit<'_>) -> Option<Halt> {
         if !self.begin().await {
-            return;
+            return None;
         }
         self.drain(emit).await;
         self.end(emit).await;
+        self.run.lock().unwrap_or_else(|poison| poison.into_inner()).halt
     }
 
     pub async fn stop(&self) -> Result<(), String> {
@@ -770,6 +774,8 @@ impl<T: AccessTokens> Engine<T> {
         run.halt = Some(halt);
         if route == Route::Unofficial {
             run.last_error = Some(MSG_CONNECT.to_owned());
+        } else if halt == Halt::Offline {
+            run.last_error = Some(MSG_OFFLINE.to_owned());
         }
     }
 
@@ -811,6 +817,7 @@ impl<T: AccessTokens> Engine<T> {
 fn halt_for(error: &ApiError) -> Option<Halt> {
     match error {
         ApiError::Token(TokenError::SignedOut) => Some(Halt::SignIn),
+        ApiError::Network(_) => Some(Halt::Offline),
         _ => None,
     }
 }
@@ -953,6 +960,20 @@ mod tests {
             queue.succeed(&job.id, None);
         }
         assert_eq!(order, vec!["v1", "v2", "v3"]);
+    }
+
+    #[tokio::test]
+    async fn a_network_error_stops_the_queue_and_keeps_the_job_without_spending_an_attempt() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let engine = engine(dir.path(), "http://127.0.0.1:1").await;
+        engine.enqueue(vec![add("L1", "v1", Some("PL1"))]).await.expect("queued");
+
+        let now = now_ms() + 1_000_000;
+        assert_eq!(engine.step(now, &ignore).await, Step::Halted(Halt::Offline));
+        let queue = engine.queue.lock().await;
+        assert_eq!(queue.stored.jobs.len(), 1);
+        assert_eq!(queue.stored.jobs[0].state, State::Pending);
+        assert_eq!(queue.stored.jobs[0].attempts, 0);
     }
 
     #[tokio::test]

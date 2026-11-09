@@ -21,6 +21,7 @@ mod bridge {
         Auth,
         Permission,
         Audio,
+        Sync,
     }
 
     #[derive(Deserialize)]
@@ -52,6 +53,14 @@ mod bridge {
         let _ = APP.set(app.clone());
     }
 
+    pub fn app() -> Option<&'static AppHandle<Wry>> {
+        APP.get()
+    }
+
+    pub fn schedule_retry() -> Result<(), String> {
+        call::<Value>(Bridge::Sync, "schedule", json!({})).map(drop)
+    }
+
     fn plugins() -> Result<tauri::State<'static, AndroidBridges<Wry>>, String> {
         let app = APP.get().ok_or_else(|| NOT_READY.to_owned())?;
         Ok(app.state::<AndroidBridges<Wry>>())
@@ -64,6 +73,7 @@ mod bridge {
             Bridge::Auth => &plugins.auth,
             Bridge::Permission => &plugins.permission,
             Bridge::Audio => &plugins.audio,
+            Bridge::Sync => &plugins.sync,
         }
     }
 
@@ -139,6 +149,10 @@ mod bridge {
     const NOT_ANDROID: &str = "Android services are only available on Android.";
 
     pub fn init(_app: &tauri::AppHandle<tauri::Wry>) {}
+
+    pub fn schedule_retry() -> Result<(), String> {
+        Ok(())
+    }
 
     pub async fn pick_tree() -> Result<Option<String>, String> {
         Err(NOT_ANDROID.to_owned())

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import releaseYaml from "../../.github/workflows/release.yml?raw";
+import gradleKts from "../../src-tauri/gen/android/app/build.gradle.kts?raw";
 
 type Step = {
   name?: string;
@@ -19,6 +20,7 @@ type Job = {
     "max-parallel"?: number;
     matrix?: { os?: string[]; arch?: string[]; include?: Record<string, string>[] };
   };
+  if?: string;
   env?: Record<string, string>;
   steps: Step[];
 };
@@ -39,11 +41,11 @@ const stepNamed = (job: Job, name: string): Step => {
   return step;
 };
 const macosInclude = jobs["build-macos"].strategy?.matrix?.include ?? [];
-const secretNames = new Set([...releaseYaml.matchAll(/secrets\.([A-Z_]+)/g)].map((m) => m[1]));
+const secretNames = new Set([...releaseYaml.matchAll(/secrets\.([A-Z0-9_]+)/g)].map((m) => m[1]));
 
 describe("release workflow", () => {
-  it("has the test, build, macOS build and verify jobs plus linux, and no Android job yet", () => {
-    expect(Object.keys(jobs).sort()).toEqual(["build", "build-macos", "linux", "test", "verify-macos"]);
+  it("has the test, build, macOS build, verify and linux jobs plus the android job", () => {
+    expect(Object.keys(jobs).sort()).toEqual(["android", "build", "build-macos", "linux", "test", "verify-macos"]);
   });
 
   it("points every needs entry at an existing job", () => {
@@ -102,7 +104,8 @@ describe("release workflow", () => {
     const appleSecrets = ["APPLE_CERTIFICATE", "APPLE_CERTIFICATE_PASSWORD", "APPLE_SIGNING_IDENTITY", "APPLE_ID", "APPLE_PASSWORD", "APPLE_TEAM_ID"];
     const signing = stepNamed(jobs["build-macos"], "Select macOS signing mode");
     for (const name of appleSecrets) expect(signing.env?.[name]).toBe(`\${{ secrets.${name} }}`);
-    for (const name of secretNames) expect(["GITHUB_TOKEN", ...appleSecrets, "TAURI_SIGNING_PRIVATE_KEY", "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"]).toContain(name);
+    const androidSecrets = ["ANDROID_KEYSTORE_BASE64", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD", "HUSHIO_GOOGLE_CLIENT_ID"];
+    for (const name of secretNames) expect(["GITHUB_TOKEN", ...appleSecrets, ...androidSecrets, "TAURI_SIGNING_PRIVATE_KEY", "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"]).toContain(name);
     expect(jobs.build.steps.some((step) => Object.keys(step.env ?? {}).some((key) => key.startsWith("APPLE_")))).toBe(false);
   });
 
@@ -193,5 +196,86 @@ describe("release workflow", () => {
     const uses = allSteps.flatMap((step) => (step.uses ? [step.uses] : []));
     expect(uses.length).toBeGreaterThan(0);
     for (const ref of uses) expect(ref).toMatch(/@v\d+\.\d+\.\d+$/);
+  });
+});
+
+describe("android release job", () => {
+  const android = jobs.android;
+  const androidSteps = android.steps;
+  const androidRuns = androidSteps.flatMap((step) => (step.run ? [step.run] : []));
+  const androidText = JSON.stringify(android);
+  const usesStep = (prefix: string): Step | undefined => androidSteps.find((step) => step.uses?.startsWith(prefix));
+  const ndkVersion = /ndkVersion = "([\d.]+)"/.exec(gradleKts)?.[1];
+
+  it("runs after the test and build jobs, only for version tags, on Ubuntu", () => {
+    expect(needsOf(android).sort()).toEqual(["build", "test"]);
+    expect(android["runs-on"]).toBe("ubuntu-22.04");
+    expect(android.if).toBe("startsWith(inputs.tag || github.ref_name, 'v')");
+  });
+
+  it("installs JDK 17 and the NDK version pinned in the Gradle build", () => {
+    expect(usesStep("actions/setup-java@")?.with?.["java-version"]).toBe("17");
+    expect(usesStep("android-actions/setup-android@")).toBeDefined();
+    expect(ndkVersion).toBeDefined();
+    expect(android.env?.ANDROID_NDK_VERSION).toBe(ndkVersion);
+    expect(androidRuns).toContain('sdkmanager "ndk;${ANDROID_NDK_VERSION}"');
+  });
+
+  it("installs the Rust Android targets without i686", () => {
+    const rust = usesStep("actions-rust-lang/setup-rust-toolchain@");
+    expect(rust?.with?.target).toBe("aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android");
+    expect(androidText).not.toMatch(/i686/);
+  });
+
+  it("installs the frozen dependencies and builds split and universal APKs for the three ABIs", () => {
+    expect(androidRuns).toContain("pnpm install --frozen-lockfile");
+    const build = stepNamed(android, "Build the APKs").run ?? "";
+    expect(build).toContain("pnpm tauri android build --apk --split-per-abi --target aarch64 armv7 x86_64");
+    expect(build).toContain("pnpm tauri android build --apk --target aarch64 armv7 x86_64");
+  });
+
+  it("reads the keystore and Google client ID only through the secrets context", () => {
+    expect(stepNamed(android, "Decode the release keystore").env?.ANDROID_KEYSTORE_BASE64).toBe("${{ secrets.ANDROID_KEYSTORE_BASE64 }}");
+    const build = stepNamed(android, "Build the APKs").env ?? {};
+    expect(build.ANDROID_KEYSTORE_PASSWORD).toBe("${{ secrets.ANDROID_KEYSTORE_PASSWORD }}");
+    expect(build.ANDROID_KEY_ALIAS).toBe("${{ secrets.ANDROID_KEY_ALIAS }}");
+    expect(build.ANDROID_KEY_PASSWORD).toBe("${{ secrets.ANDROID_KEY_PASSWORD }}");
+    expect(build.HUSHIO_GOOGLE_CLIENT_ID).toBe("${{ secrets.HUSHIO_GOOGLE_CLIENT_ID }}");
+    const androidSecretNames = [...androidText.matchAll(/secrets\.([A-Z0-9_]+)/g)].map((m) => m[1]);
+    for (const name of androidSecretNames) {
+      expect(["GITHUB_TOKEN", "ANDROID_KEYSTORE_BASE64", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD", "HUSHIO_GOOGLE_CLIENT_ID"]).toContain(name);
+    }
+  });
+
+  it("deletes the decoded keystore even when the build fails", () => {
+    const remove = stepNamed(android, "Delete the keystore");
+    expect(remove.if).toBe("always()");
+    expect(remove.run).toContain("$RUNNER_TEMP/hushio-release.jks");
+  });
+
+  it("names the APKs, verifies them, writes SHA256SUMS.txt and uploads them to the tag's release", () => {
+    const names = stepNamed(android, "Name the APKs, verify the signature and write SHA256SUMS.txt").run ?? "";
+    for (const expected of [
+      "for abi in arm64-v8a armeabi-v7a x86_64",
+      "hushio-$VERSION-$abi.apk",
+      "hushio-$VERSION-universal.apk",
+      '"$APKSIGNER" verify --verbose',
+      "sha256sum hushio-*.apk > SHA256SUMS.txt",
+    ]) {
+      expect(names).toContain(expected);
+    }
+    const upload = stepNamed(android, "Upload the files to the GitHub Release");
+    expect(upload.run).toContain('gh release view "$TAG"');
+    expect(upload.run).toContain('gh release upload "$TAG" "$APK_DIR"/* --clobber');
+  });
+
+  it("pins every action in the job to a full version tag", () => {
+    const uses = androidSteps.flatMap((step) => (step.uses ? [step.uses] : []));
+    expect(uses.length).toBeGreaterThan(0);
+    for (const ref of uses) expect(ref).toMatch(/@v\d+\.\d+\.\d+$/);
+  });
+
+  it("uses no npm or npx commands", () => {
+    for (const run of androidRuns) expect(run).not.toMatch(/\b(npm|npx)\b/);
   });
 });

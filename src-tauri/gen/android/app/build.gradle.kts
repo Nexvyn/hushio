@@ -1,3 +1,4 @@
+import com.android.build.api.variant.FilterConfiguration
 import groovy.json.JsonSlurper
 import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -18,6 +19,29 @@ val tauriProperties = Properties().apply {
     }
 }
 
+val keystoreProperties = Properties().apply {
+    val propFile = rootProject.file("keystore.properties")
+    if (propFile.exists()) {
+        propFile.inputStream().use { load(it) }
+    }
+}
+
+fun signingValue(key: String, env: String): String? =
+    keystoreProperties.getProperty(key)?.takeIf { it.isNotBlank() }
+        ?: System.getenv(env)?.takeIf { it.isNotBlank() }
+
+val releaseSigningReady = signingValue("storeFile", "ANDROID_KEYSTORE_FILE") != null
+
+fun abiDigit(abi: String?): Int = when (abi) {
+    "armeabi-v7a" -> 1
+    "arm64-v8a" -> 2
+    "x86_64" -> 3
+    else -> 0
+}
+
+fun releaseVersionCode(digit: Int): Int =
+    (versionMajor * 10000 + versionMinor * 100 + versionPatch) * 10 + digit
+
 android {
     compileSdk = 35
     ndkVersion = "27.0.12077973"
@@ -28,8 +52,18 @@ android {
         applicationId = "com.hushio.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = (versionMajor * 10000 + versionMinor * 100 + versionPatch) * 10
+        versionCode = releaseVersionCode(0)
         versionName = appVersion
+    }
+    signingConfigs {
+        create("release") {
+            if (releaseSigningReady) {
+                storeFile = file(signingValue("storeFile", "ANDROID_KEYSTORE_FILE")!!)
+                storePassword = signingValue("storePassword", "ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = signingValue("keyAlias", "ANDROID_KEY_ALIAS")
+                keyPassword = signingValue("keyPassword", "ANDROID_KEY_PASSWORD")
+            }
+        }
     }
     buildTypes {
         getByName("debug") {
@@ -45,6 +79,9 @@ android {
             }
         }
         getByName("release") {
+            if (releaseSigningReady) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             optimization {
                enable = true
             }
@@ -62,6 +99,15 @@ android {
     }
     buildFeatures {
         buildConfig = true
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            val abi = output.filters.firstOrNull { it.filterType == FilterConfiguration.FilterType.ABI }
+            output.versionCode.set(releaseVersionCode(abiDigit(abi?.identifier)))
+        }
     }
 }
 

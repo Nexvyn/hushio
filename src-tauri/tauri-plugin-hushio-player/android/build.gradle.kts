@@ -33,5 +33,7 @@ dependencies {
     implementation("androidx.browser:browser:1.8.0")
     implementation("androidx.documentfile:documentfile:1.0.0")
     implementation("androidx.activity:activity:1.6.0")
+    implementation("androidx.work:work-runtime:2.10.0")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20250107")
 }

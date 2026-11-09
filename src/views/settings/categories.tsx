@@ -46,6 +46,7 @@ import type { IconSvgElement } from "@hugeicons/react";
 import type { ReactNode } from "react";
 import { Button } from "../../components/Button";
 import { Equalizer } from "../../components/Equalizer";
+import { AndroidUpdateControl } from "./AndroidUpdateControl";
 import { GoogleAccountCard } from "../../components/GoogleAccountCard";
 import { OutputDevicePicker } from "../../components/OutputDevicePicker";
 import { RadioGroup, type RadioOption } from "../../components/RadioGroup";
@@ -815,7 +816,8 @@ function updateControl({ state, check, install, restart, openPage }: UpdatesCont
   }
 }
 
-function aboutCategory({ version, updates }: BuildContext): SettingsCategory {
+function aboutCategory({ version, updates, platform }: BuildContext): SettingsCategory {
+  const android = platform === "android";
   const copy = updateCopy(updates.state);
   return {
     id: "about",
@@ -835,9 +837,9 @@ function aboutCategory({ version, updates }: BuildContext): SettingsCategory {
           {
             id: "updates",
             icon: CloudDownloadIcon,
-            title: copy.title,
-            note: copy.note,
-            control: updateControl(updates),
+            title: android ? "Updates" : copy.title,
+            note: android ? undefined : copy.note,
+            control: android ? <AndroidUpdateControl current={version} /> : updateControl(updates),
           },
           {
             id: "website",

@@ -224,6 +224,33 @@ export function playerTakeLaunch(): Promise<Partial<LaunchPayload>> {
   return playerCall<Partial<LaunchPayload>>("player_take_launch");
 }
 
+export type UpdateCheck =
+  | { state: "current"; version: string }
+  | { state: "available"; version: string; apkName: string; apkUrl: string; sumsUrl: string }
+  | { state: "error"; message: string };
+
+export function updateCheck(current: string): Promise<UpdateCheck> {
+  return playerCall<UpdateCheck>("update_check", { current });
+}
+
+export function updateDownload(
+  offer: Extract<UpdateCheck, { state: "available" }>,
+): Promise<{ path: string }> {
+  return playerCall<{ path: string }>("update_download", {
+    apkName: offer.apkName,
+    apkUrl: offer.apkUrl,
+    sumsUrl: offer.sumsUrl,
+  });
+}
+
+export function updateInstall(path: string): Promise<{ state: "started" | "unknown_sources" }> {
+  return playerCall<{ state: "started" | "unknown_sources" }>("update_install", { path });
+}
+
+export function updateOpenInstallSettings(): Promise<void> {
+  return playerCall<void>("update_open_install_settings");
+}
+
 export async function listenPlayerEvent<T>(event: string, onEvent: (payload: T) => void): Promise<() => void> {
   const listener = await addPluginListener<T>(PLAYER_PLUGIN, event, onEvent);
   return () => void listener.unregister();
