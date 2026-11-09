@@ -519,6 +519,7 @@ pub fn run() {
                 window::on_navigation_started(webview.app_handle());
             }
         })
+        .plugin(tauri_plugin_hushio_player::init())
         .register_uri_scheme_protocol("localart", |context, request| {
             let art_dir = context.app_handle().state::<local_library::Service>().art_dir();
             local_library::serve_art(&art_dir, request.uri().path())
