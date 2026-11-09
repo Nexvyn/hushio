@@ -140,7 +140,7 @@ function DownloadRow({ item, onPlay }: { item: DownloadItem; onPlay: (() => void
               style={{ clipPath: `inset(${100 - fill}% 0 0 0)` }}
             />
           )}
-          <span className="absolute inset-0 flex items-center justify-center bg-scrim/40 text-white">
+          <span className="absolute inset-0 flex items-center justify-center bg-scrim/40 text-on-scrim">
             {item.status === "downloading" ? (
               <span className="text-[12px] font-semibold tabular-nums">{percent(item)}%</span>
             ) : (
@@ -198,7 +198,7 @@ export function DownloadsView() {
   const facts = (
     <>
       {none ? "Nothing saved yet" : `${plural(saved.length, "song", "songs")} · ${fmtTotal(total)}`}
-      {active > 0 && <span className="text-white"> · {active} on the way</span>}
+      {active > 0 && <span className="text-ink-1"> · {active} on the way</span>}
       {failed > 0 && <span className="text-danger-text"> · {failed} couldn't download</span>}
     </>
   );

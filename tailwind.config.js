@@ -41,6 +41,7 @@ export default {
         primary: "rgb(var(--primary) / <alpha-value>)",
         "on-primary": "rgb(var(--on-primary) / <alpha-value>)",
         "on-danger": "rgb(var(--on-danger) / <alpha-value>)",
+        "on-scrim": "rgb(var(--on-scrim) / <alpha-value>)",
         focus: "rgb(var(--focus) / <alpha-value>)",
         safe: "rgb(var(--safe) / <alpha-value>)",
         warn: "rgb(var(--warn) / <alpha-value>)",

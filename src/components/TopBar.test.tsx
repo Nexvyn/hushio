@@ -426,3 +426,14 @@ describe("TopBar theme button", () => {
     expect(button.getAttribute("title")).toBe("Switch to dark theme");
   });
 });
+
+describe("TopBar streak", () => {
+  afterEach(cleanup);
+
+  it("has no listening streak control", () => {
+    render(<TopBar />);
+
+    expect(screen.queryByRole("button", { name: /streak/i })).toBeNull();
+    expect(screen.queryByText(/streak/i)).toBeNull();
+  });
+});

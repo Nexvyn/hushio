@@ -231,3 +231,10 @@ body {
 *::after {
   -webkit-tap-highlight-color: transparent;
 }
+
+.hero-fallback {
+  background-color: rgb(var(--wash));
+  background-image:
+    repeating-linear-gradient(135deg, rgb(var(--ink-1) / 0.05) 0 2px, transparent 2px 22px),
+    linear-gradient(160deg, rgb(var(--accent) / 0.08), transparent 70%);
+}

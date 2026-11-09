@@ -4,10 +4,36 @@ import profileButton from "./ProfileButton.tsx?raw";
 import playerBar from "./PlayerBar.tsx?raw";
 import sidebar from "./Sidebar.tsx?raw";
 import themeButton from "./ThemeButton.tsx?raw";
+import collectionHero from "./CollectionHero.tsx?raw";
+import browseHero from "./BrowseHero.tsx?raw";
+import coverStack from "./CoverStack.tsx?raw";
+import libraryView from "../views/LibraryView.tsx?raw";
+import albumView from "../views/AlbumView.tsx?raw";
+import artistView from "../views/ArtistView.tsx?raw";
+import remotePlaylistView from "../views/RemotePlaylistView.tsx?raw";
+import playlistView from "../views/PlaylistView.tsx?raw";
+import likedView from "../views/LikedView.tsx?raw";
+import downloadsView from "../views/DownloadsView.tsx?raw";
 import tokens from "../styles/tokens.css?raw";
 
-const files = { topBar, profileButton, playerBar, sidebar, themeButton };
-const forbidden = /-(?:white|black)\b|#(?:fff|ffffff|000|000000)\b|\brgba?\(|\bhsla?\(/i;
+const files = {
+  topBar,
+  profileButton,
+  playerBar,
+  sidebar,
+  themeButton,
+  collectionHero,
+  browseHero,
+  coverStack,
+  libraryView,
+  albumView,
+  artistView,
+  remotePlaylistView,
+  playlistView,
+  likedView,
+  downloadsView,
+};
+const forbidden = /-(?:white|black)\b|#(?:fff|ffffff|000|000000)\b|\brgba?\(|\bhsla?\(|\bdrop-shadow\b/i;
 
 function lightTokens(): Record<string, [number, number, number]> {
   const block = tokens.slice(tokens.indexOf(':root[data-theme="light"]'), tokens.indexOf("@media (prefers-color-scheme: light)"));
@@ -44,5 +70,16 @@ describe("shell in light theme", () => {
       expect(contrast(palette["ink-2"], palette[ground]), `ink-2 on ${ground}`).toBeGreaterThanOrEqual(4.5);
       expect(contrast(palette["ink-1"], palette[ground]), `ink-1 on ${ground}`).toBeGreaterThanOrEqual(4.5);
     }
+  });
+
+  it("keeps hero text legible on the base ground the hero fades into", () => {
+    const palette = lightTokens();
+    expect(contrast(palette["ink-1"], palette.base)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(palette["ink-2"], palette.base)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("keeps the primary button label at AA contrast", () => {
+    const palette = lightTokens();
+    expect(contrast(palette["on-primary"], palette.primary)).toBeGreaterThanOrEqual(4.5);
   });
 });

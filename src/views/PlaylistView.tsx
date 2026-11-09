@@ -65,7 +65,7 @@ export function PlaylistView() {
       {top && (
         <>
           {" · Top artist: "}
-          <span className="font-semibold text-white">{top}</span>
+          <span className="font-semibold text-ink-1">{top}</span>
         </>
       )}
     </>

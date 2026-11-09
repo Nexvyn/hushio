@@ -83,7 +83,7 @@ function AlbumContent({ page }: { page: ReleasePage }) {
         >
           {headline}
         </h1>
-        {source && <p className="mt-1 text-[13px] text-white/60">From {source}</p>}
+        {source && <p className="mt-1 text-[13px] text-ink-2">From {source}</p>}
         {artistId ? (
           <button
             type="button"
@@ -95,7 +95,7 @@ function AlbumContent({ page }: { page: ReleasePage }) {
         ) : (
           <p className="mt-2 text-[15px] font-medium text-accent">{album.artist}</p>
         )}
-        <p className="mt-1.5 text-[12px] font-semibold uppercase tracking-[0.14em] text-white/70">
+        <p className="mt-1.5 text-[12px] font-semibold uppercase tracking-[0.14em] text-ink-2">
           {albumMeta(album.releaseType, album.year, tracks.length)}
         </p>
         <HeroControls

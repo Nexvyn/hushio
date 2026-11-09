@@ -3,14 +3,15 @@ import { PlayIcon } from "@hugeicons/core-free-icons";
 import { ActionMenu } from "./ActionMenu";
 import { type MenuSource, openMenuAtPointer } from "./ContextMenu";
 import { Icon } from "./Icon";
-import { ROUND } from "./BrowseHero";
+const COVER_MENU =
+  "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-separator bg-surface/90 text-ink-1 shadow-[var(--shadow-chip)] motion-safe:transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
 export const STACK_GRID = "grid grid-cols-[repeat(auto-fill,minmax(176px,1fr))] gap-4";
 
 const FAN = [
   "z-30",
-  "z-20 translate-x-[5px] -translate-y-[4px] rotate-[2deg]",
-  "z-10 -translate-x-[5px] -translate-y-[2px] -rotate-[2deg]",
+  "z-20 translate-x-[6%] -translate-y-[6%] scale-[0.9]",
+  "z-10 -translate-x-[6%] -translate-y-[3%] scale-[0.8]",
 ];
 
 type CoverStackProps = {
@@ -27,13 +28,13 @@ function CoverFan({ covers, fallback }: { covers: string[]; fallback: IconSvgEle
   const shown = covers.slice(0, FAN.length);
   if (shown.length === 0) {
     return (
-      <span className="grid h-full w-full place-items-center rounded-xl bg-wash text-ink-2">
+      <span className="grid h-full w-full place-items-center rounded-xl border border-separator bg-surface text-ink-1">
         <Icon icon={fallback} />
       </span>
     );
   }
   return (
-    <span className="relative block h-full w-full">
+    <span className="relative block h-full w-full overflow-hidden rounded-xl bg-wash">
       {shown.map((src, index) => (
         <img
           key={`${index}:${src}`}
@@ -71,12 +72,12 @@ export function CoverStack({ title, subtitle, covers, fallback, onOpen, onPlay, 
               type="button"
               aria-label={`Play ${title}`}
               onClick={onPlay}
-              className="grid h-11 w-11 place-items-center rounded-full bg-white text-black shadow-[var(--shadow-card)] motion-safe:transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              className="grid h-11 w-11 place-items-center rounded-full bg-primary text-on-primary shadow-[var(--shadow-card)] motion-safe:transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             >
               <Icon icon={PlayIcon} />
             </button>
           )}
-          {menu && <ActionMenu items={menu} label={`More options for ${title}`} triggerClass={ROUND} />}
+          {menu && <ActionMenu items={menu} label={`More options for ${title}`} triggerClass={COVER_MENU} />}
         </div>
       )}
     </article>

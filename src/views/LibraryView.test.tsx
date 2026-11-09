@@ -98,7 +98,7 @@ describe("Your Library collections", () => {
     render(<><LibraryView /><ContextMenu /></>);
 
     expect(screen.getByText("Pinned · 2 songs")).toBeTruthy();
-    expect(screen.getByText("0 songs")).toBeTruthy();
+    expect(screen.getByText("Nothing saved yet")).toBeTruthy();
     expect(screen.getByText("On this device")).toBeTruthy();
   });
 

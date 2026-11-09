@@ -60,8 +60,8 @@ function PlaylistContent({ page, playlistId }: { page: PlaylistPage; playlistId:
         <h1 className={`${pageTitleSize(page.title)} max-w-[768px] font-extrabold leading-[1.2] tracking-[-0.03em]`}>
           {page.title}
         </h1>
-        {page.credit && <p className="mt-2 text-[15px] font-medium text-white/85">{page.credit}</p>}
-        <p className="mt-1.5 text-[12px] font-semibold uppercase tracking-[0.14em] text-white/70">{page.meta}</p>
+        {page.credit && <p className="mt-2 text-[15px] font-medium text-ink-1">{page.credit}</p>}
+        <p className="mt-1.5 text-[12px] font-semibold uppercase tracking-[0.14em] text-ink-2">{page.meta}</p>
         <HeroControls
           onShuffle={shuffle}
           onPlay={() => playAt(0)}

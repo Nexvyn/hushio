@@ -5,9 +5,9 @@ import type { MenuItem } from "../stores/ui";
 import { Icon } from "./Icon";
 
 export const ROUND =
-  "flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-black/45 text-white backdrop-blur-md hover:bg-black/60 disabled:opacity-[var(--disabled-opacity)] motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+  "flex h-11 w-11 items-center justify-center rounded-full border border-separator bg-surface/85 text-ink-1 backdrop-blur-md hover:bg-hover disabled:opacity-[var(--disabled-opacity)] motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 export const PILL =
-  "inline-flex h-11 items-center gap-2 rounded-full bg-white px-6 text-[14.5px] font-semibold text-black hover:opacity-90 disabled:opacity-[var(--disabled-opacity)] motion-safe:transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+  "inline-flex h-11 items-center gap-2 rounded-full bg-primary px-6 text-[14.5px] font-semibold text-on-primary hover:opacity-90 disabled:opacity-[var(--disabled-opacity)] motion-safe:transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
 type BrowseHeroProps = {
   cover: string | null;
@@ -23,9 +23,9 @@ export function BrowseHero({ cover, topPadding, children }: BrowseHeroProps) {
       ) : (
         <div className="absolute inset-0 bg-wash" />
       )}
-      <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/45 to-base" />
+      <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-b from-base/20 via-base/65 to-base" />
       <div
-        className={`relative flex flex-col items-center px-10 pb-2 text-center text-white drop-shadow ${topPadding}`}
+        className={`relative flex flex-col items-center px-10 pb-2 text-center text-ink-1 ${topPadding}`}
       >
         {children}
       </div>

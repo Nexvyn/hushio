@@ -49,7 +49,7 @@ export function ArtistView() {
 
 function Chip({ icon, label }: { icon: IconSvgElement; label: string }) {
   return (
-    <span className="inline-flex h-7 items-center gap-1.5 rounded-full border border-white/10 bg-black/45 px-3 text-[12px] text-white/85">
+    <span className="inline-flex h-7 items-center gap-1.5 rounded-full border border-separator bg-surface/85 px-3 text-[12px] text-ink-1">
       <Icon icon={icon} />
       {label}
     </span>

@@ -31,7 +31,7 @@ export function LikedView() {
       {top && (
         <>
           {" · Your most liked: "}
-          <span className="font-semibold text-white">{top}</span>
+          <span className="font-semibold text-ink-1">{top}</span>
         </>
       )}
     </>

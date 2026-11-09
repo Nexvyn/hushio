@@ -16,6 +16,7 @@ import { CoverStack, STACK_GRID } from "../components/CoverStack";
 import { EmptyState } from "../components/EmptyState";
 import { PILL } from "../components/BrowseHero";
 import { coversOf, pinnedFirst, playlistsIn, unfiledPlaylists } from "../lib/collections";
+import { distinctCovers } from "../lib/heroCovers";
 import {
   createMenuItems,
   folderMenuItems,
@@ -26,6 +27,7 @@ import {
 import { plural } from "../lib/plural";
 import { type PinnedSingles, useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
+import { useRecentItems } from "../stores/recents";
 
 type Collection = {
   key: string;
@@ -53,9 +55,12 @@ export function LibraryView() {
   const playlists = useLibrary((state) => state.playlists);
   const folders = useLibrary((state) => state.folders);
   const pinnedSingles = useLibrary((state) => state.pinnedSingles);
+  const downloads = useLibrary((state) => state.downloads);
+  const recents = useRecentItems((state) => state.items);
   const navigate = useNavigation((state) => state.navigate);
 
   const unfiled = unfiledPlaylists(playlists);
+  const saved = Object.values(downloads).filter((item) => item.status === "done");
   const collections = pinnedFirst<Collection>(
     [
       {
@@ -73,8 +78,8 @@ export function LibraryView() {
         key: "downloads",
         pin: "downloads",
         title: "Downloads",
-        subtitle: plural(0, "song", "songs"),
-        covers: [],
+        subtitle: saved.length > 0 ? plural(saved.length, "song", "songs") : "Nothing saved yet",
+        covers: coversOf(saved.map((item) => item.track), 3),
         fallback: Download01Icon,
         pinned: pinnedSingles.downloads,
         open: () => navigate({ name: "downloads" }),
@@ -93,7 +98,11 @@ export function LibraryView() {
     (collection) => collection.pinned,
   );
 
-  const heroCovers = [...coversOf(liked), ...playlists.flatMap((playlist) => coversOf(playlist.tracks))];
+  const heroCovers = distinctCovers([
+    coversOf(liked),
+    ...playlists.map((playlist) => coversOf(playlist.tracks)),
+    coversOf(recents),
+  ]);
   const facts = [
     plural(playlists.length, "playlist", "playlists"),
     plural(folders.length, "folder", "folders"),

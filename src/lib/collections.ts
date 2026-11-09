@@ -19,7 +19,7 @@ export type RowsInput = {
   libraryOrder: string[] | undefined;
 };
 
-export function coversOf(tracks: readonly { thumb: string | null }[], limit = Number.POSITIVE_INFINITY): string[] {
+export function coversOf(tracks: readonly { thumb?: string | null }[], limit = Number.POSITIVE_INFINITY): string[] {
   return tracks
     .map((track) => upgradeArtwork(track.thumb))
     .filter((art) => art !== "")
