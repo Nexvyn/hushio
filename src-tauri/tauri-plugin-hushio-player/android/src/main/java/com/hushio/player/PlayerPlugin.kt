@@ -179,6 +179,12 @@ class PlayerPlugin(private val activity: Activity) : Plugin(activity) {
         invoke.resolve(toJs(player.snapshot().toPayload()))
     }
 
+    @Command
+    fun player_take_launch(invoke: Invoke) {
+        val launch = PendingLaunch.take()
+        invoke.resolve(launch?.let { JSObject().put("kind", it.kind).put("value", it.value) } ?: JSObject())
+    }
+
     private fun withPlayer(invoke: Invoke, block: (PlayerService) -> Unit) {
         activity.runOnUiThread {
             val player = PlayerService.current

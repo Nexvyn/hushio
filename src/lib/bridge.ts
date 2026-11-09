@@ -7,6 +7,7 @@ import { writeImage } from "@tauri-apps/plugin-clipboard-manager";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { PipCommand, PipSnapshot } from "../pip/types";
 import type { PlayerQueueItem } from "./androidPlayback";
+import type { LaunchPayload } from "./launchLink";
 import type { AudioOutputState } from "./outputDevices";
 import type { JournalEntry, ReplayData } from "./replay";
 import type { DesktopScheme } from "./theme";
@@ -217,6 +218,10 @@ export function exitApp(): Promise<void> {
 
 export function hapticTick(): Promise<void> {
   return playerCall("player_haptic_tick");
+}
+
+export function playerTakeLaunch(): Promise<Partial<LaunchPayload>> {
+  return playerCall<Partial<LaunchPayload>>("player_take_launch");
 }
 
 export async function listenPlayerEvent<T>(event: string, onEvent: (payload: T) => void): Promise<() => void> {

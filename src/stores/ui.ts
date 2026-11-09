@@ -57,6 +57,8 @@ let nextToastId = 1;
 
 type UIState = {
   rightPanel: "details" | "queue";
+  railSheetOpen: boolean;
+  setRailSheetOpen: (open: boolean) => void;
   lyricsCenter: boolean;
   nowPlayingOpen: boolean;
   phoneQueueOpen: boolean;
@@ -93,6 +95,8 @@ type UIState = {
 
 export const useUI = create<UIState>()((set) => ({
   rightPanel: "details",
+  railSheetOpen: true,
+  setRailSheetOpen: (open) => set({ railSheetOpen: open }),
   lyricsCenter: false,
   nowPlayingOpen: false,
   phoneQueueOpen: false,
@@ -141,7 +145,10 @@ export const useUI = create<UIState>()((set) => ({
   setRightPanel: (panel) => set({ rightPanel: panel }),
 
   toggleQueue: () =>
-    set((state) => ({ rightPanel: state.rightPanel === "queue" ? "details" : "queue" })),
+    set((state) => {
+      const queueVisible = state.rightPanel === "queue" && state.railSheetOpen;
+      return { rightPanel: queueVisible ? "details" : "queue", railSheetOpen: !queueVisible };
+    }),
 
   toggleLyrics: () => set((state) => ({ lyricsCenter: !state.lyricsCenter })),
 

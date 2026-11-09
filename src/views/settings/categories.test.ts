@@ -139,8 +139,45 @@ describe("Sound rows on Windows", () => {
   });
 });
 
+describe("Android rows", () => {
+  const ids = (platform: BuildContext["platform"]) =>
+    buildCategories(context(platform)).flatMap((category) => category.groups.flatMap((group) => group.rows.map((item) => item.id)));
+
+  it("hides the desktop-only rows", () => {
+    const hidden = ["close-to-tray", "output-device", "reduce-transparency", "hide-volume-bar", "download-folder", "export-downloads"];
+    const present = ids("android");
+    for (const id of hidden) expect(present).not.toContain(id);
+    expect(ids("linux")).toEqual(expect.arrayContaining(["reduce-transparency", "hide-volume-bar", "download-folder"]));
+  });
+
+  it("shows crossfade and Automix as later and disabled", () => {
+    for (const id of ["crossfade", "automix"]) {
+      const found = soundOrPlayback("android", id);
+      expect(found.note).toBe("Coming in a later version");
+      expect(found.disabled).toBe(true);
+      expect(found.control).toBeUndefined();
+      expect(found.toggle).toBeUndefined();
+    }
+    expect(soundOrPlayback("linux", "automix").toggle).toBeDefined();
+  });
+
+  it("keeps the other playback rows active", () => {
+    expect(soundOrPlayback("android", "autoplay").toggle).toBeDefined();
+    expect(soundOrPlayback("android", "autoplay").disabled).toBeFalsy();
+  });
+});
+
+function soundOrPlayback(platform: BuildContext["platform"], id: string): RowSpec {
+  const all = buildCategories(context(platform)).flatMap((category) => category.groups.flatMap((group) => group.rows));
+  const found = all.find((candidate) => candidate.id === id);
+  expect(found).toBeDefined();
+  if (found === undefined) throw new Error(`missing row ${id}`);
+  return found;
+}
+
 describe("Sound rows off Windows", () => {
-  it.each(["linux", "android"] as const)("shows the disabled output row on %s", (platform) => {
+  it("shows the disabled output row on linux", () => {
+    const platform = "linux";
     const output = row(platform, "output-device");
     expect(output.note).toBe("Follows the system output");
     expect(output.control).toBeUndefined();

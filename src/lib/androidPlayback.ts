@@ -20,7 +20,8 @@ export type PlayerQueueItem = {
   url: string;
   headers: Record<string, string>;
   liked: boolean;
-  expiresAtEpochMs: number;
+  expiresAtEpochMs: number | null;
+  contentUri?: string;
 };
 
 export type MediaEvent = "play" | "pause" | "playing" | "waiting" | "timeupdate" | "durationchange";

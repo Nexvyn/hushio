@@ -111,6 +111,7 @@ class PlayerService : MediaLibraryService() {
             }
             ensureUsable()
             emitState()
+            publishWidget()
         }
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
@@ -130,6 +131,7 @@ class PlayerService : MediaLibraryService() {
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             emitState()
+            publishWidget()
             if (isPlaying) {
                 handler.removeCallbacks(stateTicker)
                 handler.post(stateTicker)
@@ -274,6 +276,8 @@ class PlayerService : MediaLibraryService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession = session
 
     override fun onDestroy() {
+        val item = queue.currentItem()
+        HushioWidgetProvider.publish(this, item?.title, item?.artist, false)
         if (current === this) current = null
         handler.removeCallbacksAndMessages(null)
         audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
@@ -554,6 +558,11 @@ class PlayerService : MediaLibraryService() {
 
     private fun emitState() {
         PlayerEvents.emit("player-state", snapshot().toPayload())
+    }
+
+    private fun publishWidget() {
+        val item = queue.currentItem()
+        HushioWidgetProvider.publish(this, item?.title, item?.artist, player.isPlaying)
     }
 
     private fun tickSleep() {

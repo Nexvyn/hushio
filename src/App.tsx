@@ -7,6 +7,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LyricsCenter } from "./components/LyricsCenter";
 import { NowPlaying } from "./components/NowPlaying";
 import { PhoneShell } from "./components/phone/PhoneShell";
+import { usePhoneBack } from "./components/phone/usePhoneBack";
 import { PlayerBar } from "./components/PlayerBar";
 import { PlaylistPicker } from "./components/PlaylistPicker";
 import { RightRail } from "./components/RightRail";
@@ -18,6 +19,7 @@ import { TopBar } from "./components/TopBar";
 import { platform, watchFullScreen } from "./lib/bridge";
 import { listenForDownloadProgress } from "./lib/downloads";
 import { startLaunchActions } from "./lib/launch";
+import { railFor, shellFor, useViewportWidth } from "./lib/layoutTier";
 import { startWindowGlass } from "./lib/windowGlass";
 import { startUpdates } from "./stores/updates";
 import { useKeyboardShortcuts, useSwipeNavigation } from "./lib/shortcuts";
@@ -35,10 +37,13 @@ export default function App() {
   const clearPendingScroll = useNavigation((state) => state.clearPendingScroll);
   const setOsFullscreen = useUI((state) => state.setOsFullscreen);
   const lyricsCenter = useUI((state) => state.lyricsCenter);
+  const width = useViewportWidth();
+  const android = platform === "android";
 
   useKeyboardShortcuts();
   useSwipeNavigation();
   useMenuCommands();
+  usePhoneBack(android);
 
   useEffect(() => startYtSync(), []);
   useEffect(() => startTraySync(), []);
@@ -83,7 +88,7 @@ export default function App() {
     clearPendingScroll();
   }, [pendingScroll, clearPendingScroll]);
 
-  if (platform === "android") return <PhoneShell />;
+  if (android && shellFor(width) === "phone") return <PhoneShell />;
 
   return (
     <div
@@ -113,7 +118,7 @@ export default function App() {
           <SwipeArrow />
         </main>
 
-        <RightRail />
+        <RightRail mode={android && railFor(width) === "sheet" ? "sheet" : "column"} />
       </div>
 
       <PlayerBar />

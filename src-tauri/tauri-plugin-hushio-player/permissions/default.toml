@@ -24,6 +24,7 @@ permissions = [
     "allow-player-get-state",
     "allow-player-exit",
     "allow-player-haptic-tick",
+    "allow-player-take-launch",
     "allow-registerListener",
     "allow-removeListener",
 ]

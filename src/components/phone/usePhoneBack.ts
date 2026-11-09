@@ -4,8 +4,9 @@ import { EXIT_WINDOW_MS, nextArmedAt, resolveBack } from "../../lib/phoneBack";
 import { useNavigation } from "../../stores/navigation";
 import { useUI } from "../../stores/ui";
 
-export function usePhoneBack() {
+export function usePhoneBack(enabled = true) {
   useEffect(() => {
+    if (!enabled) return;
     let armedAt: number | null = null;
     let unlisten: (() => void) | null = null;
     let disposed = false;

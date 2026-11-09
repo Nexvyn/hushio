@@ -852,15 +852,47 @@ function aboutCategory({ version, updates }: BuildContext): SettingsCategory {
   };
 }
 
+const ANDROID_HIDDEN_ROWS = new Set([
+  "close-to-tray",
+  "output-device",
+  "reduce-transparency",
+  "hide-volume-bar",
+  "download-folder",
+  "export-downloads",
+]);
+
+const ANDROID_LATER_ROWS = new Set(["crossfade", "automix"]);
+
+function adaptRowToAndroid(row: RowSpec): RowSpec {
+  if (!ANDROID_LATER_ROWS.has(row.id)) return row;
+  return { id: row.id, icon: row.icon, title: row.title, note: "Coming in a later version", disabled: true };
+}
+
+export function forPlatform(categories: SettingsCategory[], platform: Platform): SettingsCategory[] {
+  if (platform !== "android") return categories;
+  return categories.map((category) => ({
+    ...category,
+    groups: category.groups
+      .map((group) => ({
+        ...group,
+        rows: group.rows.filter((row) => !ANDROID_HIDDEN_ROWS.has(row.id)).map(adaptRowToAndroid),
+      }))
+      .filter((group) => group.rows.length > 0 || group.body !== undefined),
+  }));
+}
+
 export function buildCategories(context: BuildContext): SettingsCategory[] {
-  return [
-    accountCategory(context),
-    playbackCategory(context),
-    soundCategory(context),
-    lyricsCategory(context),
-    displayCategory(context),
-    libraryCategory(context),
-    dataCategory(context),
-    aboutCategory(context),
-  ];
+  return forPlatform(
+    [
+      accountCategory(context),
+      playbackCategory(context),
+      soundCategory(context),
+      lyricsCategory(context),
+      displayCategory(context),
+      libraryCategory(context),
+      dataCategory(context),
+      aboutCategory(context),
+    ],
+    context.platform,
+  );
 }

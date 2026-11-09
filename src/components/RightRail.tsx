@@ -190,17 +190,36 @@ export function QueuePanel() {
   );
 }
 
-export function RightRail() {
+export function RightRail({ mode = "column" }: { mode?: "column" | "sheet" }) {
   const tabs = useRef<HTMLDivElement>(null);
   useRovingKeys(tabs, "[role=tab]", "horizontal");
   const panel = useUI((state) => state.rightPanel);
   const setRightPanel = useUI((state) => state.setRightPanel);
+  const sheetOpen = useUI((state) => state.railSheetOpen);
+  const setRailSheetOpen = useUI((state) => state.setRailSheetOpen);
+  const sheet = mode === "sheet";
+
+  if (sheet && !sheetOpen) return null;
 
   return (
     <aside
       aria-label="Now playing panel"
-      className="shell-rail flex w-[328px] shrink-0 flex-col overflow-hidden"
+      className={
+        sheet
+          ? "fixed inset-y-3 right-3 z-30 flex w-[328px] flex-col overflow-hidden rounded-2xl bg-surface shadow-[var(--shadow-card)]"
+          : "shell-rail flex w-[328px] shrink-0 flex-col overflow-hidden"
+      }
     >
+      {sheet && (
+        <button
+          type="button"
+          aria-label="Close panel"
+          onClick={() => setRailSheetOpen(false)}
+          className={`absolute right-2 top-2 z-10 ${ICON_BUTTON}`}
+        >
+          <Icon icon={Cancel01Icon} />
+        </button>
+      )}
       <div ref={tabs} role="tablist" aria-label="Now playing tabs" className="flex gap-1 px-3 pt-3">
         {TABS.map((tab) => (
           <button

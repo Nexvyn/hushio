@@ -9,7 +9,6 @@ import { PhoneMenuSheet } from "./PhoneMenuSheet";
 import { PhoneNowPlaying } from "./PhoneNowPlaying";
 import { PhoneQueueSheet } from "./PhoneQueueSheet";
 import { TabBar } from "./TabBar";
-import { usePhoneBack } from "./usePhoneBack";
 import { CurrentView } from "../../views/CurrentView";
 import { fade, gate, reducedMotion } from "../../lib/motion";
 import { INSET_TOP, phoneBottomPad, phoneToastBottom } from "../../lib/phoneNav";
@@ -23,7 +22,6 @@ export function PhoneShell() {
   const clearPendingScroll = useNavigation((state) => state.clearPendingScroll);
   const track = usePlayer(currentTrack);
   const reduced = reducedMotion();
-  usePhoneBack();
 
   useLayoutEffect(() => {
     if (pendingScroll === null) return;
@@ -32,7 +30,7 @@ export function PhoneShell() {
     clearPendingScroll();
   }, [pendingScroll, clearPendingScroll]);
 
-  const screenKey = `${viewReloadNonce}:${view.name}:${view.name === "settings" ? "" : (view.param ?? "")}`;
+  const screenKey = `${viewReloadNonce}:${view.name}:${view.param ?? ""}`;
 
   return (
     <div spellCheck={false} className="relative flex h-screen select-none flex-col overflow-hidden bg-base text-ink-1">

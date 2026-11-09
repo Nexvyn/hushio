@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hushio_player_widget_description">Now playing</string>
+    <string name="hushio_player_widget_play">Play</string>
+    <string name="hushio_player_widget_pause">Pause</string>
+    <string name="hushio_player_widget_open">Open Hushio</string>
+</resources>

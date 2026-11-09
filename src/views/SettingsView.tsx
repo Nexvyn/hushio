@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
-import { Cancel01Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { ArrowLeft01Icon, ArrowRight01Icon, Cancel01Icon, Search01Icon } from "@hugeicons/core-free-icons";
 import { Icon } from "../components/Icon";
 import { SettingRow } from "../components/SettingRow";
 import { appVersion, platform } from "../lib/bridge";
+import { shellFor, useViewportWidth } from "../lib/layoutTier";
 import { useAuth } from "../stores/auth";
 import { useSync } from "../stores/sync";
 import { useUpdates } from "../stores/updates";
@@ -150,6 +151,98 @@ function CategoryNav({ categories, active, onSelect }: CategoryNavProps) {
   );
 }
 
+type PhoneSettingsProps = {
+  categories: SettingsCategory[];
+  results: SettingsCategory[];
+  query: string;
+  onQueryChange: (value: string) => void;
+  open: SettingsCategory | undefined;
+  onOpen: (id: CategoryId) => void;
+  onBack: () => void;
+};
+
+function PhoneSettings({ categories, results, query, onQueryChange, open, onOpen, onBack }: PhoneSettingsProps) {
+  const searching = query.trim() !== "";
+
+  if (!searching && open) {
+    return (
+      <div key={open.id} className="settings-pane pb-6">
+        <header className="flex items-start gap-1">
+          <button
+            type="button"
+            aria-label="Back to settings"
+            onClick={onBack}
+            className="-ml-2 flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-ink-1 motion-safe:transition-colors hover:bg-wash"
+          >
+            <Icon icon={ArrowLeft01Icon} />
+          </button>
+          <div className="min-w-0 pt-2">
+            <h2 className="text-[22px] font-semibold tracking-[-0.02em] text-ink-1">{open.label}</h2>
+            <p className="mt-1 text-[13px] text-ink-2">{open.lede}</p>
+          </div>
+        </header>
+        <div className="mt-4">
+          {open.groups.map((group, index) => (
+            <GroupView key={group.title ?? index} group={group} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const list = searching ? results : categories;
+
+  return (
+    <div className="pb-6">
+      <h1 className="pt-1 text-[34px] font-extrabold tracking-[-0.03em] text-ink-1">Settings</h1>
+      <div className="mt-4">
+        <SearchBox value={query} onChange={onQueryChange} />
+      </div>
+      {searching && results.length === 0 && (
+        <p className="px-1 pt-4 text-[13px] text-ink-2">No settings match “{query.trim()}”</p>
+      )}
+      {searching
+        ? results.map((category) => (
+            <section key={category.id} className="mt-6">
+              <h2 className="mb-2 text-[17px] font-semibold text-ink-1">{category.label}</h2>
+              {category.groups.map((group, index) => (
+                <GroupView key={group.title ?? index} group={group} />
+              ))}
+            </section>
+          ))
+        : list.length > 0 && (
+            <ul className="mt-4 divide-y divide-separator overflow-hidden rounded-[11px] border border-separator bg-panel">
+              {list.map((category) => (
+                <li key={category.id}>
+                  <button
+                    type="button"
+                    data-cat={category.id}
+                    onClick={() => onOpen(category.id)}
+                    className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left text-[14px] font-medium text-ink-1 motion-safe:transition-colors active:bg-wash"
+                  >
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] bg-wash text-ink-2">
+                      <Icon icon={category.icon} />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">{category.label}</span>
+                    <span className="shrink-0 text-ink-2">
+                      <Icon icon={ArrowRight01Icon} />
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+    </div>
+  );
+}
+
+function backToSettingsList(): void {
+  const nav = useNavigation.getState();
+  const previous = nav.navPast.at(-1);
+  if (previous?.view.name === "settings" && previous.view.param === undefined) nav.goBack();
+  else nav.replaceView({ name: "settings" });
+}
+
 export function SettingsView() {
   const view = useNavigation((state) => state.view);
   const replaceView = useNavigation((state) => state.replaceView);
@@ -166,6 +259,7 @@ export function SettingsView() {
   const tvBusy = useSync((state) => state.tvBusy);
   const tvError = useSync((state) => state.tvError);
   const [query, setQuery] = useState("");
+  const viewportWidth = useViewportWidth();
 
   const active = resolveCategory(view.param);
   const categories = buildCategories({
@@ -209,9 +303,24 @@ export function SettingsView() {
   const searching = query.trim() !== "";
   const results = filterCategories(categories, query);
   const current = categories.find((category) => category.id === active);
+  const phone = platform === "android" && shellFor(viewportWidth) === "phone";
 
   function select(id: CategoryId) {
     replaceView({ name: "settings", param: id });
+  }
+
+  if (phone) {
+    return (
+      <PhoneSettings
+        categories={categories}
+        results={results}
+        query={query}
+        onQueryChange={setQuery}
+        open={categories.find((category) => category.id === view.param)}
+        onOpen={(id) => navigate({ name: "settings", param: id })}
+        onBack={backToSettingsList}
+      />
+    );
   }
 
   return (
