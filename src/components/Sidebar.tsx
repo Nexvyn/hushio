@@ -194,7 +194,7 @@ export function Sidebar() {
 
   return (
     <aside
-      className="shell-sidebar flex w-[328px] shrink-0 flex-col"
+      className="shell-sidebar flex w-[328px] shrink-0 flex-col rounded-[10px] bg-surface"
       onContextMenu={(event) => openMenuAtPointer(event, panelMenuItems())}
     >
       <div className="flex items-center gap-2 px-5 pb-2 pt-4">

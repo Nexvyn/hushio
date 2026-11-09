@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import type { IconSvgElement } from "@hugeicons/react";
 import {
+  FullScreenIcon,
   Loading03Icon,
   Mic01Icon,
   MoonIcon,
@@ -20,6 +21,7 @@ import {
 import { Icon } from "./Icon";
 import { LikeButton } from "./LikeButton";
 import { PipButton } from "../pip/PipButton";
+import { setFullScreen } from "../lib/bridge";
 import { upgradeArtwork } from "../lib/artwork";
 import { sleepMenuItems, sleepStatus } from "../lib/sleepActions";
 import { formatSleepLeft } from "../lib/sleepTimer";
@@ -184,7 +186,7 @@ function PlayDisc() {
       title={label}
       aria-label={label}
       onClick={toggle}
-      className="hit-area grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-on-primary motion-safe:transition-transform motion-safe:duration-quick motion-safe:active:scale-[0.97]"
+      className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary text-on-primary motion-safe:transition-transform motion-safe:duration-quick motion-safe:active:scale-[0.97]"
     >
       {buffering ? (
         <span className="grid place-items-center bt-spin">
@@ -248,6 +250,18 @@ function VolumeControl() {
   );
 }
 
+function FullScreenButton() {
+  const osFullscreen = useUI((state) => state.osFullscreen);
+  return (
+    <TransportButton
+      label="Full screen"
+      icon={FullScreenIcon}
+      pressed={osFullscreen}
+      onClick={() => void setFullScreen(!osFullscreen)}
+    />
+  );
+}
+
 export function PlayerBar() {
   const track = usePlayer(currentTrack);
   const queueLength = usePlayer((state) => state.queue.length);
@@ -265,8 +279,8 @@ export function PlayerBar() {
   const empty = queueLength === 0;
 
   return (
-    <footer aria-label="Player" className="h-[88px] shrink-0 border-t border-separator bg-base px-2">
-      <div className="grid h-full grid-cols-[3fr_4fr_3fr] items-center">
+    <footer aria-label="Player" className="h-[88px] shrink-0 bg-base px-3">
+      <div className="grid h-full grid-cols-[minmax(0,3fr)_minmax(0,4fr)_minmax(0,3fr)] items-center gap-4">
         <NowPlaying track={track} />
 
         <div className="flex flex-col justify-center gap-2">
@@ -294,9 +308,8 @@ export function PlayerBar() {
           <SeekBar />
         </div>
 
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-1">
           <SleepTimer />
-          <PipButton />
           <TransportButton
             label="Lyrics"
             icon={Mic01Icon}
@@ -312,6 +325,8 @@ export function PlayerBar() {
             onClick={toggleQueue}
           />
           {!hideVolumeBar && <VolumeControl />}
+          <PipButton />
+          <FullScreenButton />
         </div>
       </div>
     </footer>

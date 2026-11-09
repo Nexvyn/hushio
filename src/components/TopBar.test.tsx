@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import type { Platform } from "../lib/bridge";
+import type { GoogleAccount, Platform } from "../lib/bridge";
 
 const { audio, playStream, seekTo, typeAhead, peekTypeAhead, chrome } = vi.hoisted(() => ({
   audio: new Audio(),
@@ -43,7 +43,9 @@ vi.mock("../lib/persist", () => ({
 vi.mock("../lib/search", () => ({ typeAhead, peekTypeAhead }));
 
 import { TopBar } from "./TopBar";
+import { ContextMenu } from "./ContextMenu";
 import type { SearchSong, SuggestionRow } from "../lib/searchParse";
+import { GUEST_ACCOUNT, useAuth } from "../stores/auth";
 import { useNavigation } from "../stores/navigation";
 import { usePlayer } from "../stores/player";
 import { useRecents } from "../stores/recents";
@@ -218,5 +220,173 @@ describe("TopBar window chrome", () => {
 
     expect(screen.getByRole("button", { name: "Close" })).toBeTruthy();
     expect(screen.getByRole("banner").style.paddingLeft).toBe("");
+  });
+
+  it("draws the caption buttons on Linux too", () => {
+    chrome.platform = "linux";
+    render(<TopBar />);
+
+    expect(screen.getByRole("button", { name: "Minimize" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Close" })).toBeTruthy();
+    expect(screen.getByRole("banner").style.paddingLeft).toBe("");
+  });
+});
+
+describe("TopBar layout", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    typeAhead.mockResolvedValue(suggestions);
+    peekTypeAhead.mockReturnValue(undefined);
+    useUI.setState({ toasts: [], pendingToasts: [], searchQuery: "", searchFilter: "all" });
+    useNavigation.setState({ view: { name: "home" }, navPast: [], navFuture: [] });
+  });
+
+  afterEach(cleanup);
+
+  it("puts the home button and search field in the centre column of the bar", () => {
+    render(<TopBar />);
+
+    const bar = screen.getByRole("banner");
+    const centre = screen.getByTestId("topbar-centre");
+    expect(bar.children[1]).toBe(centre);
+    expect(centre.contains(screen.getByRole("button", { name: "Home" }))).toBe(true);
+    expect(centre.contains(input())).toBe(true);
+    expect(input().getAttribute("placeholder")).toBe("What do you want to play?");
+  });
+
+  it("shows the clear button only while the field has text, and clears the query", async () => {
+    const user = userEvent.setup();
+    render(<TopBar />);
+    expect(screen.queryByRole("button", { name: "Clear search" })).toBeNull();
+
+    await user.click(input());
+    await user.type(input(), "dua");
+    await user.click(screen.getByRole("button", { name: "Clear search" }));
+
+    expect(useUI.getState().searchQuery).toBe("");
+    expect(input()).toHaveProperty("value", "");
+    expect(screen.queryByRole("button", { name: "Clear search" })).toBeNull();
+  });
+
+  it("returns home when the search results page is cleared", async () => {
+    const user = userEvent.setup();
+    useNavigation.setState({ view: { name: "search" }, navPast: [], navFuture: [] });
+    useUI.setState({ searchQuery: "dua" });
+    render(<TopBar />);
+
+    await user.click(screen.getByRole("button", { name: "Clear search" }));
+
+    expect(useNavigation.getState().view.name).toBe("home");
+  });
+
+  it("marks the home button as the current page on home", () => {
+    render(<TopBar />);
+
+    expect(screen.getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
+  });
+});
+
+describe("TopBar profile menu", () => {
+  const initialAuth = useAuth.getState();
+  const google: GoogleAccount = {
+    ...GUEST_ACCOUNT,
+    mode: "google",
+    name: "Aman Gupta",
+    email: "aman@example.com",
+    googleSub: "sub-1",
+    configured: true,
+  };
+
+  function profileButton() {
+    return screen.getByRole("button", { name: /^Profile menu/ });
+  }
+
+  function renderBar() {
+    return render(
+      <>
+        <TopBar />
+        <ContextMenu />
+      </>,
+    );
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    typeAhead.mockResolvedValue([]);
+    peekTypeAhead.mockReturnValue(undefined);
+    useUI.setState({ toasts: [], pendingToasts: [], searchQuery: "", searchFilter: "all", contextMenu: null });
+    useNavigation.setState({ view: { name: "home" }, navPast: [], navFuture: [] });
+    useAuth.setState({ ...initialAuth, account: GUEST_ACCOUNT }, true);
+  });
+
+  afterEach(() => {
+    useAuth.setState(initialAuth, true);
+    cleanup();
+  });
+
+  it("opens the menu for a guest with account items and Sign in, and closes on Escape with focus back on the button", async () => {
+    const user = userEvent.setup();
+    renderBar();
+
+    await user.click(profileButton());
+    const menu = await screen.findByRole("menu");
+    const labels = within(menu).getAllByRole("menuitem").map((item) => item.textContent);
+    expect(labels).toEqual(["Account", "Settings", "Recents", "Sync statusOff", "Sign in"]);
+    expect(profileButton().getAttribute("aria-expanded")).toBe("true");
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(profileButton());
+  });
+
+  it("moves focus between items with the arrow keys", async () => {
+    const user = userEvent.setup();
+    renderBar();
+    await user.click(profileButton());
+    const items = within(await screen.findByRole("menu")).getAllByRole("menuitem");
+
+    const start = items.indexOf(document.activeElement as HTMLElement);
+    await user.keyboard("{ArrowDown}");
+
+    expect(document.activeElement).toBe(items[(start + 1) % items.length]);
+  });
+
+  it("opens Settings from the menu", async () => {
+    const user = userEvent.setup();
+    renderBar();
+    await user.click(profileButton());
+    await user.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^Settings/ }));
+
+    expect(useNavigation.getState().view).toEqual({ name: "settings" });
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("starts sign-in from the guest menu", async () => {
+    const user = userEvent.setup();
+    const signIn = vi.fn(async () => {});
+    useAuth.setState({ signIn });
+    renderBar();
+    await user.click(profileButton());
+    await user.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Sign in" }));
+
+    expect(signIn).toHaveBeenCalledTimes(1);
+  });
+
+  it("names the Google account and offers Sign out instead of Sign in", async () => {
+    const user = userEvent.setup();
+    const requestSignOut = vi.fn();
+    useAuth.setState({ account: google, requestSignOut });
+    renderBar();
+
+    expect(screen.getByRole("button", { name: "Profile menu: Aman Gupta" })).toBeTruthy();
+    await user.click(profileButton());
+    const menu = within(await screen.findByRole("menu"));
+    expect(menu.queryByRole("menuitem", { name: "Sign in" })).toBeNull();
+    expect(menu.getByText("Aman Gupta")).toBeTruthy();
+
+    await user.click(menu.getByRole("menuitem", { name: "Sign out" }));
+
+    expect(requestSignOut).toHaveBeenCalledTimes(1);
   });
 });

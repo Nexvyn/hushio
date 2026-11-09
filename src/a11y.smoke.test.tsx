@@ -87,6 +87,7 @@ describe("touch targets", () => {
     "components/PlayerBar.tsx",
     "components/RightRail.tsx",
     "components/StreakChip.tsx",
+    "components/ProfileButton.tsx",
     "components/Toasts.tsx",
     "components/Dialog.tsx",
     "components/EraseDialog.tsx",

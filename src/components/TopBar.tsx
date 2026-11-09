@@ -1,7 +1,8 @@
 import { useId, useRef, useState, type KeyboardEvent } from "react";
-import { ArrowLeft01Icon, ArrowRight01Icon, Compass01Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { ArrowLeft01Icon, ArrowRight01Icon, Cancel01Icon, Compass01Icon, Home01Icon, Search01Icon } from "@hugeicons/core-free-icons";
 import { CaptionButtons } from "./CaptionButtons";
 import { Icon } from "./Icon";
+import { ProfileButton } from "./ProfileButton";
 import { SearchSuggestions, optionId, useTypeAhead } from "./SearchSuggestions";
 import { StreakChip } from "./StreakChip";
 import { UpdateChip } from "./UpdateChip";
@@ -14,7 +15,7 @@ import { useNavigation } from "../stores/navigation";
 import { useUI } from "../stores/ui";
 
 const circleButton =
-  "hit-area flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-2 transition-colors hover:bg-ink-1/[0.06] hover:text-ink-1 disabled:pointer-events-none disabled:opacity-[var(--disabled-opacity)]";
+  "hit-area flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-2 motion-safe:transition-colors hover:bg-hover hover:text-ink-1 disabled:pointer-events-none disabled:opacity-[var(--disabled-opacity)]";
 
 export function TopBar() {
   const view = useNavigation((state) => state.view);
@@ -49,6 +50,13 @@ export function TopBar() {
     close();
   };
 
+  const clearSearch = () => {
+    setSearchQuery("");
+    setActiveIndex(-1);
+    if (view.name === "search") navigate({ name: "home" });
+    inputRef.current?.focus();
+  };
+
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Escape") {
       event.preventDefault();
@@ -70,19 +78,10 @@ export function TopBar() {
   return (
     <header
       data-tauri-drag-region
-      className="flex h-14 shrink-0 items-center gap-3 px-3"
+      className="grid h-[68px] shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-3 pl-3 pr-3"
       style={{ paddingLeft: topBarLeadingInset(platform) }}
     >
-      <button
-        type="button"
-        data-intro-target
-        onClick={() => navigate({ name: "home" })}
-        className="rounded-[9px] px-2 py-1 text-[14px] font-semibold text-ink-1 transition-colors hover:bg-ink-1/[0.06]"
-      >
-        Hushio
-      </button>
-
-      <div className="flex items-center gap-1">
+      <div data-tauri-drag-region className="flex items-center gap-1 justify-self-start">
         <button
           type="button"
           aria-label="Back"
@@ -103,70 +102,97 @@ export function TopBar() {
         >
           <Icon icon={ArrowRight01Icon} />
         </button>
+        <button
+          type="button"
+          aria-label="Explore"
+          title="Explore"
+          aria-current={view.name === "explore" ? "page" : undefined}
+          onClick={() => navigate({ name: "explore" })}
+          className={`${circleButton} ${view.name === "explore" ? "bg-selected text-ink-1" : ""}`}
+        >
+          <Icon icon={Compass01Icon} />
+        </button>
       </div>
 
-      <button
-        type="button"
-        aria-label="Explore"
-        title="Explore"
-        aria-current={view.name === "explore" ? "page" : undefined}
-        onClick={() => navigate({ name: "explore" })}
-        className={`${circleButton} ${view.name === "explore" ? "bg-ink-1/[0.1] text-ink-1" : ""}`}
-      >
-        <Icon icon={Compass01Icon} />
-      </button>
+      <div data-tauri-drag-region data-testid="topbar-centre" className="flex items-center gap-2">
+        <button
+          type="button"
+          data-intro-target
+          aria-label="Home"
+          title="Home"
+          aria-current={view.name === "home" ? "page" : undefined}
+          onClick={() => navigate({ name: "home" })}
+          className={`grid h-12 w-12 shrink-0 place-items-center rounded-full motion-safe:transition-colors ${view.name === "home" ? "bg-selected text-ink-1" : "bg-wash text-ink-2 hover:bg-hover hover:text-ink-1"}`}
+        >
+          <Icon icon={Home01Icon} />
+        </button>
 
-      <div className="relative ml-2 min-w-0 max-w-[420px] flex-1">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-2">
-          <Icon icon={Search01Icon} />
-        </span>
-        <input
-          ref={inputRef}
-          id="global-search"
-          type="search"
-          role="combobox"
-          aria-label="Search"
-          aria-expanded={open}
-          aria-controls={open ? listId : undefined}
-          aria-activedescendant={open && activeIndex >= 0 ? optionId(listId, activeIndex) : undefined}
-          aria-autocomplete="list"
-          placeholder="What do you want to play?"
-          maxLength={200}
-          spellCheck={false}
-          value={searchQuery}
-          onChange={(event) => {
-            setSearchQuery(event.target.value);
-            setActiveIndex(-1);
-          }}
-          onFocus={() => setFocused(true)}
-          onBlur={() => {
-            setFocused(false);
-            setActiveIndex(-1);
-          }}
-          onKeyDown={onKeyDown}
-          className="h-9 w-full rounded-full border border-separator bg-surface pl-10 pr-3 text-[13px] text-ink-1 placeholder:text-ink-2"
-        />
-        {open && (
-          <SearchSuggestions
-            listId={listId}
-            query={searchQuery}
-            rows={rows}
-            activeIndex={activeIndex}
-            onPick={pick}
-            onFill={(text) => {
-              setSearchQuery(text);
+        <div className="relative w-[min(474px,36vw)]">
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-2">
+            <Icon icon={Search01Icon} />
+          </span>
+          <input
+            ref={inputRef}
+            id="global-search"
+            type="search"
+            role="combobox"
+            aria-label="Search"
+            aria-expanded={open}
+            aria-controls={open ? listId : undefined}
+            aria-activedescendant={open && activeIndex >= 0 ? optionId(listId, activeIndex) : undefined}
+            aria-autocomplete="list"
+            placeholder="What do you want to play?"
+            maxLength={200}
+            spellCheck={false}
+            value={searchQuery}
+            onChange={(event) => {
+              setSearchQuery(event.target.value);
               setActiveIndex(-1);
-              inputRef.current?.focus();
             }}
-            onSubmitTyped={submitTyped}
+            onFocus={() => setFocused(true)}
+            onBlur={() => {
+              setFocused(false);
+              setActiveIndex(-1);
+            }}
+            onKeyDown={onKeyDown}
+            className={`h-10 w-full rounded-full border border-transparent bg-wash pl-11 text-[14px] text-ink-1 placeholder:text-ink-2 hover:bg-hover focus:border-separator focus:bg-surface motion-safe:transition-colors ${searchQuery ? "pr-11" : "pr-4"}`}
           />
-        )}
+          {searchQuery && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              title="Clear search"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={clearSearch}
+              className="hit-area absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-ink-2 motion-safe:transition-colors hover:bg-hover hover:text-ink-1"
+            >
+              <Icon icon={Cancel01Icon} />
+            </button>
+          )}
+          {open && (
+            <SearchSuggestions
+              listId={listId}
+              query={searchQuery}
+              rows={rows}
+              activeIndex={activeIndex}
+              onPick={pick}
+              onFill={(text) => {
+                setSearchQuery(text);
+                setActiveIndex(-1);
+                inputRef.current?.focus();
+              }}
+              onSubmitTyped={submitTyped}
+            />
+          )}
+        </div>
       </div>
 
-      <UpdateChip />
-      <StreakChip />
-
-      {hasCaptionButtons(platform) ? <CaptionButtons /> : null}
+      <div data-tauri-drag-region className="flex h-full items-center justify-self-end gap-2">
+        <UpdateChip />
+        <StreakChip />
+        <ProfileButton />
+        {hasCaptionButtons(platform) ? <CaptionButtons /> : null}
+      </div>
     </header>
   );
 }

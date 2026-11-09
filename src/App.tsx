@@ -97,10 +97,10 @@ export default function App() {
     >
       <TopBar />
 
-      <div className="flex min-h-0 flex-1 gap-2 px-2 pb-1">
+      <div className="flex min-h-0 flex-1 gap-2 px-2 pb-2">
         <Sidebar />
 
-        <main className="relative min-w-0 flex-1 overflow-hidden rounded-2xl border border-card-edge/[0.08] bg-surface shadow-[var(--shadow-card)]">
+        <main className="relative min-w-0 flex-1 overflow-hidden rounded-[10px] border border-card-edge/[0.08] bg-surface shadow-[var(--shadow-card)]">
           <EdgeFades id="view-scroll" className="h-full">
             <div
               key={`${viewReloadNonce}:${view.name}:${view.name === "settings" ? "" : (view.param ?? "")}`}

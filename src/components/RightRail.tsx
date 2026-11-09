@@ -207,7 +207,7 @@ export function RightRail({ mode = "column" }: { mode?: "column" | "sheet" }) {
       className={
         sheet
           ? "fixed inset-y-3 right-3 z-30 flex w-[328px] flex-col overflow-hidden rounded-2xl bg-surface shadow-[var(--shadow-card)]"
-          : "shell-rail flex w-[328px] shrink-0 flex-col overflow-hidden"
+          : "shell-rail flex w-[328px] shrink-0 flex-col overflow-hidden rounded-[10px] bg-surface"
       }
     >
       {sheet && (
