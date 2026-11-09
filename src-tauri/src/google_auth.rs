@@ -15,7 +15,9 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio_util::sync::CancellationToken;
 use url::Url;
 
-use crate::{APP_NAME, APP_SLUG};
+use crate::APP_NAME;
+#[cfg(desktop)]
+use crate::APP_SLUG;
 
 pub const GOOGLE_CLIENT_ID: &str = match option_env!("HUSHIO_GOOGLE_CLIENT_ID") {
     Some(value) => value,
@@ -75,10 +77,30 @@ pub struct KeyringStore;
 
 pub struct KeyringSlot(pub &'static str);
 
+#[cfg(desktop)]
 fn keyring_entry(account: &str) -> StoreResult<keyring::Entry> {
     keyring::Entry::new(&keyring_service(), account).map_err(|error| error.to_string())
 }
 
+#[cfg(not(desktop))]
+impl SecretStore for KeyringSlot {
+    fn read(&self) -> StoreResult<Option<String>> {
+        Err(format!("{NO_KEYRING_ON_PLATFORM}: {}", self.0))
+    }
+
+    fn write(&self, _value: &str) -> StoreResult<()> {
+        Err(NO_KEYRING_ON_PLATFORM.to_owned())
+    }
+
+    fn clear(&self) -> StoreResult<()> {
+        Err(NO_KEYRING_ON_PLATFORM.to_owned())
+    }
+}
+
+#[cfg(not(desktop))]
+const NO_KEYRING_ON_PLATFORM: &str = "no system keyring on this platform";
+
+#[cfg(desktop)]
 impl SecretStore for KeyringSlot {
     fn read(&self) -> StoreResult<Option<String>> {
         match keyring_entry(self.0)?.get_password() {
@@ -845,6 +867,7 @@ fn state_page() -> String {
     format!("Sign-in couldn't be verified. Try again in {APP_NAME}.")
 }
 
+#[cfg(desktop)]
 fn keyring_service() -> String {
     format!("com.{APP_SLUG}.app")
 }

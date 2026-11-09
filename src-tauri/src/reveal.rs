@@ -4,6 +4,7 @@ use std::process::Command;
 use std::sync::Mutex;
 
 use tauri::{AppHandle, Manager, State};
+#[cfg(desktop)]
 use tauri_plugin_dialog::DialogExt;
 
 use crate::persist;
@@ -238,6 +239,17 @@ pub fn target_dir(
     }
 }
 
+#[cfg(not(desktop))]
+#[tauri::command]
+pub async fn folder_pick(
+    _app: AppHandle,
+    _folders: State<'_, Folders>,
+    _title: Option<String>,
+) -> Result<Option<String>, String> {
+    Ok(None)
+}
+
+#[cfg(desktop)]
 #[tauri::command]
 pub async fn folder_pick(
     app: AppHandle,
