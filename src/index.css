@@ -225,3 +225,9 @@ body {
   height: max(100%, var(--hit-min));
   transform: translate(-50%, -50%);
 }
+
+*,
+*::before,
+*::after {
+  -webkit-tap-highlight-color: transparent;
+}

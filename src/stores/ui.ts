@@ -79,6 +79,8 @@ type UIState = {
   toggleLyrics: () => void;
   closeLyrics: () => void;
   toggleNowPlaying: () => void;
+  openNowPlaying: () => void;
+  closeNowPlaying: () => void;
   closePanels: () => void;
   openDialog: (request: DialogRequest) => void;
   closeDialog: () => void;
@@ -142,6 +144,10 @@ export const useUI = create<UIState>()((set) => ({
   closeLyrics: () => set({ lyricsCenter: false }),
 
   toggleNowPlaying: () => set((state) => ({ nowPlayingOpen: !state.nowPlayingOpen })),
+
+  openNowPlaying: () => set({ nowPlayingOpen: true }),
+
+  closeNowPlaying: () => set({ nowPlayingOpen: false }),
 
   closePanels: () =>
     set({ rightPanel: "details", lyricsCenter: false, nowPlayingOpen: false }),
