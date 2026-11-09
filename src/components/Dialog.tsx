@@ -14,7 +14,7 @@ function commit(request: DialogRequest, value: string, fail: (message: string) =
   close();
 }
 
-export function Dialog() {
+export function Dialog({ sheet = false }: { sheet?: boolean }) {
   const request = useUI((state) => state.dialog);
   const closeDialog = useUI((state) => state.closeDialog);
   const [failure, setFailure] = useState<Failure | null>(null);
@@ -101,8 +101,13 @@ export function Dialog() {
     );
   };
 
+  const shell = sheet ? "fixed inset-0 z-[120] flex items-end" : "animate-fade-in fixed inset-0 z-[120] grid place-items-center";
+  const panelShape = sheet
+    ? "animate-slide-up relative w-full rounded-t-[16px] border-t border-separator bg-elevated p-6 outline-none"
+    : "glass-strong animate-pop-in relative w-[min(420px,calc(100vw-48px))] rounded-2xl p-6 outline-none";
+  const buttonHeight = sheet ? "h-12" : "h-9";
   return (
-    <div className="animate-fade-in fixed inset-0 z-[120] grid place-items-center">
+    <div className={shell}>
       <div
         className="absolute inset-0"
         style={{ background: "rgb(var(--scrim) / var(--scrim-alpha))" }}
@@ -116,7 +121,8 @@ export function Dialog() {
         aria-modal="true"
         aria-label={request.title}
         tabIndex={-1}
-        className="glass-strong animate-pop-in relative w-[min(420px,calc(100vw-48px))] rounded-2xl p-6 outline-none"
+        className={panelShape}
+        style={sheet ? { paddingBottom: "calc(24px + var(--inset-bottom, env(safe-area-inset-bottom, 0px)))" } : undefined}
       >
         <h2
           className={`font-display text-lg font-bold ${
@@ -165,7 +171,7 @@ export function Dialog() {
             <button
               type="button"
               onClick={closeDialog}
-              className="hit-area h-9 rounded-xl px-4 text-[13px] font-medium text-ink-2 transition-colors hover:bg-hover hover:text-ink-1"
+              className={`hit-area ${buttonHeight} rounded-xl px-4 text-[13px] font-medium text-ink-2 transition-colors hover:bg-hover hover:text-ink-1`}
             >
               {request.cancelLabel ?? "Cancel"}
             </button>
@@ -173,7 +179,7 @@ export function Dialog() {
           <button
             type="button"
             onClick={confirm}
-            className={`hit-area h-9 rounded-xl px-4 text-[13px] font-medium transition-[filter] hover:brightness-110 ${
+            className={`hit-area ${buttonHeight} rounded-xl px-4 text-[13px] font-medium transition-[filter] hover:brightness-110 ${
               request.danger
                 ? "bg-danger text-white"
                 : "bg-accent text-on-accent"

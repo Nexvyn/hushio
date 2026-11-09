@@ -19,12 +19,13 @@ export type HtmlFlags = {
   reduceDynamicBlur: boolean;
   osReduceMotion: boolean;
   desktopReduceMotion: boolean;
+  systemMotion: boolean;
   platform: Platform;
 };
 
 export function htmlClassNames(flags: HtmlFlags): string[] {
   const names = [PLATFORM_CLASSES[flags.platform]];
-  if (flags.reduceAnimation || flags.osReduceMotion || flags.desktopReduceMotion) {
+  if (flags.reduceAnimation || flags.osReduceMotion || flags.desktopReduceMotion || flags.systemMotion) {
     names.push("reduce-motion");
   }
   if (flags.reduceDynamicBlur) names.push("reduce-blur");
@@ -48,6 +49,7 @@ function currentFlags(): HtmlFlags {
     reduceDynamicBlur: settings.reduceDynamicBlur,
     osReduceMotion: window.matchMedia?.(OS_REDUCE_MOTION_QUERY)?.matches ?? false,
     desktopReduceMotion: desktopAppearance().reduceMotion,
+    systemMotion: document.documentElement.dataset.systemMotion === "reduce",
     platform,
   };
 }
@@ -61,8 +63,10 @@ export function startHtmlClasses(): () => void {
   const unsubscribe = useSettings.subscribe(refreshHtmlClasses);
   const query = window.matchMedia?.(OS_REDUCE_MOTION_QUERY);
   query?.addEventListener("change", refreshHtmlClasses);
+  window.addEventListener("hushio-system-motion", refreshHtmlClasses);
   return () => {
     unsubscribe();
     query?.removeEventListener("change", refreshHtmlClasses);
+    window.removeEventListener("hushio-system-motion", refreshHtmlClasses);
   };
 }

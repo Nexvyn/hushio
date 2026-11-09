@@ -1,0 +1,83 @@
+import { useEffect, useRef, useState, type ReactNode, type PointerEvent, type MouseEvent } from "react";
+import { motion } from "motion/react";
+import { LongPress } from "../../lib/longPress";
+import { gate, quick, reducedMotion, settle } from "../../lib/motion";
+import { PRESS_SLOP_PX, pressMoved, type Point } from "../../lib/touchGesture";
+
+type PressRowProps = {
+  label: string;
+  className?: string;
+  onPress?: () => void;
+  onLongPress?: (point: Point) => void;
+  children: ReactNode;
+};
+
+export function PressRow({ label, className = "", onPress, onLongPress, children }: PressRowProps) {
+  const reduced = reducedMotion();
+  const [pressed, setPressed] = useState(false);
+  const origin = useRef<Point | null>(null);
+  const fired = useRef(false);
+  const handlers = useRef({ onPress, onLongPress });
+  handlers.current = { onPress, onLongPress };
+
+  const press = useRef<LongPress | null>(null);
+  if (press.current === null) {
+    press.current = new LongPress(() => {
+      fired.current = true;
+      setPressed(false);
+      const at = origin.current;
+      if (at) handlers.current.onLongPress?.(at);
+    });
+  }
+
+  useEffect(() => () => press.current?.cancel(), []);
+
+  const release = () => {
+    origin.current = null;
+    press.current?.cancel();
+    setPressed(false);
+  };
+
+  const onPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
+    fired.current = false;
+    origin.current = { x: event.clientX, y: event.clientY };
+    setPressed(true);
+    press.current?.start(origin.current);
+  };
+
+  const onPointerMove = (event: PointerEvent<HTMLButtonElement>) => {
+    const from = origin.current;
+    if (!from) return;
+    const to = { x: event.clientX, y: event.clientY };
+    press.current?.move(to);
+    if (pressMoved(from, to, PRESS_SLOP_PX)) release();
+  };
+
+  const onPointerUp = () => {
+    const shouldPress = origin.current !== null && !fired.current;
+    release();
+    if (shouldPress) handlers.current.onPress?.();
+  };
+
+  const onClick = (event: MouseEvent<HTMLButtonElement>) => {
+    if (event.detail === 0) handlers.current.onPress?.();
+  };
+
+  return (
+    <motion.button
+      type="button"
+      aria-label={label}
+      animate={{ scale: pressed ? 0.97 : 1 }}
+      transition={gate(reduced, pressed ? quick : settle)}
+      className={`flex min-h-12 w-full touch-pan-y items-center text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${className}`}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={release}
+      onPointerLeave={release}
+      onClick={onClick}
+    >
+      {children}
+    </motion.button>
+  );
+}

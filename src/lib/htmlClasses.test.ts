@@ -26,6 +26,7 @@ const base = {
   reduceDynamicBlur: false,
   osReduceMotion: false,
   desktopReduceMotion: false,
+  systemMotion: false,
   platform: "windows" as const,
 };
 
@@ -38,6 +39,7 @@ describe("html class names", () => {
     expect(htmlClassNames({ ...base, reduceAnimation: true })).toContain("reduce-motion");
     expect(htmlClassNames({ ...base, osReduceMotion: true })).toContain("reduce-motion");
     expect(htmlClassNames({ ...base, desktopReduceMotion: true })).toContain("reduce-motion");
+    expect(htmlClassNames({ ...base, systemMotion: true })).toContain("reduce-motion");
   });
 
   it("sets reduce-blur and maps macOS to platform-mac", () => {
@@ -88,6 +90,7 @@ describe("tracking settings and the desktop value", () => {
   afterEach(() => {
     setDesktopAppearance(NO_DESKTOP_APPEARANCE);
     document.documentElement.className = "";
+    delete document.documentElement.dataset.systemMotion;
   });
 
   it("follows the app setting as soon as it changes", () => {
@@ -99,6 +102,20 @@ describe("tracking settings and the desktop value", () => {
       useSettings.getState().setReduceDynamicBlur(true);
       expect(document.documentElement.classList.contains("reduce-blur")).toBe(true);
       useSettings.getState().setReduceAnimation(false);
+      expect(document.documentElement.classList.contains("reduce-motion")).toBe(false);
+    } finally {
+      stop();
+    }
+  });
+
+  it("follows the system motion signal from the Android bridge", () => {
+    const stop = startHtmlClasses();
+    try {
+      document.documentElement.dataset.systemMotion = "reduce";
+      window.dispatchEvent(new Event("hushio-system-motion"));
+      expect(document.documentElement.classList.contains("reduce-motion")).toBe(true);
+      delete document.documentElement.dataset.systemMotion;
+      window.dispatchEvent(new Event("hushio-system-motion"));
       expect(document.documentElement.classList.contains("reduce-motion")).toBe(false);
     } finally {
       stop();

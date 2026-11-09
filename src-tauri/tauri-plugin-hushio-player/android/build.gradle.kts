@@ -29,5 +29,6 @@ dependencies {
     implementation(project(":tauri-android"))
     implementation("androidx.media3:media3-session:1.11.1")
     implementation("androidx.media3:media3-exoplayer:1.11.1")
+    implementation("androidx.core:core-ktx:1.7.0")
     testImplementation("junit:junit:4.13.2")
 }

@@ -1,7 +1,15 @@
 package com.hushio.player
 
 import android.app.Activity
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
+import android.view.HapticFeedbackConstants
 import android.webkit.WebView
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import app.tauri.annotation.Command
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
@@ -10,10 +18,26 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class PlayerPlugin(private val activity: Activity) : Plugin(activity) {
+    private var webView: WebView? = null
 
     override fun load(webView: WebView) {
+        this.webView = webView
         PlayerEvents.sink = { name, payload -> trigger(name, toJs(payload)) }
         PlayerService.start(activity)
+        watchInsets(webView)
+        watchMotionSetting(webView)
+    }
+
+    @Command
+    fun player_exit(invoke: Invoke) {
+        activity.runOnUiThread { activity.finish() }
+        invoke.resolve()
+    }
+
+    @Command
+    fun player_haptic_tick(invoke: Invoke) {
+        activity.runOnUiThread { webView?.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS) }
+        invoke.resolve()
     }
 
     @Command
@@ -170,6 +194,37 @@ class PlayerPlugin(private val activity: Activity) : Plugin(activity) {
         }
     }
 
+    private fun watchInsets(view: WebView) {
+        ViewCompat.setOnApplyWindowInsetsListener(view) { _, insets ->
+            writeInsets(view, insets.getInsets(BARS_AND_CUTOUT))
+            insets
+        }
+        ViewCompat.getRootWindowInsets(view)?.let { writeInsets(view, it.getInsets(BARS_AND_CUTOUT)) }
+    }
+
+    private fun writeInsets(view: WebView, bars: Insets) {
+        val density = view.resources.displayMetrics.density
+        val css = InsetsCss.declarations(bars.top, bars.bottom, bars.left, bars.right, density)
+        view.evaluateJavascript("document.documentElement.style.cssText += ';$css'", null)
+    }
+
+    private fun watchMotionSetting(view: WebView) {
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) = pushMotionSetting(view)
+        }
+        val uri = Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE)
+        activity.contentResolver.registerContentObserver(uri, false, observer)
+        pushMotionSetting(view)
+    }
+
+    private fun pushMotionSetting(view: WebView) {
+        val scale = Settings.Global.getFloat(activity.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+        val value = if (ReduceMotion.isOn(scale)) "reduce" else "none"
+        val script = "document.documentElement.dataset.systemMotion='$value';" +
+            "window.dispatchEvent(new Event('hushio-system-motion'))"
+        view.post { view.evaluateJavascript(script, null) }
+    }
+
     private fun toJs(payload: Map<String, Any?>): JSObject {
         val obj = JSObject()
         for ((key, value) in payload) obj.put(key, value ?: JSONObject.NULL)
@@ -202,4 +257,8 @@ class PlayerPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     private fun parseGains(array: JSONArray): DoubleArray = DoubleArray(array.length()) { array.getDouble(it) }
+
+    private companion object {
+        val BARS_AND_CUTOUT = WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+    }
 }

@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-player-haptic-tick"
+description = "Enables the player_haptic_tick command without any pre-configured scope."
+commands.allow = ["player_haptic_tick"]
+
+[[permission]]
+identifier = "deny-player-haptic-tick"
+description = "Denies the player_haptic_tick command without any pre-configured scope."
+commands.deny = ["player_haptic_tick"]

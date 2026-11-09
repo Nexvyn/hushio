@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent, type RefObject } from "react";
+import { useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowDown01Icon,
@@ -25,9 +25,9 @@ import { fmtTime } from "../../lib/format";
 import { fade, gate, instant, reducedMotion, settle } from "../../lib/motion";
 import { INSET_BOTTOM, INSET_TOP } from "../../lib/phoneNav";
 import { sleepMenuItems } from "../../lib/sleepActions";
-import { sheetCloses, sheetTravel } from "../../lib/touchGesture";
 import { songOf, trackMenuItems } from "../../lib/trackActions";
-import { mergePointerHandlers, type PointerHandlers, usePointerSwipe } from "../../lib/usePointerSwipe";
+import { mergePointerHandlers, usePointerSwipe } from "../../lib/usePointerSwipe";
+import { useSheetDrag } from "./useSheetDrag";
 import { currentTrack, type RepeatMode, usePlayer } from "../../stores/player";
 import { type MenuItem, useUI } from "../../stores/ui";
 
@@ -118,45 +118,6 @@ function SeekBar() {
   );
 }
 
-function useSheetDrag(sheet: RefObject<HTMLElement | null>, onClose: () => void) {
-  const session = useRef<{ startY: number; lastY: number; lastT: number; velocity: number } | null>(null);
-  const [drag, setDrag] = useState<{ y: number; live: boolean } | null>(null);
-
-  const handlers: PointerHandlers = {
-    onPointerDown(event: PointerEvent) {
-      if (event.clientY > window.innerHeight / 2) return;
-      session.current = { startY: event.clientY, lastY: event.clientY, lastT: event.timeStamp, velocity: 0 };
-    },
-    onPointerMove(event: PointerEvent) {
-      const current = session.current;
-      if (!current) return;
-      const elapsed = event.timeStamp - current.lastT;
-      if (elapsed > 0) current.velocity = ((event.clientY - current.lastY) / elapsed) * 1000;
-      current.lastY = event.clientY;
-      current.lastT = event.timeStamp;
-      setDrag({ y: sheetTravel(event.clientY - current.startY), live: true });
-    },
-    onPointerUp(event: PointerEvent) {
-      const current = session.current;
-      session.current = null;
-      if (!current) return;
-      const travel = sheetTravel(event.clientY - current.startY);
-      const height = sheet.current?.getBoundingClientRect().height || window.innerHeight;
-      if (sheetCloses(travel, height, current.velocity)) {
-        setDrag((previous) => (previous ? { y: previous.y, live: false } : null));
-        onClose();
-      } else {
-        setDrag(null);
-      }
-    },
-    onPointerCancel() {
-      session.current = null;
-      setDrag(null);
-    },
-  };
-  return { handlers, offset: drag?.y ?? 0, live: drag?.live ?? false };
-}
-
 function NowPlayingSheet() {
   const track = usePlayer(currentTrack);
   const playing = usePlayer((state) => state.playing);
@@ -169,10 +130,11 @@ function NowPlayingSheet() {
   const toggleShuffle = usePlayer((state) => state.toggleShuffle);
   const cycleRepeat = usePlayer((state) => state.cycleRepeat);
   const closeNowPlaying = useUI((state) => state.closeNowPlaying);
+  const openPhoneQueue = useUI((state) => state.openPhoneQueue);
   const openContextMenu = useUI((state) => state.openContextMenu);
   const sheet = useRef<HTMLElement>(null);
   const [page, setPage] = useState<Page>("art");
-  const drag = useSheetDrag(sheet, closeNowPlaying);
+  const drag = useSheetDrag(sheet, closeNowPlaying, (event) => event.clientY <= window.innerHeight / 2);
   const pageSwipe = usePointerSwipe((direction) => {
     if (direction === "left") setPage("lyrics");
     else if (direction === "right") setPage("art");
@@ -294,7 +256,7 @@ function NowPlayingSheet() {
         </div>
         <div className="flex items-center justify-between px-3 pb-2">
           <LikeButton track={track} className="h-12 w-12" />
-          <Control label="Queue" icon={Queue01Icon} disabled />
+          <Control label="Queue" icon={Queue01Icon} onClick={openPhoneQueue} />
           <Control
             label="Lyrics"
             icon={Mic01Icon}

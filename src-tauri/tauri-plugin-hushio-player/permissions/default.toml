@@ -22,6 +22,8 @@ permissions = [
     "allow-player-set-url",
     "allow-player-set-like",
     "allow-player-get-state",
+    "allow-player-exit",
+    "allow-player-haptic-tick",
     "allow-registerListener",
     "allow-removeListener",
 ]

@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-player-exit"
+description = "Enables the player_exit command without any pre-configured scope."
+commands.allow = ["player_exit"]
+
+[[permission]]
+identifier = "deny-player-exit"
+description = "Denies the player_exit command without any pre-configured scope."
+commands.deny = ["player_exit"]

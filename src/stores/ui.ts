@@ -59,6 +59,7 @@ type UIState = {
   rightPanel: "details" | "queue";
   lyricsCenter: boolean;
   nowPlayingOpen: boolean;
+  phoneQueueOpen: boolean;
   osFullscreen: boolean;
   toasts: Toast[];
   pendingToasts: Toast[];
@@ -81,6 +82,8 @@ type UIState = {
   toggleNowPlaying: () => void;
   openNowPlaying: () => void;
   closeNowPlaying: () => void;
+  openPhoneQueue: () => void;
+  closePhoneQueue: () => void;
   closePanels: () => void;
   openDialog: (request: DialogRequest) => void;
   closeDialog: () => void;
@@ -92,6 +95,7 @@ export const useUI = create<UIState>()((set) => ({
   rightPanel: "details",
   lyricsCenter: false,
   nowPlayingOpen: false,
+  phoneQueueOpen: false,
   osFullscreen: false,
   toasts: [],
   pendingToasts: [],
@@ -148,6 +152,10 @@ export const useUI = create<UIState>()((set) => ({
   openNowPlaying: () => set({ nowPlayingOpen: true }),
 
   closeNowPlaying: () => set({ nowPlayingOpen: false }),
+
+  openPhoneQueue: () => set({ phoneQueueOpen: true }),
+
+  closePhoneQueue: () => set({ phoneQueueOpen: false }),
 
   closePanels: () =>
     set({ rightPanel: "details", lyricsCenter: false, nowPlayingOpen: false }),

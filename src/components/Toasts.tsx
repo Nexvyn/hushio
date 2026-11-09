@@ -126,12 +126,15 @@ function ToastCard({ toast }: { toast: Toast }) {
   );
 }
 
-export function Toasts() {
+export function Toasts({ bottom }: { bottom?: string }) {
   const toasts = useUI((state) => state.toasts);
   if (toasts.length === 0) return null;
 
   return (
-    <div className="pointer-events-none fixed left-1/2 top-[78px] z-[110] flex -translate-x-1/2 flex-col items-center gap-2.5">
+    <div
+      className={`pointer-events-none fixed left-1/2 z-[110] flex -translate-x-1/2 flex-col items-center gap-2.5 ${bottom ? "" : "top-[78px]"}`}
+      style={bottom ? { bottom } : undefined}
+    >
       {[...toasts].reverse().map((toast) => (
         <ToastCard key={toast.id} toast={toast} />
       ))}

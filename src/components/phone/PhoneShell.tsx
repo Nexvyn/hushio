@@ -1,16 +1,18 @@
 import { useLayoutEffect } from "react";
 import { motion } from "motion/react";
-import { ContextMenu } from "../ContextMenu";
 import { Dialog } from "../Dialog";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { PlaylistPicker } from "../PlaylistPicker";
 import { Toasts } from "../Toasts";
 import { MiniPlayer } from "./MiniPlayer";
+import { PhoneMenuSheet } from "./PhoneMenuSheet";
 import { PhoneNowPlaying } from "./PhoneNowPlaying";
+import { PhoneQueueSheet } from "./PhoneQueueSheet";
 import { TabBar } from "./TabBar";
+import { usePhoneBack } from "./usePhoneBack";
 import { CurrentView } from "../../views/CurrentView";
 import { fade, gate, reducedMotion } from "../../lib/motion";
-import { INSET_TOP, phoneBottomPad } from "../../lib/phoneNav";
+import { INSET_TOP, phoneBottomPad, phoneToastBottom } from "../../lib/phoneNav";
 import { currentTrack, usePlayer } from "../../stores/player";
 import { useNavigation } from "../../stores/navigation";
 
@@ -21,6 +23,7 @@ export function PhoneShell() {
   const clearPendingScroll = useNavigation((state) => state.clearPendingScroll);
   const track = usePlayer(currentTrack);
   const reduced = reducedMotion();
+  usePhoneBack();
 
   useLayoutEffect(() => {
     if (pendingScroll === null) return;
@@ -57,10 +60,11 @@ export function PhoneShell() {
       <MiniPlayer />
       <TabBar />
       <PhoneNowPlaying />
-      <Toasts />
-      <Dialog />
+      <Toasts bottom={phoneToastBottom(track !== null)} />
+      <PhoneQueueSheet />
+      <Dialog sheet />
       <PlaylistPicker />
-      <ContextMenu />
+      <PhoneMenuSheet />
     </div>
   );
 }

@@ -20,6 +20,8 @@ const COMMANDS: &[&str] = &[
     "player_set_url",
     "player_set_like",
     "player_get_state",
+    "player_exit",
+    "player_haptic_tick",
     "registerListener",
     "removeListener",
 ];

@@ -1,4 +1,4 @@
-import { getVersion } from "@tauri-apps/api/app";
+import { getVersion, onBackButtonPress } from "@tauri-apps/api/app";
 import { addPluginListener, convertFileSrc, invoke, type InvokeArgs } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -202,6 +202,21 @@ export function playerSetUrl(
   expiresAtEpochMs: number,
 ): Promise<void> {
   return playerCall<void>("player_set_url", { id, url, headers, expiresAtEpochMs });
+}
+
+export async function listenBackButton(onPress: () => void): Promise<() => void> {
+  const listener = await onBackButtonPress(() => onPress());
+  return () => {
+    void listener.unregister();
+  };
+}
+
+export function exitApp(): Promise<void> {
+  return playerCall("player_exit");
+}
+
+export function hapticTick(): Promise<void> {
+  return playerCall("player_haptic_tick");
 }
 
 export async function listenPlayerEvent<T>(event: string, onEvent: (payload: T) => void): Promise<() => void> {

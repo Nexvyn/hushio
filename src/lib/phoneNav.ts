@@ -41,6 +41,11 @@ export function tabFor(view: View): TabId {
   return TAB_OF[view.name];
 }
 
+export function phoneToastBottom(miniShown: boolean): string {
+  const dp = TAB_BAR_DP + MINI_GAP_DP + (miniShown ? MINI_PLAYER_DP + MINI_GAP_DP : 0);
+  return `calc(${dp}px + ${INSET_BOTTOM})`;
+}
+
 export function phoneBottomPad(miniShown: boolean): string {
   const dp = TAB_BAR_DP + (miniShown ? MINI_PLAYER_DP + MINI_GAP_DP : 0);
   return `calc(${dp}px + ${INSET_BOTTOM})`;

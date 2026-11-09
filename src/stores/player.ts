@@ -25,6 +25,7 @@ import {
   MAX_TAIL,
   RETRY_AFTER_MS,
 } from "../lib/autoplay";
+import { moveItem } from "../lib/dragReorder";
 import {
   advance,
   hash32,
@@ -93,6 +94,7 @@ export type PlayerState = PlayerValues & {
   jumpTo: (index: number) => void;
   addToQueue: (tracks: Track[], playNext?: boolean) => number;
   removeAt: (index: number) => void;
+  moveUpcoming: (from: number, to: number) => void;
   dontPlay: (index: number) => void;
   clearUpcoming: () => void;
   next: (manual?: boolean) => void;
@@ -357,6 +359,13 @@ export const usePlayer = create<PlayerState>()(
           });
         }
         return add.length;
+      },
+
+      moveUpcoming: (from, to) => {
+        const { queue, index } = get();
+        const count = queue.length;
+        if (from <= index || to <= index || from >= count || to >= count || from === to) return;
+        set({ queue: moveItem(queue, from, to) });
       },
 
       removeAt: (target) => {
