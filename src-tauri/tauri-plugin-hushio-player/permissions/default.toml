@@ -1,0 +1,27 @@
+[default]
+description = "Playback commands, queue sync and events for the Android player"
+permissions = [
+    "allow-player-set-queue",
+    "allow-player-append",
+    "allow-player-insert-next",
+    "allow-player-remove-at",
+    "allow-player-move",
+    "allow-player-play",
+    "allow-player-pause",
+    "allow-player-toggle",
+    "allow-player-next",
+    "allow-player-previous",
+    "allow-player-seek",
+    "allow-player-set-speed",
+    "allow-player-set-volume",
+    "allow-player-set-repeat",
+    "allow-player-set-shuffle",
+    "allow-player-set-skip-silence",
+    "allow-player-set-eq",
+    "allow-player-set-sleep-timer",
+    "allow-player-set-url",
+    "allow-player-set-like",
+    "allow-player-get-state",
+    "allow-registerListener",
+    "allow-removeListener",
+]

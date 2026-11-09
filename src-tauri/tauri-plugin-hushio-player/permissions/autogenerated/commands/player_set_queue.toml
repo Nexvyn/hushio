@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-player-set-queue"
+description = "Enables the player_set_queue command without any pre-configured scope."
+commands.allow = ["player_set_queue"]
+
+[[permission]]
+identifier = "deny-player-set-queue"
+description = "Denies the player_set_queue command without any pre-configured scope."
+commands.deny = ["player_set_queue"]

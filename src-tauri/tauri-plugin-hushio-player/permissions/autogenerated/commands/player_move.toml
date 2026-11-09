@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-player-move"
+description = "Enables the player_move command without any pre-configured scope."
+commands.allow = ["player_move"]
+
+[[permission]]
+identifier = "deny-player-move"
+description = "Denies the player_move command without any pre-configured scope."
+commands.deny = ["player_move"]

@@ -11,6 +11,7 @@ data class QueueItem(
     val headers: Map<String, String>,
     val liked: Boolean,
     val contentUri: String?,
+    val expiresAtMs: Long? = null,
 ) {
     fun playbackUri(): String? = contentUri ?: url
 }

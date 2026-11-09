@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-player-remove-at"
+description = "Enables the player_remove_at command without any pre-configured scope."
+commands.allow = ["player_remove_at"]
+
+[[permission]]
+identifier = "deny-player-remove-at"
+description = "Denies the player_remove_at command without any pre-configured scope."
+commands.deny = ["player_remove_at"]

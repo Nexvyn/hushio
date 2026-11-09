@@ -104,6 +104,16 @@ class QueueMirrorTest {
     }
 
     @Test
+    fun replaceAtKeepsOrderAndCurrent() {
+        val queue = QueueMirror<String>()
+        queue.replace(listOf("a", "b", "c"), 1)
+        assertTrue(queue.replaceAt(0, "z"))
+        assertEquals(listOf("z", "b", "c"), queue.items)
+        assertEquals("b", queue.currentItem())
+        assertFalse(queue.replaceAt(3, "x"))
+    }
+
+    @Test
     fun invalidIndicesAreRejected() {
         val queue = QueueMirror<String>()
         queue.replace(listOf("a"), 0)

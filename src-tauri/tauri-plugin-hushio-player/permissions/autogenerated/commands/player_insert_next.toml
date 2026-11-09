@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-player-insert-next"
+description = "Enables the player_insert_next command without any pre-configured scope."
+commands.allow = ["player_insert_next"]
+
+[[permission]]
+identifier = "deny-player-insert-next"
+description = "Denies the player_insert_next command without any pre-configured scope."
+commands.deny = ["player_insert_next"]

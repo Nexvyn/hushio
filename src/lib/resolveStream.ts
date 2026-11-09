@@ -3,7 +3,7 @@ import type { Innertube } from "youtubei.js";
 import { getSession, MARKET, resetSession } from "./innertube";
 
 type InnerTubeClient = NonNullable<NonNullable<Parameters<Innertube["getBasicInfo"]>[1]>["client"]>;
-const MEDIA_USER_AGENT =
+export const MEDIA_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 const CLIENTS: readonly InnerTubeClient[] = ["VISIONOS", "IOS", "ANDROID_VR", "WEB", "YTMUSIC", "ANDROID", "TV"];
 const PIPED_BASES = [

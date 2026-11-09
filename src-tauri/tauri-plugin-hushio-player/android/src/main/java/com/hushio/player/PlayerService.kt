@@ -15,11 +15,13 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
@@ -47,11 +49,15 @@ class PlayerService : MediaLibraryService() {
     private val headersByUrl = ConcurrentHashMap<String, Map<String, String>>()
     private val sleepTimer = SleepTimer()
     private val buttonGestures = MediaButtonGestures()
+    private val retry = RetryPolicy()
     private var equalizer: EqualizerController? = null
     private var baseVolume = 1f
     private var headroomDb = 0.0
     private var liked = false
     private var fadeReported = false
+    private var awaitingUrlId: String? = null
+    private var resumeAfterUrl = false
+    private var skippingFailed = false
 
     private val sleepTicker = object : Runnable {
         override fun run() {
@@ -68,6 +74,19 @@ class PlayerService : MediaLibraryService() {
 
     private val restoreVolume = Runnable { applyVolume() }
 
+    private val stateTicker = object : Runnable {
+        override fun run() {
+            emitState()
+            if (player.isPlaying) handler.postDelayed(this, STATE_TICK_MS)
+        }
+    }
+
+    private val retryLoad = Runnable {
+        if (player.playbackState == Player.STATE_IDLE) player.prepare()
+    }
+
+    private val missingUrlTimeout = Runnable { onUrlWaitExpired() }
+
     private val headerResolver = object : ResolvingDataSource.Resolver {
         override fun resolveDataSpec(dataSpec: DataSpec): DataSpec {
             val headers = headersByUrl[dataSpec.uri.toString()] ?: return dataSpec
@@ -79,11 +98,23 @@ class PlayerService : MediaLibraryService() {
 
     private val playerListener = object : Player.Listener {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            val trackReason = PlayerPayloads.trackReason(reason, skippingFailed)
+            skippingFailed = false
             queue.setCurrent(player.currentMediaItemIndex)
             refreshLiked()
+            retry.reset()
+            queue.currentItem()?.let { item ->
+                PlayerEvents.emit(
+                    "player-track-changed",
+                    mapOf("index" to player.currentMediaItemIndex, "id" to item.id, "reason" to trackReason),
+                )
+            }
+            ensureUsable()
+            emitState()
         }
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            emitState()
             if (playWhenReady) return
             when (reason) {
                 Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM -> if (sleepTimer.endOfSong) {
@@ -96,6 +127,28 @@ class PlayerService : MediaLibraryService() {
                     PlayerEvents.emit("player-focus", mapOf("state" to "lost"))
             }
         }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            emitState()
+            if (isPlaying) {
+                handler.removeCallbacks(stateTicker)
+                handler.post(stateTicker)
+            }
+        }
+
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            if (playbackState == Player.STATE_READY) retry.reset()
+            if (playbackState == Player.STATE_ENDED) PlayerEvents.emit("player-ended", emptyMap())
+            emitState()
+        }
+
+        override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) = emitState()
+
+        override fun onRepeatModeChanged(repeatMode: Int) = emitState()
+
+        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) = emitState()
+
+        override fun onPlayerError(error: PlaybackException) = onStreamError(error)
     }
 
     private val audioDeviceCallback = object : AudioDeviceCallback() {
@@ -215,11 +268,13 @@ class PlayerService : MediaLibraryService() {
         session.setMediaButtonPreferences(buttons())
         player.addListener(playerListener)
         audioManager.registerAudioDeviceCallback(audioDeviceCallback, handler)
+        current = this
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession = session
 
     override fun onDestroy() {
+        if (current === this) current = null
         handler.removeCallbacksAndMessages(null)
         audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
         equalizer?.release()
@@ -229,6 +284,7 @@ class PlayerService : MediaLibraryService() {
     }
 
     fun replaceQueue(items: List<QueueItem>, startIndex: Int, startPositionMs: Long): Int {
+        clearUrlWait()
         val accepted = queue.replace(items, startIndex)
         headersByUrl.clear()
         queue.items.forEach(::remember)
@@ -274,10 +330,39 @@ class PlayerService : MediaLibraryService() {
 
     fun seekTo(positionMs: Long) {
         player.seekTo(PlayerMath.clampSeek(positionMs, player.duration))
+        emitState()
+    }
+
+    fun setPlaying(play: Boolean): Boolean {
+        if (play && !ensureUsable()) return false
+        if (play) player.play() else player.pause()
+        return player.playWhenReady
+    }
+
+    fun playRequested(): Boolean = player.playWhenReady
+
+    fun next() {
+        player.seekToNextMediaItem()
+    }
+
+    fun previous() {
+        if (player.currentPosition > RESTART_AFTER_MS || !player.hasPreviousMediaItem()) {
+            player.seekTo(0)
+        } else {
+            player.seekToPreviousMediaItem()
+        }
     }
 
     fun setSpeed(speed: Double) {
         player.playbackParameters = PlaybackParameters(PlayerMath.clampSpeed(speed), 1f)
+    }
+
+    fun setRepeat(mode: String) {
+        player.repeatMode = PlayerPayloads.repeatMode(mode)
+    }
+
+    fun setShuffle(enabled: Boolean) {
+        player.shuffleModeEnabled = enabled
     }
 
     fun setSkipSilence(enabled: Boolean) {
@@ -307,10 +392,168 @@ class PlayerService : MediaLibraryService() {
         if (sleepTimer.active) handler.post(sleepTicker) else applyVolume()
     }
 
+    fun setUrl(id: String, url: String, headers: Map<String, String>, expiresAtMs: Long): Boolean {
+        val index = queue.items.indexOfFirst { it.id == id }
+        if (index < 0) return false
+        val previous = queue.items[index]
+        previous.playbackUri()?.let { headersByUrl.remove(it) }
+        val item = previous.copy(url = url, headers = headers, expiresAtMs = expiresAtMs)
+        queue.replaceAt(index, item)
+        remember(item)
+        player.replaceMediaItem(index, toMediaItem(item))
+        if (awaitingUrlId == id) {
+            awaitingUrlId = null
+            handler.removeCallbacks(missingUrlTimeout)
+        }
+        if (index == player.currentMediaItemIndex) {
+            if (player.playbackState == Player.STATE_IDLE) player.prepare()
+            if (resumeAfterUrl) {
+                resumeAfterUrl = false
+                player.play()
+            }
+        }
+        return true
+    }
+
+    fun setLike(id: String, value: Boolean): Boolean {
+        val index = queue.items.indexOfFirst { it.id == id }
+        if (index < 0) return false
+        queue.replaceAt(index, queue.items[index].copy(liked = value))
+        if (index == queue.current) setLiked(value)
+        return true
+    }
+
+    fun snapshot(): PlayerSnapshot = PlayerSnapshot(
+        playing = player.playWhenReady,
+        buffering = player.playbackState == Player.STATE_BUFFERING,
+        positionMs = player.currentPosition,
+        durationMs = player.duration,
+        index = player.currentMediaItemIndex,
+        id = queue.currentItem()?.id,
+        speed = player.playbackParameters.speed,
+        repeatMode = player.repeatMode,
+        shuffle = player.shuffleModeEnabled,
+    )
+
     fun togglePlayPause() {
         val playing = player.playWhenReady
-        if (playing) player.pause() else player.play()
+        setPlaying(!playing)
         PlayerEvents.emit("player-action", mapOf("action" to if (playing) "pause" else "play"))
+    }
+
+    private fun onStreamError(error: PlaybackException) {
+        val message = error.message.orEmpty()
+        val item = queue.currentItem()
+        if (item == null) {
+            player.pause()
+            PlayerEvents.emit(
+                "player-error",
+                mapOf(
+                    "index" to player.currentMediaItemIndex,
+                    "id" to "",
+                    "code" to error.errorCodeName,
+                    "message" to message,
+                    "recoverable" to false,
+                ),
+            )
+            return
+        }
+        val status = (error.cause as? HttpDataSource.InvalidResponseCodeException)?.responseCode ?: 0
+        val failure = StreamPolicy.classify(
+            error.errorCode,
+            status,
+            hasUrl = item.playbackUri() != null,
+            isContent = item.contentUri != null,
+        )
+        when (failure) {
+            StreamFailure.MISSING -> awaitUrl(item, StreamPolicy.REASON_MISSING)
+            StreamFailure.FORBIDDEN -> awaitUrl(item, StreamPolicy.REASON_HTTP_403)
+            StreamFailure.RETRY -> retryStream(item, error.errorCodeName, message)
+            StreamFailure.FILE_MISSING -> failCurrent(item, "file_missing", message, recoverable = false)
+            StreamFailure.FATAL -> failCurrent(item, error.errorCodeName, message, recoverable = false)
+        }
+    }
+
+    private fun retryStream(item: QueueItem, code: String, message: String) {
+        val delay = retry.next()
+        if (delay == null) {
+            failCurrent(item, code, message, recoverable = true)
+            return
+        }
+        handler.postDelayed(retryLoad, delay)
+    }
+
+    private fun failCurrent(item: QueueItem, code: String, message: String, recoverable: Boolean) {
+        player.pause()
+        PlayerEvents.emit(
+            "player-error",
+            mapOf(
+                "index" to player.currentMediaItemIndex,
+                "id" to item.id,
+                "code" to code,
+                "message" to message,
+                "recoverable" to recoverable,
+            ),
+        )
+    }
+
+    private fun ensureUsable(): Boolean {
+        val item = queue.currentItem() ?: return true
+        if (item.playbackUri() == null) {
+            awaitUrl(item, StreamPolicy.REASON_MISSING)
+            return false
+        }
+        if (StreamPolicy.isExpired(item.expiresAtMs, System.currentTimeMillis())) {
+            awaitUrl(item, StreamPolicy.REASON_EXPIRED)
+            return false
+        }
+        return true
+    }
+
+    private fun awaitUrl(item: QueueItem, reason: String) {
+        if (awaitingUrlId == item.id) return
+        awaitingUrlId = item.id
+        resumeAfterUrl = player.playWhenReady
+        player.pause()
+        PlayerEvents.emit(
+            "player-stream-needed",
+            mapOf("index" to player.currentMediaItemIndex, "id" to item.id, "reason" to reason),
+        )
+        if (reason == StreamPolicy.REASON_MISSING) {
+            handler.postDelayed(missingUrlTimeout, StreamPolicy.MISSING_URL_WAIT_MS)
+        }
+    }
+
+    private fun onUrlWaitExpired() {
+        val id = awaitingUrlId ?: return
+        val wanted = resumeAfterUrl
+        clearUrlWait()
+        PlayerEvents.emit(
+            "player-error",
+            mapOf(
+                "index" to player.currentMediaItemIndex,
+                "id" to id,
+                "code" to "url_missing",
+                "message" to "No stream URL arrived in 15 seconds",
+                "recoverable" to false,
+            ),
+        )
+        if (!player.hasNextMediaItem()) return
+        skippingFailed = true
+        player.seekToNextMediaItem()
+        player.playWhenReady = wanted
+    }
+
+    private fun clearUrlWait() {
+        awaitingUrlId = null
+        resumeAfterUrl = false
+        handler.removeCallbacks(missingUrlTimeout)
+        handler.removeCallbacks(retryLoad)
+        retry.reset()
+    }
+
+    private fun emitState() {
+        PlayerEvents.emit("player-state", snapshot().toPayload())
     }
 
     private fun tickSleep() {
@@ -407,6 +650,8 @@ class PlayerService : MediaLibraryService() {
         private const val MAX_BUFFER_MS = 30_000
         private const val SEEK_INCREMENT_MS = 10_000L
         private const val SLEEP_TICK_MS = 250L
+        private const val STATE_TICK_MS = 1_000L
+        private const val RESTART_AFTER_MS = 3_000L
         private const val VOLUME_RESTORE_MS = 500L
         private val LIKE_COMMAND = SessionCommand(LIKE_ACTION, Bundle.EMPTY)
         private val PLAY_PAUSE_KEYS = setOf(
@@ -424,6 +669,10 @@ class PlayerService : MediaLibraryService() {
             AudioDeviceInfo.TYPE_USB_DEVICE,
             AudioDeviceInfo.TYPE_HDMI,
         )
+
+        @Volatile
+        var current: PlayerService? = null
+            private set
 
         fun start(context: Context) {
             context.startService(Intent(context, PlayerService::class.java))

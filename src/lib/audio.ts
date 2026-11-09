@@ -13,6 +13,20 @@ import { isLocalId } from "./localLibrary";
 import { analysable, Leveling, Lru } from "./loudness";
 import { headTrimTarget, TRIM_MIN_S, tailReached } from "./playbackEdges";
 import { resolveStream } from "./resolveStream";
+import {
+  androidDuration,
+  androidPause,
+  androidPlay,
+  androidPlayStream,
+  androidPosition,
+  androidRate,
+  androidSeek,
+  androidSetEq,
+  androidSetSpeed,
+  androidSetVolume,
+  startAndroidEngine,
+} from "./androidEngine";
+import { ANDROID } from "./androidPlayback";
 import { clampCrossfadeSeconds, useSettings, type SettingsValues } from "../stores/settings";
 import { useUI } from "../stores/ui";
 
@@ -111,15 +125,15 @@ export function standbyDeck(): HTMLAudioElement {
 
 class Playback extends EventTarget {
   get currentTime(): number {
-    return activeDeck().currentTime;
+    return ANDROID ? androidPosition() : activeDeck().currentTime;
   }
 
   get duration(): number {
-    return activeDeck().duration;
+    return ANDROID ? androidDuration() : activeDeck().duration;
   }
 
   get playbackRate(): number {
-    return activeDeck().playbackRate;
+    return ANDROID ? androidRate() : activeDeck().playbackRate;
   }
 }
 
@@ -209,6 +223,10 @@ function buildGraph(): Graph {
 
 export function applyEq(next: EqSettings): void {
   eqState = next;
+  if (ANDROID) {
+    androidSetEq(next.enabled, next.gains);
+    return;
+  }
   if (!graph && next.enabled) graph = buildGraph();
   if (!graph) return;
   const { ctx, bands } = graph;
@@ -259,6 +277,10 @@ function noteLoudness(id: string, lufs: number): void {
 
 function applySpeed(): void {
   const rate = useSettings.getState().playbackSpeed || 1;
+  if (ANDROID) {
+    androidSetSpeed(rate);
+    return;
+  }
   for (const deck of decks) {
     deck.playbackRate = rate;
     deck.preservesPitch = true;
@@ -268,10 +290,18 @@ function applySpeed(): void {
 export function setVolume(value: number): void {
   if (!Number.isFinite(value)) return;
   volume = clamp(value, 0, 1);
+  if (ANDROID) {
+    androidSetVolume(volume);
+    return;
+  }
   refreshVolumes();
 }
 
 export function setMuted(value: boolean): void {
+  if (ANDROID) {
+    androidSetVolume(value ? 0 : volume);
+    return;
+  }
   for (const deck of decks) deck.muted = value;
 }
 
@@ -446,6 +476,7 @@ async function onFailure(seq: number): Promise<void> {
 }
 
 export async function playStream(id: string, title: string): Promise<void> {
+  if (ANDROID) return androidPlayStream(id, title);
   abortBlend();
   disarmSilence();
   song = { id, title };
@@ -459,6 +490,7 @@ export async function playStream(id: string, title: string): Promise<void> {
 }
 
 export async function play(): Promise<void> {
+  if (ANDROID) return androidPlay();
   if (!song) return;
   wantPlaying = true;
   if (fade) resumeFade(fade);
@@ -466,6 +498,10 @@ export async function play(): Promise<void> {
 }
 
 export function pause(): void {
+  if (ANDROID) {
+    androidPause();
+    return;
+  }
   wantPlaying = false;
   if (fade) freezeFade(fade);
   else abortBlend();
@@ -473,11 +509,15 @@ export function pause(): void {
 }
 
 export function getPlaybackPosition(): number {
-  return activeDeck().currentTime;
+  return ANDROID ? androidPosition() : activeDeck().currentTime;
 }
 
 export function seekTo(seconds: number): void {
   if (!Number.isFinite(seconds)) return;
+  if (ANDROID) {
+    androidSeek(seconds);
+    return;
+  }
   abortBlend();
   disarmSilence();
   const deck = activeDeck();
@@ -742,3 +782,4 @@ useSettings.subscribe((state, previous) => {
 applySpeed();
 applyEq(eqSettingsOf(useSettings.getState()));
 applySink(useSettings.getState().audioSinkId);
+if (ANDROID) startAndroidEngine((type) => audio.dispatchEvent(new Event(type)));

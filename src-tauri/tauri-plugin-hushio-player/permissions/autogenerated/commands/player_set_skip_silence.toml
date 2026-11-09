@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-player-set-skip-silence"
+description = "Enables the player_set_skip_silence command without any pre-configured scope."
+commands.allow = ["player_set_skip_silence"]
+
+[[permission]]
+identifier = "deny-player-set-skip-silence"
+description = "Denies the player_set_skip_silence command without any pre-configured scope."
+commands.deny = ["player_set_skip_silence"]

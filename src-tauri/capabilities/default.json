@@ -17,6 +17,7 @@
     "updater:default",
     "process:allow-restart",
     "clipboard-manager:allow-write-image",
+    "hushio-player:default",
     {
       "identifier": "http:default",
       "allow": [

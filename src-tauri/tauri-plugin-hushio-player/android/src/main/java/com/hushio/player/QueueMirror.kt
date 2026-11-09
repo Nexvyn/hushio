@@ -62,6 +62,12 @@ class QueueMirror<T>(private val capacity: Int = MAX_ITEMS) {
         return true
     }
 
+    fun replaceAt(index: Int, item: T): Boolean {
+        if (index !in list.indices) return false
+        list[index] = item
+        return true
+    }
+
     fun setCurrent(index: Int): Boolean {
         if (index !in list.indices) return false
         current = index

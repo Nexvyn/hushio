@@ -1,11 +1,12 @@
 import { getVersion } from "@tauri-apps/api/app";
-import { convertFileSrc, invoke, type InvokeArgs } from "@tauri-apps/api/core";
+import { addPluginListener, convertFileSrc, invoke, type InvokeArgs } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Image } from "@tauri-apps/api/image";
 import { writeImage } from "@tauri-apps/plugin-clipboard-manager";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { PipCommand, PipSnapshot } from "../pip/types";
+import type { PlayerQueueItem } from "./androidPlayback";
 import type { AudioOutputState } from "./outputDevices";
 import type { JournalEntry, ReplayData } from "./replay";
 import type { DesktopScheme } from "./theme";
@@ -154,6 +155,58 @@ export function streamProxyPort(): Promise<number> {
 
 export function registerStreamUrl(id: string, url: string): Promise<void> {
   return call<void>("stream_register", { id, url });
+}
+
+const PLAYER_PLUGIN = "hushio-player";
+
+function playerCall<T>(command: string, args?: InvokeArgs): Promise<T> {
+  return call<T>(`plugin:${PLAYER_PLUGIN}|${command}`, args);
+}
+
+export function playerSetQueue(
+  items: PlayerQueueItem[],
+  startIndex: number,
+  startPositionMs: number,
+): Promise<{ accepted: number }> {
+  return playerCall("player_set_queue", { items, startIndex, startPositionMs });
+}
+
+export function playerPlay(): Promise<void> {
+  return playerCall<void>("player_play");
+}
+
+export function playerPause(): Promise<void> {
+  return playerCall<void>("player_pause");
+}
+
+export function playerSeek(positionMs: number): Promise<void> {
+  return playerCall<void>("player_seek", { positionMs });
+}
+
+export function playerSetVolume(volume: number): Promise<void> {
+  return playerCall<void>("player_set_volume", { volume });
+}
+
+export function playerSetSpeed(speed: number): Promise<void> {
+  return playerCall<void>("player_set_speed", { speed });
+}
+
+export function playerSetEq(enabled: boolean, gainsDb: readonly number[]): Promise<{ appliedBands: number }> {
+  return playerCall("player_set_eq", { enabled, gainsDb: [...gainsDb] });
+}
+
+export function playerSetUrl(
+  id: string,
+  url: string,
+  headers: Record<string, string>,
+  expiresAtEpochMs: number,
+): Promise<void> {
+  return playerCall<void>("player_set_url", { id, url, headers, expiresAtEpochMs });
+}
+
+export async function listenPlayerEvent<T>(event: string, onEvent: (payload: T) => void): Promise<() => void> {
+  const listener = await addPluginListener<T>(PLAYER_PLUGIN, event, onEvent);
+  return () => void listener.unregister();
 }
 
 export type TrackAnalysis = { head: number; tail: number; lufs: number | null };
