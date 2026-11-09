@@ -5,6 +5,7 @@ import {
   downloadStart,
   listenDownloadEvents,
   openFolder,
+  downloadDeleteFile,
   pickFolder,
   revealPath,
   type DownloadEvent,
@@ -286,7 +287,10 @@ export function downloadMenuItems(item: DownloadItem): MenuItem[] {
       icon: Cancel01Icon,
       danger: true,
       separatorBefore: items.length > 0,
-      onSelect: () => useLibrary.getState().removeDownload(track.id),
+      onSelect: () => {
+        if (path) void downloadDeleteFile(path).catch(() => undefined);
+        useLibrary.getState().removeDownload(track.id);
+      },
     });
   }
   return [

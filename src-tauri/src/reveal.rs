@@ -67,7 +67,30 @@ impl Folders {
         Ok(())
     }
 
+    #[cfg(not(desktop))]
+    pub async fn approve_tree(&self, uri: String) -> Result<(), String> {
+        if !crate::tree_library::is_tree_uri(&uri) {
+            return Err(OUTSIDE.to_owned());
+        }
+        let path = PathBuf::from(&uri);
+        let mut next = self.picked();
+        if !next.contains(&path) {
+            next.push(path);
+        }
+        let data = serde_json::to_value(&next).map_err(|error| error.to_string())?;
+        persist::write(&self.root, DEVICE_OWNER, APPROVED_STORE, &data).await?;
+        *lock(&self.picked) = next;
+        Ok(())
+    }
+
     pub fn check(&self, path: &Path) -> Result<(), String> {
+        if crate::tree_library::is_tree_uri(&path.to_string_lossy()) {
+            return if self.picked().iter().any(|item| item.as_path() == path) {
+                Ok(())
+            } else {
+                Err(OUTSIDE.to_owned())
+            };
+        }
         let target = resolve(path)?;
         let inside = self
             .roots()
@@ -243,10 +266,14 @@ pub fn target_dir(
 #[tauri::command]
 pub async fn folder_pick(
     _app: AppHandle,
-    _folders: State<'_, Folders>,
+    folders: State<'_, Folders>,
     _title: Option<String>,
 ) -> Result<Option<String>, String> {
-    Ok(None)
+    let Some(uri) = crate::android::pick_tree().await? else {
+        return Ok(None);
+    };
+    folders.approve_tree(uri.clone()).await?;
+    Ok(Some(uri))
 }
 
 #[cfg(desktop)]

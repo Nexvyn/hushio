@@ -11,6 +11,7 @@ use sha1::{Digest, Sha1};
 
 use crate::persist;
 use crate::reveal::Folders;
+use crate::tree_library;
 
 pub const MIN_DURATION_SECS: f64 = 30.0;
 pub const MAX_FOLDERS: usize = 200;
@@ -23,8 +24,8 @@ const MAX_ART_BYTES: usize = 8 * 1024 * 1024;
 const OWNER: &str = "local";
 const LIBRARY_STORE: &str = "local-library";
 const OPENED_STORE: &str = "opened-files";
-const UNKNOWN_ARTIST: &str = "Unknown artist";
-const UNKNOWN_ALBUM: &str = "Unknown album";
+pub(crate) const UNKNOWN_ARTIST: &str = "Unknown artist";
+pub(crate) const UNKNOWN_ALBUM: &str = "Unknown album";
 const PLAYABLE_EXTENSIONS: [&str; 9] = ["mp3", "m4a", "aac", "flac", "ogg", "oga", "opus", "wav", "webm"];
 const UNPLAYABLE_EXTENSIONS: [(&str, &str); 4] = [("wma", "WMA"), ("aiff", "AIFF"), ("aif", "AIFF"), ("aifc", "AIFF")];
 const NON_MUSIC_PATHS: [&str; 14] = [
@@ -343,7 +344,7 @@ fn music_subfolders(root: &Path) -> Vec<PathBuf> {
     subs
 }
 
-fn store_folder(lib: &mut LocalLibrary, path: &str, now: u64, added: &mut Vec<LocalFolderEntry>, skipped: &mut Vec<String>) {
+fn store_folder(lib: &mut LocalLibrary, path: &str, name: String, now: u64, added: &mut Vec<LocalFolderEntry>, skipped: &mut Vec<String>) {
     let key = folder_key(path);
     if lib.folders.len() >= MAX_FOLDERS || lib.folders.iter().any(|folder| folder_key(&folder.path) == key) {
         skipped.push(path.to_string());
@@ -351,7 +352,7 @@ fn store_folder(lib: &mut LocalLibrary, path: &str, now: u64, added: &mut Vec<Lo
     }
     let entry = LocalFolderEntry {
         path: path.to_string(),
-        name: base_name(path),
+        name,
         display_name: None,
         added_at: now,
     };
@@ -363,6 +364,11 @@ pub fn add_folders(lib: &mut LocalLibrary, inputs: &[String], now: u64) -> (Vec<
     let mut added = Vec::new();
     let mut skipped = Vec::new();
     for raw in inputs.iter().take(MAX_FOLDERS) {
+        if tree_library::is_tree_uri(raw) {
+            let name = tree_library::display_name(raw);
+            store_folder(lib, raw, name, now, &mut added, &mut skipped);
+            continue;
+        }
         let Some(norm) = normalize_folder(raw) else {
             continue;
         };
@@ -370,11 +376,11 @@ pub fn add_folders(lib: &mut LocalLibrary, inputs: &[String], now: u64) -> (Vec<
             skipped.push(norm);
             continue;
         }
-        store_folder(lib, &norm, now, &mut added, &mut skipped);
+        store_folder(lib, &norm, base_name(&norm), now, &mut added, &mut skipped);
         let key = folder_key(&norm);
         if lib.folders.iter().any(|folder| folder_key(&folder.path) == key) {
             for sub in music_subfolders(Path::new(&norm)) {
-                store_folder(lib, &sub.to_string_lossy(), now, &mut added, &mut skipped);
+                store_folder(lib, &sub.to_string_lossy(), base_name(&sub.to_string_lossy()), now, &mut added, &mut skipped);
             }
         }
     }
@@ -648,7 +654,11 @@ impl Service {
         let folders = approved_folders(approvals, &lib.folders);
         let previous = lib.tracks.clone();
         let art_dir = self.art_dir();
-        let (tracks, unplayable) = tokio::task::spawn_blocking(move || scan(&folders, &previous, filter_non_music, &art_dir))
+        let (tracks, unplayable) = tokio::task::spawn_blocking(move || {
+            let (mut tracks, unplayable) = scan(&folders, &previous, filter_non_music, &art_dir);
+            tracks.extend(tree_library::scan_folders(&folders));
+            (tracks, unplayable)
+        })
             .await
             .map_err(|error| error.to_string())?;
         lib.tracks = tracks;

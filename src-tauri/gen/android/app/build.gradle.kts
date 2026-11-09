@@ -24,6 +24,7 @@ android {
     namespace = "com.hushio.app"
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
+        manifestPlaceholders["googleRedirectScheme"] = googleRedirectScheme()
         applicationId = "com.hushio.app"
         minSdk = 26
         targetSdk = 35
@@ -86,3 +87,9 @@ dependencies {
 }
 
 apply(from = file("tauri.build.gradle.kts"))
+
+fun googleRedirectScheme(): String {
+    val clientId = System.getenv("HUSHIO_GOOGLE_CLIENT_ID").orEmpty()
+    val prefix = clientId.removeSuffix(".apps.googleusercontent.com")
+    return if (prefix.isNotEmpty() && prefix != clientId) "com.googleusercontent.apps.$prefix" else "hushio.unconfigured"
+}

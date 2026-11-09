@@ -7,6 +7,7 @@ import {
   playerSetQueue,
   playerSetSpeed,
   playerSetUrl,
+  localLibraryTrackPath,
   playerSetVolume,
 } from "./bridge";
 import {
@@ -36,6 +37,14 @@ function report(action: string): (error: unknown) => void {
 
 export async function androidPlayStream(id: string, title: string): Promise<void> {
   currentTitle = title;
+  if (id.startsWith("local:")) {
+    const contentUri = await localLibraryTrackPath(id);
+    if (!contentUri) throw new Error("Local track is not in the library");
+    const item = { ...queueItemFor(id, title, "", {}, 0), expiresAtEpochMs: null, contentUri };
+    await playerSetQueue([item], 0, 0);
+    await playerPlay();
+    return;
+  }
   const stream = await resolveStream(id, false);
   const item = queueItemFor(id, title, stream.url, headers(), expiryOf(stream.url, Date.now()));
   await playerSetQueue([item], 0, 0);

@@ -759,3 +759,19 @@ export function listenPipNeedState(onNeed: () => void): Promise<UnlistenFn> {
 export function listenSessionErased(onErased: () => void): Promise<UnlistenFn> {
   return listen("session:erased", () => onErased());
 }
+
+export function notificationState(): Promise<string> {
+  return call<string>("notification_state");
+}
+
+export function notificationRequest(): Promise<string> {
+  return call<string>("notification_request");
+}
+
+export function notificationSettings(): Promise<void> {
+  return call<void>("notification_settings");
+}
+
+export function downloadDeleteFile(path: string): Promise<void> {
+  return call<void>("download_delete_file", { path });
+}

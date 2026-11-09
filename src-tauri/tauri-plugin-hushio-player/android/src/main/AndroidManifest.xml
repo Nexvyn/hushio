@@ -25,6 +25,18 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/hushio_widget_info" />
         </receiver>
+        <activity
+            android:name=".AuthRedirectActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="${googleRedirectScheme}" android:path="/oauth2redirect" />
+            </intent-filter>
+        </activity>
         <meta-data
             android:name="com.google.android.gms.car.application"
             android:resource="@xml/automotive_app_desc" />

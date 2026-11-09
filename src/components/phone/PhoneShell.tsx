@@ -5,6 +5,7 @@ import { ErrorBoundary } from "../ErrorBoundary";
 import { PlaylistPicker } from "../PlaylistPicker";
 import { Toasts } from "../Toasts";
 import { MiniPlayer } from "./MiniPlayer";
+import { NotificationBanner } from "./NotificationBanner";
 import { PhoneMenuSheet } from "./PhoneMenuSheet";
 import { PhoneNowPlaying } from "./PhoneNowPlaying";
 import { PhoneQueueSheet } from "./PhoneQueueSheet";
@@ -59,6 +60,7 @@ export function PhoneShell() {
       <TabBar />
       <PhoneNowPlaying />
       <Toasts bottom={phoneToastBottom(track !== null)} />
+      <NotificationBanner />
       <PhoneQueueSheet />
       <Dialog sheet />
       <PlaylistPicker />

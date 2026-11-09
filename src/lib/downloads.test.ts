@@ -20,6 +20,7 @@ import { useUI } from "../stores/ui";
 
 const bridge = vi.hoisted(() => ({
   downloadCancel: vi.fn(),
+  downloadDeleteFile: vi.fn(async () => undefined),
   downloadQueue: vi.fn(),
   downloadStart: vi.fn(),
   listenDownloadEvents: vi.fn(),

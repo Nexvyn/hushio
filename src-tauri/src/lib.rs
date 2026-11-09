@@ -2,7 +2,9 @@ mod analysis;
 mod cloud_payload;
 mod deletion_sync;
 mod disconnect;
+mod android;
 mod audio_output;
+mod cache_limit;
 mod downloads;
 mod drive_sync;
 mod google_auth;
@@ -26,6 +28,7 @@ mod taskbar;
 mod tray;
 mod updates;
 mod window;
+mod tree_library;
 mod yt_data_api;
 mod yt_innertube_auth;
 
@@ -40,6 +43,7 @@ use tracing_subscriber::registry::LookupSpan;
 
 const APP_NAME: &str = "Hushio";
 const APP_SLUG: &str = "hushio";
+const IMAGE_CACHE_BYTES: u64 = 64 * 1024 * 1024;
 const DATA_DIR_ENV: &str = "HUSHIO_DATA_DIR";
 const ALLOW_MULTI_ENV: &str = "HUSHIO_ALLOW_MULTI";
 
@@ -525,8 +529,21 @@ pub fn run() {
             local_library::serve_art(&art_dir, request.uri().path())
         })
         .setup(|app| {
+            android::init(app.handle());
             let root = prepare_data_dir(app.handle())?;
-            let default_dir = app.path().download_dir()?.join(APP_NAME);
+            let default_dir = if cfg!(target_os = "android") {
+                app.path().app_cache_dir()?.join(format!("{APP_SLUG}-downloads"))
+            } else {
+                app.path().download_dir()?.join(APP_NAME)
+            };
+            if cfg!(target_os = "android") {
+                let images = app.path().app_cache_dir()?.join("images");
+                tauri::async_runtime::spawn_blocking(move || {
+                    if let Err(error) = cache_limit::trim_dir(&images, IMAGE_CACHE_BYTES) {
+                        tracing::warn!(%error, "image cache not trimmed");
+                    }
+                });
+            }
             let export_dir = app.path().audio_dir().ok().map(|dir| dir.join(APP_NAME));
             let folders = tauri::async_runtime::block_on(reveal::Folders::open(
                 &root,
@@ -626,6 +643,10 @@ pub fn run() {
             download_cancel,
             download_queue,
             reveal::folder_pick,
+            notification_state,
+            notification_request,
+            notification_settings,
+            download_delete_file,
             reveal::path_exists,
             reveal::reveal_path,
             reveal::open_folder,
@@ -730,6 +751,30 @@ fn replay_journal(stats: State<'_, Arc<stats::Service>>) -> Vec<stats::JournalEn
 #[tauri::command]
 fn replay_export(stats: State<'_, Arc<stats::Service>>) -> Vec<serde_json::Value> {
     stats.export()
+}
+
+#[tauri::command]
+fn notification_state() -> Result<String, String> {
+    android::notification_state()
+}
+
+#[tauri::command]
+async fn notification_request() -> Result<String, String> {
+    android::notification_request().await
+}
+
+#[tauri::command]
+fn notification_settings() -> Result<(), String> {
+    android::notification_settings()
+}
+
+#[tauri::command]
+fn download_delete_file(path: String) -> Result<(), String> {
+    if path.starts_with("content://") {
+        android::media_delete(&path)
+    } else {
+        Ok(())
+    }
 }
 
 #[tauri::command]

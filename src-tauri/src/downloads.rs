@@ -214,6 +214,7 @@ impl<S: EventSink> Downloads<S> {
             return Err("Track id is not valid".to_owned());
         }
         let dir = match dir {
+            _ if cfg!(target_os = "android") => self.inner.default_dir.clone(),
             Some(dir) if !dir.is_absolute() => {
                 return Err("Download folder must be an absolute path".to_owned());
             }
@@ -451,6 +452,14 @@ impl<S: EventSink> Inner<S> {
             "{} - {}",
             request.track.artist, request.track.title
         ));
+        if cfg!(target_os = "android") {
+            let part = request.part.to_string_lossy().into_owned();
+            let uri = crate::android::publish_download(&part, &format!("{stem}.{extension}"))
+                .await
+                .map_err(Failure::Failed)?;
+            remove_file_logged(&request.part);
+            return Ok(PathBuf::from(uri));
+        }
         let dest = claim_name(&request.dir, &stem, extension)?;
         if let Err(error) = tokio::fs::rename(&request.part, &dest).await {
             remove_file_logged(&dest);

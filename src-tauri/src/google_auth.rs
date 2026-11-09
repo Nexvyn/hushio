@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, UNIX_EPOCH};
 
@@ -37,6 +39,7 @@ const YOUTUBE_SCOPE: &str = "https://www.googleapis.com/auth/youtube";
 const DRIVE_SCOPE: &str = "https://www.googleapis.com/auth/drive.appdata";
 const SCOPES: &str = "openid email profile https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/drive.appdata";
 const CALLBACK_PATH: &str = "/callback";
+const APP_REDIRECT_PATH: &str = ":/oauth2redirect";
 const VERIFIER_LEN: usize = 64;
 const VERIFIER_CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
 const STATE_BYTES: usize = 32;
@@ -85,20 +88,17 @@ fn keyring_entry(account: &str) -> StoreResult<keyring::Entry> {
 #[cfg(not(desktop))]
 impl SecretStore for KeyringSlot {
     fn read(&self) -> StoreResult<Option<String>> {
-        Err(format!("{NO_KEYRING_ON_PLATFORM}: {}", self.0))
+        crate::android::secret_read(self.0)
     }
 
-    fn write(&self, _value: &str) -> StoreResult<()> {
-        Err(NO_KEYRING_ON_PLATFORM.to_owned())
+    fn write(&self, value: &str) -> StoreResult<()> {
+        crate::android::secret_write(self.0, value)
     }
 
     fn clear(&self) -> StoreResult<()> {
-        Err(NO_KEYRING_ON_PLATFORM.to_owned())
+        crate::android::secret_clear(self.0)
     }
 }
-
-#[cfg(not(desktop))]
-const NO_KEYRING_ON_PLATFORM: &str = "no system keyring on this platform";
 
 #[cfg(desktop)]
 impl SecretStore for KeyringSlot {
@@ -138,19 +138,53 @@ impl SecretStore for KeyringStore {
     }
 }
 
+type RedirectFuture<'a> = Pin<Box<dyn Future<Output = StoreResult<String>> + Send + 'a>>;
+
 pub trait Browser: Send + Sync {
     fn open(&self, url: &str) -> StoreResult<()>;
+
+    fn redirect_scheme(&self) -> Option<String> {
+        None
+    }
+
+    fn await_redirect(&self) -> RedirectFuture<'_> {
+        Box::pin(async { Err(MSG_DIDNT_COMPLETE.to_owned()) })
+    }
 }
 
 pub struct SystemBrowser(pub AppHandle);
 
 impl Browser for SystemBrowser {
     fn open(&self, url: &str) -> StoreResult<()> {
+        if cfg!(target_os = "android") {
+            return crate::android::open_sign_in(url);
+        }
         self.0
             .opener()
             .open_url(url, None::<&str>)
             .map_err(|error| error.to_string())
     }
+
+    fn redirect_scheme(&self) -> Option<String> {
+        if cfg!(target_os = "android") {
+            android_redirect_scheme(GOOGLE_CLIENT_ID)
+        } else {
+            None
+        }
+    }
+
+    fn await_redirect(&self) -> RedirectFuture<'_> {
+        Box::pin(async {
+            crate::android::await_sign_in_redirect()
+                .await
+                .map_err(|_| MSG_CANCELLED.to_owned())
+        })
+    }
+}
+
+pub(crate) fn android_redirect_scheme(client_id: &str) -> Option<String> {
+    let prefix = client_id.strip_suffix(".apps.googleusercontent.com")?;
+    (!prefix.is_empty()).then(|| format!("com.googleusercontent.apps.{prefix}"))
 }
 
 #[derive(Clone)]
@@ -290,7 +324,7 @@ struct Reply {
 
 struct Callback {
     code: String,
-    stream: TcpStream,
+    stream: Option<TcpStream>,
 }
 
 struct PendingGuard<'a> {
@@ -370,31 +404,38 @@ impl GoogleAuth {
 
         let verifier = random_verifier();
         let state = random_state();
-        let (listener, port) = bind_loopback()
-            .await
-            .map_err(|_| MSG_DIDNT_COMPLETE.to_owned())?;
-        let redirect = redirect_uri(port);
+        let (listener, redirect) = match browser.redirect_scheme() {
+            Some(scheme) => (None, format!("{scheme}{APP_REDIRECT_PATH}")),
+            None => {
+                let (listener, port) = bind_loopback()
+                    .await
+                    .map_err(|_| MSG_DIDNT_COMPLETE.to_owned())?;
+                (Some(listener), redirect_uri(port))
+            }
+        };
         let url = authorization_url(&self.config, &redirect, &code_challenge(&verifier), &state);
         browser
             .open(&url)
             .map_err(|_| MSG_NO_BROWSER.to_owned())?;
 
         let callback = tokio::select! {
-            result = tokio::time::timeout(self.config.sign_in_timeout, wait_for_callback(&listener, &state)) => match result {
+            result = tokio::time::timeout(self.config.sign_in_timeout, wait_for_redirect(listener.as_ref(), browser, &state)) => match result {
                 Ok(callback) => callback?,
                 Err(_) => return Err(MSG_TIMED_OUT.to_owned()),
             },
             () = cancel.cancelled() => return Err(MSG_CANCELLED.to_owned()),
         };
 
-        let Callback { code, mut stream } = callback;
+        let Callback { code, stream } = callback;
         let outcome = self.complete_sign_in(&code, &verifier, &redirect).await;
-        let page = if outcome.is_ok() {
-            success_page()
-        } else {
-            error_page()
-        };
-        respond(&mut stream, "200 OK", &page).await;
+        if let Some(mut stream) = stream {
+            let page = if outcome.is_ok() {
+                success_page()
+            } else {
+                error_page()
+            };
+            respond(&mut stream, "200 OK", &page).await;
+        }
         outcome
     }
 
@@ -790,6 +831,54 @@ pub(crate) fn error_code(body: &str) -> Option<String> {
     value.get("error")?.as_str().map(str::to_owned)
 }
 
+async fn wait_for_redirect(
+    listener: Option<&TcpListener>,
+    browser: &dyn Browser,
+    state: &str,
+) -> Result<Callback, String> {
+    match listener {
+        Some(listener) => wait_for_callback(listener, state).await,
+        None => wait_for_app_redirect(browser, state).await,
+    }
+}
+
+enum Verdict {
+    Code(String),
+    Ignored,
+    Failed(String),
+}
+
+fn read_redirect(url: &Url, state: &str) -> Verdict {
+    let params: HashMap<String, String> = url.query_pairs().into_owned().collect();
+    if params.get("state").map(String::as_str) != Some(state) {
+        return Verdict::Ignored;
+    }
+    if params.contains_key("error") {
+        let message = params
+            .get("error_description")
+            .filter(|description| !description.is_empty())
+            .map(|description| description.chars().take(MAX_ERROR_LEN).collect())
+            .unwrap_or_else(|| MSG_DIDNT_COMPLETE.to_owned());
+        return Verdict::Failed(message);
+    }
+    match params.get("code") {
+        Some(code) if !code.is_empty() && code.len() <= MAX_CODE_LEN => Verdict::Code(code.clone()),
+        _ => Verdict::Failed(MSG_DIDNT_COMPLETE.to_owned()),
+    }
+}
+
+async fn wait_for_app_redirect(browser: &dyn Browser, state: &str) -> Result<Callback, String> {
+    loop {
+        let raw = browser.await_redirect().await?;
+        let url = Url::parse(&raw).map_err(|_| MSG_DIDNT_COMPLETE.to_owned())?;
+        match read_redirect(&url, state) {
+            Verdict::Ignored => continue,
+            Verdict::Failed(message) => return Err(message),
+            Verdict::Code(code) => return Ok(Callback { code, stream: None }),
+        }
+    }
+}
+
 async fn wait_for_callback(listener: &TcpListener, state: &str) -> Result<Callback, String> {
     loop {
         let (mut stream, _) = listener
@@ -808,30 +897,19 @@ async fn wait_for_callback(listener: &TcpListener, state: &str) -> Result<Callba
             respond(&mut stream, "404 Not Found", "Not found").await;
             continue;
         }
-        let params: HashMap<String, String> = url.query_pairs().into_owned().collect();
-        if params.get("state").map(String::as_str) != Some(state) {
-            respond(&mut stream, "400 Bad Request", &state_page()).await;
-            continue;
-        }
-        if params.contains_key("error") {
-            respond(&mut stream, "200 OK", &error_page()).await;
-            let message = params
-                .get("error_description")
-                .filter(|description| !description.is_empty())
-                .map(|description| description.chars().take(MAX_ERROR_LEN).collect())
-                .unwrap_or_else(|| MSG_DIDNT_COMPLETE.to_owned());
-            return Err(message);
-        }
-        return match params.get("code") {
-            Some(code) if !code.is_empty() && code.len() <= MAX_CODE_LEN => Ok(Callback {
-                code: code.clone(),
-                stream,
-            }),
-            _ => {
+        match read_redirect(&url, state) {
+            Verdict::Ignored => respond(&mut stream, "400 Bad Request", &state_page()).await,
+            Verdict::Failed(message) => {
                 respond(&mut stream, "200 OK", &error_page()).await;
-                Err(MSG_DIDNT_COMPLETE.to_owned())
+                return Err(message);
             }
-        };
+            Verdict::Code(code) => {
+                return Ok(Callback {
+                    code,
+                    stream: Some(stream),
+                });
+            }
+        }
     }
 }
 
@@ -1217,7 +1295,7 @@ mod tests {
         )));
         let mut received = waiter.await.unwrap().unwrap();
         assert_eq!(received.code, "abc");
-        respond(&mut received.stream, "200 OK", "ok").await;
+        respond(received.stream.as_mut().unwrap(), "200 OK", "ok").await;
         drop(received);
         callback.await.unwrap().unwrap();
     }
@@ -1239,7 +1317,7 @@ mod tests {
         )));
         let mut received = waiter.await.unwrap().unwrap();
         assert_eq!(received.code, "real");
-        respond(&mut received.stream, "200 OK", "ok").await;
+        respond(received.stream.as_mut().unwrap(), "200 OK", "ok").await;
         drop(received);
         callback.await.unwrap().unwrap();
     }
@@ -1636,5 +1714,29 @@ mod tests {
         slot.clear().unwrap();
         assert_eq!(slot.read().unwrap(), None);
         slot.clear().unwrap();
+    }
+
+    #[test]
+    fn android_redirect_scheme_is_the_reversed_client_id() {
+        assert_eq!(
+            android_redirect_scheme("123-abc.apps.googleusercontent.com").as_deref(),
+            Some("com.googleusercontent.apps.123-abc")
+        );
+        assert_eq!(android_redirect_scheme(""), None);
+        assert_eq!(android_redirect_scheme("123-abc"), None);
+        assert_eq!(android_redirect_scheme(".apps.googleusercontent.com"), None);
+    }
+
+    #[test]
+    fn app_redirect_reads_code_state_and_errors() {
+        let ok = Url::parse("com.googleusercontent.apps.x:/oauth2redirect?code=c1&state=s1").unwrap();
+        assert!(matches!(read_redirect(&ok, "s1"), Verdict::Code(code) if code == "c1"));
+        let forged = Url::parse("com.googleusercontent.apps.x:/oauth2redirect?code=c1&state=bad").unwrap();
+        assert!(matches!(read_redirect(&forged, "s1"), Verdict::Ignored));
+        let denied = Url::parse("com.googleusercontent.apps.x:/oauth2redirect?error=access_denied&state=s1").unwrap();
+        assert!(matches!(read_redirect(&denied, "s1"), Verdict::Failed(message) if message == MSG_DIDNT_COMPLETE));
+        let long = format!("com.googleusercontent.apps.x:/oauth2redirect?code={}&state=s1", "c".repeat(MAX_CODE_LEN + 1));
+        let long = Url::parse(&long).unwrap();
+        assert!(matches!(read_redirect(&long, "s1"), Verdict::Failed(_)));
     }
 }
