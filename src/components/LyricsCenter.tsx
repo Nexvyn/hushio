@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { Icon } from "./Icon";
+import { LyricsChoice } from "./LyricsChoice";
 import { LyricsTiming } from "./LyricsTiming";
 import { SyncedLyrics } from "./SyncedLyrics";
 import { reducedMotion, swap } from "../lib/motion";
@@ -15,7 +16,7 @@ export function LyricsCenter() {
   const closeLyrics = useUI((state) => state.closeLyrics);
   const trackId = track?.id ?? null;
   const offset = useLyricsOffset(trackId);
-  const { lyrics, loading } = useTrackLyrics(track, duration);
+  const { lyrics, loading, reload } = useTrackLyrics(track, duration);
   useLyricsTimingKeys(trackId);
 
   const reduced = reducedMotion();
@@ -38,6 +39,15 @@ export function LyricsCenter() {
         <Icon icon={Cancel01Icon} />
       </button>
       {track && <LyricsTiming trackId={track.id} className="absolute right-16 top-4 z-10" />}
+      {track && (
+        <LyricsChoice
+          track={track}
+          duration={duration}
+          overridden={Boolean(lyrics?.custom)}
+          onChanged={reload}
+          className="absolute left-10 top-4 z-10"
+        />
+      )}
       <div className="relative flex h-full flex-col px-10 pb-6 pt-14">
         {track ? (
           <SyncedLyrics

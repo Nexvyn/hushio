@@ -1,0 +1,35 @@
+[
+  {
+    "id": 33756008,
+    "name": "Coldplay - Yellow",
+    "trackName": "Coldplay - Yellow",
+    "artistName": "Coldplay",
+    "albumName": "Coldplay - Yellow",
+    "duration": 273,
+    "instrumental": false,
+    "plainLyrics": "Look at the stars\nLook how they shine for you\n",
+    "syncedLyrics": "[00:34.89] Look at the stars\n[00:37.55] Look how they shine for you\n[00:43.16] And everything you do"
+  },
+  {
+    "id": 19324084,
+    "name": "Coldplay - Yellow",
+    "trackName": "Coldplay - Yellow",
+    "artistName": "Coldplay",
+    "albumName": "Coldplay",
+    "duration": 267.859562,
+    "instrumental": false,
+    "plainLyrics": "Look at the stars\nLook how they shine for you\n",
+    "syncedLyrics": "[00:34.89] Look at the stars\n[00:37.55] Look how they shine for you\n[00:43.16] And everything you do"
+  },
+  {
+    "id": 12178051,
+    "name": "Coldplay - Yellow",
+    "trackName": "Coldplay - Yellow",
+    "artistName": "Coldplay",
+    "albumName": "Coldplay",
+    "duration": 272,
+    "instrumental": false,
+    "plainLyrics": "Look at the stars\nLook how they shine for you\n",
+    "syncedLyrics": "[00:33.43] Look at the stars\n[00:36.10] Look how they shine for you\n[00:41.82] And everything you do"
+  }
+]

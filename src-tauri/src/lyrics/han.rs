@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-const FROM: &str = "後於爲綫衆桜気戦麼麽鹼硷衞説氷";
-const TO: &str = "后于为线众樱气战么么碱碱卫说冰";
+const FROM: &str = "後於爲綫衆桜気戦麼麽鹼硷衞説氷倫";
+const TO: &str = "后于为线众樱气战么么碱碱卫说冰伦";
 
 fn table() -> &'static HashMap<char, char> {
     static TABLE: OnceLock<HashMap<char, char>> = OnceLock::new();
@@ -28,6 +28,7 @@ mod tests {
     fn traditional_forms_fold_to_simplified() {
         assert_eq!(fold_han("戦後説氷"), "战后说冰");
         assert_eq!(fold_han("麽麼"), "么么");
+        assert_eq!(fold_han("倫"), "伦");
     }
 
     #[test]

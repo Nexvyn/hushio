@@ -35,11 +35,11 @@ const FADE_MASK = "linear-gradient(to bottom, transparent 0%, black 14%, black 8
 const ART_FADE_MASK = "linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%)";
 const GLOW = "drop-shadow(0 0 22px rgb(var(--ink-1) / 0.28))";
 const FOCUS_RING = "rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
-const LINE_CLASS = "font-display text-[40px] leading-[1.25] tracking-[-0.03em] font-extrabold";
-const ART_LINE_CLASS = "text-[30px] leading-[1.28] tracking-[-0.01em] font-medium [font-family:var(--font-lyric)] font-synthesis-none";
-const ART_ACTIVE_CLASS = "text-[30px] leading-[1.28] tracking-[-0.01em] font-semibold [font-family:var(--font-lyric)] font-synthesis-none";
-const SUB_CLASS = "font-display text-[22px] leading-[1.3] font-bold";
-const ART_SUB_CLASS = "text-[22px] leading-[1.3] font-medium [font-family:var(--font-lyric)] font-synthesis-none";
+const LINE_CLASS = "font-display text-[calc(40px*var(--lyric-scale))] leading-[1.25] tracking-[-0.03em] font-extrabold";
+const ART_LINE_CLASS = "text-[calc(30px*var(--lyric-scale))] leading-[1.28] tracking-[-0.01em] font-medium [font-family:var(--font-lyric)] font-synthesis-none";
+const ART_ACTIVE_CLASS = "text-[calc(30px*var(--lyric-scale))] leading-[1.28] tracking-[-0.01em] font-semibold [font-family:var(--font-lyric)] font-synthesis-none";
+const SUB_CLASS = "font-display text-[calc(22px*var(--lyric-scale))] leading-[1.3] font-bold";
+const ART_SUB_CLASS = "text-[calc(22px*var(--lyric-scale))] leading-[1.3] font-medium [font-family:var(--font-lyric)] font-synthesis-none";
 
 type Glide = { frame: number; from: number; to: number; start: number };
 type GlideRef = MutableRefObject<Glide | null>;

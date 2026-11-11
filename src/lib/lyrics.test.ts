@@ -27,9 +27,21 @@ describe("requestLyrics", () => {
     lyricsGet.mockResolvedValue(synced);
     const { requestLyrics } = await load();
     await requestLyrics(track("a"));
-    expect(lyricsGet).toHaveBeenCalledWith({ id: "a", title: "Title a", artist: "Artist a", duration: undefined });
+    expect(lyricsGet).toHaveBeenCalledWith({
+      id: "a",
+      title: "Title a",
+      artist: "Artist a",
+      duration: undefined,
+      providers: expect.any(Array),
+    });
     await requestLyrics(track("b"), 215);
-    expect(lyricsGet).toHaveBeenLastCalledWith({ id: "b", title: "Title b", artist: "Artist b", duration: 215 });
+    expect(lyricsGet).toHaveBeenLastCalledWith({
+      id: "b",
+      title: "Title b",
+      artist: "Artist b",
+      duration: 215,
+      providers: expect.any(Array),
+    });
   });
 
   it("reuses the cached answer for the same track", async () => {

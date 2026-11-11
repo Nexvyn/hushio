@@ -1,4 +1,5 @@
 import { lyricsGet, type LyricsResult } from "./bridge";
+import { useSettings } from "../stores/settings";
 import type { Track } from "../types";
 
 export const LYRICS_CACHE_LIMIT = 24;
@@ -16,11 +17,13 @@ export function requestLyrics(track: Track, duration = 0): Promise<LyricsResult 
   if (cached) return cached;
   if (Date.now() < (retryAfter.get(track.id) ?? 0)) return Promise.resolve(null);
 
+  const providers = useSettings.getState().lyricsProviders;
   const request: Promise<LyricsResult | null> = lyricsGet({
     id: track.id,
     title: track.title,
     artist: track.artist,
     duration: duration > 0 ? duration : undefined,
+    providers: [...providers],
   })
     .catch(() => null)
     .then((result) => {
@@ -40,4 +43,14 @@ export function requestLyrics(track: Track, duration = 0): Promise<LyricsResult 
 
 export function prefetchLyrics(track: Track): void {
   void requestLyrics(track);
+}
+
+export function replaceLyrics(trackId: string, result: LyricsResult): void {
+  retryAfter.delete(trackId);
+  cache.set(trackId, Promise.resolve(result));
+}
+
+export function forgetLyrics(trackId: string): void {
+  retryAfter.delete(trackId);
+  cache.delete(trackId);
 }

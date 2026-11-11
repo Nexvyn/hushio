@@ -15,7 +15,7 @@ use super::{Inner, LyricsResult, Query};
 use crate::APP_NAME;
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_millis(6000);
-const LRCLIB_TIMEOUT: Duration = Duration::from_millis(7000);
+pub(super) const LRCLIB_TIMEOUT: Duration = Duration::from_millis(7000);
 const APPLE_PAGE_TIMEOUT: Duration = Duration::from_millis(8000);
 const APPLE_SEARCH_TIMEOUT: Duration = Duration::from_millis(7000);
 const PAXSENIX_TIMEOUT: Duration = Duration::from_millis(8000);
@@ -47,7 +47,7 @@ static TTML_ROOT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)<tt[\s>]")
 static GENIUS_EMBED_TAIL: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\d*Embed\s*$").expect("embed tail regex"));
 
-enum Reply {
+pub(super) enum Reply {
     Body(String),
     Status(u16),
     Down,
@@ -62,7 +62,7 @@ impl Reply {
     }
 }
 
-async fn fetch(
+pub(super) async fn fetch(
     http: &reqwest::Client,
     url: &str,
     headers: &[(&str, &str)],
@@ -94,7 +94,7 @@ async fn fetch(
     }
 }
 
-fn with_query(base: &str, path: &str, params: &[(&str, String)]) -> String {
+pub(super) fn with_query(base: &str, path: &str, params: &[(&str, String)]) -> String {
     reqwest::Url::parse_with_params(&format!("{base}{path}"), params)
         .expect("lyric host url")
         .to_string()
@@ -565,19 +565,8 @@ mod tests {
     use axum::routing::get;
 
     use super::*;
-    use crate::lyrics::test_support::serve;
-    use crate::lyrics::{Hosts, LyricsMeta, SWEEP_CEILING, Service};
-
-    fn local_hosts(base: &str) -> Hosts {
-        Hosts {
-            boidu: base.to_owned(),
-            lrclib: format!("{base}/api"),
-            apple: base.to_owned(),
-            amp: base.to_owned(),
-            paxsenix: base.to_owned(),
-            genius: base.to_owned(),
-        }
-    }
+    use crate::lyrics::test_support::{local_hosts, serve};
+    use crate::lyrics::{LyricsMeta, SWEEP_CEILING, Service};
 
     const BETTER_BODY: &str = r#"{"ttml":"<tt><body><div><p begin=\"1s\" end=\"2s\">Hello there</p><p begin=\"3s\" end=\"4s\">second line</p></div></body></tt>"}"#;
     const PORTATO_PLAIN: &str = "plain portato words";
@@ -857,6 +846,7 @@ mod tests {
                 artist: "Singer".to_owned(),
                 album: None,
                 duration: Some(200.0),
+                providers: None,
             })
             .await
             .expect("winner");
@@ -884,6 +874,7 @@ mod tests {
                 artist: "Singer".to_owned(),
                 album: None,
                 duration: Some(200.0),
+                providers: None,
             })
             .await
             .expect("winner");
@@ -911,6 +902,7 @@ mod tests {
                 artist: "Singer".to_owned(),
                 album: None,
                 duration: Some(200.0),
+                providers: None,
             })
             .await
             .expect("plain fallback");
@@ -942,6 +934,7 @@ mod tests {
                 artist: "Singer".to_owned(),
                 album: None,
                 duration: Some(200.0),
+                providers: None,
             })
             .await
             .expect("winner");
@@ -969,6 +962,7 @@ mod tests {
                 artist: "Singer".to_owned(),
                 album: None,
                 duration: Some(200.0),
+                providers: None,
             })
             .await;
         assert!(found.is_none());
@@ -989,6 +983,7 @@ mod tests {
             artist: "Singer".to_owned(),
             album: None,
             duration: Some(200.0),
+            providers: None,
         };
         assert!(svc.get(meta()).await.is_some());
         let first = hits.load(Ordering::SeqCst);
@@ -1011,6 +1006,7 @@ mod tests {
             artist: "Singer".to_owned(),
             album: None,
             duration: Some(200.0),
+            providers: None,
         };
         assert!(svc.get(meta()).await.is_none());
         let first = hits.load(Ordering::SeqCst);

@@ -22,6 +22,8 @@ static KARAOKE_SUFFIX: LazyLock<Regex> = LazyLock::new(|| {
 });
 static LRC_STAMP: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]").expect("lrc stamp regex"));
+static LRC_OFFSET: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)^\[offset\s*:([^\]]*)\]$").expect("lrc offset regex"));
 static WORD_STAMP: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"<(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?>([^<]*)").expect("word stamp regex")
 });
@@ -522,7 +524,25 @@ fn stamp(caps: &Captures<'_>) -> f64 {
     minutes * 60.0 + seconds + fraction
 }
 
+fn lrc_offset_seconds(text: &str) -> f64 {
+    text.lines()
+        .find_map(|line| LRC_OFFSET.captures(line.trim()))
+        .and_then(|caps| caps[1].trim().parse::<i64>().ok())
+        .map_or(0.0, |ms| ms as f64 / 1000.0)
+}
+
+fn shift_lines(lines: &mut [SyncedLyricLine], seconds: f64) {
+    for line in lines.iter_mut() {
+        line.time = (line.time - seconds).max(0.0);
+        for word in line.words.iter_mut().flatten() {
+            word.start = (word.start - seconds).max(0.0);
+            word.end = (word.end - seconds).max(0.0);
+        }
+    }
+}
+
 pub fn parse_lrc(text: &str) -> Vec<SyncedLyricLine> {
+    let offset = lrc_offset_seconds(text);
     let mut lines = Vec::new();
     for raw in text.lines() {
         let mut rest = raw.trim_start();
@@ -568,6 +588,7 @@ pub fn parse_lrc(text: &str) -> Vec<SyncedLyricLine> {
             });
         }
     }
+    shift_lines(&mut lines, offset);
     lines.sort_by(|a, b| a.time.total_cmp(&b.time));
     lines
 }
@@ -655,6 +676,7 @@ pub fn timed_result(source: &str, mut lines: Vec<SyncedLyricLine>) -> Option<Lyr
         plain: None,
         source: source.to_owned(),
         word_synced,
+        custom: false,
     })
 }
 
@@ -664,6 +686,7 @@ pub fn plain_result(source: &str, text: String) -> LyricsResult {
         plain: Some(text),
         source: source.to_owned(),
         word_synced: false,
+        custom: false,
     }
 }
 
@@ -844,6 +867,53 @@ mod tests {
         let words = lines[0].words.as_ref().expect("words");
         assert_eq!(words[0].end, 2.0);
         assert!((words[1].end - 2.8).abs() < 1e-9);
+    }
+
+    #[test]
+    fn lrc_offset_positive_shows_lyrics_earlier() {
+        let lines = parse_lrc("[offset:+500]\n[00:05.00]Line");
+        assert_eq!(lines.len(), 1);
+        assert!((lines[0].time - 4.5).abs() < 1e-9);
+        assert_eq!(lines[0].text, "Line");
+    }
+
+    #[test]
+    fn lrc_offset_negative_with_spaces_shows_lyrics_later() {
+        let lines = parse_lrc("[OFFSET: -250]\n[00:05.00]Line");
+        assert!((lines[0].time - 5.25).abs() < 1e-9);
+    }
+
+    #[test]
+    fn lrc_offset_clamps_times_at_zero() {
+        let lines = parse_lrc("[offset:+10000]\n[00:03.00]Early\n[00:12.00]Later");
+        assert_eq!(lines[0].time, 0.0);
+        assert!((lines[1].time - 2.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn lrc_offset_shifts_word_stamps() {
+        let lines = parse_lrc("[offset:+500]\n[00:01.00]<00:01.00>one <00:02.00>two");
+        assert!((lines[0].time - 0.5).abs() < 1e-9);
+        let words = lines[0].words.as_ref().expect("words");
+        assert!((words[0].start - 0.5).abs() < 1e-9);
+        assert!((words[0].end - 1.5).abs() < 1e-9);
+        assert!((words[1].start - 1.5).abs() < 1e-9);
+        assert!((words[1].end - 2.3).abs() < 1e-9);
+    }
+
+    #[test]
+    fn lrc_malformed_offset_is_ignored() {
+        for tag in ["[offset:abc]", "[offset:]", "[offset:+ 5 0]"] {
+            let lines = parse_lrc(&format!("{tag}\n[00:05.00]Line"));
+            assert_eq!(lines[0].time, 5.0, "tag {tag}");
+        }
+    }
+
+    #[test]
+    fn lrc_without_offset_is_unchanged() {
+        let lines = parse_lrc("[00:05.00]Line\n[00:07.50]Next");
+        assert_eq!(lines[0].time, 5.0);
+        assert_eq!(lines[1].time, 7.5);
     }
 
     #[test]
