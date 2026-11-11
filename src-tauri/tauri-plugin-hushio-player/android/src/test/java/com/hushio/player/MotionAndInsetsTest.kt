@@ -22,10 +22,21 @@ class MotionAndInsetsTest {
     }
 
     @Test
-    fun declarationsWriteEachSideInDp() {
+    fun sidesConvertEachEdgeToDp() {
         assertEquals(
-            "--inset-top:32.00px;--inset-bottom:16.00px;--inset-left:0.00px;--inset-right:0.00px",
-            InsetsCss.declarations(84, 42, 0, 0, 2.625f),
+            InsetsCss.Sides(32f, 16f, 0f, 0f),
+            InsetsCss.sides(84, 42, 0, 0, 2.625f),
+        )
+    }
+
+    @Test
+    fun scriptSetsEachInsetProperty() {
+        assertEquals(
+            "document.documentElement.style.setProperty('--inset-top','32.00px');" +
+                "document.documentElement.style.setProperty('--inset-bottom','16.00px');" +
+                "document.documentElement.style.setProperty('--inset-left','0.00px');" +
+                "document.documentElement.style.setProperty('--inset-right','0.00px')",
+            InsetsCss.script(InsetsCss.sides(84, 42, 0, 0, 2.625f)),
         )
     }
 }

@@ -46,6 +46,7 @@ class PlayerService : MediaLibraryService() {
 
     private val handler = Handler(Looper.getMainLooper())
     private val queue = QueueMirror<QueueItem>()
+    private val recent = ArrayList<QueueItem>()
     private val headersByUrl = ConcurrentHashMap<String, Map<String, String>>()
     private val sleepTimer = SleepTimer()
     private val buttonGestures = MediaButtonGestures()
@@ -109,6 +110,7 @@ class PlayerService : MediaLibraryService() {
                     mapOf("index" to player.currentMediaItemIndex, "id" to item.id, "reason" to trackReason),
                 )
             }
+            queue.currentItem()?.let { BrowseTree.remember(recent, it) }
             ensureUsable()
             emitState()
             publishWidget()
@@ -216,7 +218,7 @@ class PlayerService : MediaLibraryService() {
             params: MediaLibraryService.LibraryParams?,
         ): ListenableFuture<LibraryResult<MediaItem>> {
             val root = MediaItem.Builder()
-                .setMediaId(ROOT_ID)
+                .setMediaId(BrowseTree.ROOT_ID)
                 .setMediaMetadata(
                     MediaMetadata.Builder()
                         .setTitle(packageManager.getApplicationLabel(applicationInfo))
@@ -235,8 +237,42 @@ class PlayerService : MediaLibraryService() {
             page: Int,
             pageSize: Int,
             params: MediaLibraryService.LibraryParams?,
-        ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> =
-            Futures.immediateFuture(LibraryResult.ofItemList(ImmutableList.of(), params))
+        ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
+            val children = when {
+                parentId == BrowseTree.ROOT_ID ->
+                    BrowseTree.SECTIONS.map { (id, title) -> sectionItem(id, title) }
+                BrowseTree.isSection(parentId) ->
+                    BrowseTree.songs(parentId, queue.items, recent).map { browseSongItem(it) }
+                else -> emptyList()
+            }
+            val paged = BrowseTree.page(children, page, pageSize)
+            return Futures.immediateFuture(LibraryResult.ofItemList(ImmutableList.copyOf(paged), params))
+        }
+
+        override fun onSetMediaItems(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            mediaItems: MutableList<MediaItem>,
+            startIndex: Int,
+            startPositionMs: Long,
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            val chosen = mediaItems.mapNotNull { BrowseTree.resolve(it.mediaId, queue.items, recent) }
+            if (chosen.isEmpty()) {
+                return Futures.immediateFuture(
+                    MediaSession.MediaItemsWithStartPosition(mediaItems, startIndex, startPositionMs),
+                )
+            }
+            val chosenId = mediaItems.getOrNull(startIndex)?.mediaId
+            val index = chosen.indexOfFirst { it.id == chosenId }.coerceAtLeast(0)
+            replaceQueue(chosen, index, startPositionMs)
+            return Futures.immediateFuture(
+                MediaSession.MediaItemsWithStartPosition(
+                    queue.items.map { toMediaItem(it) },
+                    queue.current,
+                    startPositionMs,
+                ),
+            )
+        }
     }
 
     override fun onCreate() {
@@ -295,7 +331,7 @@ class PlayerService : MediaLibraryService() {
         if (queue.size == 0) {
             player.clearMediaItems()
         } else {
-            player.setMediaItems(queue.items.map(::toMediaItem), queue.current, startPositionMs)
+            player.setMediaItems(queue.items.map { toMediaItem(it) }, queue.current, startPositionMs)
             player.prepare()
             player.pause()
         }
@@ -626,19 +662,42 @@ class PlayerService : MediaLibraryService() {
         if (item.headers.isNotEmpty()) headersByUrl[uri] = item.headers
     }
 
-    private fun toMediaItem(item: QueueItem): MediaItem {
-        val metadata = MediaMetadata.Builder()
-            .setTitle(item.title)
-            .setArtist(item.artist)
-            .setAlbumTitle(item.album)
-            .setArtworkUri(item.artworkUrl?.let(Uri::parse))
-            .build()
-        return MediaItem.Builder()
+    private fun metadataOf(item: QueueItem): MediaMetadata.Builder = MediaMetadata.Builder()
+        .setTitle(item.title)
+        .setArtist(item.artist)
+        .setAlbumTitle(item.album)
+        .setArtworkUri(item.artworkUrl?.let(Uri::parse))
+
+    private fun toMediaItem(item: QueueItem): MediaItem =
+        MediaItem.Builder()
             .setMediaId(item.id)
             .setUri(item.playbackUri().orEmpty())
-            .setMediaMetadata(metadata)
+            .setMediaMetadata(metadataOf(item).build())
             .build()
-    }
+
+    private fun browseSongItem(item: QueueItem): MediaItem =
+        MediaItem.Builder()
+            .setMediaId(item.id)
+            .setMediaMetadata(
+                metadataOf(item)
+                    .setIsBrowsable(false)
+                    .setIsPlayable(true)
+                    .build(),
+            )
+            .build()
+
+    private fun sectionItem(id: String, title: String): MediaItem =
+        MediaItem.Builder()
+            .setMediaId(id)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(title)
+                    .setFolderType(MediaMetadata.FOLDER_TYPE_MIXED)
+                    .setIsBrowsable(true)
+                    .setIsPlayable(false)
+                    .build(),
+            )
+            .build()
 
     private fun loadControl(): DefaultLoadControl =
         DefaultLoadControl.Builder()
@@ -653,7 +712,6 @@ class PlayerService : MediaLibraryService() {
 
     companion object {
         private const val SESSION_ID = "hushio-player"
-        private const val ROOT_ID = "[root]"
         private const val LIKE_ACTION = "hushio.like"
         private const val MIN_BUFFER_MS = 15_000
         private const val MAX_BUFFER_MS = 30_000

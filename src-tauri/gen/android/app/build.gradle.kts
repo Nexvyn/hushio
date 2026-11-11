@@ -43,7 +43,7 @@ fun releaseVersionCode(digit: Int): Int =
     (versionMajor * 10000 + versionMinor * 100 + versionPatch) * 10 + digit
 
 android {
-    compileSdk = 35
+    compileSdk = 36
     ndkVersion = "27.0.12077973"
     namespace = "com.hushio.app"
     defaultConfig {

@@ -6,8 +6,10 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.view.HapticFeedbackConstants
+import android.view.WindowManager
 import android.webkit.WebView
 import androidx.core.graphics.Insets
+import androidx.core.view.OnApplyWindowInsetsListener
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import app.tauri.annotation.Command
@@ -19,6 +21,7 @@ import org.json.JSONObject
 
 class PlayerPlugin(private val activity: Activity) : Plugin(activity) {
     private var webView: WebView? = null
+    @Volatile private var insets = InsetsCss.Sides(0f, 0f, 0f, 0f)
 
     override fun load(webView: WebView) {
         this.webView = webView
@@ -29,19 +32,32 @@ class PlayerPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun player_exit(invoke: Invoke) {
+    fun playerExit(invoke: Invoke) {
         activity.runOnUiThread { activity.finish() }
         invoke.resolve()
     }
 
     @Command
-    fun player_haptic_tick(invoke: Invoke) {
+    fun playerHapticTick(invoke: Invoke) {
         activity.runOnUiThread { webView?.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS) }
         invoke.resolve()
     }
 
     @Command
-    fun player_set_queue(invoke: Invoke) = withPlayer(invoke) { player ->
+    fun playerKeepAwake(invoke: Invoke) {
+        val on = invoke.getArgs().optBoolean("on", false)
+        activity.runOnUiThread {
+            if (on) {
+                activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            } else {
+                activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+        }
+        invoke.resolve()
+    }
+
+    @Command
+    fun playerSetQueue(invoke: Invoke) = withPlayer(invoke) { player ->
         val args = invoke.getArgs()
         val accepted = player.replaceQueue(
             parseItems(args.getJSONArray("items")),
@@ -52,104 +68,104 @@ class PlayerPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun player_append(invoke: Invoke) = withPlayer(invoke) { player ->
+    fun playerAppend(invoke: Invoke) = withPlayer(invoke) { player ->
         val items = parseItems(invoke.getArgs().getJSONArray("items"))
         invoke.resolve(JSObject().put("count", player.appendItems(items)))
     }
 
     @Command
-    fun player_insert_next(invoke: Invoke) = withPlayer(invoke) { player ->
+    fun playerInsertNext(invoke: Invoke) = withPlayer(invoke) { player ->
         val items = parseItems(invoke.getArgs().getJSONArray("items"))
         invoke.resolve(JSObject().put("count", player.insertNext(items)))
     }
 
     @Command
-    fun player_remove_at(invoke: Invoke) = withPlayer(invoke) { player ->
+    fun playerRemoveAt(invoke: Invoke) = withPlayer(invoke) { player ->
         val index = invoke.getArgs().getInt("index")
         if (player.removeAt(index)) invoke.resolve() else invoke.reject("index_out_of_range")
     }
 
     @Command
-    fun player_move(invoke: Invoke) = withPlayer(invoke) { player ->
+    fun playerMove(invoke: Invoke) = withPlayer(invoke) { player ->
         val args = invoke.getArgs()
         if (player.moveItem(args.getInt("from"), args.getInt("to"))) invoke.resolve() else invoke.reject("index_out_of_range")
     }
 
     @Command
-    fun player_play(invoke: Invoke) = withPlayer(invoke) { player ->
+    fun playerPlay(invoke: Invoke) = withPlayer(invoke) { player ->
         player.setPlaying(true)
         invoke.resolve()
     }
 
     @Command
-    fun player_pause(invoke: Invoke) = withPlayer(invoke) { player ->
+    fun playerPause(invoke: Invoke) = withPlayer(invoke) { player ->
         player.setPlaying(false)
         invoke.resolve()
     }
 
     @Command
-    fun player_toggle(invoke: Invoke) = withPlayer(invoke) { player ->
+    fun playerToggle(invoke: Invoke) = withPlayer(invoke) { player ->
         val playing = player.setPlaying(!player.playRequested())
         invoke.resolve(JSObject().put("playing", playing))
     }
 
     @Command
-    fun player_next(invoke: Invoke) = withPlayer(invoke) { player ->
+    fun playerNext(invoke: Invoke) = withPlayer(invoke) { player ->
         player.next()
         invoke.resolve()
     }
 
     @Command
-    fun player_previous(invoke: Invoke) = withPlayer(invoke) { player ->
+    fun playerPrevious(invoke: Invoke) = withPlayer(invoke) { player ->
         player.previous()
         invoke.resolve()
     }
 
     @Command
-    fun player_seek(invoke: Invoke) = withPlayer(invoke) { player ->
+    fun playerSeek(invoke: Invoke) = withPlayer(invoke) { player ->
         player.seekTo(invoke.getArgs().getLong("positionMs"))
         invoke.resolve()
     }
 
     @Command
-    fun player_set_speed(invoke: Invoke) = withPlayer(invoke) { player ->
+    fun playerSetSpeed(invoke: Invoke) = withPlayer(invoke) { player ->
         player.setSpeed(invoke.getArgs().getDouble("speed"))
         invoke.resolve()
     }
 
     @Command
-    fun player_set_volume(invoke: Invoke) = withPlayer(invoke) { player ->
+    fun playerSetVolume(invoke: Invoke) = withPlayer(invoke) { player ->
         player.setVolume(invoke.getArgs().getDouble("volume"))
         invoke.resolve()
     }
 
     @Command
-    fun player_set_repeat(invoke: Invoke) = withPlayer(invoke) { player ->
+    fun playerSetRepeat(invoke: Invoke) = withPlayer(invoke) { player ->
         player.setRepeat(invoke.getArgs().getString("mode"))
         invoke.resolve()
     }
 
     @Command
-    fun player_set_shuffle(invoke: Invoke) = withPlayer(invoke) { player ->
+    fun playerSetShuffle(invoke: Invoke) = withPlayer(invoke) { player ->
         player.setShuffle(invoke.getArgs().getBoolean("enabled"))
         invoke.resolve()
     }
 
     @Command
-    fun player_set_skip_silence(invoke: Invoke) = withPlayer(invoke) { player ->
+    fun playerSetSkipSilence(invoke: Invoke) = withPlayer(invoke) { player ->
         player.setSkipSilence(invoke.getArgs().getBoolean("enabled"))
         invoke.resolve()
     }
 
     @Command
-    fun player_set_eq(invoke: Invoke) = withPlayer(invoke) { player ->
+    fun playerSetEq(invoke: Invoke) = withPlayer(invoke) { player ->
         val args = invoke.getArgs()
         val bands = player.setEqualizer(args.getBoolean("enabled"), parseGains(args.getJSONArray("gainsDb")))
         invoke.resolve(JSObject().put("appliedBands", bands))
     }
 
     @Command
-    fun player_set_sleep_timer(invoke: Invoke) = withPlayer(invoke) { player ->
+    fun playerSetSleepTimer(invoke: Invoke) = withPlayer(invoke) { player ->
         val args = invoke.getArgs()
         val endsAt = if (args.isNull("endsAtEpochMs")) null else args.getLong("endsAtEpochMs")
         player.setSleepTimer(endsAt, args.optBoolean("endOfSong"))
@@ -157,7 +173,7 @@ class PlayerPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun player_set_url(invoke: Invoke) = withPlayer(invoke) { player ->
+    fun playerSetUrl(invoke: Invoke) = withPlayer(invoke) { player ->
         val args = invoke.getArgs()
         val found = player.setUrl(
             args.getString("id"),
@@ -169,18 +185,23 @@ class PlayerPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun player_set_like(invoke: Invoke) = withPlayer(invoke) { player ->
+    fun playerSetLike(invoke: Invoke) = withPlayer(invoke) { player ->
         val args = invoke.getArgs()
         if (player.setLike(args.getString("id"), args.getBoolean("liked"))) invoke.resolve() else invoke.reject("unknown_item")
     }
 
     @Command
-    fun player_get_state(invoke: Invoke) = withPlayer(invoke) { player ->
+    fun playerGetState(invoke: Invoke) = withPlayer(invoke) { player ->
         invoke.resolve(toJs(player.snapshot().toPayload()))
     }
 
     @Command
-    fun player_take_launch(invoke: Invoke) {
+    fun playerGetInsets(invoke: Invoke) {
+        invoke.resolve(insetsPayload(insets))
+    }
+
+    @Command
+    fun playerTakeLaunch(invoke: Invoke) {
         val launch = PendingLaunch.take()
         invoke.resolve(launch?.let { JSObject().put("kind", it.kind).put("value", it.value) } ?: JSObject())
     }
@@ -201,18 +222,30 @@ class PlayerPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     private fun watchInsets(view: WebView) {
-        ViewCompat.setOnApplyWindowInsetsListener(view) { _, insets ->
-            writeInsets(view, insets.getInsets(BARS_AND_CUTOUT))
-            insets
+        val listener = OnApplyWindowInsetsListener { _, applied ->
+            publishInsets(applied.getInsets(BARS_AND_CUTOUT))
+            applied
         }
-        ViewCompat.getRootWindowInsets(view)?.let { writeInsets(view, it.getInsets(BARS_AND_CUTOUT)) }
+        ViewCompat.setOnApplyWindowInsetsListener(view, listener)
+        val decor = activity.window.decorView
+        ViewCompat.setOnApplyWindowInsetsListener(decor, listener)
+        ViewCompat.requestApplyInsets(decor)
     }
 
-    private fun writeInsets(view: WebView, bars: Insets) {
-        val density = view.resources.displayMetrics.density
-        val css = InsetsCss.declarations(bars.top, bars.bottom, bars.left, bars.right, density)
-        view.evaluateJavascript("document.documentElement.style.cssText += ';$css'", null)
+    private fun publishInsets(bars: Insets) {
+        val density = activity.resources.displayMetrics.density
+        val next = InsetsCss.sides(bars.top, bars.bottom, bars.left, bars.right, density)
+        if (next == insets) return
+        insets = next
+        webView?.evaluateJavascript(InsetsCss.script(next), null)
+        trigger("insets", insetsPayload(next))
     }
+
+    private fun insetsPayload(sides: InsetsCss.Sides): JSObject = JSObject()
+        .put("top", sides.top.toDouble())
+        .put("bottom", sides.bottom.toDouble())
+        .put("left", sides.left.toDouble())
+        .put("right", sides.right.toDouble())
 
     private fun watchMotionSetting(view: WebView) {
         val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
@@ -266,5 +299,60 @@ class PlayerPlugin(private val activity: Activity) : Plugin(activity) {
 
     private companion object {
         val BARS_AND_CUTOUT = WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+    }
+
+    @Command
+    fun castOpen(invoke: Invoke) = CastBridge.run(activity, invoke) { CastBridge.showDevices(activity) }
+
+    @Command
+    fun castLoad(invoke: Invoke) {
+        val args = invoke.getArgs()
+        val url = args.optString("url")
+        if (url.isBlank()) {
+            invoke.reject("Nothing to cast")
+            return
+        }
+        CastBridge.run(activity, invoke) { context ->
+            CastBridge.load(
+                CastBridge.connectedClient(context),
+                url,
+                args.optString("title"),
+                args.optString("artist"),
+                args.optString("artworkUrl").takeIf { it.isNotBlank() },
+                args.optLong("positionMs"),
+                args.optBoolean("playing", true),
+            )
+            JSObject()
+        }
+    }
+
+    @Command
+    fun castPlayPause(invoke: Invoke) {
+        val play = invoke.getArgs().optBoolean("play")
+        CastBridge.run(activity, invoke) { context ->
+            val client = CastBridge.connectedClient(context)
+            if (play) client.play() else client.pause()
+            JSObject()
+        }
+    }
+
+    @Command
+    fun castSeek(invoke: Invoke) {
+        val positionMs = invoke.getArgs().optLong("positionMs")
+        CastBridge.run(activity, invoke) { context ->
+            CastBridge.seek(CastBridge.connectedClient(context), positionMs)
+            JSObject()
+        }
+    }
+
+    @Command
+    fun castStatus(invoke: Invoke) = CastBridge.run(activity, invoke) { context ->
+        CastBridge.status(context.sessionManager.currentCastSession?.remoteMediaClient)
+    }
+
+    @Command
+    fun castStop(invoke: Invoke) = CastBridge.run(activity, invoke) { context ->
+        context.sessionManager.endCurrentSession(true)
+        JSObject()
     }
 }

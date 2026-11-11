@@ -22,6 +22,7 @@ mod bridge {
         Permission,
         Audio,
         Sync,
+        Update,
     }
 
     #[derive(Deserialize)]
@@ -66,20 +67,22 @@ mod bridge {
         Ok(app.state::<AndroidBridges<Wry>>())
     }
 
-    fn pick<'a>(plugins: &'a AndroidBridges<Wry>, bridge: Bridge) -> &'a PluginHandle<Wry> {
-        match bridge {
+    fn pick<'a>(plugins: &'a AndroidBridges<Wry>, bridge: Bridge) -> Result<&'a PluginHandle<Wry>, String> {
+        let slot = match bridge {
             Bridge::Secure => &plugins.secure,
             Bridge::Media => &plugins.media,
             Bridge::Auth => &plugins.auth,
             Bridge::Permission => &plugins.permission,
             Bridge::Audio => &plugins.audio,
             Bridge::Sync => &plugins.sync,
-        }
+            Bridge::Update => &plugins.update,
+        };
+        slot.get().ok_or_else(|| NOT_READY.to_owned())
     }
 
     pub fn call<T: DeserializeOwned>(bridge: Bridge, command: &str, payload: Value) -> Result<T, String> {
         let plugins = plugins()?;
-        pick(&plugins, bridge)
+        pick(&plugins, bridge)?
             .run_mobile_plugin(command, payload)
             .map_err(|error| error.to_string())
     }
@@ -90,10 +93,14 @@ mod bridge {
         payload: Value,
     ) -> Result<T, String> {
         let plugins = plugins()?;
-        pick(&plugins, bridge)
+        pick(&plugins, bridge)?
             .run_mobile_plugin_async(command, payload)
             .await
             .map_err(|error| error.to_string())
+    }
+
+    pub async fn update(command: &str, payload: Value) -> Result<Value, String> {
+        call_async(Bridge::Update, command, payload).await
     }
 
     pub async fn pick_tree() -> Result<Option<String>, String> {
@@ -189,9 +196,41 @@ mod bridge {
     pub async fn await_sign_in_redirect() -> Result<String, String> {
         Err(NOT_ANDROID.to_owned())
     }
+
+    pub async fn update(_command: &str, _payload: serde_json::Value) -> Result<serde_json::Value, String> {
+        Err(NOT_ANDROID.to_owned())
+    }
 }
 
 pub use bridge::*;
+
+#[tauri::command]
+pub async fn update_check(current: String) -> Result<serde_json::Value, String> {
+    bridge::update("update_check", serde_json::json!({ "current": current })).await
+}
+
+#[tauri::command]
+pub async fn update_download(
+    apk_name: String,
+    apk_url: String,
+    sums_url: String,
+) -> Result<serde_json::Value, String> {
+    bridge::update(
+        "update_download",
+        serde_json::json!({ "apkName": apk_name, "apkUrl": apk_url, "sumsUrl": sums_url }),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn update_install(path: String) -> Result<serde_json::Value, String> {
+    bridge::update("update_install", serde_json::json!({ "path": path })).await
+}
+
+#[tauri::command]
+pub async fn update_open_install_settings() -> Result<serde_json::Value, String> {
+    bridge::update("update_open_install_settings", serde_json::json!({})).await
+}
 
 #[derive(serde::Deserialize)]
 #[cfg_attr(not(target_os = "android"), allow(dead_code))]

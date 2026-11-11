@@ -123,7 +123,7 @@ export type WireTrack = {
   episode?: true;
 };
 
-export type PlaybackEventPayload = { type: PlaybackKind; track?: WireTrack; deltaMs?: number };
+export type PlaybackEventPayload = { type: PlaybackKind; track?: WireTrack; deltaMs?: number; history?: boolean };
 
 export function playbackEvent(event: PlaybackEventPayload): Promise<void> {
   return call<void>("playback_event", { event });
@@ -220,6 +220,51 @@ export function hapticTick(): Promise<void> {
   return playerCall("player_haptic_tick");
 }
 
+export function playerKeepAwake(on: boolean): Promise<void> {
+  return playerCall("player_keep_awake", { on });
+}
+
+export type CastStatus = { connected: boolean; playing: boolean; positionMs: number };
+
+export type CastLoad = {
+  url: string;
+  title: string;
+  artist: string;
+  artworkUrl: string | null;
+  positionMs: number;
+  playing: boolean;
+};
+
+export function castOpen(): Promise<void> {
+  return playerCall<void>("cast_open");
+}
+
+export function castLoad(load: CastLoad): Promise<void> {
+  return playerCall<void>("cast_load", { ...load });
+}
+
+export function castPlayPause(play: boolean): Promise<void> {
+  return playerCall<void>("cast_play_pause", { play });
+}
+
+export function castSeek(positionMs: number): Promise<void> {
+  return playerCall<void>("cast_seek", { positionMs });
+}
+
+export function castStatus(): Promise<CastStatus> {
+  return playerCall<CastStatus>("cast_status");
+}
+
+export function castStop(): Promise<void> {
+  return playerCall<void>("cast_stop");
+}
+
+export type Insets = { top: number; bottom: number; left: number; right: number };
+
+export function playerGetInsets(): Promise<Insets> {
+  return playerCall<Insets>("player_get_insets");
+}
+
 export function playerTakeLaunch(): Promise<Partial<LaunchPayload>> {
   return playerCall<Partial<LaunchPayload>>("player_take_launch");
 }
@@ -230,13 +275,13 @@ export type UpdateCheck =
   | { state: "error"; message: string };
 
 export function updateCheck(current: string): Promise<UpdateCheck> {
-  return playerCall<UpdateCheck>("update_check", { current });
+  return call<UpdateCheck>("update_check", { current });
 }
 
 export function updateDownload(
   offer: Extract<UpdateCheck, { state: "available" }>,
 ): Promise<{ path: string }> {
-  return playerCall<{ path: string }>("update_download", {
+  return call<{ path: string }>("update_download", {
     apkName: offer.apkName,
     apkUrl: offer.apkUrl,
     sumsUrl: offer.sumsUrl,
@@ -244,11 +289,11 @@ export function updateDownload(
 }
 
 export function updateInstall(path: string): Promise<{ state: "started" | "unknown_sources" }> {
-  return playerCall<{ state: "started" | "unknown_sources" }>("update_install", { path });
+  return call<{ state: "started" | "unknown_sources" }>("update_install", { path });
 }
 
 export function updateOpenInstallSettings(): Promise<void> {
-  return playerCall<void>("update_open_install_settings");
+  return call<void>("update_open_install_settings");
 }
 
 export async function listenPlayerEvent<T>(event: string, onEvent: (payload: T) => void): Promise<() => void> {
@@ -276,6 +321,7 @@ export interface LyricsMeta {
   artist: string;
   album?: string;
   duration?: number;
+  providers?: string[];
 }
 
 export interface SyncedLyricWord {
@@ -304,10 +350,34 @@ export interface LyricsResult {
   plain: string | null;
   source: string;
   wordSynced: boolean;
+  custom?: boolean;
+}
+
+export interface LyricsCandidate {
+  provider: string;
+  candidateId: string;
+  title: string;
+  artist: string;
+  album: string | null;
+  duration: number | null;
+  synced: boolean;
+  preview: string[];
 }
 
 export function lyricsGet(meta: LyricsMeta): Promise<LyricsResult | null> {
   return call<LyricsResult | null>("lyrics_get", { meta });
+}
+
+export function lyricsSearch(query: string, duration?: number): Promise<LyricsCandidate[]> {
+  return call<LyricsCandidate[]>("lyrics_search", { query, duration });
+}
+
+export function lyricsPick(songId: string, provider: string, candidateId: string): Promise<LyricsResult> {
+  return call<LyricsResult>("lyrics_pick", { songId, provider, candidateId });
+}
+
+export function lyricsReset(songId: string): Promise<void> {
+  return call<void>("lyrics_reset", { songId });
 }
 
 export interface DownloadTrack {
@@ -318,7 +388,7 @@ export interface DownloadTrack {
   thumb?: string;
 }
 
-export type DownloadEventKind = "queued" | "start" | "progress" | "done" | "failed" | "cancelled";
+export type DownloadEventKind = "queued" | "start" | "progress" | "done" | "failed" | "expired" | "cancelled";
 
 export interface DownloadEvent {
   type: DownloadEventKind;
@@ -341,8 +411,9 @@ export function downloadStart(
   url: string,
   dir?: string,
   exportCompat = false,
+  resume = false,
 ): Promise<void> {
-  return call<void>("download_start", { track, url, dir, exportCompat });
+  return call<void>("download_start", { track: { ...track, resume }, url, dir, exportCompat });
 }
 
 export function pickFolder(title?: string): Promise<string | null> {
@@ -471,6 +542,10 @@ export function localLibraryTrackPath(id: string): Promise<string | null> {
   return call<string | null>("local_library_track_path", { id });
 }
 
+export function onLocalLibraryChanged(onChange: () => void): Promise<UnlistenFn> {
+  return listen("local-library-changed", () => onChange());
+}
+
 export type GoogleAccount = {
   mode: "guest" | "google";
   googleSub: string | null;
@@ -545,6 +620,10 @@ export function ytEnqueue(jobs: YtSyncJob[]): Promise<void> {
   return call<void>("yt_enqueue", { jobs });
 }
 
+export function ytRate(videoId: string, like: boolean): Promise<void> {
+  return call<void>("yt_rate", { videoId, like });
+}
+
 export function listenYtSyncProgress(onChange: (status: YtSyncStatus) => void): Promise<UnlistenFn> {
   return listen<YtSyncStatus>("yt-sync-progress", (event) => onChange(event.payload));
 }
@@ -553,6 +632,37 @@ export type YtPlaylistLink = { localPlaylistId: string; ytPlaylistId: string };
 
 export function listenYtPlaylistLinked(onLink: (link: YtPlaylistLink) => void): Promise<UnlistenFn> {
   return listen<YtPlaylistLink>("yt-playlist-linked", (event) => onLink(event.payload));
+}
+
+export type YtRemotePlaylist = {
+  id: string;
+  title: string;
+  count: number;
+  thumbnail: string | null;
+};
+
+export type YtRemoteVideo = {
+  videoId: string;
+  title: string;
+  artist: string;
+  durationSeconds: number | null;
+  thumbnail: string | null;
+};
+
+export function ytMyPlaylists(): Promise<YtRemotePlaylist[]> {
+  return call<YtRemotePlaylist[]>("yt_my_playlists");
+}
+
+export function ytPlaylistVideos(playlistId: string): Promise<YtRemoteVideo[]> {
+  return call<YtRemoteVideo[]>("yt_playlist_videos", { playlistId });
+}
+
+export function ytLinkPlaylist(localPlaylistId: string, ytPlaylistId: string): Promise<void> {
+  return call<void>("yt_link_playlist", { localPlaylistId, ytPlaylistId });
+}
+
+export function ytUnlinkPlaylist(localPlaylistId: string): Promise<void> {
+  return call<void>("yt_unlink_playlist", { localPlaylistId });
 }
 
 export type YtTvCode = { userCode: string; verificationUrl: string; expiresAt: number };
@@ -583,40 +693,12 @@ export function listenYtTvCode(onCode: (code: YtTvCode) => void): Promise<Unlist
   return listen<YtTvCode>("yt-tv-code", (event) => onCode(event.payload));
 }
 
-export type DriveSyncState = "idle" | "pending" | "syncing" | "error";
-
-export type DriveSyncStatus = {
-  mode: "google";
-  lastSyncAt: number | null;
-  restoreSeq: number;
-  restoredStores: string[];
-  state: DriveSyncState;
-  lastError: string | null;
-  pending: number;
-};
-
-export function driveSyncStatus(): Promise<DriveSyncStatus> {
-  return call<DriveSyncStatus>("drive_sync_status");
-}
-
-export function driveSyncNow(): Promise<DriveSyncStatus> {
-  return call<DriveSyncStatus>("drive_sync_now");
-}
-
-export function listenDriveSyncProgress(onChange: (status: DriveSyncStatus) => void): Promise<UnlistenFn> {
-  return listen<DriveSyncStatus>("drive-sync-progress", (event) => onChange(event.payload));
-}
-
 export function eraseStopSync(): Promise<void> {
   return call<void>("erase_stop_sync");
 }
 
 export function eraseResumeSync(): Promise<void> {
   return call<void>("erase_resume_sync");
-}
-
-export function eraseDriveFiles(): Promise<number> {
-  return call<number>("erase_drive_files");
 }
 
 export function eraseYoutubePlaylists(): Promise<number> {
@@ -801,4 +883,127 @@ export function notificationSettings(): Promise<void> {
 
 export function downloadDeleteFile(path: string): Promise<void> {
   return call<void>("download_delete_file", { path });
+}
+
+export type ScrobbleServiceStatus = {
+  available: boolean;
+  connected: boolean;
+  username: string | null;
+  enabled: boolean;
+  awaitingApproval: boolean;
+};
+
+export type ScrobbleStatus = {
+  lastfm: ScrobbleServiceStatus;
+  listenbrainz: ScrobbleServiceStatus;
+};
+
+export function scrobbleStatus(): Promise<ScrobbleStatus> {
+  return call<ScrobbleStatus>("scrobble_status");
+}
+
+export function listenbrainzConnect(token: string): Promise<ScrobbleStatus> {
+  return call<ScrobbleStatus>("listenbrainz_connect", { token });
+}
+
+export function listenbrainzDisconnect(): Promise<ScrobbleStatus> {
+  return call<ScrobbleStatus>("listenbrainz_disconnect");
+}
+
+export function lastfmBeginAuth(): Promise<ScrobbleStatus> {
+  return call<ScrobbleStatus>("lastfm_begin_auth");
+}
+
+export function lastfmFinishAuth(): Promise<ScrobbleStatus> {
+  return call<ScrobbleStatus>("lastfm_finish_auth");
+}
+
+export function lastfmDisconnect(): Promise<ScrobbleStatus> {
+  return call<ScrobbleStatus>("lastfm_disconnect");
+}
+
+export function scrobbleSetEnabled(service: string, enabled: boolean): Promise<ScrobbleStatus> {
+  return call<ScrobbleStatus>("scrobble_set_enabled", { service, enabled });
+}
+
+export function scrobbleLove(artist: string, title: string, loved: boolean): Promise<void> {
+  return call<void>("scrobble_love", { artist, title, loved });
+}
+
+export type DiscordStatus = { available: boolean; enabled: boolean; connected: boolean };
+
+export function discordStatus(): Promise<DiscordStatus> {
+  return call<DiscordStatus>("discord_status");
+}
+
+export function discordSetEnabled(enabled: boolean): Promise<DiscordStatus> {
+  return call<DiscordStatus>("discord_set_enabled", { enabled });
+}
+
+export type NetworkServerKind = "webDav" | "smb";
+
+export type NetworkServer = {
+  id: string;
+  kind: NetworkServerKind;
+  kindLabel: string;
+  name: string;
+  url: string;
+  host: string;
+  share: string;
+  path: string;
+  username: string;
+};
+
+export type NetworkServerInput = {
+  id: string;
+  kind: NetworkServerKind;
+  name: string;
+  url: string;
+  host: string;
+  share: string;
+  path: string;
+  username: string;
+  password: string;
+};
+
+export type NetworkTrack = {
+  id: string;
+  serverId: string;
+  serverName: string;
+  path: string;
+  name: string;
+  title: string;
+  artist: string;
+  album: string;
+  size: number;
+};
+
+export function networkServers(): Promise<NetworkServer[]> {
+  return call<NetworkServer[]>("network_servers");
+}
+
+export function networkServerSave(server: NetworkServerInput): Promise<NetworkServer[]> {
+  return call<NetworkServer[]>("network_server_save", { server });
+}
+
+export function networkServerRemove(id: string): Promise<NetworkServer[]> {
+  return call<NetworkServer[]>("network_server_remove", { id });
+}
+
+export function networkTracks(id: string, path: string): Promise<NetworkTrack[]> {
+  return call<NetworkTrack[]>("network_tracks", { id, path });
+}
+
+export type RecognitionMatch = {
+  title: string;
+  artist: string;
+  album: string;
+  cover: string | null;
+  videoId: string | null;
+  appleUrl: string | null;
+  spotifyUrl: string | null;
+};
+
+export function recogniseSong(): Promise<RecognitionMatch> {
+  return call<RecognitionMatch>("recognise_song");
 }
