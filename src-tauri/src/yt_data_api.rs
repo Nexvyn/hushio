@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::future::Future;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -12,6 +13,8 @@ use crate::google_auth::{GoogleAuth, TokenError};
 pub const API_BASE: &str = "https://www.googleapis.com/youtube/v3";
 pub const QUOTA_LIMIT: i64 = 10_000;
 const PAGE_SIZE: &str = "50";
+const VIDEO_BATCH: usize = 50;
+const UNAVAILABLE_TITLES: [&str; 2] = ["Deleted video", "Private video"];
 const TITLE_MAX_CHARS: usize = 150;
 const READ_UNITS: i64 = 1;
 const WRITE_UNITS: i64 = 50;
@@ -140,6 +143,67 @@ pub struct RemoteItem {
     pub video_id: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemotePlaylist {
+    pub id: String,
+    pub title: String,
+    pub count: u64,
+    pub thumbnail: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteVideo {
+    pub video_id: String,
+    pub title: String,
+    pub artist: String,
+    pub duration_seconds: Option<u32>,
+    pub thumbnail: Option<String>,
+}
+
+fn is_playable(item: &Value) -> bool {
+    let title = item["snippet"]["title"].as_str().unwrap_or_default();
+    !str_at(&item["snippet"]["resourceId"], "videoId").is_empty() && !UNAVAILABLE_TITLES.contains(&title)
+}
+
+fn owner_of(snippet: &Value) -> String {
+    let owner = str_at(snippet, "videoOwnerChannelTitle");
+    if owner.is_empty() {
+        str_at(snippet, "channelTitle")
+    } else {
+        owner
+    }
+}
+
+fn thumbnail_of(snippet: &Value) -> Option<String> {
+    ["medium", "default"]
+        .iter()
+        .find_map(|size| snippet["thumbnails"][*size]["url"].as_str())
+        .map(str::to_owned)
+}
+
+fn parse_duration(text: &str) -> Option<u32> {
+    let time = text.strip_prefix("PT")?;
+    let mut total: u32 = 0;
+    let mut number: u32 = 0;
+    for ch in time.chars() {
+        if let Some(digit) = ch.to_digit(10) {
+            number = number.checked_mul(10)?.checked_add(digit)?;
+            continue;
+        }
+        let unit = match ch {
+            'H' => 3600,
+            'M' => 60,
+            'S' => 1,
+            _ => return None,
+        };
+        total = total.checked_add(number.checked_mul(unit)?)?;
+        number = 0;
+    }
+    Some(total)
+}
+
 pub struct YtApi {
     http: reqwest::Client,
     base: String,
@@ -192,6 +256,74 @@ impl YtApi {
                 video_id: str_at(&item["snippet"]["resourceId"], "videoId"),
             })
             .collect())
+    }
+
+    pub async fn my_playlists<T: AccessTokens>(&self, tokens: &T) -> Result<Vec<RemotePlaylist>, ApiError> {
+        let raw = self.list_playlists(tokens).await?;
+        Ok(raw
+            .iter()
+            .map(|item| RemotePlaylist {
+                id: str_at(item, "id"),
+                title: str_at(&item["snippet"], "title"),
+                count: item["contentDetails"]["itemCount"].as_u64().unwrap_or(0),
+                thumbnail: thumbnail_of(&item["snippet"]),
+            })
+            .collect())
+    }
+
+    pub async fn playlist_videos<T: AccessTokens>(
+        &self,
+        tokens: &T,
+        playlist_id: &str,
+    ) -> Result<Vec<RemoteVideo>, ApiError> {
+        let mut raw = Vec::new();
+        self.pages(
+            tokens,
+            "playlistItems",
+            &[("part", "snippet,contentDetails"), ("playlistId", playlist_id)],
+            &mut raw,
+        )
+        .await?;
+        let playable: Vec<&Value> = raw.iter().filter(|item| is_playable(item)).collect();
+        let ids: Vec<String> = playable
+            .iter()
+            .map(|item| str_at(&item["snippet"]["resourceId"], "videoId"))
+            .collect();
+        let durations = self.durations(tokens, &ids).await?;
+        Ok(playable
+            .into_iter()
+            .zip(ids)
+            .map(|(item, video_id)| RemoteVideo {
+                duration_seconds: durations.get(&video_id).copied(),
+                title: str_at(&item["snippet"], "title"),
+                artist: owner_of(&item["snippet"]),
+                thumbnail: thumbnail_of(&item["snippet"]),
+                video_id,
+            })
+            .collect())
+    }
+
+    async fn durations<T: AccessTokens>(&self, tokens: &T, ids: &[String]) -> Result<HashMap<String, u32>, ApiError> {
+        let mut out = HashMap::new();
+        for chunk in ids.chunks(VIDEO_BATCH) {
+            let joined = chunk.join(",");
+            let reply = self
+                .send(
+                    tokens,
+                    Method::GET,
+                    "videos",
+                    &[("part", "contentDetails"), ("id", joined.as_str())],
+                    None,
+                )
+                .await?;
+            for item in reply["items"].as_array().into_iter().flatten() {
+                let text = item["contentDetails"]["duration"].as_str().unwrap_or_default();
+                if let Some(seconds) = parse_duration(text) {
+                    out.insert(str_at(item, "id"), seconds);
+                }
+            }
+        }
+        Ok(out)
     }
 
     pub async fn create_playlist<T: AccessTokens>(&self, tokens: &T, title: &str) -> Result<String, ApiError> {
@@ -348,6 +480,10 @@ fn str_at(value: &Value, key: &str) -> String {
     value[key].as_str().unwrap_or_default().to_owned()
 }
 
+pub fn is_video_id(id: &str) -> bool {
+    id.len() == 11 && id.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+}
+
 pub(crate) fn clip_title(title: &str) -> String {
     title.chars().take(TITLE_MAX_CHARS).collect()
 }
@@ -474,6 +610,91 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn my_playlists_maps_count_and_thumbnail() {
+        let (base, mock) = start_mock().await;
+        mock.replies.lock().unwrap().push_back((
+            200,
+            r#"{"items":[{"id":"PL1","snippet":{"title":"Road","thumbnails":{"medium":{"url":"https://img/m.jpg"},"default":{"url":"https://img/d.jpg"}}},"contentDetails":{"itemCount":12}}]}"#
+                .to_owned(),
+        ));
+        let api = YtApi::new(&base, quota());
+        let playlists = api.my_playlists(&FakeTokens).await.unwrap();
+        assert_eq!(playlists.len(), 1);
+        assert_eq!(playlists[0].id, "PL1");
+        assert_eq!(playlists[0].title, "Road");
+        assert_eq!(playlists[0].count, 12);
+        assert_eq!(playlists[0].thumbnail.as_deref(), Some("https://img/m.jpg"));
+    }
+
+    #[tokio::test]
+    async fn playlist_videos_follow_paging_skip_deleted_and_private_videos_and_read_durations() {
+        let (base, mock) = start_mock().await;
+        mock.replies.lock().unwrap().push_back((
+            200,
+            r#"{"items":[
+                {"snippet":{"title":"Song one","videoOwnerChannelTitle":"Band A","resourceId":{"videoId":"v1"},"thumbnails":{"default":{"url":"https://img/1.jpg"}}}},
+                {"snippet":{"title":"Deleted video","resourceId":{"videoId":"gone"}}}
+            ],"nextPageToken":"next"}"#
+                .to_owned(),
+        ));
+        mock.replies.lock().unwrap().push_back((
+            200,
+            r#"{"items":[
+                {"snippet":{"title":"Private video","resourceId":{"videoId":"hidden"}}},
+                {"snippet":{"title":"Song two","channelTitle":"Band B","resourceId":{"videoId":"v2"}}}
+            ]}"#
+                .to_owned(),
+        ));
+        mock.replies.lock().unwrap().push_back((
+            200,
+            r#"{"items":[
+                {"id":"v1","contentDetails":{"duration":"PT4M13S"}},
+                {"id":"v2","contentDetails":{"duration":"PT1H2M3S"}}
+            ]}"#
+                .to_owned(),
+        ));
+        let counter = quota();
+        let api = YtApi::new(&base, counter.clone());
+        let videos = api.playlist_videos(&FakeTokens, "PL9").await.unwrap();
+        let ids: Vec<&str> = videos.iter().map(|video| video.video_id.as_str()).collect();
+        assert_eq!(ids, ["v1", "v2"]);
+        assert_eq!(videos[0].title, "Song one");
+        assert_eq!(videos[0].artist, "Band A");
+        assert_eq!(videos[0].duration_seconds, Some(253));
+        assert_eq!(videos[0].thumbnail.as_deref(), Some("https://img/1.jpg"));
+        assert_eq!(videos[1].artist, "Band B");
+        assert_eq!(videos[1].duration_seconds, Some(3723));
+        assert_eq!(videos[1].thumbnail, None);
+        let seen = mock.seen.lock().unwrap().clone();
+        assert_eq!(seen.len(), 3);
+        assert!(seen[0].query.contains("playlistId=PL9"));
+        assert!(seen[1].query.contains("pageToken=next"));
+        assert_eq!(seen[2].path, "/youtube/v3/videos");
+        assert_eq!(counter.lock().unwrap().units, 3);
+    }
+
+    #[tokio::test]
+    async fn playlist_with_only_unavailable_videos_skips_the_duration_lookup() {
+        let (base, mock) = start_mock().await;
+        mock.replies.lock().unwrap().push_back((
+            200,
+            r#"{"items":[{"snippet":{"title":"Deleted video","resourceId":{"videoId":"gone"}}}]}"#.to_owned(),
+        ));
+        let api = YtApi::new(&base, quota());
+        assert!(api.playlist_videos(&FakeTokens, "PL9").await.unwrap().is_empty());
+        assert_eq!(mock.seen.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn iso_durations_are_read_in_seconds() {
+        assert_eq!(parse_duration("PT4M13S"), Some(253));
+        assert_eq!(parse_duration("PT1H2M3S"), Some(3723));
+        assert_eq!(parse_duration("PT45S"), Some(45));
+        assert_eq!(parse_duration("PT0S"), Some(0));
+        assert_eq!(parse_duration("P0D"), None);
+    }
+
+    #[tokio::test]
     async fn quota_error_is_reported_with_its_reason() {
         let (base, mock) = start_mock().await;
         mock.replies.lock().unwrap().push_back((
@@ -536,5 +757,29 @@ mod tests {
         quota.switch_to_fallback(before);
         assert!(quota.on_fallback(before));
         assert!(!quota.on_fallback(after));
+    }
+
+    #[tokio::test]
+    async fn rate_posts_the_rating_to_videos_rate() {
+        let (base, mock) = start_mock().await;
+        let api = YtApi::new(&base, quota());
+        api.rate(&FakeTokens, "dQw4w9WgXcQ", true).await.unwrap();
+        api.rate(&FakeTokens, "dQw4w9WgXcQ", false).await.unwrap();
+        let seen = mock.seen.lock().unwrap().clone();
+        assert_eq!(seen.len(), 2);
+        assert_eq!(seen[0].method, "POST");
+        assert!(seen[0].path.ends_with("/videos/rate"));
+        assert!(seen[0].query.contains("rating=like"));
+        assert!(seen[1].query.contains("rating=none"));
+    }
+
+    #[test]
+    fn only_eleven_character_youtube_ids_are_accepted() {
+        assert!(is_video_id("dQw4w9WgXcQ"));
+        assert!(is_video_id("a-_B0123456"));
+        assert!(!is_video_id("v3"));
+        assert!(!is_video_id("net:abcdefghij"));
+        assert!(!is_video_id("dQw4w9WgXc!"));
+        assert!(!is_video_id("dQw4w9WgXcQQ"));
     }
 }

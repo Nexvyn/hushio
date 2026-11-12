@@ -1,16 +1,30 @@
 import { useAuth } from "../stores/auth";
 import { useUI } from "../stores/ui";
-import { ytEnqueue, type YtSyncJob, type YtSyncStatus } from "./bridge";
+import { ytEnqueue, ytRate, ytUnlinkPlaylist, type YtSyncJob, type YtSyncStatus } from "./bridge";
 import { LOCAL_ID_PREFIX } from "./localLibrary";
+
+const YT_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 
 export function videoIdOf(track: { id: string; episode?: true }): string | null {
   if (track.episode || track.id.startsWith(LOCAL_ID_PREFIX)) return null;
   return track.id;
 }
 
+export function rateYtSong(track: { id: string; episode?: true }, like: boolean): void {
+  const videoId = videoIdOf(track);
+  if (!videoId || !YT_VIDEO_ID.test(videoId) || useAuth.getState().account.mode !== "google") return;
+  ytRate(videoId, like).catch((error: unknown) => console.warn("Couldn't save the like to YouTube.", error));
+}
+
 export function queueYtJobs(jobs: YtSyncJob[]): void {
   if (jobs.length === 0 || useAuth.getState().account.mode !== "google") return;
   ytEnqueue(jobs).catch((error: unknown) =>
+    useUI.getState().toast(error instanceof Error ? error.message : String(error), "error"),
+  );
+}
+
+export function unlinkYtPlaylist(localPlaylistId: string): void {
+  ytUnlinkPlaylist(localPlaylistId).catch((error: unknown) =>
     useUI.getState().toast(error instanceof Error ? error.message : String(error), "error"),
   );
 }

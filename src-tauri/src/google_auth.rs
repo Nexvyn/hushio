@@ -36,8 +36,7 @@ const TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 const USERINFO_URL: &str = "https://openidconnect.googleapis.com/v1/userinfo";
 const REVOKE_URL: &str = "https://oauth2.googleapis.com/revoke";
 const YOUTUBE_SCOPE: &str = "https://www.googleapis.com/auth/youtube";
-const DRIVE_SCOPE: &str = "https://www.googleapis.com/auth/drive.appdata";
-const SCOPES: &str = "openid email profile https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/drive.appdata";
+const SCOPES: &str = "openid email profile https://www.googleapis.com/auth/youtube";
 const CALLBACK_PATH: &str = "/callback";
 const APP_REDIRECT_PATH: &str = ":/oauth2redirect";
 const VERIFIER_LEN: usize = 64;
@@ -787,14 +786,11 @@ fn authorization_url(config: &OAuthConfig, redirect: &str, challenge: &str, stat
 
 fn check_scopes(granted: Option<&str>) -> Result<(), String> {
     let granted: Vec<&str> = granted.unwrap_or_default().split_whitespace().collect();
-    if [YOUTUBE_SCOPE, DRIVE_SCOPE]
-        .iter()
-        .all(|scope| granted.contains(scope))
-    {
+    if granted.contains(&YOUTUBE_SCOPE) {
         return Ok(());
     }
     Err(format!(
-        "{APP_NAME} needs access to YouTube playlists and Google Drive sync. Sign in again and keep those boxes ticked."
+        "{APP_NAME} needs access to YouTube playlists. Sign in again and keep that box ticked."
     ))
 }
 
@@ -1246,12 +1242,11 @@ mod tests {
     }
 
     #[test]
-    fn scopes_must_include_youtube_and_drive() {
+    fn scopes_must_include_youtube_and_no_drive() {
         assert!(check_scopes(Some(SCOPES)).is_ok());
         assert!(check_scopes(Some("openid email profile")).is_err());
-        let missing_drive = "openid https://www.googleapis.com/auth/youtube";
-        assert!(check_scopes(Some(missing_drive)).is_err());
         assert!(check_scopes(None).is_err());
+        assert!(!SCOPES.contains("drive"));
     }
 
     #[test]
@@ -1417,7 +1412,7 @@ mod tests {
         let error = auth.sign_in(&*browser(code_for)).await.unwrap_err();
         assert_eq!(
             error,
-            "Hushio needs access to YouTube playlists and Google Drive sync. Sign in again and keep those boxes ticked."
+            "Hushio needs access to YouTube playlists. Sign in again and keep that box ticked."
         );
         assert!(store.saved().is_none());
         assert_eq!(auth.account().mode, Mode::Guest);

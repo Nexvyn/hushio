@@ -48,6 +48,12 @@ pub struct PlaybackEvent {
     pub track: Option<TrackInput>,
     #[serde(default)]
     pub delta_ms: f64,
+    #[serde(default = "history_on")]
+    pub history: bool,
+}
+
+fn history_on() -> bool {
+    true
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
@@ -443,6 +449,9 @@ impl Service {
     }
 
     pub fn playback(&self, event: &PlaybackEvent, at: DateTime<Local>) -> Result<(), String> {
+        if !event.history {
+            return Ok(());
+        }
         match event.kind.as_str() {
             "start" => {
                 self.start(event.track.as_ref(), &at);

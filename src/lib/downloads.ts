@@ -19,7 +19,7 @@ import { type MenuItem, useUI } from "../stores/ui";
 export const DOWNLOAD_ALL_CONFIRM = 25;
 const GB_PER_SONG = 0.04;
 const PROGRESS_TICK_MS = 500;
-const EXPIRED_REASON = "HTTP 403";
+const EXPIRED_MESSAGE = "The link expired. Try again.";
 const QUALITY_KBPS: Record<DownloadQuality, number | undefined> = {
   standard: 128,
   high: 192,
@@ -35,7 +35,10 @@ export type DownloadSource = {
   duration?: number;
 };
 
+type SentStream = { dir?: string; itag?: number; clen?: number };
+
 const retried = new Set<string>();
+const sent = new Map<string, SentStream>();
 
 function notify(message: string, kind: "info" | "success" | "error" = "info") {
   useUI.getState().toast(message, kind);
@@ -69,7 +72,7 @@ function trackOf(source: DownloadSource): DownloadTrack {
   };
 }
 
-async function queue(source: DownloadSource, dir?: string): Promise<void> {
+async function queue(source: DownloadSource, dir?: string, expired?: SentStream): Promise<void> {
   const library = useLibrary.getState();
   const track = trackOf(source);
   library.setDownload(source.id, {
@@ -81,9 +84,12 @@ async function queue(source: DownloadSource, dir?: string): Promise<void> {
     total: 0,
   });
   const { downloadDir, downloadQuality, exportDownloads } = useSettings.getState();
+  const target = dir ?? downloadDir ?? undefined;
   try {
     const stream = await resolveStream(source.id, true, QUALITY_KBPS[downloadQuality], true);
-    await downloadStart(track, stream.url, dir ?? downloadDir ?? undefined, exportDownloads);
+    const resume = expired?.itag !== undefined && expired.itag === stream.itag && expired.clen === stream.clen;
+    sent.set(source.id, { dir: target, itag: stream.itag, clen: stream.clen });
+    await downloadStart(track, stream.url, target, exportDownloads, resume);
   } catch (error) {
     patch(source.id, { status: "failed", progress: 0 });
     notify(`Download failed: ${describe(error)}`, "error");
@@ -99,6 +105,15 @@ export async function startDownload(source: DownloadSource, dir?: string): Promi
   }
   retried.delete(source.id);
   await queue(source, dir);
+}
+
+const YT_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
+
+export function autoDownloadLiked(source: DownloadSource): void {
+  if (!useSettings.getState().autoDownloadLiked || !YT_VIDEO_ID.test(source.id)) return;
+  const status = useLibrary.getState().downloads[source.id]?.status;
+  if (status === "queued" || status === "downloading" || status === "done") return;
+  void startDownload(source);
 }
 
 export async function cancelDownload(id: string): Promise<void> {
@@ -175,15 +190,23 @@ export function handleDownloadEvent(event: DownloadEvent): void {
       patch(id, { status: "done", path: event.path, progress: 1 });
       if (!anyActive()) notify("Downloads finished", "success");
       return;
-    case "failed":
+    case "expired": {
       progress.discard(id);
-      patch(id, { status: "failed", progress: 0 });
-      if (event.reason === EXPIRED_REASON && !retried.has(id)) {
-        retried.add(id);
-        void queue(item.track);
+      if (retried.has(id)) {
+        retried.delete(id);
+        patch(id, { status: "failed", progress: 0 });
+        notify(`Download failed: ${EXPIRED_MESSAGE}`, "error");
         return;
       }
+      retried.add(id);
+      const last = sent.get(id);
+      void queue(item.track, last?.dir, last);
+      return;
+    }
+    case "failed":
+      progress.discard(id);
       retried.delete(id);
+      patch(id, { status: "failed", progress: 0 });
       notify(`Download failed: ${event.reason ?? "unknown error"}`, "error");
       return;
     case "cancelled":

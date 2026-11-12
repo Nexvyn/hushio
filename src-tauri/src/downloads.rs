@@ -35,6 +35,8 @@ const COVER_MAX_BYTES: usize = 5 * 1024 * 1024;
 const NAME_MAX_CHARS: usize = 120;
 const EVENT: &str = "download:event";
 const ID_MAX_LEN: usize = 64;
+const LINK_MARGIN_SECS: u64 = 5 * 60;
+const EXPIRED_MESSAGE: &str = "The link expired. Try again.";
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -44,6 +46,8 @@ pub struct TrackInfo {
     pub artist: String,
     pub album: Option<String>,
     pub thumb: Option<String>,
+    #[serde(default)]
+    pub resume: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
@@ -54,6 +58,7 @@ pub enum EventKind {
     Progress,
     Done,
     Failed,
+    Expired,
     Cancelled,
 }
 
@@ -159,6 +164,7 @@ struct Transferred {
 #[derive(Debug, PartialEq)]
 enum Failure {
     Cancelled,
+    Expired,
     Failed(String),
 }
 
@@ -250,7 +256,7 @@ impl<S: EventSink> Downloads<S> {
             part,
             token,
         };
-        tokio::spawn(async move { inner.run(request).await });
+        tauri::async_runtime::spawn(async move { inner.run(request).await });
         Ok(())
     }
 
@@ -288,8 +294,15 @@ impl<S: EventSink> Downloads<S> {
 impl<S: EventSink> Inner<S> {
     async fn run(&self, request: Request) {
         let id = request.track.id.clone();
-        let outcome = self.download(&request).await;
-        remove_partials(&request.part);
+        let outcome = match self.download(&request).await {
+            Err(Failure::Expired) if request.track.resume => {
+                Err(Failure::Failed(EXPIRED_MESSAGE.to_owned()))
+            }
+            other => other,
+        };
+        if !matches!(outcome, Err(Failure::Expired)) {
+            remove_partials(&request.part);
+        }
         lock(&self.jobs).remove(&id);
         match outcome {
             Ok(path) => self.sink.emit(DownloadEvent {
@@ -300,6 +313,9 @@ impl<S: EventSink> Inner<S> {
             Err(Failure::Cancelled) => self
                 .sink
                 .emit(DownloadEvent::new(EventKind::Cancelled, &id)),
+            Err(Failure::Expired) => self
+                .sink
+                .emit(DownloadEvent::new(EventKind::Expired, &id)),
             Err(Failure::Failed(reason)) => {
                 tracing::warn!(%id, %reason, "download failed");
                 self.sink.emit(DownloadEvent {
@@ -318,6 +334,9 @@ impl<S: EventSink> Inner<S> {
                 .map_err(|error| Failure::Failed(error.to_string()))
         })
         .await?;
+        if link_expires_soon(&request.url, now_secs()) {
+            return Err(Failure::Expired);
+        }
         self.mark_running(&request.track.id);
         self.sink
             .emit(DownloadEvent::new(EventKind::Start, &request.track.id));
@@ -331,7 +350,7 @@ impl<S: EventSink> Inner<S> {
         let mut throttle = Throttle::default();
         let mut attempt: u32 = 1;
         loop {
-            let from = if attempt == 1 {
+            let from = if attempt == 1 && !request.track.resume {
                 0
             } else {
                 std::fs::metadata(&request.part).map_or(0, |meta| meta.len())
@@ -339,6 +358,7 @@ impl<S: EventSink> Inner<S> {
             match self.transfer(request, from, &mut throttle).await {
                 Ok(transferred) => return Ok(transferred),
                 Err(Failure::Cancelled) => return Err(Failure::Cancelled),
+                Err(Failure::Expired) => return Err(Failure::Expired),
                 Err(Failure::Failed(reason)) if attempt >= ATTEMPTS => {
                     return Err(Failure::Failed(reason));
                 }
@@ -370,6 +390,9 @@ impl<S: EventSink> Inner<S> {
             .send();
         let mut response =
             until_cancelled(&request.token, stalled(self.policy.stall, head)).await?;
+        if matches!(response.status(), StatusCode::FORBIDDEN | StatusCode::GONE) {
+            return Err(Failure::Expired);
+        }
         if !response.status().is_success() {
             return Err(Failure::Failed(format!(
                 "HTTP {}",
@@ -377,7 +400,7 @@ impl<S: EventSink> Inner<S> {
             )));
         }
 
-        let resumed = response.status() == StatusCode::PARTIAL_CONTENT;
+        let resumed = response.status() == StatusCode::PARTIAL_CONTENT && from > 0;
         let start = if resumed { from } else { 0 };
         let total = start + response.content_length().unwrap_or(0);
         let mime = response
@@ -528,6 +551,20 @@ impl<S: EventSink> Inner<S> {
             });
         }
     }
+}
+
+fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |elapsed| elapsed.as_secs())
+}
+
+fn link_expires_soon(url: &str, now: u64) -> bool {
+    Regex::new(r"[?&/]expire[=/](\d{9,11})")
+        .expect("static regex")
+        .captures(url)
+        .and_then(|caps| caps.get(1)?.as_str().parse::<u64>().ok())
+        .is_some_and(|expire| expire <= now + LINK_MARGIN_SECS)
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {

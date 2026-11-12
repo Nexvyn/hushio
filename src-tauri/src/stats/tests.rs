@@ -22,6 +22,7 @@ fn event(kind: &str, track: &TrackInput, delta_ms: f64) -> PlaybackEvent {
         kind: kind.into(),
         track: Some(track.clone()),
         delta_ms,
+        history: true,
     }
 }
 
@@ -398,9 +399,24 @@ async fn import_replaces_the_stats_and_export_returns_them() {
     assert_eq!(stored["state"]["buckets"].as_array().map(Vec::len), Some(1));
 }
 
+#[tokio::test]
+async fn a_paused_history_records_nothing() {
+    let root = tempfile::tempdir().expect("temp dir");
+    let service = Service::load(root.path().to_path_buf()).await;
+    let mut paused = event("progress", &track("a", None), 40_000.0);
+    paused.history = false;
+    service
+        .playback(&paused, at(2026, 10, 15, 21))
+        .expect("progress");
+    assert_eq!(plays_of(&service, "a"), 0);
+    service
+        .playback(&event("progress", &track("a", None), 40_000.0), at(2026, 10, 15, 21))
+        .expect("progress");
+    assert_eq!(plays_of(&service, "a"), 1);
+}
+
 #[test]
-fn a_journal_entry_exactly_sixty_days_old_is_kept_and_one_day_older_is_dropped() {
-    let mut entries = Vec::new();
+fn a_journal_entry_exactly_sixty_days_old_is_kept_and_one_day_older_is_dropped() {    let mut entries = Vec::new();
     let base = at(2026, 10, 15, 9);
     journal_add(&mut entries, &track("old", None), 5_000, &base);
     journal_add(&mut entries, &track("edge", None), 5_000, &(base + chrono::Duration::days(60)));

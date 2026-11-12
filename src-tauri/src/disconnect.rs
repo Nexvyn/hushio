@@ -4,10 +4,13 @@ use std::sync::Arc;
 use serde_json::Value;
 use tauri::State;
 
-use crate::drive_sync::Drive;
+use crate::crash;
+use crate::discord;
 use crate::google_auth::GoogleAuth;
+use crate::network;
 use crate::persist;
 use crate::reveal::Folders;
+use crate::scrobble;
 use crate::stats;
 use crate::yt_data_api::{self, ApiError, YtApi};
 use crate::yt_innertube_auth::Innertube;
@@ -64,23 +67,13 @@ pub fn wipe_local(root: &Path, downloads: &[PathBuf]) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn erase_stop_sync(
-    drive: State<'_, Arc<Drive>>,
-    engine: State<'_, Arc<YtEngine>>,
-) -> Result<(), String> {
-    drive.stop().await;
+pub async fn erase_stop_sync(engine: State<'_, Arc<YtEngine>>) -> Result<(), String> {
     engine.stop().await
 }
 
 #[tauri::command]
-pub fn erase_resume_sync(drive: State<'_, Arc<Drive>>, engine: State<'_, Arc<YtEngine>>) {
-    drive.resume();
+pub fn erase_resume_sync(engine: State<'_, Arc<YtEngine>>) {
     engine.resume();
-}
-
-#[tauri::command]
-pub async fn erase_drive_files(drive: State<'_, Arc<Drive>>) -> Result<usize, String> {
-    drive.erase_app_data().await
 }
 
 #[tauri::command]
@@ -123,6 +116,10 @@ pub fn erase_local_data(
     paths: State<'_, DataPaths>,
     folders: State<'_, Folders>,
     stats: State<'_, Arc<stats::Service>>,
+    scrobbles: State<'_, Arc<scrobble::Service>>,
+    discord: State<'_, Arc<discord::Service>>,
+    network: State<'_, Arc<network::Service>>,
+    crashes: State<'_, Arc<crash::Service>>,
     delete_downloads: bool,
     download_paths: Vec<String>,
 ) -> Result<(), String> {
@@ -138,6 +135,10 @@ pub fn erase_local_data(
         Vec::new()
     };
     stats.erase();
+    scrobbles.erase();
+    discord.erase();
+    network.erase();
+    crashes.erase();
     wipe_local(&paths.root, &downloads)
 }
 

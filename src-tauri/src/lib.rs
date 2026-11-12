@@ -1,12 +1,11 @@
 mod analysis;
-mod cloud_payload;
-mod deletion_sync;
+mod crash;
 mod disconnect;
 mod android;
 mod audio_output;
 mod cache_limit;
+mod discord;
 mod downloads;
-mod drive_sync;
 mod google_auth;
 mod launch;
 mod linux_portal;
@@ -17,11 +16,13 @@ mod install_marker;
 mod macos_window;
 mod media_controls;
 mod menu;
+mod network;
 mod persist;
+mod recognition;
 mod reveal;
+mod scrobble;
 mod stats;
 mod stream;
-mod sync_merge;
 mod sync_queue;
 mod taskbar;
 #[cfg(desktop)]
@@ -141,7 +142,6 @@ async fn persist_read(
 #[tauri::command]
 async fn persist_write(
     state: State<'_, DataPaths>,
-    drive: State<'_, Arc<drive_sync::Drive>>,
     name: String,
     data: serde_json::Value,
     owner: Option<String>,
@@ -153,26 +153,7 @@ async fn persist_write(
         &data,
     )
     .await?;
-    drive.notify_write(&name);
     Ok(true)
-}
-
-#[tauri::command]
-fn drive_sync_status(drive: State<'_, Arc<drive_sync::Drive>>) -> drive_sync::Status {
-    drive.status()
-}
-
-#[tauri::command]
-fn drive_sync_now(app: AppHandle, drive: State<'_, Arc<drive_sync::Drive>>) -> drive_sync::Status {
-    spawn_drive_sync(&app);
-    drive.status()
-}
-
-fn spawn_drive_sync(app: &AppHandle) {
-    let drive = app.state::<Arc<drive_sync::Drive>>().inner().clone();
-    tauri::async_runtime::spawn(async move {
-        drive.sync_now().await;
-    });
 }
 
 #[tauri::command]
@@ -256,6 +237,31 @@ async fn lyrics_get(
     Ok(state.get(meta).await)
 }
 
+#[tauri::command]
+async fn lyrics_search(
+    state: State<'_, lyrics::Service>,
+    query: String,
+    duration: Option<f64>,
+) -> Result<Vec<lyrics::LyricsCandidate>, String> {
+    state.search(&query, duration).await
+}
+
+#[tauri::command]
+async fn lyrics_pick(
+    state: State<'_, lyrics::Service>,
+    song_id: String,
+    provider: String,
+    candidate_id: String,
+) -> Result<lyrics::LyricsResult, String> {
+    state.pick(&song_id, &provider, &candidate_id).await
+}
+
+#[tauri::command]
+async fn lyrics_reset(state: State<'_, lyrics::Service>, song_id: String) -> Result<(), String> {
+    state.reset(&song_id).await;
+    Ok(())
+}
+
 fn allow_file(app: &AppHandle, path: &str) {
     if let Err(error) = app.asset_protocol_scope().allow_file(path) {
         tracing::warn!(%error, path, "could not allow file for playback");
@@ -271,6 +277,7 @@ async fn local_library_get(
 
 #[tauri::command]
 async fn local_library_add_folders(
+    app: AppHandle,
     state: State<'_, local_library::Service>,
     folders: State<'_, reveal::Folders>,
     paths: Vec<String>,
@@ -278,7 +285,9 @@ async fn local_library_add_folders(
     for path in &paths {
         folders.check(Path::new(path))?;
     }
-    state.add_folders(paths).await
+    let result = state.add_folders(paths).await?;
+    local_library::sync_watches(&app).await;
+    Ok(result)
 }
 
 #[tauri::command]
@@ -292,10 +301,13 @@ async fn local_library_scan(
 
 #[tauri::command]
 async fn local_library_remove_folder(
+    app: AppHandle,
     state: State<'_, local_library::Service>,
     path: String,
 ) -> Result<local_library::LocalLibrary, String> {
-    state.remove_folder(&path).await
+    let library = state.remove_folder(&path).await?;
+    local_library::sync_watches(&app).await;
+    Ok(library)
 }
 
 #[tauri::command]
@@ -360,10 +372,8 @@ async fn google_sign_in(
         .sign_in(&google_auth::SystemBrowser(app.clone()))
         .await?;
     let _ = app.emit("google-auth-changed", &account);
-    app.state::<Arc<drive_sync::Drive>>().resume();
     app.state::<Arc<YtEngine>>().resume();
     spawn_sync(&app, app.state::<Arc<YtEngine>>().inner().clone());
-    spawn_drive_sync(&app);
     Ok(account)
 }
 
@@ -446,6 +456,53 @@ async fn yt_enqueue(
 }
 
 #[tauri::command]
+async fn yt_rate(
+    app: AppHandle,
+    engine: State<'_, Arc<YtEngine>>,
+    video_id: String,
+    like: bool,
+) -> Result<(), String> {
+    let kind = if like { sync_queue::Kind::Like } else { sync_queue::Kind::Unlike };
+    let job = sync_queue::JobInput {
+        kind,
+        local_playlist_id: None,
+        yt_playlist_id: None,
+        video_id: Some(video_id),
+        payload: None,
+    };
+    engine.enqueue(vec![job]).await?;
+    spawn_sync(&app, engine.inner().clone());
+    Ok(())
+}
+
+#[tauri::command]
+async fn yt_my_playlists(engine: State<'_, Arc<YtEngine>>) -> Result<Vec<yt_data_api::RemotePlaylist>, String> {
+    engine.my_playlists().await
+}
+
+#[tauri::command]
+async fn yt_playlist_videos(
+    engine: State<'_, Arc<YtEngine>>,
+    playlist_id: String,
+) -> Result<Vec<yt_data_api::RemoteVideo>, String> {
+    engine.playlist_videos(&playlist_id).await
+}
+
+#[tauri::command]
+async fn yt_link_playlist(
+    engine: State<'_, Arc<YtEngine>>,
+    local_playlist_id: String,
+    yt_playlist_id: String,
+) -> Result<(), String> {
+    engine.link(&local_playlist_id, &yt_playlist_id).await
+}
+
+#[tauri::command]
+async fn yt_unlink_playlist(engine: State<'_, Arc<YtEngine>>, local_playlist_id: String) -> Result<(), String> {
+    engine.unlink(&local_playlist_id).await
+}
+
+#[tauri::command]
 fn yt_tv_status(tv: State<'_, Arc<yt_innertube_auth::Innertube>>) -> yt_innertube_auth::TvStatus {
     tv.status()
 }
@@ -501,7 +558,6 @@ async fn keep_google_session(app: AppHandle, google: Arc<google_auth::GoogleAuth
             google_auth::Resume::Ready(account) => {
                 let _ = app.emit("google-auth-changed", &account);
                 spawn_sync(&app, app.state::<Arc<YtEngine>>().inner().clone());
-                spawn_drive_sync(&app);
                 return;
             }
             google_auth::Resume::SignedOut(account) => {
@@ -521,12 +577,32 @@ async fn local_library_track_path(
     Ok(state.track_path(&id).await)
 }
 
+fn install_panic_hook() {
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        crash::record_panic(&panic_message(info));
+        previous(info);
+    }));
+}
+
+fn panic_message(info: &std::panic::PanicHookInfo<'_>) -> String {
+    let payload = info.payload();
+    if let Some(text) = payload.downcast_ref::<&str>() {
+        return (*text).to_owned();
+    }
+    if let Some(text) = payload.downcast_ref::<String>() {
+        return text.clone();
+    }
+    "The app stopped unexpectedly.".to_owned()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt()
         .event_format(LogPrefix)
         .with_max_level(tracing::Level::INFO)
         .init();
+    install_panic_hook();
     #[cfg(desktop)]
     media_controls::set_app_id();
 
@@ -546,6 +622,9 @@ pub fn run() {
     #[cfg(desktop)]
     {
         builder = builder.plugin(window::state_plugin());
+    }
+    for plugin in tauri_plugin_hushio_player::plugins() {
+        builder = builder.plugin(plugin);
     }
     let app = builder
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -571,10 +650,14 @@ pub fn run() {
             #[cfg(not(desktop))]
             let _ = (webview, payload);
         })
-        .plugin(tauri_plugin_hushio_player::init())
         .register_uri_scheme_protocol("localart", |context, request| {
             let art_dir = context.app_handle().state::<local_library::Service>().art_dir();
             local_library::serve_art(&art_dir, request.uri().path())
+        })
+        .register_uri_scheme_protocol("netmusic", |context, request| {
+            let network = context.app_handle().state::<Arc<network::Service>>();
+            let request = tauri::http::Request::from_parts(request.into_parts().0, Vec::new());
+            tauri::async_runtime::block_on(network::serve_track(&network, &request))
         })
         .setup(|app| {
             android::init(app.handle());
@@ -603,9 +686,14 @@ pub fn run() {
             app.manage(folders);
             let local = tauri::async_runtime::block_on(local_library::Service::load(root.clone()));
             app.manage(local);
+            local_library::start_watching(app.handle());
             let stats_root = root.clone();
             let sync_root = root.clone();
-            let drive_root = root.clone();
+            let scrobble_root = root.clone();
+            let network_root = root.clone();
+            let discord_root = root.clone();
+            let crash_root = root.clone();
+            let lyrics_root = root.clone();
             app.manage(DataPaths { root });
             #[cfg(desktop)]
             app.manage(tray::Tray::default());
@@ -639,11 +727,27 @@ pub fn run() {
             let proxy = stream::StreamProxy::new(registry);
             tauri::async_runtime::block_on(proxy.start())?;
             app.manage(proxy);
-            app.manage(lyrics::Service::new()?);
+            app.manage(tauri::async_runtime::block_on(lyrics::Service::load(lyrics_root))?);
             app.manage(downloads::Downloads::new(app.handle().clone(), default_dir));
             let stats = Arc::new(tauri::async_runtime::block_on(stats::Service::load(stats_root)));
             tauri::async_runtime::spawn(stats.clone().run_flush());
             app.manage(stats);
+            let scrobbles = Arc::new(tauri::async_runtime::block_on(scrobble::Service::load(
+                scrobble_root,
+            )));
+            tauri::async_runtime::spawn(scrobbles.clone().run_retry());
+            app.manage(scrobbles);
+            let network = Arc::new(tauri::async_runtime::block_on(network::Service::load(
+                network_root,
+            )));
+            app.manage(network);
+            crash::set_crash_root(crash_root.clone());
+            let crashes = Arc::new(tauri::async_runtime::block_on(crash::Service::load(crash_root.clone())));
+            tauri::async_runtime::block_on(crashes.absorb_crash_file(&crash_root));
+            app.manage(crashes);
+            app.manage(Arc::new(recognition::Service::new().map_err(|error| error.to_string())?));
+            let discord = Arc::new(tauri::async_runtime::block_on(discord::Service::load(discord_root)));
+            app.manage(discord);
             let google = Arc::new(google_auth::GoogleAuth::new(
                 google_auth::OAuthConfig::production(),
                 Arc::new(google_auth::KeyringStore),
@@ -661,18 +765,6 @@ pub fn run() {
                 tv,
             ));
             app.manage(Arc::new(engine));
-            let status_app = app.handle().clone();
-            let drive = Arc::new(drive_sync::DriveSync::new(
-                drive_root,
-                drive_sync::DRIVE_BASE,
-                google.clone(),
-                drive_sync::http_client(),
-                Box::new(move |status: &drive_sync::Status| {
-                    let _ = status_app.emit("drive-sync-progress", status);
-                }),
-            ));
-            app.manage(drive.clone());
-            tauri::async_runtime::spawn(drive.run());
             tauri::async_runtime::spawn(keep_google_session(app.handle().clone(), google));
             #[cfg(target_os = "macos")]
             macos_window::install(app.handle());
@@ -693,6 +785,9 @@ pub fn run() {
             stream_proxy_port,
             stream_register,
             lyrics_get,
+            lyrics_search,
+            lyrics_pick,
+            lyrics_reset,
             track_analysis,
             download_start,
             download_cancel,
@@ -727,16 +822,36 @@ pub fn run() {
             yt_sync_status,
             yt_sync_now,
             yt_enqueue,
+            yt_rate,
+            yt_my_playlists,
+            yt_playlist_videos,
+            yt_link_playlist,
+            yt_unlink_playlist,
             yt_tv_status,
             yt_tv_connect,
             yt_tv_cancel,
             yt_tv_disconnect,
             yt_tv_open,
-            drive_sync_status,
-            drive_sync_now,
+            scrobble::scrobble_status,
+            scrobble::listenbrainz_connect,
+            scrobble::listenbrainz_disconnect,
+            scrobble::lastfm_begin_auth,
+            scrobble::lastfm_finish_auth,
+            scrobble::lastfm_disconnect,
+            scrobble::scrobble_set_enabled,
+            scrobble::scrobble_love,
+            network::network_servers,
+            network::network_server_save,
+            network::network_server_remove,
+            network::network_tracks,
+            network::network_track_bytes,
+            recognition::recognise_song,
+            crash::crash_logs,
+            crash::crash_logs_clear,
+            discord::discord_status,
+            discord::discord_set_enabled,
             disconnect::erase_stop_sync,
             disconnect::erase_resume_sync,
-            disconnect::erase_drive_files,
             disconnect::erase_youtube_playlists,
             disconnect::erase_revoke,
             disconnect::erase_keyring,
@@ -763,7 +878,11 @@ pub fn run() {
             updates::updates_state,
             updates::updates_check,
             updates::updates_install,
-            updates::updates_restart
+            updates::updates_restart,
+            android::update_check,
+            android::update_download,
+            android::update_install,
+            android::update_open_install_settings
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
@@ -772,8 +891,6 @@ pub fn run() {
         RunEvent::ExitRequested { .. } => {
             macos_window::mark_quitting();
             app.state::<downloads::Downloads<AppHandle>>().abandon();
-            let drive = app.state::<Arc<drive_sync::Drive>>();
-            let _ = tauri::async_runtime::block_on(tokio::time::timeout(drive_sync::QUIT_FLUSH, drive.flush()));
             tauri::async_runtime::block_on(app.state::<Arc<stats::Service>>().flush());
         }
         #[cfg(target_os = "macos")]
@@ -789,7 +906,15 @@ pub fn run() {
 }
 
 #[tauri::command]
-fn playback_event(stats: State<'_, Arc<stats::Service>>, event: stats::PlaybackEvent) -> Result<(), String> {
+fn playback_event(
+    stats: State<'_, Arc<stats::Service>>,
+    scrobbles: State<'_, Arc<scrobble::Service>>,
+    discord: State<'_, Arc<discord::Service>>,
+    event: stats::PlaybackEvent,
+) -> Result<(), String> {
+    let now_ms = chrono::Utc::now().timestamp_millis();
+    scrobbles.playback(&event, chrono::Utc::now().timestamp() as u64);
+    discord.playback(&event, now_ms);
     stats.playback(&event, chrono::Local::now())
 }
 

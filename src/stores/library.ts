@@ -10,8 +10,11 @@ import {
   rekeyPlaylistTracks,
 } from "../lib/deletionSync";
 import { moveKey } from "../lib/libraryOrder";
-import { queueYtJobs, videoIdOf } from "../lib/ytSync";
+import { isTestSong } from "../lib/devSong";
+import { scrobbleLove } from "../lib/bridge";
+import { queueYtJobs, rateYtSong, unlinkYtPlaylist, videoIdOf } from "../lib/ytSync";
 import { persistStorage } from "../lib/persist";
+import { useSettings } from "./settings";
 import type { Track } from "../types";
 
 export const HISTORY_LIMIT = 200;
@@ -44,7 +47,6 @@ export type ArtistInput = Omit<FollowedArtist, "followedAt">;
 export type PinnedSingles = {
   liked: boolean;
   spotify: boolean;
-  replay: boolean;
   downloads: boolean;
   local: boolean;
   v2: boolean;
@@ -53,7 +55,6 @@ export type PinnedSingles = {
 export const DEFAULT_PINS: PinnedSingles = {
   liked: true,
   spotify: true,
-  replay: true,
   downloads: false,
   local: false,
   v2: true,
@@ -65,7 +66,7 @@ export type Playlist = {
   folderId: string | null;
   pinned: boolean;
   tracks: LibraryTrack[];
-  remote?: { ytPlaylistId: string };
+  remote?: { ytPlaylistId: string; imported?: true };
 };
 
 export type Folder = { id: string; name: string };
@@ -87,6 +88,8 @@ type LibraryState = LibraryValues & {
   patchDownload: (id: string, patch: Partial<DownloadItem>) => void;
   removeDownload: (id: string) => void;
   toggleLike: (track: LikeInput) => void;
+  likeMany: (tracks: LikeInput[]) => number;
+  setLikedTracks: (tracks: LibraryTrack[]) => void;
   pushHistory: (track: LikeInput) => void;
   clearHistory: () => void;
   removeFromHistory: (id: string) => void;
@@ -99,8 +102,10 @@ type LibraryState = LibraryValues & {
   addToPlaylist: (playlistId: string, track: LikeInput) => boolean;
   removeFromPlaylist: (playlistId: string, trackId: string) => void;
   linkRemote: (playlistId: string, ytPlaylistId: string) => void;
+  importLinkedPlaylist: (id: string, name: string, ytPlaylistId: string, tracks: LikeInput[]) => void;
   restoreTrackInPlaylist: (playlistId: string, track: LibraryTrack, index: number) => void;
   moveInPlaylist: (playlistId: string, from: number, to: number) => void;
+  setPlaylistTracks: (playlistId: string, tracks: LibraryTrack[]) => void;
   setPlaylistFolder: (playlistId: string, folderId: string | null) => void;
   createFolder: (name: string) => string;
   renameFolder: (id: string, name: string) => void;
@@ -123,7 +128,7 @@ const DEFAULTS: LibraryValues = {
   deletionSync: undefined,
 };
 
-function newId(): string {
+export function newId(): string {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 }
 
@@ -179,8 +184,45 @@ function likeUpdate(track: LikeInput): Update {
   };
 }
 
+function likeManyUpdate(tracks: LikeInput[]): Update {
+  return (state) => {
+    const seen = new Set(state.liked.map((item) => item.id));
+    const fresh: LikeInput[] = [];
+    for (const track of tracks) {
+      if (seen.has(track.id)) continue;
+      seen.add(track.id);
+      fresh.push(track);
+    }
+    if (fresh.length === 0) return {};
+    return commit(
+      state,
+      { liked: [...fresh.map(toLibraryTrack).reverse(), ...state.liked] },
+      fresh.map((track): DeletionChange => ({ kind: "add", group: "liked", id: track.id })),
+    );
+  };
+}
+
+function setLikedTracksUpdate(tracks: LibraryTrack[]): Update {
+  return (state) => {
+    const same = state.liked.length === tracks.length && state.liked.every((item, index) => item.id === tracks[index].id);
+    if (same) return {};
+    const kept = new Set(tracks.map((item) => item.id));
+    const had = new Set(state.liked.map((item) => item.id));
+    const changes: DeletionChange[] = [
+      ...state.liked
+        .filter((item) => !kept.has(item.id))
+        .map((item): DeletionChange => ({ kind: "delete", group: "liked", id: item.id })),
+      ...tracks
+        .filter((item) => !had.has(item.id))
+        .map((item): DeletionChange => ({ kind: "add", group: "liked", id: item.id })),
+    ];
+    return commit(state, { liked: tracks }, changes);
+  };
+}
+
 function historyUpdate(track: LikeInput): Update {
   return (state) => {
+    if (isTestSong(track.id)) return state;
     const history = [toLibraryTrack(track), ...state.history.filter((item) => item.id !== track.id)].slice(
       0,
       HISTORY_LIMIT,
@@ -298,6 +340,28 @@ function movePlaylistTrackUpdate(playlistId: string, from: number, to: number): 
   };
 }
 
+function setPlaylistTracksUpdate(playlistId: string, tracks: LibraryTrack[]): Update {
+  return (state) => {
+    const playlist = state.playlists.find((item) => item.id === playlistId);
+    if (!playlist) return {};
+    const same =
+      playlist.tracks.length === tracks.length && playlist.tracks.every((item, index) => item.id === tracks[index].id);
+    if (same) return {};
+    const kept = new Set(tracks.map((item) => item.id));
+    const had = new Set(playlist.tracks.map((item) => item.id));
+    const changes: DeletionChange[] = [
+      ...playlist.tracks
+        .filter((item) => !kept.has(item.id))
+        .map((item): DeletionChange => ({ kind: "delete", group: "tracks", id: item.id, parent: playlistId })),
+      ...tracks
+        .filter((item) => !had.has(item.id))
+        .map((item): DeletionChange => ({ kind: "add", group: "tracks", id: item.id, parent: playlistId })),
+    ];
+    if (changes.length === 0) changes.push({ kind: "edit", group: "playlists", id: playlistId });
+    return commit(state, { playlists: mapPlaylist(state, playlistId, (item) => ({ ...item, tracks })) }, changes);
+  };
+}
+
 function setPlaylistFolderUpdate(playlistId: string, folderId: string | null): Update {
   return (state) => {
     const playlist = state.playlists.find((item) => item.id === playlistId);
@@ -353,7 +417,7 @@ function migrateLibrary(persisted: unknown, version: number): LibraryValues {
   const stored = (typeof persisted === "object" && persisted !== null ? persisted : {}) as Partial<LibraryValues>;
   return {
     liked: stored.liked ?? [],
-    history: stored.history ?? [],
+    history: (stored.history ?? []).filter((track) => !isTestSong(track.id)),
     followedArtists: stored.followedArtists ?? [],
     pinnedSingles: version < 1 || stored.pinnedSingles == null ? DEFAULT_PINS : stored.pinnedSingles,
     playlists: stored.playlists ?? [],
@@ -376,8 +440,36 @@ export const useLibrary = create<LibraryState>()(
       };
       return {
         ...DEFAULTS,
-        toggleLike: (track) => apply(likeUpdate(track)),
-        pushHistory: (track) => apply(historyUpdate(track)),
+        likeMany: (tracks) => {
+          const liked = new Set(get().liked.map((item) => item.id));
+          const fresh = new Set(tracks.map((track) => track.id).filter((id) => !liked.has(id)));
+          if (fresh.size === 0) return 0;
+          apply(likeManyUpdate(tracks));
+          return fresh.size;
+        },
+        toggleLike: (track) => {
+          const wasLiked = get().liked.some((item) => item.id === track.id);
+          apply(likeUpdate(track));
+          rateYtSong(track, !wasLiked);
+          void scrobbleLove(track.artist, track.title, !wasLiked).catch(() => {});
+          if (!wasLiked) {
+            void import("../lib/downloads").then(({ autoDownloadLiked }) =>
+              autoDownloadLiked({
+                id: track.id,
+                title: track.title,
+                artist: track.artist,
+                thumb: track.thumb,
+                album: track.album,
+                duration: track.duration,
+              }),
+            );
+          }
+        },
+        setLikedTracks: (tracks) => apply(setLikedTracksUpdate(tracks)),
+        pushHistory: (track) => {
+          if (useSettings.getState().pauseListeningHistory) return;
+          apply(historyUpdate(track));
+        },
         clearHistory: () =>
           set((state) => commit(state, { history: [] }, [{ kind: "clear", group: "history" }])),
         removeFromHistory: (id) =>
@@ -419,12 +511,42 @@ export const useLibrary = create<LibraryState>()(
         deletePlaylist: (id) => {
           const remote = get().playlists.find((playlist) => playlist.id === id)?.remote;
           apply(deletePlaylistUpdate(id));
+          if (remote?.imported) {
+            unlinkYtPlaylist(id);
+            return;
+          }
           queueYtJobs([{ kind: "delete", localPlaylistId: id, ytPlaylistId: remote?.ytPlaylistId ?? null }]);
         },
         linkRemote: (playlistId, ytPlaylistId) =>
           apply((state) => ({
             playlists: mapPlaylist(state, playlistId, (playlist) => ({ ...playlist, remote: { ytPlaylistId } })),
           })),
+        importLinkedPlaylist: (id, name, ytPlaylistId, tracks) => {
+          const unique = tracks.filter((track, index) => tracks.findIndex((other) => other.id === track.id) === index);
+          const libraryTracks = unique.map(toLibraryTrack);
+          apply((state) =>
+            commit(
+              state,
+              {
+                playlists: [
+                  {
+                    id,
+                    name: name.trim(),
+                    folderId: null,
+                    pinned: false,
+                    tracks: libraryTracks,
+                    remote: { ytPlaylistId, imported: true },
+                  },
+                  ...state.playlists,
+                ],
+              },
+              [
+                { kind: "add", group: "playlists", id },
+                ...libraryTracks.map((track) => ({ kind: "add" as const, group: "tracks" as const, id: track.id, parent: id })),
+              ],
+            ),
+          );
+        },
         togglePinPlaylist: (id) =>
           apply((state) => ({
             playlists: mapPlaylist(state, id, (playlist) => ({ ...playlist, pinned: !playlist.pinned })),
@@ -448,6 +570,7 @@ export const useLibrary = create<LibraryState>()(
         restoreTrackInPlaylist: (playlistId, track, index) =>
           apply(restoreTrackUpdate(playlistId, track, index)),
         moveInPlaylist: (playlistId, from, to) => apply(movePlaylistTrackUpdate(playlistId, from, to)),
+        setPlaylistTracks: (playlistId, tracks) => apply(setPlaylistTracksUpdate(playlistId, tracks)),
         setPlaylistFolder: (playlistId, folderId) => apply(setPlaylistFolderUpdate(playlistId, folderId)),
         createFolder: (name) => {
           const id = newId();

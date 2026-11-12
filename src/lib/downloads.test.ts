@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  autoDownloadLiked,
   chooseDownloadFolder,
   cancelDownload,
   createProgressBuffer,
@@ -85,6 +86,7 @@ describe("startDownload", () => {
       "https://rr.test/stream",
       undefined,
       false,
+      false,
     );
     expect(useLibrary.getState().downloads.abc123.status).toBe("queued");
   });
@@ -103,7 +105,13 @@ describe("startDownload", () => {
     useSettings.setState({ downloadDir: "D:/Music/Saved", exportDownloads: true });
     await startDownload(SONG);
 
-    expect(bridge.downloadStart).toHaveBeenCalledWith(expect.anything(), expect.any(String), "D:/Music/Saved", true);
+    expect(bridge.downloadStart).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.any(String),
+      "D:/Music/Saved",
+      true,
+      false,
+    );
   });
 
   it("does nothing for a song that is already queued or downloading", async () => {
@@ -130,6 +138,50 @@ describe("startDownload", () => {
 
     expect(useLibrary.getState().downloads.abc123).toMatchObject({ status: "failed", progress: 0 });
     expect(toastMessages()).toEqual(["Download failed: boom"]);
+  });
+});
+
+describe("autoDownloadLiked", () => {
+  const VIDEO: DownloadSource = { ...SONG, id: "dQw4w9WgXcQ" };
+
+  beforeEach(() => {
+    useSettings.setState({ autoDownloadLiked: false });
+  });
+
+  it("does nothing while the setting is off", () => {
+    autoDownloadLiked(VIDEO);
+    expect(resolve).not.toHaveBeenCalled();
+    expect(useLibrary.getState().downloads.dQw4w9WgXcQ).toBeUndefined();
+  });
+
+  it("queues a YouTube song once when the setting is on", async () => {
+    useSettings.setState({ autoDownloadLiked: true });
+    autoDownloadLiked(VIDEO);
+    autoDownloadLiked(VIDEO);
+    await vi.waitFor(() => expect(bridge.downloadStart).toHaveBeenCalledTimes(1));
+    expect(resolve).toHaveBeenCalledTimes(1);
+    expect(useLibrary.getState().downloads.dQw4w9WgXcQ.status).toBe("queued");
+  });
+
+  it("skips songs that are already downloaded or queued", () => {
+    useSettings.setState({ autoDownloadLiked: true });
+    seed("aaaaaaaaaaa", item({ status: "done", path: "D:/Music/done.m4a" }));
+    seed("bbbbbbbbbbb", item({ status: "queued" }));
+    seed("ccccccccccc", item({ status: "downloading" }));
+    autoDownloadLiked({ ...VIDEO, id: "aaaaaaaaaaa" });
+    autoDownloadLiked({ ...VIDEO, id: "bbbbbbbbbbb" });
+    autoDownloadLiked({ ...VIDEO, id: "ccccccccccc" });
+    expect(resolve).not.toHaveBeenCalled();
+    expect(toastMessages()).toEqual([]);
+  });
+
+  it("skips songs that are not YouTube videos", () => {
+    useSettings.setState({ autoDownloadLiked: true });
+    autoDownloadLiked({ ...VIDEO, id: "net:abcdefghij" });
+    autoDownloadLiked({ ...VIDEO, id: "local:abcdefghijk" });
+    autoDownloadLiked({ ...VIDEO, id: "short" });
+    expect(resolve).not.toHaveBeenCalled();
+    expect(useLibrary.getState().downloads).toEqual({});
   });
 });
 
@@ -188,26 +240,6 @@ describe("handleDownloadEvent", () => {
     expect(toastMessages()).toEqual(["Download failed: disk full"]);
   });
 
-  it("re-resolves once after an expired link (403) and restarts the download", async () => {
-    handleDownloadEvent({ type: "failed", id: "abc123", reason: "HTTP 403" });
-    await vi.runAllTimersAsync();
-
-    expect(resolve).toHaveBeenCalledTimes(1);
-    expect(bridge.downloadStart).toHaveBeenCalledTimes(1);
-    expect(useLibrary.getState().downloads.abc123.status).toBe("queued");
-    expect(toastMessages()).toEqual([]);
-  });
-
-  it("reports the failure when the fresh link also expires", async () => {
-    handleDownloadEvent({ type: "failed", id: "abc123", reason: "HTTP 403" });
-    await vi.runAllTimersAsync();
-    handleDownloadEvent({ type: "failed", id: "abc123", reason: "HTTP 403" });
-
-    expect(bridge.downloadStart).toHaveBeenCalledTimes(1);
-    expect(useLibrary.getState().downloads.abc123.status).toBe("failed");
-    expect(toastMessages()).toEqual(["Download failed: HTTP 403"]);
-  });
-
   it("removes the row on cancelled", () => {
     handleDownloadEvent({ type: "cancelled", id: "abc123" });
 
@@ -220,6 +252,94 @@ describe("handleDownloadEvent", () => {
 
     expect(useLibrary.getState().downloads).toEqual({ abc123: expect.objectContaining({ status: "queued" }) });
     expect(toastMessages()).toEqual([]);
+  });
+});
+
+describe("expired links", () => {
+  const FIRST = { url: "https://rr.test/one", mime: "audio/mp4", lufs: null, itag: 251, clen: 1000 };
+  const SECOND = { url: "https://rr.test/two", mime: "audio/mp4", lufs: null, itag: 251, clen: 1000 };
+
+  beforeEach(() => {
+    resolve.mockResolvedValue(FIRST);
+  });
+
+  it("re-resolves once and resumes from the bytes already on disk when the stream matches", async () => {
+    await startDownload(SONG);
+    resolve.mockResolvedValue(SECOND);
+    handleDownloadEvent({ type: "expired", id: "abc123" });
+    await vi.waitFor(() => expect(bridge.downloadStart).toHaveBeenCalledTimes(2));
+
+    expect(resolve).toHaveBeenLastCalledWith("abc123", true, undefined, true);
+    expect(bridge.downloadStart).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: "abc123" }),
+      "https://rr.test/two",
+      undefined,
+      false,
+      true,
+    );
+    expect(toastMessages()).toEqual([]);
+  });
+
+  it("keeps the saved folder when it restarts", async () => {
+    useSettings.setState({ downloadDir: "D:/Music/Saved" });
+    await startDownload(SONG);
+    resolve.mockResolvedValue(SECOND);
+    handleDownloadEvent({ type: "expired", id: "abc123" });
+    await vi.waitFor(() => expect(bridge.downloadStart).toHaveBeenCalledTimes(2));
+
+    expect(bridge.downloadStart).toHaveBeenLastCalledWith(
+      expect.anything(),
+      "https://rr.test/two",
+      "D:/Music/Saved",
+      false,
+      true,
+    );
+  });
+
+  it("restarts from zero when the fresh stream is a different encoding", async () => {
+    await startDownload(SONG);
+    resolve.mockResolvedValue({ ...SECOND, itag: 140 });
+    handleDownloadEvent({ type: "expired", id: "abc123" });
+    await vi.waitFor(() => expect(bridge.downloadStart).toHaveBeenCalledTimes(2));
+
+    expect(bridge.downloadStart).toHaveBeenLastCalledWith(
+      expect.anything(),
+      "https://rr.test/two",
+      undefined,
+      false,
+      false,
+    );
+  });
+
+  it("fails with a clear message when the fresh link expires too", async () => {
+    await startDownload(SONG);
+    resolve.mockResolvedValue(SECOND);
+    handleDownloadEvent({ type: "expired", id: "abc123" });
+    await vi.waitFor(() => expect(bridge.downloadStart).toHaveBeenCalledTimes(2));
+    handleDownloadEvent({ type: "expired", id: "abc123" });
+
+    expect(resolve).toHaveBeenCalledTimes(2);
+    expect(bridge.downloadStart).toHaveBeenCalledTimes(2);
+    expect(useLibrary.getState().downloads.abc123.status).toBe("failed");
+    expect(toastMessages()).toEqual(["Download failed: The link expired. Try again."]);
+  });
+
+  it("shows an expiry reported by the backend after a resumed run without re-resolving", async () => {
+    await startDownload(SONG);
+    handleDownloadEvent({ type: "failed", id: "abc123", reason: "The link expired. Try again." });
+
+    expect(resolve).toHaveBeenCalledTimes(1);
+    expect(useLibrary.getState().downloads.abc123.status).toBe("failed");
+    expect(toastMessages()).toEqual(["Download failed: The link expired. Try again."]);
+  });
+
+  it("does not re-resolve for other failures", async () => {
+    await startDownload(SONG);
+    handleDownloadEvent({ type: "failed", id: "abc123", reason: "HTTP 503" });
+
+    expect(resolve).toHaveBeenCalledTimes(1);
+    expect(bridge.downloadStart).toHaveBeenCalledTimes(1);
+    expect(toastMessages()).toEqual(["Download failed: HTTP 503"]);
   });
 });
 

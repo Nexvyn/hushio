@@ -294,16 +294,16 @@ fn schedule_save(app: &AppHandle) {
     });
 }
 
-pub fn open(app: &AppHandle) -> tauri::Result<()> {
+pub async fn open(app: &AppHandle) -> tauri::Result<()> {
     if let Some(win) = app.get_webview_window(LABEL) {
         let _ = win.unminimize();
         let _ = win.show();
         let _ = win.set_focus();
         return Ok(());
     }
-    let (areas, primary) = screens(app);
     let root = app.state::<DataPaths>().root.clone();
-    let stored = parse(tauri::async_runtime::block_on(persist::read(&root, OWNER, STORE)).as_ref());
+    let stored = parse(persist::read(&root, OWNER, STORE).await.as_ref());
+    let (areas, primary) = screens(app);
     let square = plan(stored, &areas, primary);
     let (w, h) = size_for(stored.compact);
     let at = if stored.compact { bar_box(square) } else { square };
@@ -343,14 +343,14 @@ pub fn ready(app: &AppHandle) {
     let _ = app.emit_to(window::MAIN, "pip:need-state", ());
 }
 
-pub fn toggle(app: &AppHandle) -> tauri::Result<bool> {
+pub async fn toggle(app: &AppHandle) -> tauri::Result<bool> {
     match app.get_webview_window(LABEL) {
         Some(win) if shown(&win) => {
             let _ = win.close();
             Ok(false)
         }
         _ => {
-            open(app)?;
+            open(app).await?;
             Ok(true)
         }
     }
@@ -410,7 +410,7 @@ pub fn on_window_event(window: &Window, event: &WindowEvent) {
 #[tauri::command]
 pub async fn pip_toggle(app: AppHandle, webview: Webview) -> Result<bool, String> {
     require(&webview, &[window::MAIN, LABEL])?;
-    toggle(&app).map_err(|error| error.to_string())
+    toggle(&app).await.map_err(|error| error.to_string())
 }
 
 #[tauri::command]

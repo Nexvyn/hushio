@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const storage = vi.hoisted(() => ({
   read: async (): Promise<unknown> => null,
@@ -15,11 +15,29 @@ vi.mock("../lib/persist", () => ({
   }),
 }));
 
+const { rate, love, autoDownload } = vi.hoisted(() => ({
+  rate: vi.fn(async () => {}),
+  love: vi.fn(async () => {}),
+  autoDownload: vi.fn(async () => {}),
+}));
+
+vi.mock("../lib/bridge", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/bridge")>()),
+  ytRate: rate,
+  scrobbleLove: love,
+}));
+
+vi.mock("../lib/downloads", () => ({ autoDownloadLiked: autoDownload }));
+
 import { deletionKey } from "../lib/deletionSync";
+import { LOCAL_ID_PREFIX } from "../lib/localLibrary";
 import { DEFAULT_PINS, HISTORY_LIMIT, useLibrary } from "./library";
+import { GUEST_ACCOUNT, useAuth } from "./auth";
 import type { Track } from "../types";
 
 const track = (i: number): Track => ({ id: `t${i}`, title: `Track ${i}`, artist: `Artist ${i}`, thumb: null });
+const youtube = (id: string): Track => ({ ...track(1), id });
+const likedIds = () => useLibrary.getState().liked.map((item) => item.id);
 const initial = useLibrary.getState();
 const ids = (list: { id: string }[]) => list.map((item) => item.id);
 
@@ -27,6 +45,49 @@ beforeEach(() => {
   storage.writes.length = 0;
   storage.read = async () => null;
   useLibrary.setState(initial, true);
+});
+
+describe("YouTube likes", () => {
+  const signIn = () => useAuth.setState({ account: { ...GUEST_ACCOUNT, mode: "google" } });
+
+  beforeEach(() => {
+    rate.mockClear();
+    useAuth.setState({ account: GUEST_ACCOUNT });
+  });
+
+  it("keeps YouTube out of it while signed out", () => {
+    useLibrary.getState().toggleLike(youtube("dQw4w9WgXcQ"));
+    expect(rate).not.toHaveBeenCalled();
+    expect(likedIds()).toContain("dQw4w9WgXcQ");
+  });
+
+  it("likes and unlikes the song on YouTube when signed in", () => {
+    signIn();
+    useLibrary.getState().toggleLike(youtube("dQw4w9WgXcQ"));
+    expect(rate).toHaveBeenLastCalledWith("dQw4w9WgXcQ", true);
+    useLibrary.getState().toggleLike(youtube("dQw4w9WgXcQ"));
+    expect(rate).toHaveBeenLastCalledWith("dQw4w9WgXcQ", false);
+    expect(rate).toHaveBeenCalledTimes(2);
+  });
+
+  it("skips songs that are not YouTube videos", () => {
+    signIn();
+    useLibrary.getState().toggleLike(youtube("net:abcdefghij"));
+    useLibrary.getState().toggleLike(youtube(`${LOCAL_ID_PREFIX}abcdefghijk`));
+    useLibrary.getState().toggleLike(youtube("short"));
+    expect(rate).not.toHaveBeenCalled();
+    expect(likedIds()).toEqual(["short", `${LOCAL_ID_PREFIX}abcdefghijk`, "net:abcdefghij"]);
+  });
+
+  it("keeps the local like when YouTube fails", async () => {
+    signIn();
+    rate.mockRejectedValueOnce(new Error("offline"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    useLibrary.getState().toggleLike(youtube("dQw4w9WgXcQ"));
+    await vi.waitFor(() => expect(warn).toHaveBeenCalled());
+    expect(likedIds()).toContain("dQw4w9WgXcQ");
+    warn.mockRestore();
+  });
 });
 
 describe("liked songs", () => {
@@ -68,6 +129,92 @@ describe("liked songs", () => {
     useLibrary.getState().toggleLike(track(1));
     const again = useLibrary.getState().deletionSync;
     expect(again?.adds[key]).toBeGreaterThan(removed?.deletes[key] ?? 0);
+  });
+});
+
+describe("bulk likes", () => {
+  beforeEach(() => {
+    rate.mockClear();
+    love.mockClear();
+    autoDownload.mockClear();
+    useAuth.setState({ account: { ...GUEST_ACCOUNT, mode: "google" } });
+  });
+
+  afterEach(() => {
+    useAuth.setState({ account: GUEST_ACCOUNT });
+  });
+
+  it("adds every new song in one update, newest first, and returns the count", () => {
+    useLibrary.getState().toggleLike(track(0));
+    const snapshots: string[][] = [];
+    const unsubscribe = useLibrary.subscribe((state) => snapshots.push(ids(state.liked)));
+    const added = useLibrary.getState().likeMany([track(1), track(2), track(0), track(3), track(2)]);
+    unsubscribe();
+
+    expect(added).toBe(3);
+    expect(likedIds()).toEqual(["t3", "t2", "t1", "t0"]);
+    expect(snapshots).toHaveLength(1);
+  });
+
+  it("skips songs that are already liked and adds nothing when all are", () => {
+    useLibrary.getState().likeMany([track(1)]);
+    expect(useLibrary.getState().likeMany([track(1)])).toBe(0);
+    expect(likedIds()).toEqual(["t1"]);
+  });
+
+  it("records an add for each new song in the deletion sync", () => {
+    useLibrary.getState().likeMany([track(1), track(2)]);
+    const adds = useLibrary.getState().deletionSync?.adds ?? {};
+    expect(adds[deletionKey("liked", "t1")]).toBeGreaterThan(0);
+    expect(adds[deletionKey("liked", "t2")]).toBeGreaterThan(0);
+  });
+
+  it("does not rate on YouTube, scrobble, or download", async () => {
+    useLibrary.getState().likeMany([youtube("dQw4w9WgXcQ"), track(2)]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(rate).not.toHaveBeenCalled();
+    expect(love).not.toHaveBeenCalled();
+    expect(autoDownload).not.toHaveBeenCalled();
+    expect(likedIds()).toContain("dQw4w9WgXcQ");
+  });
+
+  it("still rates, scrobbles and downloads for a single like", async () => {
+    useLibrary.getState().toggleLike(youtube("dQw4w9WgXcQ"));
+    expect(rate).toHaveBeenCalledWith("dQw4w9WgXcQ", true);
+    expect(love).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(autoDownload).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe("playlist track order", () => {
+  it("replaces the tracks in one update and keeps the playlist id", () => {
+    useLibrary.getState().createPlaylist("Mix");
+    const id = useLibrary.getState().playlists[0].id;
+    useLibrary.getState().addToPlaylist(id, track(1));
+    useLibrary.getState().addToPlaylist(id, track(2));
+    const before = useLibrary.getState().playlists[0].tracks;
+
+    useLibrary.getState().setPlaylistTracks(id, [before[1], before[0]]);
+
+    const playlist = useLibrary.getState().playlists[0];
+    expect(playlist.id).toBe(id);
+    expect(ids(playlist.tracks)).toEqual(["t2", "t1"]);
+  });
+
+  it("records a tombstone for removed tracks and an add for restored ones", () => {
+    useLibrary.getState().createPlaylist("Mix");
+    const id = useLibrary.getState().playlists[0].id;
+    useLibrary.getState().addToPlaylist(id, track(1));
+    useLibrary.getState().addToPlaylist(id, track(2));
+    const before = useLibrary.getState().playlists[0].tracks;
+    const key = deletionKey("tracks", "t2", id);
+
+    useLibrary.getState().setPlaylistTracks(id, [before[0]]);
+    expect(useLibrary.getState().deletionSync?.deletes[key]).toBeGreaterThan(0);
+
+    useLibrary.getState().setPlaylistTracks(id, before);
+    expect(useLibrary.getState().deletionSync?.adds[key]).toBeGreaterThan(0);
+    expect(ids(useLibrary.getState().playlists[0].tracks)).toEqual(["t1", "t2"]);
   });
 });
 

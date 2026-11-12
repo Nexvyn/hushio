@@ -15,7 +15,8 @@ use tokio::time::{sleep, timeout};
 use super::tags::{self, Cover, CoverFormat, Tags};
 use super::{
     DownloadEvent, Downloads, EventKind, EventSink, Policy, Throttle, TrackInfo, claim_name,
-    cover_url, is_webm, part_path, remove_partials, require_https, sanitize_filename, valid_id,
+    cover_url, is_webm, link_expires_soon, part_path, remove_partials, require_https,
+    sanitize_filename, valid_id,
 };
 
 struct Channel(mpsc::UnboundedSender<DownloadEvent>);
@@ -47,6 +48,14 @@ fn track(id: &str) -> TrackInfo {
         artist: "Artist".to_owned(),
         album: Some("Album".to_owned()),
         thumb: None,
+        resume: false,
+    }
+}
+
+fn resumed(id: &str) -> TrackInfo {
+    TrackInfo {
+        resume: true,
+        ..track(id)
     }
 }
 
@@ -352,6 +361,113 @@ async fn every_attempt_stalling_reports_the_stall() {
 }
 
 #[tokio::test]
+async fn forbidden_link_reports_expired_and_keeps_the_partial() {
+    let full = content();
+    let first = full[..10].to_vec();
+    let url = serve(move |index, _| {
+        if index == 0 {
+            Reply {
+                status: 200,
+                declared: 100,
+                body: first.clone(),
+                stall: true,
+            }
+        } else {
+            Reply::status(403)
+        }
+    })
+    .await;
+    let dir = tempfile::tempdir().expect("temp dir");
+    let part = dir.path().join(".hushio-expiring0001.part");
+    let (downloads, mut events) = setup(Duration::from_millis(200));
+
+    downloads
+        .enqueue(track("expiring0001"), url, Some(dir.path().to_path_buf()))
+        .expect("queued");
+    let expired = wait_for_kind(&mut events, EventKind::Expired).await;
+
+    assert_eq!(expired.id, "expiring0001");
+    assert_eq!(std::fs::read(&part).expect("partial kept"), full[..10]);
+    assert!(downloads.queue().is_empty());
+}
+
+#[tokio::test]
+async fn link_that_expires_before_the_request_is_not_requested() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&calls);
+    let url = serve(move |_, _| {
+        counter.fetch_add(1, Ordering::SeqCst);
+        Reply::ok(b"unused")
+    })
+    .await;
+    let dir = tempfile::tempdir().expect("temp dir");
+    let (downloads, mut events) = setup(Duration::from_secs(5));
+
+    downloads
+        .enqueue(
+            track("staleurl0001"),
+            format!("{url}?expire=1000000000"),
+            Some(dir.path().to_path_buf()),
+        )
+        .expect("queued");
+
+    assert_eq!(
+        wait_for_kind(&mut events, EventKind::Expired).await.id,
+        "staleurl0001"
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn resumed_download_continues_from_the_partial_bytes() {
+    let full = content();
+    let rest = full[10..].to_vec();
+    let url = serve(move |_, head| {
+        if range_from(head) == 10 {
+            Reply {
+                status: 206,
+                declared: rest.len(),
+                body: rest.clone(),
+                stall: false,
+            }
+        } else {
+            Reply::status(500)
+        }
+    })
+    .await;
+    let dir = tempfile::tempdir().expect("temp dir");
+    std::fs::write(dir.path().join(".hushio-resumetrk1.part"), &full[..10]).expect("partial");
+    let (downloads, mut events) = setup(Duration::from_secs(5));
+
+    downloads
+        .enqueue(resumed("resumetrk1"), url, Some(dir.path().to_path_buf()))
+        .expect("queued");
+    let done = finished(&mut events).await;
+
+    assert_eq!(done.kind, EventKind::Done);
+    let path = PathBuf::from(done.path.expect("path"));
+    assert_eq!(std::fs::read(path).expect("final file"), full);
+}
+
+#[tokio::test]
+async fn resumed_link_that_expires_again_fails_and_drops_the_partial() {
+    let url = serve(|_, _| Reply::status(410)).await;
+    let dir = tempfile::tempdir().expect("temp dir");
+    let part = dir.path().join(".hushio-resumetrk2.part");
+    std::fs::write(&part, &content()[..10]).expect("partial");
+    let (downloads, mut events) = setup(Duration::from_secs(5));
+
+    downloads
+        .enqueue(resumed("resumetrk2"), url, Some(dir.path().to_path_buf()))
+        .expect("queued");
+    let failed = finished(&mut events).await;
+
+    assert_eq!(failed.kind, EventKind::Failed);
+    assert_eq!(failed.reason.as_deref(), Some("The link expired. Try again."));
+    assert!(!part.exists());
+}
+
+#[tokio::test]
 async fn cancel_removes_the_partial_and_reports_cancelled() {
     let url = serve(|_, _| Reply::silent_stall(100)).await;
     let dir = tempfile::tempdir().expect("temp dir");
@@ -567,6 +683,29 @@ fn covers_are_accepted_only_by_jpeg_or_png_magic() {
     assert_eq!(png.format, CoverFormat::Png);
     assert!(Cover::sniff(b"GIF89a".to_vec()).is_none());
     assert!(Cover::sniff(b"RIFF....WEBP".to_vec()).is_none());
+}
+
+#[test]
+fn links_expiring_within_five_minutes_are_renewed_before_use() {
+    let now = 1_700_000_000;
+
+    assert!(link_expires_soon(
+        "https://rr1.example.test/videoplayback?expire=1699999999&itag=251",
+        now
+    ));
+    assert!(link_expires_soon(
+        "https://rr1.example.test/videoplayback?itag=251&expire=1700000300",
+        now
+    ));
+    assert!(link_expires_soon(
+        "https://rr1.example.test/videoplayback/expire/1699999999/x",
+        now
+    ));
+    assert!(!link_expires_soon(
+        "https://rr1.example.test/videoplayback?expire=1700003600",
+        now
+    ));
+    assert!(!link_expires_soon("https://rr1.example.test/videoplayback", now));
 }
 
 #[test]

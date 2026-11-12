@@ -11,10 +11,14 @@ use uuid::Uuid;
 use crate::APP_NAME;
 use crate::google_auth::TokenError;
 use crate::persist;
-use crate::yt_data_api::{AccessTokens, ApiError, QUOTA_LIMIT, Quota, RemoteItem, YtApi, now_ms};
+use crate::yt_data_api::{
+    AccessTokens, ApiError, QUOTA_LIMIT, Quota, RemoteItem, RemotePlaylist, RemoteVideo, YtApi, is_video_id, now_ms,
+};
 use crate::yt_innertube_auth::{Innertube, MSG_CONNECT};
 
 const MSG_OFFLINE: &str = "Couldn't reach YouTube. Sync resumes when the connection is back.";
+const MSG_SIGN_IN: &str = "Sign in with Google to see your YouTube playlists.";
+const MSG_QUOTA: &str = "YouTube's daily quota is used up. It resets at midnight Pacific.";
 
 pub const MAX_ATTEMPTS: u32 = 5;
 const BACKOFF_MS: [i64; 4] = [1_000, 2_000, 4_000, 8_000];
@@ -165,6 +169,9 @@ fn validate(input: &JobInput) -> Result<(), String> {
     if matches!(input.kind, Kind::Create | Kind::Rename) && input.payload.is_none() {
         return Err("The sync change is missing the playlist name.".to_owned());
     }
+    if matches!(input.kind, Kind::Like | Kind::Unlike) && !input.video_id.as_deref().is_some_and(is_video_id) {
+        return Err("Only YouTube songs can be liked on YouTube.".to_owned());
+    }
     Ok(())
 }
 
@@ -197,6 +204,10 @@ impl Queue {
 
     pub fn clear(&mut self) {
         self.stored = Stored::default();
+    }
+
+    pub fn link(&mut self, local: &str, yt: &str) {
+        self.stored.links.insert(local.to_owned(), yt.to_owned());
     }
 
     pub fn enqueue(&mut self, input: JobInput, now: i64) -> Result<bool, String> {
@@ -525,6 +536,54 @@ impl<T: AccessTokens> Engine<T> {
             run.total += added;
         }
         Ok(())
+    }
+
+    pub async fn my_playlists(&self) -> Result<Vec<RemotePlaylist>, String> {
+        self.read_allowed()?;
+        self.api
+            .my_playlists(&self.tokens)
+            .await
+            .map_err(|error| self.read_failed(error))
+    }
+
+    pub async fn playlist_videos(&self, playlist_id: &str) -> Result<Vec<RemoteVideo>, String> {
+        self.read_allowed()?;
+        self.api
+            .playlist_videos(&self.tokens, playlist_id)
+            .await
+            .map_err(|error| self.read_failed(error))
+    }
+
+    pub async fn link(&self, local_playlist_id: &str, yt_playlist_id: &str) -> Result<(), String> {
+        let mut queue = self.queue.lock().await;
+        queue.link(local_playlist_id, yt_playlist_id);
+        queue.save().await
+    }
+
+    pub async fn unlink(&self, local_playlist_id: &str) -> Result<(), String> {
+        let mut queue = self.queue.lock().await;
+        queue.drop_playlist(local_playlist_id);
+        queue.save().await
+    }
+
+    fn read_allowed(&self) -> Result<(), String> {
+        let over = self
+            .quota
+            .lock()
+            .map(|mut quota| quota.on_fallback(now_ms()))
+            .unwrap_or(false);
+        if over { Err(MSG_QUOTA.to_owned()) } else { Ok(()) }
+    }
+
+    fn read_failed(&self, error: ApiError) -> String {
+        if matches!(error, ApiError::Token(_)) {
+            return MSG_SIGN_IN.to_owned();
+        }
+        if error.is_quota() {
+            self.switch_to_fallback(now_ms());
+            return MSG_QUOTA.to_owned();
+        }
+        error.describe()
     }
 
     pub async fn status(&self) -> Status {
@@ -864,6 +923,16 @@ mod tests {
         }
     }
 
+    fn rating(kind: Kind, video: &str) -> JobInput {
+        JobInput {
+            kind,
+            local_playlist_id: None,
+            yt_playlist_id: None,
+            video_id: Some(video.to_owned()),
+            payload: None,
+        }
+    }
+
     async fn engine(root: &Path, base: &str) -> Engine<FakeTokens> {
         engine_with(root, base, Some("tv-refresh")).await
     }
@@ -1179,13 +1248,83 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn an_imported_playlist_takes_later_adds_without_a_second_create() {
+        let (base, mock) = start_mock().await;
+        mock.replies.lock().unwrap().push_back((200, "{}".to_owned()));
+        let dir = tempfile::tempdir().expect("temp dir");
+        let engine = engine(dir.path(), &base).await;
+        engine.link("L3", "PLimported").await.expect("linked");
+        engine.enqueue(vec![add("L3", "v4", None)]).await.expect("queued");
+
+        let now = now_ms() + 1_000_000;
+        assert_eq!(engine.step(now, &|_: Event| {}).await, Step::Ran);
+
+        let seen = mock.seen.lock().unwrap().clone();
+        assert_eq!(seen.len(), 1);
+        assert!(seen[0].path.ends_with("/playlistItems"));
+        assert!(seen[0].body.contains("PLimported"));
+    }
+
+    #[tokio::test]
+    async fn unlinking_an_imported_playlist_drops_its_queued_writes_and_sends_nothing() {
+        let (base, mock) = start_mock().await;
+        let dir = tempfile::tempdir().expect("temp dir");
+        let engine = engine(dir.path(), &base).await;
+        engine.link("L6", "PLkeep").await.expect("linked");
+        engine.enqueue(vec![add("L6", "v1", None)]).await.expect("queued");
+        engine.unlink("L6").await.expect("unlinked");
+
+        assert_eq!(engine.step(now_ms() + 1_000_000, &|_: Event| {}).await, Step::Idle);
+        assert!(mock.seen.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn deleting_a_playlist_made_in_hushio_still_deletes_it_on_youtube() {
+        let (base, mock) = start_mock().await;
+        mock.replies.lock().unwrap().push_back((200, "{}".to_owned()));
+        let dir = tempfile::tempdir().expect("temp dir");
+        let engine = engine(dir.path(), &base).await;
+        engine.link("L7", "PLmade").await.expect("linked");
+        engine
+            .enqueue(vec![JobInput {
+                kind: Kind::Delete,
+                local_playlist_id: Some("L7".to_owned()),
+                yt_playlist_id: None,
+                video_id: None,
+                payload: None,
+            }])
+            .await
+            .expect("queued");
+
+        assert_eq!(engine.step(now_ms() + 1_000_000, &|_: Event| {}).await, Step::Ran);
+        let seen = mock.seen.lock().unwrap().clone();
+        assert_eq!(seen.len(), 1);
+        assert_eq!(seen[0].method, "DELETE");
+        assert!(seen[0].query.contains("PLmade"));
+    }
+
+    #[tokio::test]
+    async fn an_over_quota_read_says_so_without_calling_youtube_again() {
+        let (base, mock) = start_mock().await;
+        mock.replies.lock().unwrap().push_back((
+            403,
+            r#"{"error":{"message":"Quota exceeded","errors":[{"reason":"quotaExceeded"}]}}"#.to_owned(),
+        ));
+        let dir = tempfile::tempdir().expect("temp dir");
+        let engine = engine(dir.path(), &base).await;
+        assert_eq!(engine.my_playlists().await.unwrap_err(), MSG_QUOTA);
+        assert_eq!(engine.playlist_videos("PL1").await.unwrap_err(), MSG_QUOTA);
+        assert_eq!(mock.seen.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
     async fn a_run_drains_the_queue_and_records_the_sync_time() {
         let (base, mock) = start_mock().await;
         mock.replies.lock().unwrap().push_back((200, r#"{"items":[]}"#.to_owned()));
         let dir = tempfile::tempdir().expect("temp dir");
         let engine = engine(dir.path(), &base).await;
         engine
-            .enqueue(vec![JobInput { kind: Kind::Like, local_playlist_id: None, yt_playlist_id: None, video_id: Some("v3".to_owned()), payload: None }])
+            .enqueue(vec![rating(Kind::Like, "dQw4w9WgXcQ")])
             .await
             .expect("queued");
 
@@ -1197,5 +1336,49 @@ mod tests {
         assert!(status.last_synced_at.is_some());
         assert_eq!(status.pulled_playlists, 0);
         assert_eq!(mock.seen.lock().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn a_like_and_an_unlike_are_sent_as_ratings_in_order() {
+        let (base, mock) = start_mock().await;
+        let dir = tempfile::tempdir().expect("temp dir");
+        let engine = engine(dir.path(), &base).await;
+        engine.enqueue(vec![rating(Kind::Like, "dQw4w9WgXcQ")]).await.expect("liked");
+        assert_eq!(engine.step(now_ms(), &ignore).await, Step::Ran);
+        engine.enqueue(vec![rating(Kind::Unlike, "dQw4w9WgXcQ")]).await.expect("unliked");
+        assert_eq!(engine.step(now_ms(), &ignore).await, Step::Ran);
+
+        let seen = mock.seen.lock().unwrap().clone();
+        assert_eq!(seen.len(), 2);
+        assert!(seen.iter().all(|request| request.path.ends_with("/videos/rate")));
+        assert!(seen[0].query.contains("rating=like"));
+        assert!(seen[1].query.contains("rating=none"));
+        assert!(engine.queue.lock().await.stored.jobs.is_empty());
+    }
+
+    #[test]
+    fn a_like_cancels_a_pending_unlike_and_the_reverse() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let mut queue = Queue {
+            root: dir.path().to_path_buf(),
+            stored: Stored::default(),
+        };
+        queue.enqueue(rating(Kind::Like, "dQw4w9WgXcQ"), 0).expect("like");
+        assert!(!queue.enqueue(rating(Kind::Unlike, "dQw4w9WgXcQ"), 1).expect("unlike"));
+        assert!(queue.stored.jobs.is_empty());
+        queue.enqueue(rating(Kind::Unlike, "dQw4w9WgXcQ"), 2).expect("unlike");
+        assert_eq!(queue.stored.jobs.len(), 1);
+        assert_eq!(queue.stored.jobs[0].kind, Kind::Unlike);
+    }
+
+    #[tokio::test]
+    async fn a_rating_for_a_song_that_is_not_on_youtube_is_refused() {
+        let (base, mock) = start_mock().await;
+        let dir = tempfile::tempdir().expect("temp dir");
+        let engine = engine(dir.path(), &base).await;
+        assert!(engine.enqueue(vec![rating(Kind::Like, "net:abcdefghij")]).await.is_err());
+        assert!(engine.enqueue(vec![rating(Kind::Unlike, "local-1")]).await.is_err());
+        assert!(engine.queue.lock().await.stored.jobs.is_empty());
+        assert!(mock.seen.lock().unwrap().is_empty());
     }
 }
