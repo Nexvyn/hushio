@@ -5,7 +5,7 @@ import { clip, durationOf, MAX_SONGS, type ImportSong } from "./importParse";
 const REQUEST_TIMEOUT_MS = 15_000;
 const PAGE_SIZE = 100;
 const MS_PER_DAY = 86_400_000;
-const EMBED_URL = "https://open.spotify.com/embed/playlist";
+const EMBED_URL = "https://open.spotify.com/embed";
 const QUERY_URL = "https://api-partner.spotify.com/pathfinder/v2/query";
 const FETCH_PLAYLIST_HASH = "21ea11a6ac75a5f3e01fd365d29c18e0a4a8b7dc09f89bbb5d73910190c6acaf";
 const ID = /^[A-Za-z0-9]{22}$/;
@@ -13,9 +13,11 @@ const SHORT_LINK = /^https:\/\/spotify\.link\/[A-Za-z0-9]{6,20}\/?$/;
 const EMBED_DATA = /<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/;
 const OPEN_LINK = /https:\/\/open\.spotify\.com\/[^\s"'<>]+/;
 const PRIVATE_TEXT = "That playlist is private or no longer exists.";
-const NOT_A_LINK = "That isn't a link to a Spotify playlist.";
+const UNAVAILABLE_TEXT = "That album or song is private or no longer exists.";
+const NOT_A_LINK = "That isn't a link to a Spotify playlist, album or song.";
 const CHANGED_TEXT = `Spotify changed something, so ${APP_NAME} couldn't read it. Try again later.`;
 const DEFAULT_NAME = "Spotify playlist";
+const DEFAULT_ALBUM = "Spotify album";
 
 export type PublicPlaylist = {
   name: string;
@@ -24,6 +26,8 @@ export type PublicPlaylist = {
   songs: ImportSong[];
   total: number;
 };
+
+export type SpotifyKind = "playlist" | "album" | "track";
 
 type Json = Record<string, unknown>;
 type EmbedPlaylist = PublicPlaylist & { token: string | null };
@@ -58,14 +62,29 @@ function coverOf(sources: unknown): string | null {
   return (ranked.find((image) => image.width >= 300) ?? ranked.at(-1))?.url ?? null;
 }
 
+function visualThumb(entity: Json): string | null {
+  const identity = isRecord(entity.visualIdentity) ? entity.visualIdentity.image : null;
+  const sources = Array.isArray(identity)
+    ? identity.filter(isRecord).map((image) => ({ url: image.url, width: image.maxWidth }))
+    : [];
+  return largestImage(sources);
+}
+
 export function isSpotifyShortLink(text: string): boolean {
   return SHORT_LINK.test(text.trim());
 }
 
-export function spotifyPlaylistId(link: string): string | null {
+function kindOf(value: string | undefined): SpotifyKind | null {
+  return value === "playlist" || value === "album" || value === "track" ? value : null;
+}
+
+export function spotifyLinkOf(link: string): { kind: SpotifyKind; id: string } | null {
   const text = link.trim();
-  const uri = /^spotify:(?:user:[^:]+:)?playlist:([A-Za-z0-9]{22})$/i.exec(text);
-  if (uri) return uri[1];
+  const uri = /^spotify:(?:user:[^:]+:)?(playlist|album|track):([A-Za-z0-9]{22})$/i.exec(text);
+  if (uri) {
+    const kind = kindOf(uri[1].toLowerCase());
+    return kind ? { kind, id: uri[2] } : null;
+  }
 
   let url: URL;
   try {
@@ -79,8 +98,14 @@ export function spotifyPlaylistId(link: string): string | null {
 
   const segments = url.pathname.split("/").filter(Boolean);
   if (segments[0] && /^intl-[a-z]{2}$/i.test(segments[0])) segments.shift();
-  const [kind, id] = segments;
-  return kind === "playlist" && id && ID.test(id) ? id : null;
+  const [path, id] = segments;
+  const kind = kindOf(path);
+  return kind && id && ID.test(id) ? { kind, id } : null;
+}
+
+export function spotifyPlaylistId(link: string): string | null {
+  const found = spotifyLinkOf(link);
+  return found?.kind === "playlist" ? found.id : null;
 }
 
 export function songOf(data: unknown, uri?: string): ImportSong | null {
@@ -116,7 +141,7 @@ export function songOf(data: unknown, uri?: string): ImportSong | null {
   };
 }
 
-export function parseEmbedPage(html: string): EmbedPlaylist {
+function embedState(html: string): Json | null {
   const match = EMBED_DATA.exec(html);
   let data: unknown = null;
   try {
@@ -125,13 +150,19 @@ export function parseEmbedPage(html: string): EmbedPlaylist {
     data = null;
   }
   const pageProps = isRecord(data) && isRecord(data.props) ? data.props.pageProps : null;
-  const state = isRecord(pageProps) && isRecord(pageProps.state) ? pageProps.state : null;
-  const entity = state && isRecord(state.data) && isRecord(state.data.entity) ? state.data.entity : null;
-  if (!entity) throw new Error(PRIVATE_TEXT);
+  return isRecord(pageProps) && isRecord(pageProps.state) ? pageProps.state : null;
+}
 
-  const rows = Array.isArray(entity.trackList) ? entity.trackList : [];
+function embedOf(html: string, message: string): { state: Json; entity: Json } {
+  const state = embedState(html);
+  const entity = state && isRecord(state.data) && isRecord(state.data.entity) ? state.data.entity : null;
+  if (!state || !entity) throw new Error(message);
+  return { state, entity };
+}
+
+function embedSongs(rows: unknown, album?: string): ImportSong[] {
   const songs: ImportSong[] = [];
-  for (const row of rows) {
+  for (const row of Array.isArray(rows) ? rows : []) {
     if (!isRecord(row)) continue;
     const title = clip(textOf(row.title).trim());
     if (!title) continue;
@@ -139,11 +170,18 @@ export function parseEmbedPage(html: string): EmbedPlaylist {
       spotifyId: lastSegment(textOf(row.uri)),
       title,
       artist: clip(textOf(row.subtitle)),
+      ...(album ? { album: clip(album) } : {}),
       duration: durationOf(Number(row.duration) / 1000),
       explicit: row.isExplicit === true,
     });
   }
-  const session = isRecord(state?.settings) && isRecord(state.settings.session) ? state.settings.session : null;
+  return songs;
+}
+
+export function parseEmbedPage(html: string): EmbedPlaylist {
+  const { state, entity } = embedOf(html, PRIVATE_TEXT);
+  const songs = embedSongs(entity.trackList);
+  const session = isRecord(state.settings) && isRecord(state.settings.session) ? state.settings.session : null;
 
   return {
     name: textOf(entity.name) || textOf(entity.title) || DEFAULT_NAME,
@@ -152,6 +190,49 @@ export function parseEmbedPage(html: string): EmbedPlaylist {
     songs: songs.slice(0, MAX_SONGS),
     total: songs.length,
     token: session && textOf(session.accessToken) ? textOf(session.accessToken) : null,
+  };
+}
+
+export function parseAlbumEmbed(html: string): PublicPlaylist {
+  const { entity } = embedOf(html, UNAVAILABLE_TEXT);
+  const name = textOf(entity.name) || textOf(entity.title) || DEFAULT_ALBUM;
+  const songs = embedSongs(entity.trackList, name);
+  return {
+    name,
+    owner: textOf(entity.subtitle) || undefined,
+    thumb: visualThumb(entity),
+    songs: songs.slice(0, MAX_SONGS),
+    total: songs.length,
+  };
+}
+
+export function parseTrackEmbed(html: string): PublicPlaylist {
+  const { entity } = embedOf(html, UNAVAILABLE_TEXT);
+  const title = clip((textOf(entity.title) || textOf(entity.name)).trim());
+  const spotifyId = lastSegment(textOf(entity.uri));
+  if (!title || !spotifyId) throw new Error(UNAVAILABLE_TEXT);
+  const artists = Array.isArray(entity.artists)
+    ? entity.artists
+        .filter(isRecord)
+        .map((artist) => textOf(artist.name))
+        .filter(Boolean)
+        .join(", ")
+    : "";
+  const duration = Number(entity.duration) / 1000;
+  return {
+    name: title,
+    owner: artists || undefined,
+    thumb: visualThumb(entity),
+    songs: [
+      {
+        spotifyId,
+        title,
+        artist: clip(artists),
+        duration: durationOf(duration),
+        explicit: entity.isExplicit === true,
+      },
+    ],
+    total: 1,
   };
 }
 
@@ -170,11 +251,11 @@ async function resolveShortLink(link: string): Promise<string> {
   return OPEN_LINK.exec(await response.text())?.[0] ?? "";
 }
 
-async function embedFor(id: string): Promise<EmbedPlaylist> {
-  const response = await fetch(`${EMBED_URL}/${id}`, { method: "GET", signal: timeout() });
-  if (response.status === 404) throw new Error(PRIVATE_TEXT);
+async function fetchEmbed(kind: SpotifyKind, id: string): Promise<string> {
+  const response = await fetch(`${EMBED_URL}/${kind}/${id}`, { method: "GET", signal: timeout() });
+  if (response.status === 404) throw new Error(kind === "playlist" ? PRIVATE_TEXT : UNAVAILABLE_TEXT);
   if (!response.ok) throw httpError(response.status);
-  return parseEmbedPage(await response.text());
+  return response.text();
 }
 
 type PlaylistPage = { name: string; owner?: string; thumb: string | null; total: number; items: ImportSong[] };
@@ -246,12 +327,8 @@ async function readAllSongs(id: string, token: string): Promise<PublicPlaylist> 
   };
 }
 
-export async function readPublicPlaylist(link: string): Promise<PublicPlaylist> {
-  const target = isSpotifyShortLink(link) ? await resolveShortLink(link.trim()) : link;
-  const id = spotifyPlaylistId(target);
-  if (!id) throw new Error(NOT_A_LINK);
-
-  const { token, ...embed } = await embedFor(id);
+async function readPlaylist(id: string): Promise<PublicPlaylist> {
+  const { token, ...embed } = parseEmbedPage(await fetchEmbed("playlist", id));
   if (!token) return embed;
   try {
     const full = await readAllSongs(id, token);
@@ -260,4 +337,13 @@ export async function readPublicPlaylist(link: string): Promise<PublicPlaylist> 
     console.warn(`[hushio] full playlist read failed, keeping the embed songs: ${String(error)}`);
     return embed;
   }
+}
+
+export async function readSpotifyLink(link: string): Promise<PublicPlaylist> {
+  const target = isSpotifyShortLink(link) ? await resolveShortLink(link.trim()) : link;
+  const found = spotifyLinkOf(target);
+  if (!found) throw new Error(NOT_A_LINK);
+  if (found.kind === "album") return parseAlbumEmbed(await fetchEmbed("album", found.id));
+  if (found.kind === "track") return parseTrackEmbed(await fetchEmbed("track", found.id));
+  return readPlaylist(found.id);
 }

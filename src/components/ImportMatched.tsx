@@ -3,7 +3,7 @@ import {
   Download01Icon,
   PlayIcon,
   PlayListAddIcon,
-  PlayListIcon,
+
   PlusSignIcon,
   RefreshIcon,
   ShuffleIcon,
@@ -121,8 +121,6 @@ function MatchedContent({ playlist, prefer, attempt, onRetry }: MatchedContentPr
   return (
     <div className="pb-14">
       <CollectionHero
-        icon={PlayListIcon}
-        kind="Imported list"
         title={playlist.name}
         covers={covers}
         facts={facts}
@@ -213,7 +211,7 @@ function MatchedContent({ playlist, prefer, attempt, onRetry }: MatchedContentPr
 
         {prefer && (
           <p className="max-w-[672px] px-3 pt-6 text-[12px] text-ink-2">
-            {`Prefers ${matchLanguageLabel(prefer)} versions of a song where YouTube Music has several (Settings › Connected services).`}
+            {`Prefers ${matchLanguageLabel(prefer)} versions of a song where several are available (Settings › Connected services).`}
           </p>
         )}
       </div>
@@ -229,8 +227,8 @@ function progressLine(
   missing: number,
   failed: number,
 ): string {
-  if (!done) return `Finding ${total - finding} of ${total} songs on YouTube Music…`;
-  let line = `${matched} of ${total} songs found on YouTube Music`;
+  if (!done) return `Finding ${total - finding} of ${total} songs…`;
+  let line = `${matched} of ${total} songs found`;
   if (missing === 1) line += ". 1 isn't there";
   else if (missing > 1) line += `. ${missing} aren't there`;
   if (failed > 0) line += `. ${failed} couldn't be checked`;
@@ -239,7 +237,7 @@ function progressLine(
 
 function statusText(state: MatchState | undefined): string {
   if (state === undefined) return "Finding…";
-  return state.status === "missing" ? "Not on YouTube Music" : "Couldn't check";
+  return state.status === "missing" ? "Not found" : "Couldn't check";
 }
 
 function SourceRow({ song, state, index }: { song: ImportSong; state: MatchState | undefined; index: number }) {

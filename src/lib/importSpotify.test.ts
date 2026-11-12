@@ -7,7 +7,7 @@ vi.mock("@tauri-apps/plugin-http", () => ({ fetch: httpFetch }));
 import {
   isSpotifyShortLink,
   parseEmbedPage,
-  readPublicPlaylist,
+  readSpotifyLink,
   songOf,
   spotifyPlaylistId,
 } from "./importSpotify";
@@ -179,9 +179,9 @@ describe("embed page", () => {
   });
 });
 
-describe("readPublicPlaylist", () => {
+describe("readSpotifyLink", () => {
   it("reads every page of the playlist with the anonymous token", async () => {
-    const playlist = await readPublicPlaylist(`https://open.spotify.com/playlist/${ID}`);
+    const playlist = await readSpotifyLink(`https://open.spotify.com/playlist/${ID}`);
     expect(playlist.name).toBe("Morning mix");
     expect(playlist.owner).toBe("Someone");
     expect(playlist.total).toBe(2);
@@ -201,7 +201,7 @@ describe("readPublicPlaylist", () => {
       return new Response(embedHtml(embedData), { status: 200 });
     });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const playlist = await readPublicPlaylist(`spotify:playlist:${ID}`);
+    const playlist = await readSpotifyLink(`spotify:playlist:${ID}`);
     expect(playlist.songs).toHaveLength(2);
     expect(playlist.songs[0]).toMatchObject({ spotifyId: "t1", title: "One" });
     expect(warn).toHaveBeenCalled();
@@ -210,26 +210,26 @@ describe("readPublicPlaylist", () => {
   it("uses the embed alone when the page has no token", async () => {
     const noToken = { ...embedData, props: { pageProps: { state: { data: embedData.props.pageProps.state.data } } } };
     httpFetch.mockImplementation(async () => new Response(embedHtml(noToken), { status: 200 }));
-    const playlist = await readPublicPlaylist(`spotify:playlist:${ID}`);
+    const playlist = await readSpotifyLink(`spotify:playlist:${ID}`);
     expect(playlist.songs).toHaveLength(2);
     expect(httpFetch).toHaveBeenCalledTimes(1);
   });
 
   it("reports a missing playlist and other HTTP failures", async () => {
     httpFetch.mockImplementation(async () => new Response("", { status: 404 }));
-    await expect(readPublicPlaylist(`spotify:playlist:${ID}`)).rejects.toThrow(
+    await expect(readSpotifyLink(`spotify:playlist:${ID}`)).rejects.toThrow(
       "That playlist is private or no longer exists.",
     );
 
     httpFetch.mockImplementation(async () => new Response("", { status: 503 }));
-    await expect(readPublicPlaylist(`spotify:playlist:${ID}`)).rejects.toThrow(
+    await expect(readSpotifyLink(`spotify:playlist:${ID}`)).rejects.toThrow(
       "Spotify didn't answer (HTTP 503). Try again in a moment.",
     );
   });
 
   it("rejects text that is not a playlist link", async () => {
-    await expect(readPublicPlaylist("https://open.spotify.com/track/abc")).rejects.toThrow(
-      "That isn't a link to a Spotify playlist.",
+    await expect(readSpotifyLink("https://open.spotify.com/track/abc")).rejects.toThrow(
+      "That isn't a link to a Spotify playlist, album or song.",
     );
     expect(httpFetch).not.toHaveBeenCalled();
   });
@@ -241,7 +241,7 @@ describe("readPublicPlaylist", () => {
       }
       return respond(url);
     });
-    const playlist = await readPublicPlaylist("https://spotify.link/AbC123");
+    const playlist = await readSpotifyLink("https://spotify.link/AbC123");
     expect(playlist.name).toBe("Morning mix");
     expect(httpFetch.mock.calls[0][1].redirect).toBe("manual");
   });

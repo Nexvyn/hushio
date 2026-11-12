@@ -1,5 +1,6 @@
 import { APP_NAME, APP_SLUG } from "./app";
 import { replayExport, replayImport } from "./bridge";
+import { downloadText } from "./downloadText";
 import { isMatchLanguage } from "./importLanguage";
 import type { Track } from "../types";
 import { DEFAULT_PINS, LIBRARY_VERSION, useLibrary, type LibraryValues } from "../stores/library";
@@ -22,7 +23,6 @@ const BACKUP_VERSION = 1;
 const MAX_BACKUP_BYTES = 64 * 1024 * 1024;
 const RECENT_LIMIT = 50;
 const RELOAD_DELAY_MS = 900;
-const REVOKE_DELAY_MS = 1000;
 const NOT_BACKUP = `That doesn't look like a ${APP_NAME} backup`;
 const NEWER = `That backup was written by a newer version of ${APP_NAME}`;
 const OTHER_APP = "That backup is from another app";
@@ -208,20 +208,11 @@ export function restoreBackup(doc: BackupDoc): void {
   if (doc.recentSearches) useRecents.setState({ searches: doc.recentSearches.slice(0, RECENT_LIMIT) });
 }
 
-function downloadJson(name: string, text: string): void {
-  const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = name;
-  link.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), REVOKE_DELAY_MS);
-}
-
 export async function exportBackup(now: Date = new Date()): Promise<void> {
   const toast = useUI.getState().toast;
   try {
     const listening = await replayExport();
-    downloadJson(backupFileName(now), serializeBackup(buildBackup(now, listening)));
+    downloadText(backupFileName(now), serializeBackup(buildBackup(now, listening)), "application/json");
     toast("Backup saved", "success");
   } catch (error) {
     toast(messageOf(error, "Couldn't save the backup."), "error");

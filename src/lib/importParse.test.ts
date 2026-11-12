@@ -4,10 +4,13 @@ import {
   csvCells,
   csvRows,
   durationOf,
-  isPlaylistLink,
+  isSpotifyLink,
+  isYouTubeLink,
   MAX_SONGS,
   parseSongList,
   parseSongListReport,
+  youtubeMixSeed,
+  youtubePlaylistId,
 } from "./importParse";
 
 describe("parseSongList text mode", () => {
@@ -111,10 +114,77 @@ describe("parseSongList limits", () => {
 
 describe("helpers", () => {
   it("recognises playlist links case-insensitively on the trimmed text", () => {
-    expect(isPlaylistLink("  https://open.spotify.com/playlist/abc  ")).toBe(true);
-    expect(isPlaylistLink("HTTPS://SPOTIFY.LINK/abcdef")).toBe(true);
-    expect(isPlaylistLink("spotify:user:someone:playlist:37i9dQZF1DXcBWIGoYBM5M")).toBe(true);
-    expect(isPlaylistLink("Artist - Title")).toBe(false);
+    expect(isSpotifyLink("  https://open.spotify.com/playlist/abc  ")).toBe(true);
+    expect(isSpotifyLink("HTTPS://SPOTIFY.LINK/abcdef")).toBe(true);
+    expect(isSpotifyLink("spotify:user:someone:playlist:37i9dQZF1DXcBWIGoYBM5M")).toBe(true);
+    expect(isSpotifyLink("Artist - Title")).toBe(false);
+  });
+
+  it("reads the list id from every YouTube playlist link shape", () => {
+    expect(youtubePlaylistId("https://www.youtube.com/playlist?list=PLabc123_-x")).toBe("PLabc123_-x");
+    expect(youtubePlaylistId("https://youtube.com/playlist?list=OLAK5uy_abc")).toBe("OLAK5uy_abc");
+    expect(youtubePlaylistId("https://music.youtube.com/playlist?list=PLmusic1")).toBe("PLmusic1");
+    expect(youtubePlaylistId("https://m.youtube.com/playlist?list=PLmobile1&si=track")).toBe("PLmobile1");
+    expect(youtubePlaylistId("  https://www.youtube.com/playlist?si=x&list=PLfirst  ")).toBe("PLfirst");
+    expect(youtubePlaylistId("https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLwatch1")).toBe("PLwatch1");
+    expect(youtubePlaylistId("https://m.youtube.com/watch?list=PLmwatch&v=dQw4w9WgXcQ")).toBe("PLmwatch");
+    expect(youtubePlaylistId("https://youtu.be/dQw4w9WgXcQ?list=PLshort1")).toBe("PLshort1");
+    expect(youtubePlaylistId("http://youtu.be/dQw4w9WgXcQ?si=abc&list=PLshort2")).toBe("PLshort2");
+  });
+
+  it("rejects radio and mix ids that start with RD", () => {
+    expect(youtubePlaylistId("https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=RDdQw4w9WgXcQ")).toBeNull();
+    expect(youtubePlaylistId("https://youtu.be/dQw4w9WgXcQ?list=RDEMabc")).toBeNull();
+    expect(youtubePlaylistId("https://music.youtube.com/playlist?list=RDAMVMabc")).toBeNull();
+  });
+
+  it("still reads RDCLAK album ids as playlists", () => {
+    const album = "RDCLAK5uy_kmPRjHDECIcuVwnKVcg1Vkn1f8VbGPoEY";
+    expect(youtubePlaylistId(`https://music.youtube.com/playlist?list=${album}`)).toBe(album);
+    expect(youtubeMixSeed(`https://music.youtube.com/playlist?list=${album}`)).toBeNull();
+  });
+
+  it("reads the seed video of a YouTube Mix link", () => {
+    expect(youtubeMixSeed("https://www.youtube.com/watch?v=7eKJFnvYfOE&list=RD7eKJFnvYfOE&start_radio=1")).toBe(
+      "7eKJFnvYfOE",
+    );
+    expect(youtubeMixSeed("https://music.youtube.com/watch?v=7eKJFnvYfOE&list=RDAMVM7eKJFnvYfOE")).toBe("7eKJFnvYfOE");
+    expect(youtubeMixSeed("https://music.youtube.com/watch?list=RDAMVM7eKJFnvYfOE")).toBe("7eKJFnvYfOE");
+    expect(youtubeMixSeed("https://youtu.be/7eKJFnvYfOE?list=RDEM7eKJFnvYfOE")).toBe("7eKJFnvYfOE");
+    expect(youtubeMixSeed("youtube.com/watch?list=RD7eKJFnvYfOE")).toBe("7eKJFnvYfOE");
+  });
+
+  it("returns no mix seed for playlists, radios without a video id and plain links", () => {
+    expect(youtubeMixSeed("https://www.youtube.com/playlist?list=PLabc123")).toBeNull();
+    expect(youtubeMixSeed("https://www.youtube.com/watch?list=RDxyz")).toBeNull();
+    expect(youtubeMixSeed("https://www.youtube.com/watch?v=7eKJFnvYfOE")).toBeNull();
+    expect(youtubeMixSeed("Artist - Title")).toBeNull();
+  });
+
+  it("recognises any YouTube link, with or without a scheme", () => {
+    expect(isYouTubeLink("https://www.youtube.com/watch?v=7eKJFnvYfOE")).toBe(true);
+    expect(isYouTubeLink("youtu.be/7eKJFnvYfOE")).toBe(true);
+    expect(isYouTubeLink("https://www.youtube.com/watch?v=7eKJFnvYfOE and more")).toBe(false);
+    expect(isYouTubeLink("https://notyoutube.com/watch")).toBe(false);
+    expect(isYouTubeLink("Artist - Title")).toBe(false);
+  });
+
+  it("returns null for YouTube links without a usable playlist", () => {
+    expect(youtubePlaylistId("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBeNull();
+    expect(youtubePlaylistId("https://youtu.be/dQw4w9WgXcQ")).toBeNull();
+    expect(youtubePlaylistId("https://www.youtube.com/playlist?list=")).toBeNull();
+    expect(youtubePlaylistId("https://www.youtube.com/playlist?list=PL a")).toBeNull();
+    expect(youtubePlaylistId("https://www.youtube.com/channel?list=PLx")).toBeNull();
+    expect(youtubePlaylistId("https://example.com/playlist?list=PLx")).toBeNull();
+    expect(youtubePlaylistId("https://notyoutube.com/playlist?list=PLx")).toBeNull();
+    expect(youtubePlaylistId("ftp://www.youtube.com/playlist?list=PLx")).toBeNull();
+  });
+
+  it("does not treat text or Spotify links as YouTube playlists", () => {
+    expect(youtubePlaylistId("Artist - Title")).toBeNull();
+    expect(youtubePlaylistId("")).toBeNull();
+    expect(youtubePlaylistId("https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M")).toBeNull();
+    expect(isSpotifyLink("https://www.youtube.com/playlist?list=PLabc")).toBe(false);
   });
 
   it("parses clock values and rounds durations", () => {
@@ -182,5 +252,37 @@ describe("CSV edge cases", () => {
       { artist: "A", title: "B", duration: 0 },
       { artist: "C", title: "D", duration: 0 },
     ]);
+  });
+});
+
+describe("CSV stray quotes", () => {
+  it("keeps rows separate when two mid-cell quotes sit on different lines", () => {
+    const text = 'title,artist\nSong 12" Mix,Artist\nPlain,Other\nSecond 7" Edit,Band\nLast,Row';
+    expect(parseSongListReport(text)).toEqual({
+      songs: [
+        { title: 'Song 12" Mix', artist: "Artist", duration: 0 },
+        { title: "Plain", artist: "Other", duration: 0 },
+        { title: 'Second 7" Edit', artist: "Band", duration: 0 },
+        { title: "Last", artist: "Row", duration: 0 },
+      ],
+      malformed: 0,
+    });
+  });
+
+  it("treats quotes after a closed quoted field as literal text", () => {
+    expect(csvCells('"a"b"c",d')).toEqual(['ab"c"', "d"]);
+  });
+
+  it("still joins a real multi-line quoted field after a stray quote", () => {
+    const text = 'title,artist\nSong 12" Mix,Artist\n"Line one\nline two",Band';
+    expect(csvRows(text).rows).toEqual([
+      ["title", "artist"],
+      ['Song 12" Mix', "Artist"],
+      ["Line one\nline two", "Band"],
+    ]);
+  });
+
+  it("opens a quoted field after leading spaces and keeps doubled quotes inside it", () => {
+    expect(csvCells('a,  "say ""hi""",b')).toEqual(["a", 'say "hi"', "b"]);
   });
 });

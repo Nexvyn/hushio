@@ -2,7 +2,7 @@ export const MAX_SONGS = 5000;
 const TEXT_MAX = 300;
 const DAY_SECONDS = 86_400;
 
-const PLAYLIST_LINK = /^(?:https?:\/\/(?:open\.spotify\.com|spotify\.link)\/\S+|spotify:(?:user:\S+:)?playlist:\S+)$/i;
+const SPOTIFY_LINK = /^(?:https?:\/\/(?:open\.spotify\.com|spotify\.link)\/\S+|spotify:(?:user:\S+:)?(?:playlist|album|track):\S+)$/i;
 const DASH = /\s[-–—]\s/;
 const NUMBERING = /^\s*(?:\d{1,4}[.)]\s+|[-*•]\s+)/;
 
@@ -30,8 +30,53 @@ export function durationOf(seconds: number): number {
   return Number.isFinite(seconds) && seconds > 0 && seconds < DAY_SECONDS ? Math.round(seconds) : 0;
 }
 
-export function isPlaylistLink(text: string): boolean {
-  return PLAYLIST_LINK.test(text.trim());
+export function isSpotifyLink(text: string): boolean {
+  return SPOTIFY_LINK.test(text.trim());
+}
+
+const YOUTUBE_HOSTS = new Set(["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"]);
+const YOUTUBE_LIST_ID = /^[A-Za-z0-9_-]+$/;
+const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
+const YOUTUBE_LINK = /^(?:https?:\/\/)?(?:[a-z0-9-]+\.)*(?:youtube\.com|youtu\.be)(?:[/?#:]|$)/i;
+const RADIO_PREFIX = /^(?:AMVM|EM|AM|MM)/;
+
+export function isYouTubeLink(text: string): boolean {
+  const body = text.trim();
+  return !/\s/.test(body) && YOUTUBE_LINK.test(body);
+}
+
+function youtubeUrl(text: string): URL | null {
+  const body = text.trim();
+  if (!isYouTubeLink(body)) return null;
+  try {
+    const url = new URL(/^https?:\/\//i.test(body) ? body : `https://${body}`);
+    return url.protocol === "https:" || url.protocol === "http:" ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+export function youtubePlaylistId(text: string): string | null {
+  const url = youtubeUrl(text);
+  if (!url) return null;
+  const host = url.hostname.toLowerCase();
+  const onShortLink = host === "youtu.be" && url.pathname.length > 1;
+  const onYouTube = YOUTUBE_HOSTS.has(host) && (url.pathname === "/playlist" || url.pathname === "/watch");
+  if (!onShortLink && !onYouTube) return null;
+  const list = url.searchParams.get("list");
+  if (!list || !YOUTUBE_LIST_ID.test(list)) return null;
+  if (list.startsWith("RD") && !list.startsWith("RDCLAK")) return null;
+  return list;
+}
+
+export function youtubeMixSeed(text: string): string | null {
+  const url = youtubeUrl(text);
+  const list = url?.searchParams.get("list") ?? "";
+  if (!url || !list.startsWith("RD") || list.startsWith("RDCLAK") || !YOUTUBE_LIST_ID.test(list)) return null;
+  const video = url.searchParams.get("v") ?? "";
+  if (VIDEO_ID.test(video)) return video;
+  const seed = list.slice(2).replace(RADIO_PREFIX, "");
+  return VIDEO_ID.test(seed) ? seed : null;
 }
 
 export function clock(value: string): number {
@@ -40,10 +85,36 @@ export function clock(value: string): number {
   return parts.reduce((total, part) => total * 60 + part, 0);
 }
 
+type CsvState = { quoted: boolean; cellStart: boolean };
+
+const CSV_START: CsvState = { quoted: false, cellStart: true };
+
+function scanCsvLine(line: string, state: CsvState): CsvState {
+  let { quoted, cellStart } = state;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (quoted) {
+      if (char === '"') {
+        if (line[index + 1] === '"') index += 1;
+        else quoted = false;
+      }
+    } else if (char === '"' && cellStart) {
+      quoted = true;
+      cellStart = false;
+    } else if (char === ",") {
+      cellStart = true;
+    } else if (char !== " ") {
+      cellStart = false;
+    }
+  }
+  return { quoted, cellStart };
+}
+
 export function csvCells(line: string): string[] {
   const cells: string[] = [];
   let cell = "";
   let quoted = false;
+  let cellStart = true;
   for (let index = 0; index < line.length; index += 1) {
     const char = line[index];
     if (quoted) {
@@ -55,25 +126,20 @@ export function csvCells(line: string): string[] {
       } else {
         quoted = false;
       }
-    } else if (char === '"') {
+    } else if (char === '"' && cellStart) {
       quoted = true;
+      cellStart = false;
     } else if (char === ",") {
       cells.push(cell.trim());
       cell = "";
+      cellStart = true;
     } else {
       cell += char;
+      if (char !== " ") cellStart = false;
     }
   }
   cells.push(cell.trim());
   return cells;
-}
-
-function quoteParity(line: string): number {
-  let quotes = 0;
-  for (const char of line) {
-    if (char === '"') quotes += 1;
-  }
-  return quotes % 2;
 }
 
 export function csvRows(text: string): { rows: string[][]; malformed: number } {
@@ -82,13 +148,13 @@ export function csvRows(text: string): { rows: string[][]; malformed: number } {
   let malformed = 0;
   let start = 0;
   while (start < lines.length) {
-    let open = quoteParity(lines[start]);
+    let state = scanCsvLine(lines[start], CSV_START);
     let end = start;
-    while (open === 1 && end + 1 < lines.length) {
+    while (state.quoted && end + 1 < lines.length) {
       end += 1;
-      open ^= quoteParity(lines[end]);
+      state = scanCsvLine(lines[end], state);
     }
-    if (open === 1) {
+    if (state.quoted) {
       malformed += 1;
       start += 1;
       continue;

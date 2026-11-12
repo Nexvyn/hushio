@@ -87,8 +87,8 @@ describe("ImportMatched", () => {
     });
     render(<ImportMatched importId={id} />);
 
-    expect(await screen.findByText("2 of 3 songs found on YouTube Music. 1 isn't there.")).toBeTruthy();
-    expect(screen.getByText("Not on YouTube Music")).toBeTruthy();
+    expect(await screen.findByText("2 of 3 songs found. 1 isn't there.")).toBeTruthy();
+    expect(screen.getByText("Not found")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Save to library" }) as HTMLButtonElement).disabled).toBe(false);
 
     await user.click(screen.getByRole("button", { name: "Save to library" }));
@@ -111,9 +111,9 @@ describe("ImportMatched", () => {
     });
     render(<ImportMatched importId={id} />);
 
-    expect(await screen.findByText("0 of 1 songs found on YouTube Music. 1 couldn't be checked.")).toBeTruthy();
+    expect(await screen.findByText("0 of 1 songs found. 1 couldn't be checked.")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Try again" }));
-    expect(await screen.findByText("0 of 1 songs found on YouTube Music. 1 isn't there.")).toBeTruthy();
+    expect(await screen.findByText("0 of 1 songs found. 1 isn't there.")).toBeTruthy();
     expect(matchSong).toHaveBeenCalledTimes(2);
   });
 

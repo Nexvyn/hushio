@@ -31,7 +31,12 @@ Blob.prototype.text ??= function readText(this: Blob) {
 };
 
 import { ImportPage } from "./ImportPage";
-import { pendingImport } from "../lib/importStage";
+vi.mock("../lib/importStage", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/importStage")>();
+  return { ...actual, importFromText: vi.fn(actual.importFromText) };
+});
+
+import { importFromText, pendingImport, stageImport } from "../lib/importStage";
 import { useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
 import { useUI } from "../stores/ui";
@@ -110,5 +115,52 @@ describe("ImportPage", () => {
     await waitFor(() => expect(useNavigation.getState().view.name).toBe("playlist"));
     const id = useNavigation.getState().view.param;
     expect(useLibrary.getState().playlists.find((item) => item.id === id)?.name).toBe("Saved file");
+  });
+
+  it("keeps the import route when the result is a staged import", async () => {
+    const user = userEvent.setup();
+    const stagedId = stageImport({ name: "Staged", songs: [], total: 0, fromSpotify: false });
+    vi.mocked(importFromText).mockResolvedValueOnce(stagedId);
+    render(<ImportPage />);
+    await user.type(screen.getByLabelText("Playlist link"), "Artist - Song");
+    await user.click(screen.getByRole("button", { name: "Import" }));
+
+    await waitFor(() => expect(useNavigation.getState().view.param).toBe(stagedId));
+    expect(useNavigation.getState().view.name).toBe("import");
+  });
+
+  it("opens the saved playlist when the result is a saved YouTube playlist", async () => {
+    const user = userEvent.setup();
+    const savedId = useLibrary.getState().createPlaylist("From YouTube");
+    vi.mocked(importFromText).mockResolvedValueOnce(savedId);
+    render(<ImportPage />);
+    await user.type(screen.getByLabelText("Playlist link"), "https://www.youtube.com/playlist?list=PL1");
+    await user.click(screen.getByRole("button", { name: "Import" }));
+
+    await waitFor(() => expect(useNavigation.getState().view.param).toBe(savedId));
+    expect(useNavigation.getState().view.name).toBe("playlist");
+  });
+
+  it("accepts several playlist files at once", () => {
+    render(<ImportPage />);
+    const input = screen.getByLabelText("Choose a playlist file") as HTMLInputElement;
+    expect(input.multiple).toBe(true);
+    expect(input.accept).toBe(".csv,.txt,.m3u8,.m3u,.json");
+  });
+
+  it("imports several playlist files in one go and reports the total", async () => {
+    const user = userEvent.setup();
+    render(<ImportPage />);
+    const playlist = (name: string) =>
+      new File(
+        [JSON.stringify({ format: "hushio-playlist", name, tracks: [{ id: "dQw4w9WgXcQ", title: "Song", artist: "Band" }] })],
+        `${name}.json`,
+        { type: "application/json" },
+      );
+    await user.upload(screen.getByLabelText("Choose a playlist file"), [playlist("First"), playlist("Second")]);
+
+    await waitFor(() => expect(useNavigation.getState().view.name).toBe("playlist"));
+    expect(useLibrary.getState().playlists.map((item) => item.name).sort()).toEqual(["First", "Second"]);
+    expect(useUI.getState().toasts.map((item) => item.message)).toContain("Imported 2 playlists");
   });
 });

@@ -1,19 +1,14 @@
+import { PageHeader } from "./PageHeader";
 import { useId, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from "react";
 import { Button } from "./Button";
-import { importFromText, importPlaylistFile } from "../lib/importStage";
+import { YouTubePlaylists } from "./YouTubePlaylists";
+import { importFiles, importFromText, pendingImport } from "../lib/importStage";
 import { useNavigation } from "../stores/navigation";
-import { useUI } from "../stores/ui";
 
 const FILE_TYPES = ".csv,.txt,.m3u8,.m3u,.json";
-const TEXT_FILE_EXTENSIONS = new Set(["csv", "txt"]);
-
-function baseNameOf(fileName: string): string {
-  return fileName.replace(/\.[^.]+$/, "") || "Imported playlist";
-}
-
-function extensionOf(fileName: string): string {
-  return fileName.split(".").pop()?.toLowerCase() ?? "";
-}
+const HOW_TO_SUMMARY = "rounded-[6px] text-[14px] font-medium text-ink-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+const HOW_TO_BODY = "mt-2 text-[13px] leading-relaxed text-ink-2";
+const HOW_TO_PANEL = "rounded-[12px] border border-separator bg-panel px-4 py-3";
 
 export function ImportPage() {
   const [text, setText] = useState("");
@@ -23,12 +18,17 @@ export function ImportPage() {
   const labelId = useId();
   const hintId = useId();
 
+  function openResult(id: string) {
+    if (pendingImport(id)) navigate({ name: "import", param: id });
+    else navigate({ name: "playlist", param: id });
+  }
+
   async function submit() {
     if (!text.trim() || busy) return;
     setBusy(true);
     const id = await importFromText(text);
     setBusy(false);
-    if (id) navigate({ name: "import", param: id });
+    if (id) openResult(id);
   }
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -44,32 +44,24 @@ export function ImportPage() {
   }
 
   async function onFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+    const picked = Array.from(event.target.files ?? []);
     event.target.value = "";
-    if (!file) return;
-    const contents = await file.text();
-    const extension = extensionOf(file.name);
-    if (TEXT_FILE_EXTENSIONS.has(extension)) {
-      const id = await importFromText(contents, baseNameOf(file.name));
-      if (id) navigate({ name: "import", param: id });
-      return;
-    }
-    const id = importPlaylistFile(contents, baseNameOf(file.name));
-    if (id) {
-      navigate({ name: "playlist", param: id });
-    } else {
-      useUI.getState().toast("No YouTube Music songs found in that file", "error");
-    }
+    if (picked.length === 0 || busy) return;
+    setBusy(true);
+    const files = await Promise.all(picked.map(async (file) => ({ name: file.name, text: await file.text() })));
+    const id = await importFiles(files);
+    setBusy(false);
+    if (id) openResult(id);
   }
 
   return (
     <div className="pb-16">
-      <header>
-        <h1 className="text-[34px] font-extrabold tracking-[-0.03em] text-ink-1">Import</h1>
-        <p className="mt-2 max-w-prose text-[14px] leading-relaxed text-ink-2">
-          Bring in a playlist or a list of songs. Each song is matched to YouTube Music before you save it.
+      <div>
+        <PageHeader title="Import" />
+        <p className="mt-2 max-w-prose text-body text-ink-2">
+          Bring in a playlist or a list of songs. Each song is matched before you save it.
         </p>
-      </header>
+      </div>
 
       <form onSubmit={onSubmit} className="mt-8 max-w-[672px]">
         <label htmlFor={labelId} className="text-[13px] font-medium text-ink-1">
@@ -85,10 +77,11 @@ export function ImportPage() {
           onChange={(event) => setText(event.target.value)}
           onKeyDown={onKeyDown}
           placeholder="Paste a playlist link, or one song per line as Artist - Title"
-          className="mt-2 w-full resize-y rounded-[11px] border border-separator bg-panel p-3 text-[16px] leading-relaxed text-ink-1 placeholder:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          className="mt-2 w-full resize-none rounded-[12px] border border-separator bg-panel p-3 text-[16px] leading-relaxed text-ink-1 placeholder:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
         />
         <p id={hintId} className="mt-2 text-[12px] text-ink-2">
-          One song per line, or a CSV export from Exportify or TuneMyMusic. Up to 5000 songs.
+          Paste a playlist or album link from Spotify or Apple Music, a Spotify song link, or one song per line as
+          Artist - Title. Up to 5000 songs.
         </p>
 
         <div className="mt-4 flex flex-wrap items-center gap-2.5">
@@ -101,6 +94,7 @@ export function ImportPage() {
           <input
             ref={fileInput}
             type="file"
+            multiple
             accept={FILE_TYPES}
             aria-label="Choose a playlist file"
             className="hidden"
@@ -108,6 +102,22 @@ export function ImportPage() {
           />
         </div>
       </form>
+
+      <div className="mt-6 flex max-w-[672px] flex-col gap-2">
+        <details className={HOW_TO_PANEL}>
+          <summary className={HOW_TO_SUMMARY}>From YouTube Music</summary>
+          <p className={HOW_TO_BODY}>
+            Export at takeout.google.com (choose YouTube and YouTube Music), unzip, pick the CSV files in the playlists
+            folder.
+          </p>
+        </details>
+        <details className={HOW_TO_PANEL}>
+          <summary className={HOW_TO_SUMMARY}>From Spotify</summary>
+          <p className={HOW_TO_BODY}>Export at exportify.app, pick the CSV files.</p>
+        </details>
+      </div>
+
+      <YouTubePlaylists />
     </div>
   );
 }
