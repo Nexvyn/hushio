@@ -24,6 +24,9 @@ vi.mock("../lib/bridge", () => ({
   localLibraryAddFolders: vi.fn(),
   localLibraryRenameFolder: vi.fn(),
   localLibraryOpenFiles: vi.fn(),
+  scrobbleStatus: async () => null,
+  discordStatus: async () => null,
+  networkServers: async () => null,
 }));
 
 import { LocalMusicView } from "./LocalMusicView";

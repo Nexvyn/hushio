@@ -767,5 +767,16 @@ async fn write_store<T: Serialize + ?Sized>(root: &Path, name: &str, value: &T) 
     persist::write(root, OWNER, name, &json).await
 }
 
+#[cfg(desktop)]
+mod watch;
+#[cfg(desktop)]
+pub use watch::{start_watching, sync_watches};
+
+#[cfg(not(desktop))]
+pub fn start_watching(_app: &tauri::AppHandle) {}
+
+#[cfg(not(desktop))]
+pub async fn sync_watches(_app: &tauri::AppHandle) {}
+
 #[cfg(test)]
 mod tests;

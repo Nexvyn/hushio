@@ -3,11 +3,11 @@ import {
   ArrowLeft01Icon,
   Alert01Icon,
   Cancel01Icon,
+  CloudServerIcon,
   Delete02Icon,
   FileMusicIcon,
   FolderAddIcon,
   FolderOpenIcon,
-  HardDriveIcon,
   MusicNote01Icon,
   PencilEdit02Icon,
   PlayIcon,
@@ -17,12 +17,13 @@ import {
   ShuffleIcon,
   UserIcon,
 } from "@hugeicons/core-free-icons";
-import type { LocalFolderEntry, LocalTrack } from "../lib/bridge";
+import type { LocalFolderEntry, LocalTrack, NetworkServer, NetworkTrack } from "../lib/bridge";
 import { ROUND, PILL } from "../components/BrowseHero";
 import { CollectionHero } from "../components/CollectionHero";
 import { CoverStack, STACK_GRID } from "../components/CoverStack";
 import { EmptyState } from "../components/EmptyState";
 import { Icon } from "../components/Icon";
+import { PageHeader } from "../components/PageHeader";
 import { APP_NAME } from "../lib/app";
 import { fmtTime, fmtTotal } from "../lib/format";
 import {
@@ -45,8 +46,10 @@ import { OPENED_FROM } from "../lib/localDrop";
 import { plural } from "../lib/plural";
 import { useLocalLibrary } from "../stores/localLibrary";
 import { useNavigation } from "../stores/navigation";
+import { useNetwork } from "../stores/network";
 import { usePlayer } from "../stores/player";
 import { useUI } from "../stores/ui";
+import type { Track } from "../types";
 
 const ALL = "all";
 const OPENED = "opened";
@@ -100,10 +103,20 @@ function playTracks(tracks: LocalTrack[], start: number, from: string) {
   usePlayer.getState().playQueue(tracks.map(toTrack), start, from);
 }
 
+function playNetworkTracks(tracks: Track[], start: number, from: string) {
+  usePlayer.getState().playQueue(tracks, start, from);
+}
+
 function shuffleTracks(tracks: LocalTrack[], from: string) {
   const player = usePlayer.getState();
   if (!player.shuffle) player.toggleShuffle();
   playTracks(tracks, 0, from);
+}
+
+function shuffleNetworkTracks(tracks: Track[], from: string) {
+  const player = usePlayer.getState();
+  if (!player.shuffle) player.toggleShuffle();
+  playNetworkTracks(tracks, 0, from);
 }
 
 function LocalTrackRow({ track, onPlay, onRemove }: { track: LocalTrack; onPlay: () => void; onRemove?: () => void }) {
@@ -206,8 +219,6 @@ function IndexView({ onOpen }: { onOpen: (param: string) => void }) {
   return (
     <div className="pb-14">
       <CollectionHero
-        icon={HardDriveIcon}
-        kind="On this device"
         title="Local Music"
         covers={uniqueArt(tracks, 8)}
         facts={
@@ -316,8 +327,70 @@ function IndexView({ onOpen }: { onOpen: (param: string) => void }) {
           </button>
         </div>
       </section>
+      <NetworkServers onOpen={onOpen} />
     </div>
   );
+}
+
+function NetworkServers({ onOpen }: { onOpen: (param: string) => void }) {
+  const servers = useNetwork((state) => state.servers);
+  const tracks = useNetwork((state) => state.tracks);
+  const loadServers = useNetwork((state) => state.load);
+  const loadTracks = useNetwork((state) => state.loadTracks);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    void loadServers();
+  }, [loadServers]);
+
+  if (servers.length === 0) return null;
+
+  const open = async (server: NetworkServer) => {
+    setBusy(server.id);
+    await loadTracks(server.id, server.path);
+    setBusy(null);
+    onOpen(`net:${server.id}`);
+  };
+
+  return (
+    <section aria-label="Network servers" className="mt-8">
+      <h2 className="mb-3 text-[15px] font-semibold text-ink-1">Network servers</h2>
+      <div className={STACK_GRID}>
+        {servers.map((server) => {
+          const found = tracks[server.id] ?? [];
+          return (
+            <CoverStack
+              key={server.id}
+              title={server.name}
+              subtitle={
+                busy === server.id
+                  ? "Reading the server…"
+                  : found.length > 0
+                    ? plural(found.length, "song", "songs")
+                    : "Open to read the server"
+              }
+              covers={[]}
+              fallback={CloudServerIcon}
+              onOpen={() => void open(server)}
+              onPlay={() => {
+                if (found.length > 0) playNetworkTracks(networkTracksOf(found), 0, server.name);
+                else void open(server);
+              }}
+            />
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function networkTracksOf(tracks: NetworkTrack[]): Track[] {
+  return tracks.map((track) => ({
+    id: track.id,
+    title: track.title,
+    artist: track.artist,
+    thumb: null,
+  }));
 }
 
 function FolderTab({
@@ -381,7 +454,7 @@ function FolderTab({
       {listing.files.map((track, index) => (
         <LocalTrackRow key={track.id} track={track} onPlay={() => playTracks(listing.files, index, label)} />
       ))}
-      {empty && <EmptyState icon={MusicNote01Icon} title="This folder has no music yet." message="Drop some audio files in and rescan." />}
+      {empty && <EmptyState icon={MusicNote01Icon} title="This folder has no music yet." message="Add audio files to it, then rescan." />}
     </div>
   );
 }
@@ -428,8 +501,6 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
   return (
     <div className="pb-14">
       <CollectionHero
-        icon={scope.kind === "opened" ? FileMusicIcon : scope.kind === "all" ? PlayListIcon : FolderOpenIcon}
-        kind="Local Music"
         title={title}
         covers={uniqueArt(everything, 8)}
         facts={
@@ -639,10 +710,10 @@ function SongsTab({
 }) {
   if (list.length === 0) {
     if (scopeEmpty) {
-      return <EmptyState icon={MusicNote01Icon} title="No music found in this folder" message="Drop some audio files in and rescan." />;
+      return <EmptyState icon={MusicNote01Icon} title="No music found in this folder" message="Add audio files to it, then rescan." />;
     }
     if (searching) {
-      return <EmptyState icon={Search01Icon} title="Nothing matches that search" message="" />;
+      return <EmptyState icon={Search01Icon} title="Nothing matches that search" message="Try another word or clear the filter." />;
     }
     return <p className="text-[14px] text-ink-3">No songs.</p>;
   }
@@ -676,18 +747,103 @@ export function LocalMusicView() {
 
   if (!param && library.folders.length === 0 && opened.length === 0) {
     return (
-      <div className="pt-6">
-        <EmptyState
-          icon={FolderOpenIcon}
-          title="Play your own files"
-          message={`Import one folder or a whole organised parent. ${APP_NAME} keeps each folder as its own collection, with tags and cover art, on your machine only.`}
-          action={{ label: scanning ? "Scanning…" : "Choose a folder", onClick: () => void importFolders() }}
-        />
+      <div className="pb-14">
+        <PageHeader title="Local Music" />
+        <div className="mt-6 flex min-h-[50vh] flex-col">
+          <EmptyState
+            centered
+            icon={FolderOpenIcon}
+            title="Play your own files"
+            message="Import a folder and its songs play here, offline, with tags and cover art."
+            action={{ label: scanning ? "Scanning…" : "Choose a folder", onClick: () => void importFolders() }}
+          />
+        </div>
       </div>
     );
   }
 
   if (!param) return <IndexView onOpen={(next) => navigate({ name: "local", param: next })} />;
 
+  if (param.startsWith("net:")) {
+    return <NetworkCollectionView id={param.slice(4)} onBack={() => navigate({ name: "local" })} />;
+  }
+
   return <CollectionView key={param} param={param} onBack={() => navigate({ name: "local" })} onGone={() => navigate({ name: "local" })} />;
+}
+
+function NetworkCollectionView({ id, onBack }: { id: string; onBack: () => void }) {
+  const servers = useNetwork((state) => state.servers);
+  const tracks = useNetwork((state) => state.tracks[id] ?? []);
+  const loadTracks = useNetwork((state) => state.loadTracks);
+  const [busy, setBusy] = useState(true);
+  const server = servers.find((entry) => entry.id === id);
+
+  useEffect(() => {
+    let live = true;
+    setBusy(true);
+    void loadTracks(id, server?.path ?? "").finally(() => {
+      if (live) setBusy(false);
+    });
+    return () => {
+      live = false;
+    };
+  }, [id, loadTracks, server?.path]);
+
+  const list = networkTracksOf(tracks);
+
+  return (
+    <div className="pb-14">
+      <CollectionHero
+        title={server?.name ?? "Network server"}
+        covers={[]}
+        facts={
+          <span>
+            {busy ? "Reading the server…" : plural(list.length, "song", "songs")}
+            {server ? ` · ${server.kindLabel}` : ""}
+          </span>
+        }
+      >
+        <button
+          type="button"
+          className={PILL}
+          disabled={list.length === 0}
+          aria-label={`Play ${server?.name ?? "the server"}`}
+          onClick={() => playNetworkTracks(list, 0, server?.name ?? "Network server")}
+        >
+          <Icon icon={PlayIcon} /> Play
+        </button>
+        <button
+          type="button"
+          className={ROUND}
+          aria-label="Shuffle"
+          title="Shuffle"
+          disabled={list.length === 0}
+          onClick={() => shuffleNetworkTracks(list, server?.name ?? "Network server")}
+        >
+          <Icon icon={ShuffleIcon} />
+        </button>
+        <button type="button" className={ROUND} aria-label="Back to Local Music" title="Local Music" onClick={onBack}>
+          <Icon icon={ArrowLeft01Icon} />
+        </button>
+      </CollectionHero>
+      <div className="mt-5">
+        {list.map((track, index) => (
+          <button
+            key={track.id}
+            type="button"
+            onClick={() => playNetworkTracks(list, index, server?.name ?? "Network server")}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left [@media(hover:hover)]:hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[14px] font-medium text-ink-1">{track.title}</span>
+              <span className="block truncate text-[12.5px] text-ink-3">{track.artist}</span>
+            </span>
+          </button>
+        ))}
+        {!busy && list.length === 0 && (
+          <EmptyState title="No songs on this server" message="Check the folder and try again." />
+        )}
+      </div>
+    </div>
+  );
 }

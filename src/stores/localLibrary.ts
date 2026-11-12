@@ -9,6 +9,7 @@ import {
   localLibraryRemoveFolder,
   localLibraryRenameFolder,
   localLibraryScan,
+  onLocalLibraryChanged,
   pickFolder,
   type LocalLibrary,
   type LocalOpenResult,
@@ -20,6 +21,9 @@ import { useSettings } from "./settings";
 import { useUI } from "./ui";
 
 const EMPTY_LIBRARY: LocalLibrary = { folders: [], scannedAt: 0, tracks: [], unplayable: [] };
+
+let watching = false;
+let rescanQueued = false;
 
 type LocalLibraryState = {
   library: LocalLibrary;
@@ -87,10 +91,23 @@ export const useLocalLibrary = create<LocalLibraryState>()((set, get) => ({
       toast("Scan failed", "error");
     } finally {
       set({ scanning: false });
+      if (rescanQueued) {
+        rescanQueued = false;
+        void get().rescan(false);
+      }
     }
   },
 
   startupRescan: async () => {
+    if (!watching) {
+      watching = true;
+      void onLocalLibraryChanged(() => {
+        if (get().scanning) rescanQueued = true;
+        else void get().rescan(false);
+      }).catch(() => {
+        watching = false;
+      });
+    }
     await get().refresh();
     if (get().library.folders.length === 0) return;
     await get().rescan(false);

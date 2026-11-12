@@ -10,6 +10,7 @@ import {
   isUnderPath,
   joinOr,
   leftOutText,
+  networkTrackUrl,
   scopeTracks,
   sortTracks,
   toTrack,
@@ -71,6 +72,32 @@ describe("art and playable tracks", () => {
       artist: "Zed",
       thumb: artUrl(tracks[0].art),
     });
+  });
+});
+
+describe("network track urls", () => {
+  it("uses the http form on windows and android", () => {
+    expect(networkTrackUrl("net:s1:/dav/Nova.mp3", "windows")).toBe("http://netmusic.localhost/s1%3A%2Fdav%2FNova.mp3");
+    expect(networkTrackUrl("net:s1:/dav/Nova.mp3", "android")).toBe("http://netmusic.localhost/s1%3A%2Fdav%2FNova.mp3");
+  });
+
+  it("uses the custom scheme on the other platforms", () => {
+    expect(networkTrackUrl("net:s1:/dav/Nova.mp3", "linux")).toBe("netmusic://localhost/s1%3A%2Fdav%2FNova.mp3");
+  });
+
+  it("encodes the spaces in a path", () => {
+    expect(networkTrackUrl("net:s1:/dav/Nova - Song.mp3", "linux")).toBe("netmusic://localhost/s1%3A%2Fdav%2FNova%20-%20Song.mp3");
+  });
+
+  it("encodes # and ? so they stay part of the path", () => {
+    const url = networkTrackUrl("net:s1:/dav/Why?#1.mp3", "linux");
+    expect(url.slice("netmusic://localhost/".length)).not.toMatch(/[?#]/);
+    expect(decodeURIComponent(url.slice("netmusic://localhost/".length))).toBe("s1:/dav/Why?#1.mp3");
+  });
+
+  it("keeps the leading slash of the path after a decode", () => {
+    const url = networkTrackUrl("net:s1:/dav/a.mp3", "linux");
+    expect(decodeURIComponent(url.slice("netmusic://localhost/".length))).toBe("s1:/dav/a.mp3");
   });
 });
 

@@ -11,9 +11,15 @@ const bridge = vi.hoisted(() => ({
   localLibraryForgetOpened: vi.fn(),
   localLibraryOpenFiles: vi.fn(),
   pickFolder: vi.fn(),
+  onLocalLibraryChanged: vi.fn(async (callback: () => void) => {
+    listener.callback = callback;
+    return () => {};
+  }),
   persistRead: vi.fn(async () => null),
   persistWrite: vi.fn(async () => true),
 }));
+
+const listener = vi.hoisted(() => ({ callback: null as null | (() => void) }));
 
 vi.mock("../lib/bridge", () => ({ platform: "windows", ...bridge }));
 
@@ -127,6 +133,28 @@ describe("local library store", () => {
     expect(bridge.localLibraryScan).toHaveBeenCalledTimes(1);
     expect(toasts()).not.toContain("success:Local library scanned");
     expect(useLocalLibrary.getState().scanning).toBe(false);
+  });
+
+  it("a change in a watched folder rescans, and a change during a scan rescans once more afterwards", async () => {
+    bridge.localLibraryScan.mockResolvedValue(library);
+    await useLocalLibrary.getState().startupRescan();
+    expect(listener.callback).not.toBeNull();
+    bridge.localLibraryScan.mockClear();
+
+    listener.callback?.();
+    await vi.waitFor(() => expect(bridge.localLibraryScan).toHaveBeenCalledTimes(1));
+
+    let finish: () => void = () => {};
+    bridge.localLibraryScan.mockReset().mockImplementationOnce(
+      () => new Promise((resolve) => (finish = () => resolve(library))),
+    );
+    listener.callback?.();
+    await vi.waitFor(() => expect(bridge.localLibraryScan).toHaveBeenCalledTimes(1));
+    listener.callback?.();
+    expect(bridge.localLibraryScan).toHaveBeenCalledTimes(1);
+    bridge.localLibraryScan.mockResolvedValue(library);
+    finish();
+    await vi.waitFor(() => expect(bridge.localLibraryScan).toHaveBeenCalledTimes(2));
   });
 
   it("startup does not scan when no folder has been imported", async () => {

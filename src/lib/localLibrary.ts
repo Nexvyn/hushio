@@ -3,20 +3,30 @@ import { APP_NAME } from "./app";
 import { plural } from "./plural";
 import type { Track } from "../types";
 
-export type LocalScope = { kind: "all" } | { kind: "opened" } | { kind: "folder"; path: string };
+export type LocalScope = { kind: "all" } | { kind: "opened" } | { kind: "folder"; path: string } | { kind: "network"; id: string };
 export type LocalSort = "title" | "artist" | "recent";
 export type LocalTab = "songs" | "albums" | "artists" | "folders";
 
 export const LOCAL_ID_PREFIX = "local:";
+export const NETWORK_ID_PREFIX = "net:";
 
 export function isLocalId(id: string): boolean {
   return id.startsWith(LOCAL_ID_PREFIX);
+}
+
+export function isNetworkId(id: string): boolean {
+  return id.startsWith(NETWORK_ID_PREFIX);
 }
 
 export function artUrl(art: string | undefined, os: string = platform): string | null {
   if (!art) return null;
   const name = art.replace(/^localart:\/\//, "");
   return os === "windows" || os === "android" ? `http://localart.localhost/${name}` : `localart://localhost/${name}`;
+}
+
+export function networkTrackUrl(id: string, os: string = platform): string {
+  const encoded = encodeURIComponent(id.replace(/^net:/, ""));
+  return os === "windows" || os === "android" ? `http://netmusic.localhost/${encoded}` : `netmusic://localhost/${encoded}`;
 }
 
 export function toTrack(track: LocalTrack): Track {
@@ -59,7 +69,9 @@ export function scopeTracks(
       ? tracks
       : scope.kind === "opened"
         ? opened
-        : tracks.filter((track) => isUnderPath(track.path, scope.path));
+        : scope.kind === "network"
+          ? []
+          : tracks.filter((track) => isUnderPath(track.path, scope.path));
   const needle = query.trim().toLowerCase();
   return base.filter((track) => matchesSearch(track, needle));
 }
