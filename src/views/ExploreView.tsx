@@ -9,6 +9,7 @@ import { bySection, FALLBACK_MOODS, type MoodEntry } from "../lib/moods";
 import { PODCASTS_ENABLED } from "../lib/features";
 import { freshPodcasts, loadPodcasts } from "../lib/podcasts";
 import type { PodcastShelf } from "../lib/podcastParse";
+import { usePhone } from "../lib/usePhone";
 import { useNavigation } from "../stores/navigation";
 
 const GENRE_PREVIEW = 12;
@@ -89,6 +90,7 @@ export function ExploreView() {
   }, []);
 
   const groups = useMemo(() => bySection(moods), [moods]);
+  const phone = usePhone();
 
   const toggle = (title: string) => setExpanded((state) => ({ ...state, [title]: !state[title] }));
 
@@ -124,7 +126,13 @@ export function ExploreView() {
           const shown = collapsible && !open ? group.moods.slice(0, GENRE_PREVIEW) : group.moods;
           return (
             <section key={group.title} className="mt-7">
-              <h2 className="mb-3 flex items-baseline gap-2 text-section text-ink-1">
+              <h2
+                className={
+                  phone
+                    ? "mb-3 flex items-baseline gap-2 font-title text-[20px] font-bold leading-[26px] tracking-[-0.02em] text-ink-1"
+                    : "mb-3 flex items-baseline gap-2 text-section text-ink-1"
+                }
+              >
                 <span className="min-w-0 truncate">{group.title}</span>
                 <span className="text-meta font-normal tabular-nums text-ink-2">{group.moods.length}</span>
               </h2>

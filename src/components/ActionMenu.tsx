@@ -2,6 +2,7 @@ import { useId } from "react";
 import type { IconSvgElement } from "@hugeicons/react";
 import { MoreHorizontalIcon } from "@hugeicons/core-free-icons";
 import { Icon } from "./Icon";
+import { PhoneIcon } from "./phone/PhoneIcon";
 import { type MenuSource, resolveMenu } from "./ContextMenu";
 import { useUI } from "../stores/ui";
 
@@ -13,6 +14,7 @@ type ActionMenuProps = {
   triggerText?: string;
   disabled?: boolean;
   placement?: "up" | "down";
+  phoneIcon?: boolean;
 };
 
 const TRIGGER =
@@ -26,6 +28,7 @@ export function ActionMenu({
   triggerText,
   disabled = false,
   placement = "down",
+  phoneIcon = false,
 }: ActionMenuProps) {
   const owner = useId();
   const open = useUI((state) => state.contextMenu?.owner === owner);
@@ -57,7 +60,7 @@ export function ActionMenu({
       }}
       className={`${triggerClass} disabled:opacity-[var(--disabled-opacity)]`}
     >
-      <Icon icon={icon} />
+      {phoneIcon ? <PhoneIcon icon={icon} /> : <Icon icon={icon} />}
       {triggerText}
     </button>
   );

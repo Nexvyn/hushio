@@ -4,10 +4,18 @@ import { Cover, focusRing } from "../components/HomeShelves";
 import { SectionHeader } from "../components/SectionHeader";
 import { ErrorState } from "../components/ErrorState";
 import { EmptyState } from "../components/EmptyState";
+import { thumbArtwork } from "../lib/artwork";
 import { chartTracks, fetchCharts, type ChartShelf } from "../lib/charts";
 import { marketValue } from "../lib/market";
-import { playFromRow } from "../stores/player";
+import { PhoneArt } from "../components/phone/PhoneArt";
+import { PhoneSectionHeader, PhoneShelfCard, PhoneShelfRow } from "../components/phone/PhoneShelf";
+import { PhoneSongRow } from "../components/phone/PhoneTrackRow";
+import { trackMenuItems } from "../lib/trackActions";
+import { usePhone } from "../lib/usePhone";
+import { playFromRow, usePlayer } from "../stores/player";
 import { useNavigation } from "../stores/navigation";
+
+const SHELF_ART = 148;
 
 type LoadStatus = "loading" | "loaded" | "failed";
 
@@ -53,7 +61,50 @@ function SongRow({ title, artist, thumb, position, onPlay }: {
   );
 }
 
+function PhoneChartShelf({ shelf }: { shelf: ChartShelf }) {
+  const navigate = useNavigation((state) => state.navigate);
+  const tracks = chartTracks(shelf);
+  const currentId = usePlayer((state) => state.queue[state.index]?.id);
+  const playing = usePlayer((state) => state.playing);
+  return (
+    <section className="mt-7">
+      <PhoneSectionHeader title={shelf.title} />
+      {shelf.songs.length > 0 && (
+        <ol>
+          {shelf.songs.map((song, index) => (
+            <PhoneSongRow
+              key={song.id}
+              index={index}
+              song={song}
+              current={song.id === currentId}
+              playing={playing}
+              numbered
+              menu={() => trackMenuItems(song)}
+              onPlay={() => playFromRow(tracks, index)}
+            />
+          ))}
+        </ol>
+      )}
+      {shelf.albums.length > 0 && (
+        <PhoneShelfRow>
+          {shelf.albums.map((album) => (
+            <PhoneShelfCard
+              key={album.id}
+              art={<PhoneArt src={thumbArtwork(album.thumb, SHELF_ART) || null} radius="rounded-[10px]" />}
+              title={album.title}
+              subtitle={album.artist}
+              onActivate={() => navigate({ name: "album", param: album.id })}
+            />
+          ))}
+        </PhoneShelfRow>
+      )}
+    </section>
+  );
+}
+
 function Shelf({ shelf }: { shelf: ChartShelf }) {
+  const phone = usePhone();
+  if (phone) return <PhoneChartShelf shelf={shelf} />;
   const tracks = chartTracks(shelf);
   return (
     <section className="mt-7">

@@ -1,14 +1,17 @@
 import { FavouriteIcon, PlayIcon, ShuffleIcon } from "@hugeicons/core-free-icons";
 import { CollectionHero } from "../components/CollectionHero";
 import { EmptyState } from "../components/EmptyState";
-import { Icon } from "../components/Icon";
+import { HeroIcon } from "../components/HeroIcon";
 import { PILL, ROUND } from "../components/BrowseHero";
 import { TrackRow } from "../components/TrackRow";
+import { PHONE_PLAY, PHONE_SHUFFLE } from "../components/phone/heroButtons";
+import { PhoneSongRow } from "../components/phone/PhoneTrackRow";
 import { coversOf, topArtist } from "../lib/collections";
 import { playCollection, toSong } from "../lib/collectionActions";
 import { trackMenuItems } from "../lib/trackActions";
 import { fmtTotal } from "../lib/format";
 import { plural } from "../lib/plural";
+import { usePhone } from "../lib/usePhone";
 import { useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
 import { playFromRow, usePlayer } from "../stores/player";
@@ -20,6 +23,7 @@ export function LikedView() {
   const currentId = usePlayer((state) => state.queue[state.index]?.id);
   const playing = usePlayer((state) => state.playing);
   const navigate = useNavigation((state) => state.navigate);
+  const phone = usePhone();
   const empty = liked.length === 0;
   const top = topArtist(liked);
   const total = liked.reduce((sum, track) => sum + track.duration, 0);
@@ -39,15 +43,15 @@ export function LikedView() {
 
   return (
     <div className="pb-16">
-      <CollectionHero title="Liked Songs" covers={covers} facts={facts}>
+      <CollectionHero title="Liked Songs" covers={covers} facts={facts} icon={FavouriteIcon}>
         <button
           type="button"
           aria-label="Play Liked Songs"
           disabled={empty}
           onClick={() => playCollection(liked, LIKED_SOURCE, false)}
-          className={PILL}
+          className={phone ? PHONE_PLAY : PILL}
         >
-          <Icon icon={PlayIcon} />
+          <HeroIcon icon={PlayIcon} />
           Play
         </button>
         <button
@@ -56,13 +60,14 @@ export function LikedView() {
           title="Shuffle"
           disabled={empty}
           onClick={() => playCollection(liked, LIKED_SOURCE, true)}
-          className={ROUND}
+          className={phone ? PHONE_SHUFFLE : ROUND}
         >
-          <Icon icon={ShuffleIcon} />
+          <HeroIcon icon={ShuffleIcon} />
+          {phone && "Shuffle"}
         </button>
       </CollectionHero>
 
-      <div className={`mt-6 ${empty ? "flex min-h-[50vh] flex-col" : ""}`}>
+      <div className={phone ? (empty ? "" : "mt-5") : `mt-6 ${empty ? "flex min-h-[50vh] flex-col" : ""}`}>
         {empty ? (
           <EmptyState
             centered
@@ -75,6 +80,19 @@ export function LikedView() {
           <ol>
             {liked.map((track, index) => {
               const song = toSong(track);
+              if (phone) {
+                return (
+                  <PhoneSongRow
+                    key={`${track.id}-${index}`}
+                    index={index}
+                    song={song}
+                    current={track.id === currentId}
+                    playing={playing}
+                    menu={() => trackMenuItems(song)}
+                    onPlay={() => playFromRow(liked, index, LIKED_SOURCE)}
+                  />
+                );
+              }
               return (
                 <TrackRow
                   key={`${track.id}-${index}`}

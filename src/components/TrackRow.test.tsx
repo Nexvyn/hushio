@@ -4,6 +4,7 @@ import { TrackRow } from "./TrackRow";
 import type { SearchSong } from "../lib/searchParse";
 
 vi.mock("../lib/bridge", () => ({
+  platform: "windows",
   persistWrite: vi.fn(),
   persistRead: vi.fn(async () => null),
 }));

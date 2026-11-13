@@ -3,13 +3,16 @@ import { ActionMenu } from "../components/ActionMenu";
 import { PILL, ROUND } from "../components/BrowseHero";
 import { CollectionHero } from "../components/CollectionHero";
 import { EmptyState } from "../components/EmptyState";
-import { Icon } from "../components/Icon";
+import { HeroIcon } from "../components/HeroIcon";
 import { TrackRow } from "../components/TrackRow";
+import { PHONE_ICON, PHONE_PLAY, PHONE_SHUFFLE } from "../components/phone/heroButtons";
+import { PhoneSongRow } from "../components/phone/PhoneTrackRow";
 import { coversOf } from "../lib/collections";
 import { playCollection, toSong } from "../lib/collectionActions";
 import { plural } from "../lib/plural";
 import { saveAsPlaylist, SMART_EMPTY_MESSAGE } from "../lib/smartLists";
 import { trackMenuItems } from "../lib/trackActions";
+import { usePhone } from "../lib/usePhone";
 import { useSmartLists } from "../lib/useSmartLists";
 import { useNavigation } from "../stores/navigation";
 import { playFromRow, usePlayer } from "../stores/player";
@@ -22,6 +25,7 @@ export function SmartPlaylistView() {
   const list = lists.find((item) => item.id === param);
   const currentId = usePlayer((state) => state.queue[state.index]?.id);
   const playing = usePlayer((state) => state.playing);
+  const phone = usePhone();
 
   if (!list) {
     return (
@@ -65,15 +69,16 @@ export function SmartPlaylistView() {
         title={list.title}
         covers={coversOf(tracks)}
         facts={empty ? "No songs yet" : plural(tracks.length, "song", "songs")}
+        icon={MagicWand01Icon}
       >
         <button
           type="button"
           aria-label={`Play ${list.title}`}
           disabled={empty}
           onClick={() => playCollection(tracks, source, false)}
-          className={PILL}
+          className={phone ? PHONE_PLAY : PILL}
         >
-          <Icon icon={PlayIcon} />
+          <HeroIcon icon={PlayIcon} />
           Play
         </button>
         <button
@@ -82,20 +87,34 @@ export function SmartPlaylistView() {
           title="Shuffle"
           disabled={empty}
           onClick={() => playCollection(tracks, source, true)}
-          className={ROUND}
+          className={phone ? PHONE_SHUFFLE : ROUND}
         >
-          <Icon icon={ShuffleIcon} />
+          <HeroIcon icon={ShuffleIcon} />
+          {phone && "Shuffle"}
         </button>
-        <ActionMenu items={headerMenu} label="More options" triggerClass={ROUND} />
+        <ActionMenu items={headerMenu} label="More options" triggerClass={phone ? PHONE_ICON : ROUND} phoneIcon={phone} />
       </CollectionHero>
 
-      <div className={`mt-6 ${empty ? "flex min-h-[50vh] flex-col" : ""}`}>
+      <div className={phone ? (empty ? "" : "mt-5") : `mt-6 ${empty ? "flex min-h-[50vh] flex-col" : ""}`}>
         {empty ? (
           <EmptyState centered icon={MagicWand01Icon} title="Nothing here yet" message={SMART_EMPTY_MESSAGE} />
         ) : (
           <ol>
             {tracks.map((track, index) => {
               const song = toSong(track);
+              if (phone) {
+                return (
+                  <PhoneSongRow
+                    key={`${track.id}-${index}`}
+                    index={index}
+                    song={song}
+                    current={track.id === currentId}
+                    playing={playing}
+                    menu={() => trackMenuItems(song)}
+                    onPlay={() => playFromRow(tracks, index, source)}
+                  />
+                );
+              }
               return (
                 <TrackRow
                   key={`${track.id}-${index}`}

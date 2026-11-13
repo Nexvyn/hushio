@@ -3,14 +3,38 @@ import { PageHeader } from "../components/PageHeader";
 import { Cover, focusRing } from "../components/HomeShelves";
 import { ErrorState } from "../components/ErrorState";
 import { EmptyState } from "../components/EmptyState";
+import { PhoneArt } from "../components/phone/PhoneArt";
+import { thumbArtwork } from "../lib/artwork";
 import { fetchNewReleases, type ChartAlbum } from "../lib/charts";
 import { marketValue } from "../lib/market";
+import { usePhone } from "../lib/usePhone";
 import { useNavigation } from "../stores/navigation";
 
 type LoadStatus = "loading" | "loaded" | "failed";
 
+const PHONE_GRID = "grid grid-cols-3 gap-x-3 gap-y-5";
+const DESKTOP_GRID = "grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5";
+const GRID_ART = 132;
+
 function ReleaseCard({ album }: { album: ChartAlbum }) {
   const navigate = useNavigation((state) => state.navigate);
+  const phone = usePhone();
+  const subtitle = `${album.artist}${album.year ? ` · ${album.year}` : ""}`;
+  if (phone) {
+    return (
+      <button
+        type="button"
+        onClick={() => navigate({ name: "album", param: album.id })}
+        className={`min-w-0 rounded-[10px] text-left active:opacity-70 motion-safe:transition-opacity ${focusRing}`}
+      >
+        <PhoneArt src={thumbArtwork(album.thumb, GRID_ART) || null} radius="rounded-[10px]" />
+        <span className="mt-2 block min-w-0">
+          <span className="block truncate text-[14px] leading-[18px] font-medium text-ink-1">{album.title}</span>
+          <span className="block truncate text-[13px] leading-[17px] text-ink-2">{subtitle}</span>
+        </span>
+      </button>
+    );
+  }
   return (
     <button
       type="button"
@@ -20,10 +44,7 @@ function ReleaseCard({ album }: { album: ChartAlbum }) {
       <Cover src={album.thumb} />
       <span className="mt-2 block min-w-0 px-0.5">
         <span className="block truncate text-[13px] font-medium text-ink-1">{album.title}</span>
-        <span className="block truncate text-[12px] text-ink-2">
-          {album.artist}
-          {album.year ? ` · ${album.year}` : ""}
-        </span>
+        <span className="block truncate text-[12px] text-ink-2">{subtitle}</span>
       </span>
     </button>
   );
@@ -33,6 +54,8 @@ export function NewReleasesView() {
   const [albums, setAlbums] = useState<ChartAlbum[]>([]);
   const [status, setStatus] = useState<LoadStatus>("loading");
   const [attempt, setAttempt] = useState(0);
+  const phone = usePhone();
+  const grid = phone ? PHONE_GRID : DESKTOP_GRID;
 
   useEffect(() => {
     let live = true;
@@ -56,7 +79,7 @@ export function NewReleasesView() {
     <div>
       <PageHeader title="New releases" meta="Fresh albums and singles" />
       {status === "loading" && albums.length === 0 && (
-        <div role="status" aria-label="Loading New releases" className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div role="status" aria-label="Loading New releases" className={`mt-6 ${grid}`}>
           {[0, 1, 2, 3, 4, 5, 6, 7].map((index) => (
             <div key={index} className="aspect-square rounded-[11px] bg-wash" />
           ))}
@@ -77,7 +100,7 @@ export function NewReleasesView() {
         </div>
       )}
       {albums.length > 0 && (
-        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div className={`mt-5 ${grid}`}>
           {albums.map((album) => (
             <ReleaseCard key={album.id} album={album} />
           ))}

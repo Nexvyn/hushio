@@ -1,5 +1,5 @@
 import type { IconSvgElement } from "@hugeicons/react";
-import { useNavigation } from "../stores/navigation";
+import { useNavigation, type View } from "../stores/navigation";
 import {
   Alert02Icon,
   Cancel01Icon,
@@ -11,11 +11,15 @@ import {
   ShuffleIcon,
   Tick02Icon,
 } from "@hugeicons/core-free-icons";
+import { ActionMenu } from "../components/ActionMenu";
 import { CollectionHero } from "../components/CollectionHero";
 import { EmptyState } from "../components/EmptyState";
+import { HeroIcon } from "../components/HeroIcon";
 import { Icon } from "../components/Icon";
 import { PILL, ROUND } from "../components/BrowseHero";
+import { PHONE_ICON, PHONE_PLAY, PHONE_SHUFFLE } from "../components/phone/heroButtons";
 import { upgradeArtwork } from "../lib/artwork";
+import { usePhone } from "../lib/usePhone";
 import {
   cancelDownload,
   downloadMenuItems,
@@ -31,6 +35,12 @@ import { useUI } from "../stores/ui";
 import type { Track } from "../types";
 
 const DOWNLOADS_SOURCE = "__downloads__";
+
+function backOr(fallback: View) {
+  const nav = useNavigation.getState();
+  if (nav.navPast.length > 0) nav.goBack();
+  else nav.navigate(fallback);
+}
 
 function byTitle(a: DownloadItem, b: DownloadItem): number {
   return a.track.title.localeCompare(b.track.title);
@@ -109,6 +119,7 @@ function IconButton({
 }
 
 function DownloadRow({ item, onPlay }: { item: DownloadItem; onPlay: (() => void) | null }) {
+  const phone = usePhone();
   const busy = item.status === "queued" || item.status === "downloading";
   const line = statusLine(item);
   const badge = badgeIcon(item);
@@ -117,6 +128,52 @@ function DownloadRow({ item, onPlay }: { item: DownloadItem; onPlay: (() => void
   const reveal = busy
     ? ""
     : "motion-safe:transition-opacity md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100";
+
+  if (phone) {
+    return (
+      <li
+        className="flex h-[60px] select-none items-center pl-4 pr-4"
+        onContextMenu={(event) => {
+          event.preventDefault();
+          useUI.getState().openContextMenu(event.clientX, event.clientY, downloadMenuItems(item));
+        }}
+      >
+        <button
+          type="button"
+          disabled={onPlay === null}
+          onClick={onPlay ?? undefined}
+          className="flex h-full min-w-0 flex-1 items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-default"
+        >
+          <span className="relative grid size-11 shrink-0 place-items-center overflow-hidden rounded-[8px] bg-wash">
+            {item.track.thumb && item.status !== "queued" && item.status !== "failed" && (
+              <img
+                src={upgradeArtwork(item.track.thumb)}
+                alt=""
+                className="absolute inset-0 size-full object-cover"
+                style={{ clipPath: `inset(${100 - fill}% 0 0 0)` }}
+              />
+            )}
+            <span className="absolute inset-0 flex items-center justify-center bg-scrim/40 text-on-scrim">
+              {item.status === "downloading" ? (
+                <span className="text-[12px] font-semibold tabular-nums">{percent(item)}%</span>
+              ) : (
+                badge && <Icon icon={badge} />
+              )}
+            </span>
+          </span>
+          <span className="min-w-0 flex-1">
+            <span title={item.track.title} className="block truncate text-[15px] font-medium leading-5 text-ink-1">
+              {item.track.title}
+            </span>
+            <span className={`block truncate text-[13px] leading-[18px] ${item.status === "done" ? "text-ink-2" : line.className}`}>
+              {item.status === "done" ? item.track.artist : line.text}
+            </span>
+          </span>
+        </button>
+        <ActionMenu items={() => downloadMenuItems(item)} label={`More options for ${item.track.title}`} />
+      </li>
+    );
+  }
 
   return (
     <li
@@ -195,6 +252,7 @@ export function DownloadsView() {
   const total = saved.reduce((sum, item) => sum + item.track.duration, 0);
   const covers = items.flatMap((item) => (item.track.thumb ? [upgradeArtwork(item.track.thumb)] : []));
   const none = saved.length === 0;
+  const phone = usePhone();
 
   const facts = (
     <>
@@ -206,15 +264,21 @@ export function DownloadsView() {
 
   return (
     <div className="pb-14">
-      <CollectionHero title="Downloads" covers={covers} facts={facts}>
+      <CollectionHero
+        title="Downloads"
+        covers={covers}
+        facts={facts}
+        icon={Download01Icon}
+        onBack={phone ? () => backOr({ name: "library" }) : undefined}
+      >
         <button
           type="button"
           aria-label="Play Downloads"
           disabled={none}
           onClick={() => playSaved(saved, 0, false)}
-          className={PILL}
+          className={phone ? PHONE_PLAY : PILL}
         >
-          <Icon icon={PlayIcon} />
+          <HeroIcon icon={PlayIcon} />
           Play
         </button>
         <button
@@ -223,22 +287,23 @@ export function DownloadsView() {
           title="Shuffle"
           disabled={none}
           onClick={() => playSaved(saved, 0, true)}
-          className={ROUND}
+          className={phone ? PHONE_SHUFFLE : ROUND}
         >
-          <Icon icon={ShuffleIcon} />
+          <HeroIcon icon={ShuffleIcon} />
+          {phone && "Shuffle"}
         </button>
         <button
           type="button"
           aria-label="Open the downloads folder"
           title="Open folder"
           onClick={openDownloadFolder}
-          className={ROUND}
+          className={phone ? PHONE_ICON : ROUND}
         >
           <Icon icon={FolderOpenIcon} />
         </button>
       </CollectionHero>
 
-      <div className="relative mt-6">
+      <div className={phone && items.length === 0 ? "relative" : "relative mt-6"}>
         {items.length === 0 ? (
           <EmptyState
             icon={Download01Icon}

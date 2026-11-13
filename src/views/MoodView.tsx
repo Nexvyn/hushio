@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { PlayIcon, ShuffleIcon } from "@hugeicons/core-free-icons";
 import { EqBars } from "../components/EqBars";
-import { Icon } from "../components/Icon";
+import { HeroIcon } from "../components/HeroIcon";
 import { PILL } from "../components/BrowseHero";
 import { PageHeader } from "../components/PageHeader";
 import { SectionHeader } from "../components/SectionHeader";
 import { Artwork } from "../components/SearchRows";
 import { openMenuAtPointer, openMenuFromKey } from "../components/ContextMenu";
+import { PHONE_PLAY, PHONE_SHUFFLE } from "../components/phone/heroButtons";
+import { PhoneArt } from "../components/phone/PhoneArt";
+import { PhoneSectionHeader, PhoneShelfRow } from "../components/phone/PhoneShelf";
+import { PhoneSongRow } from "../components/phone/PhoneTrackRow";
+import { thumbArtwork } from "../lib/artwork";
+import { usePhone } from "../lib/usePhone";
 import { browseMenuItems } from "../lib/browseActions";
 import { trackMenuItems } from "../lib/trackActions";
 import { freshMoods, getMoodCovers, loadMoods } from "../lib/explore";
@@ -26,6 +32,9 @@ import { currentTrack, usePlayer } from "../stores/player";
 
 const UP_FIRST = 10;
 const WALL_FIRST = 15;
+const SHELF_ART = 132;
+const SHUFFLE_DESKTOP =
+  "inline-flex h-10 items-center gap-2 rounded-full bg-wash px-5 text-[14px] font-semibold text-ink-1 hover:bg-hover motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
 type Lists = {
   songs: SearchSong[];
@@ -95,7 +104,49 @@ function BrowseCard({
   );
 }
 
+function PhoneBrowseCard({
+  item,
+  type,
+  round = false,
+  onOpen,
+}: {
+  item: MoodCardItem;
+  type: BrowseType;
+  round?: boolean;
+  onOpen: () => void;
+}) {
+  const menu = () => browseMenuItems({ type, browseId: item.id, title: item.title, subtitle: item.subtitle, thumb: item.thumb });
+  return (
+    <div
+      className="min-w-0"
+      onContextMenu={(event) => openMenuAtPointer(event, menu)}
+      onKeyDown={(event) => void openMenuFromKey(event, menu)}
+    >
+      <button
+        type="button"
+        onClick={onOpen}
+        className={`block w-full min-w-0 rounded-[10px] active:opacity-70 motion-safe:transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${round ? "text-center" : "text-left"}`}
+      >
+        <PhoneArt src={thumbArtwork(item.thumb, SHELF_ART) || null} round={round} radius="rounded-[10px]" />
+        <span className="mt-2 block min-w-0">
+          <span className="block truncate text-[14px] leading-[18px] font-medium text-ink-1">{item.title}</span>
+          {item.subtitle && <span className="block truncate text-[13px] leading-[17px] text-ink-2">{item.subtitle}</span>}
+        </span>
+      </button>
+    </div>
+  );
+}
+
 function Shelf({ title, count, children }: { title: string; count?: number; children: ReactNode }) {
+  const phone = usePhone();
+  if (phone) {
+    return (
+      <section className="mt-7">
+        <PhoneSectionHeader title={title} />
+        {children}
+      </section>
+    );
+  }
   return (
     <section className="mt-7">
       <SectionHeader title={title} count={count} />
@@ -115,6 +166,7 @@ export function MoodView() {
   const playing = usePlayer((state) => state.playing);
   const current = usePlayer((state) => currentTrack(state)?.id);
   const playQueue = usePlayer((state) => state.playQueue);
+  const phone = usePhone();
 
   const mood = moodByParams(moods, param);
   const lists = useMemo(() => listsOf(page), [page]);
@@ -183,16 +235,12 @@ export function MoodView() {
           actions={
             mix.length > 0 && (
               <>
-                <button type="button" onClick={() => playMix(0)} className={PILL}>
-                  <Icon icon={PlayIcon} />
+                <button type="button" onClick={() => playMix(0)} className={phone ? PHONE_PLAY : PILL}>
+                  <HeroIcon icon={PlayIcon} />
                   Play mix
                 </button>
-                <button
-                  type="button"
-                  onClick={shuffleMix}
-                  className="inline-flex h-10 items-center gap-2 rounded-full bg-wash px-5 text-[14px] font-semibold text-ink-1 hover:bg-hover motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                >
-                  <Icon icon={ShuffleIcon} />
+                <button type="button" onClick={shuffleMix} className={phone ? PHONE_SHUFFLE : SHUFFLE_DESKTOP}>
+                  <HeroIcon icon={ShuffleIcon} />
                   Shuffle
                 </button>
               </>
@@ -213,67 +261,98 @@ export function MoodView() {
           {mix.length > 0 && (
             <Shelf title="Up first in the mix">
               <ol>
-                {mix.slice(0, UP_FIRST).map((track, index) => (
-                  <li
-                    key={track.id}
-                    onContextMenu={(event) => openMenuAtPointer(event, () => trackMenuItems(track))}
-                    onKeyDown={(event) => void openMenuFromKey(event, () => trackMenuItems(track))}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => playMix(index)}
-                      className="flex w-full items-center gap-3 rounded-[10px] px-2 py-1.5 text-left hover:bg-wash active:bg-pressed motion-safe:transition-colors"
+                {mix.slice(0, UP_FIRST).map((track, index) =>
+                  phone ? (
+                    <PhoneSongRow
+                      key={track.id}
+                      index={index}
+                      song={track}
+                      current={track.id === current}
+                      playing={playing}
+                      menu={() => trackMenuItems(track)}
+                      onPlay={() => playMix(index)}
+                    />
+                  ) : (
+                    <li
+                      key={track.id}
+                      onContextMenu={(event) => openMenuAtPointer(event, () => trackMenuItems(track))}
+                      onKeyDown={(event) => void openMenuFromKey(event, () => trackMenuItems(track))}
                     >
-                      <span className="flex w-7 shrink-0 justify-center text-[12px] tabular-nums text-ink-2">
-                        {track.id === current ? <EqBars playing={playing} /> : String(index + 1).padStart(2, "0")}
-                      </span>
-                      <Artwork src={track.thumb} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[14px] font-semibold text-ink-1">{track.title}</span>
-                        <span className="block truncate text-[13px] text-ink-2">{track.artist}</span>
-                      </span>
-                      {track.duration > 0 && (
-                        <span className="shrink-0 text-[12px] tabular-nums text-ink-2">{fmtTime(track.duration)}</span>
-                      )}
-                    </button>
-                  </li>
-                ))}
+                      <button
+                        type="button"
+                        onClick={() => playMix(index)}
+                        className="flex w-full items-center gap-3 rounded-[10px] px-2 py-1.5 text-left hover:bg-wash active:bg-pressed motion-safe:transition-colors"
+                      >
+                        <span className="flex w-7 shrink-0 justify-center text-[12px] tabular-nums text-ink-2">
+                          {track.id === current ? <EqBars playing={playing} /> : String(index + 1).padStart(2, "0")}
+                        </span>
+                        <Artwork src={track.thumb} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[14px] font-semibold text-ink-1">{track.title}</span>
+                          <span className="block truncate text-[13px] text-ink-2">{track.artist}</span>
+                        </span>
+                        {track.duration > 0 && (
+                          <span className="shrink-0 text-[12px] tabular-nums text-ink-2">{fmtTime(track.duration)}</span>
+                        )}
+                      </button>
+                    </li>
+                  ),
+                )}
               </ol>
             </Shelf>
           )}
 
           {lists.playlists.length > 0 && (
             <Shelf title="Playlists">
-              <div className="no-scrollbar flex gap-3 overflow-x-auto">
-                {lists.playlists.map((card) => (
-                  <BrowseCard
-                    key={card.id}
-                    item={card}
-                    type="playlist"
-                    onOpen={() => navigate({ name: "ytplaylist", param: card.id })}
-                  />
-                ))}
-              </div>
+              {phone ? (
+                <PhoneShelfRow>
+                  {lists.playlists.map((card) => (
+                    <div key={card.id} className="w-[132px] shrink-0 snap-start">
+                      <PhoneBrowseCard item={card} type="playlist" onOpen={() => navigate({ name: "ytplaylist", param: card.id })} />
+                    </div>
+                  ))}
+                </PhoneShelfRow>
+              ) : (
+                <div className="no-scrollbar flex gap-3 overflow-x-auto">
+                  {lists.playlists.map((card) => (
+                    <BrowseCard
+                      key={card.id}
+                      item={card}
+                      type="playlist"
+                      onOpen={() => navigate({ name: "ytplaylist", param: card.id })}
+                    />
+                  ))}
+                </div>
+              )}
             </Shelf>
           )}
 
           {lists.albums.length > 0 && (
             <Shelf title="Albums" count={lists.albums.length}>
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-3">
-                {(wallOpen ? lists.albums : lists.albums.slice(0, WALL_FIRST)).map((card) => (
-                  <BrowseCard
-                    key={card.id}
-                    item={card}
-                    type="album"
-                    onOpen={() => navigate({ name: "album", param: card.id })}
-                  />
-                ))}
+              <div className={phone ? "grid grid-cols-3 gap-x-3 gap-y-5" : "grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-3"}>
+                {(wallOpen ? lists.albums : lists.albums.slice(0, WALL_FIRST)).map((card) =>
+                  phone ? (
+                    <PhoneBrowseCard
+                      key={card.id}
+                      item={card}
+                      type="album"
+                      onOpen={() => navigate({ name: "album", param: card.id })}
+                    />
+                  ) : (
+                    <BrowseCard
+                      key={card.id}
+                      item={card}
+                      type="album"
+                      onOpen={() => navigate({ name: "album", param: card.id })}
+                    />
+                  ),
+                )}
               </div>
               {lists.albums.length > WALL_FIRST && (
                 <button
                   type="button"
                   onClick={() => setWallOpen((open) => !open)}
-                  className="mt-4 h-10 rounded-full bg-wash px-4 text-[13px] font-medium text-ink-1 hover:bg-hover"
+                  className={`mt-4 rounded-full bg-wash px-4 text-[13px] font-medium text-ink-1 hover:bg-hover ${phone ? "h-11" : "h-10"}`}
                 >
                   {wallOpen ? "Show fewer" : `Show all ${lists.albums.length}`}
                 </button>
@@ -283,17 +362,27 @@ export function MoodView() {
 
           {lists.artists.length > 0 && (
             <Shelf title="Artists">
-              <div className="no-scrollbar flex gap-3 overflow-x-auto">
-                {lists.artists.map((card) => (
-                  <BrowseCard
-                    key={card.id}
-                    item={card}
-                    round
-                    type="artist"
-                    onOpen={() => navigate({ name: "artist", param: card.id })}
-                  />
-                ))}
-              </div>
+              {phone ? (
+                <PhoneShelfRow>
+                  {lists.artists.map((card) => (
+                    <div key={card.id} className="w-[132px] shrink-0 snap-start">
+                      <PhoneBrowseCard item={card} round type="artist" onOpen={() => navigate({ name: "artist", param: card.id })} />
+                    </div>
+                  ))}
+                </PhoneShelfRow>
+              ) : (
+                <div className="no-scrollbar flex gap-3 overflow-x-auto">
+                  {lists.artists.map((card) => (
+                    <BrowseCard
+                      key={card.id}
+                      item={card}
+                      round
+                      type="artist"
+                      onOpen={() => navigate({ name: "artist", param: card.id })}
+                    />
+                  ))}
+                </div>
+              )}
             </Shelf>
           )}
         </>

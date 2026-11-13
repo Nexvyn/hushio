@@ -1,12 +1,17 @@
-import { Copy01Icon, Download01Icon, PlayListAddIcon, UserIcon } from "@hugeicons/core-free-icons";
+import { Album01Icon, Copy01Icon, Download01Icon, PlayIcon, PlayListAddIcon, ShuffleIcon, UserIcon } from "@hugeicons/core-free-icons";
 import { normalizeCredit } from "../lib/credits";
 import { AboutText } from "../components/AboutText";
+import { ActionMenu } from "../components/ActionMenu";
 import { HeroControls } from "../components/BrowseHero";
+import { HeroIcon } from "../components/HeroIcon";
 import { PageHeader } from "../components/PageHeader";
 import { BrowseSkeleton } from "../components/BrowseSkeleton";
 import { ErrorState } from "../components/ErrorState";
 import type { MenuItem } from "../stores/ui";
 import { TrackRow } from "../components/TrackRow";
+import { PHONE_ICON, PHONE_PLAY, PHONE_SHUFFLE } from "../components/phone/heroButtons";
+import { PhoneSongRow } from "../components/phone/PhoneTrackRow";
+import { usePhone } from "../lib/usePhone";
 import { getAlbumPage } from "../lib/browse";
 import type { ReleasePage } from "../lib/browseParse";
 import { addedMessage, copyLink, queueAll} from "../lib/browseActions";
@@ -50,6 +55,7 @@ function AlbumContent({ page }: { page: ReleasePage }) {
   const headline = shortTitle(album.title);
   const source = titleSource(album.title);
   const { current, playing, playAt, shuffle } = useBrowsePlayback(tracks);
+  const phone = usePhone();
 
   const menu: MenuItem[] = [
     {
@@ -82,6 +88,7 @@ function AlbumContent({ page }: { page: ReleasePage }) {
         title={headline}
         titleTooltip={headline === album.title ? undefined : album.title}
         artwork={heroCover(album.thumb)}
+        icon={Album01Icon}
         meta={
           <>
             {album.artist &&
@@ -112,13 +119,34 @@ function AlbumContent({ page }: { page: ReleasePage }) {
           </>
         }
         actions={
-          <HeroControls
-            onShuffle={shuffle}
-            onPlay={() => playAt(0)}
-            shuffleDisabled={tracks.length === 0}
-            playDisabled={tracks.length === 0}
-            menu={menu}
-          />
+          phone ? (
+            <>
+              <button type="button" disabled={tracks.length === 0} onClick={() => playAt(0)} className={PHONE_PLAY}>
+                <HeroIcon icon={PlayIcon} />
+                Play
+              </button>
+              <button
+                type="button"
+                aria-label="Shuffle"
+                title="Shuffle"
+                disabled={tracks.length === 0}
+                onClick={shuffle}
+                className={PHONE_SHUFFLE}
+              >
+                <HeroIcon icon={ShuffleIcon} />
+                Shuffle
+              </button>
+              <ActionMenu items={menu} label="More options" triggerClass={PHONE_ICON} phoneIcon />
+            </>
+          ) : (
+            <HeroControls
+              onShuffle={shuffle}
+              onPlay={() => playAt(0)}
+              shuffleDisabled={tracks.length === 0}
+              playDisabled={tracks.length === 0}
+              menu={menu}
+            />
+          )
         }
       />
 
@@ -128,18 +156,32 @@ function AlbumContent({ page }: { page: ReleasePage }) {
             <AboutText heading="About the album" text={album.description} />
           </div>
         )}
-        <ol className="mt-7">
-          {tracks.map((song, index) => (
-            <TrackRow
-              key={`${song.id}-${index}`}
-              index={index}
-              song={song}
-              current={song.id === current}
-              playing={playing}
-              menu={() => trackMenuItems(song)}
-              onPlay={() => playAt(index)}
-            />
-          ))}
+        <ol className={phone ? "mt-5" : "mt-7"}>
+          {tracks.map((song, index) =>
+            phone ? (
+              <PhoneSongRow
+                key={`${song.id}-${index}`}
+                index={index}
+                song={song}
+                current={song.id === current}
+                playing={playing}
+                menu={() => trackMenuItems(song)}
+                onPlay={() => playAt(index)}
+                numbered
+                showArtist={song.artist !== album.artist}
+              />
+            ) : (
+              <TrackRow
+                key={`${song.id}-${index}`}
+                index={index}
+                song={song}
+                current={song.id === current}
+                playing={playing}
+                menu={() => trackMenuItems(song)}
+                onPlay={() => playAt(index)}
+              />
+            ),
+          )}
         </ol>
       </div>
     </>

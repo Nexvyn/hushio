@@ -7,6 +7,7 @@ import { usePlayer } from "../stores/player";
 import { useUI } from "../stores/ui";
 
 const bridge = vi.hoisted(() => ({
+  platform: "windows",
   downloadCancel: vi.fn(),
   downloadQueue: vi.fn(),
   downloadStart: vi.fn(),

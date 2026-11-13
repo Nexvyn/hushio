@@ -1,11 +1,13 @@
 import { useRef } from "react";
-import { PlayIcon, PlayListAddIcon, PlayListIcon, ShuffleIcon } from "@hugeicons/core-free-icons";
+import { FavouriteIcon, PlayIcon, PlayListAddIcon, PlayListIcon, ShuffleIcon } from "@hugeicons/core-free-icons";
 import { ActionMenu } from "../components/ActionMenu";
 import { PILL, ROUND } from "../components/BrowseHero";
 import { CollectionHero } from "../components/CollectionHero";
 import { EmptyState } from "../components/EmptyState";
-import { Icon } from "../components/Icon";
+import { HeroIcon } from "../components/HeroIcon";
 import { TrackRow } from "../components/TrackRow";
+import { PHONE_ICON, PHONE_PLAY, PHONE_SHUFFLE } from "../components/phone/heroButtons";
+import { PhoneSongRow } from "../components/phone/PhoneTrackRow";
 import { coversOf, topArtist } from "../lib/collections";
 import { dropTrackOnTarget, playCollection, playlistHeaderItems, toSong } from "../lib/collectionActions";
 import { fmtTotal } from "../lib/format";
@@ -13,7 +15,9 @@ import { plural } from "../lib/plural";
 import { sortKeys } from "../lib/sortable";
 import { playlistTrackMenuItems } from "../lib/trackActions";
 import { useSortable } from "../lib/useSortable";
-import { useLibrary } from "../stores/library";
+import { usePhone } from "../lib/usePhone";
+import { type Playlist, useLibrary } from "../stores/library";
+import type { SearchSong } from "../lib/searchParse";
 import { useNavigation } from "../stores/navigation";
 import { playFromRow, usePlayer } from "../stores/player";
 import { type MenuItem, useUI } from "../stores/ui";
@@ -23,6 +27,19 @@ function searchForSongs() {
   window.setTimeout(() => document.getElementById("global-search")?.focus(), 80);
 }
 
+function phoneRowMenu(playlist: Playlist, index: number, song: SearchSong): MenuItem[] {
+  const liked = useLibrary.getState().liked.some((item) => item.id === song.id);
+  return [
+    ...playlistTrackMenuItems(playlist, index),
+    {
+      label: liked ? "Remove from Liked Songs" : "Add to Liked Songs",
+      icon: FavouriteIcon,
+      separatorBefore: true,
+      onSelect: () => useLibrary.getState().toggleLike(song),
+    },
+  ];
+}
+
 export function PlaylistView() {
   const id = useNavigation((state) => state.view.param);
   const playlist = useLibrary((state) => state.playlists.find((item) => item.id === id));
@@ -30,6 +47,7 @@ export function PlaylistView() {
   const currentId = usePlayer((state) => state.queue[state.index]?.id);
   const playing = usePlayer((state) => state.playing);
   const listRef = useRef<HTMLOListElement>(null);
+  const phone = usePhone();
   const tracks = playlist?.tracks ?? [];
   const keys = sortKeys(tracks.map((track) => track.id));
   const sortable = useSortable({
@@ -89,14 +107,15 @@ export function PlaylistView() {
         title={playlist.name}
         covers={coversOf(tracks)}
         facts={facts}
+        icon={PlayListIcon}
       >
         <button
           type="button"
           aria-label={`Play ${playlist.name}`}
           onClick={() => playCollection(tracks, playlist.id, false)}
-          className={PILL}
+          className={phone ? PHONE_PLAY : PILL}
         >
-          <Icon icon={PlayIcon} />
+          <HeroIcon icon={PlayIcon} />
           Play
         </button>
         <button
@@ -105,14 +124,15 @@ export function PlaylistView() {
           title="Shuffle"
           disabled={empty}
           onClick={() => playCollection(tracks, playlist.id, true)}
-          className={ROUND}
+          className={phone ? PHONE_SHUFFLE : ROUND}
         >
-          <Icon icon={ShuffleIcon} />
+          <HeroIcon icon={ShuffleIcon} />
+          {phone && "Shuffle"}
         </button>
-        <ActionMenu items={headerMenu} label="More options" triggerClass={ROUND} />
+        <ActionMenu items={headerMenu} label="More options" triggerClass={phone ? PHONE_ICON : ROUND} phoneIcon={phone} />
       </CollectionHero>
 
-      <div className="pt-6">
+      <div className={phone ? (empty ? "" : "pt-5") : "pt-6"}>
         {empty ? (
           <EmptyState
             icon={PlayListIcon}
@@ -123,7 +143,19 @@ export function PlaylistView() {
           />
         ) : (
           <ol ref={listRef} {...sortable.listProps}>
-            {tracks.map((track, index) => (
+            {tracks.map((track, index) =>
+              phone ? (
+                <PhoneSongRow
+                  key={keys[index]}
+                  index={index}
+                  song={toSong(track)}
+                  current={track.id === currentId}
+                  playing={playing}
+                  menu={() => phoneRowMenu(playlist, index, toSong(track))}
+                  onPlay={() => playFromRow(tracks, index, playlist.id)}
+                  rowProps={sortable.bind(keys[index])}
+                />
+              ) : (
               <TrackRow
                 key={keys[index]}
                 index={index}
