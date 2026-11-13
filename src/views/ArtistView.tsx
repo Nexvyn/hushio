@@ -1,24 +1,22 @@
 import { useEffect } from "react";
-import type { IconSvgElement } from "@hugeicons/react";
 import {
-  ChartBarLineIcon,
   FavouriteIcon,
   PlayListAddIcon,
-  UserIcon,
 } from "@hugeicons/core-free-icons";
 import { AboutText } from "../components/AboutText";
-import { BrowseHero, HeroControls } from "../components/BrowseHero";
+import { HeroControls } from "../components/BrowseHero";
+import { PageHeader } from "../components/PageHeader";
+import { SectionHeader } from "../components/SectionHeader";
 import { BrowseSkeleton } from "../components/BrowseSkeleton";
 import { ErrorState } from "../components/ErrorState";
 import { HomeShelfView } from "../components/HomeShelves";
-import { Icon } from "../components/Icon";
 import type { MenuItem } from "../stores/ui";
 import { TrackRow } from "../components/TrackRow";
 import { getArtistPage } from "../lib/browse";
 import type { ArtistPage } from "../lib/browseParse";
 import { addedMessage, queueAll} from "../lib/browseActions";
 import { trackMenuItems } from "../lib/trackActions";
-import { artistTitleSize, heroCover, listenersChip, subscriberChip } from "../lib/browseText";
+import { heroCover, listenersChip, subscriberChip } from "../lib/browseText";
 import { useBrowseLoad } from "../lib/useBrowseLoad";
 import { useBrowsePlayback } from "../lib/useBrowsePlayback";
 import { rememberArtist } from "../stores/artistMeta";
@@ -45,15 +43,6 @@ export function ArtistView() {
     );
   }
   return <ArtistContent page={state.data} />;
-}
-
-function Chip({ icon, label }: { icon: IconSvgElement; label: string }) {
-  return (
-    <span className="inline-flex h-7 items-center gap-1.5 rounded-full border border-separator bg-surface/85 px-3 text-[12px] text-ink-1">
-      <Icon icon={icon} />
-      {label}
-    </span>
-  );
 }
 
 function ArtistContent({ page }: { page: ArtistPage }) {
@@ -94,27 +83,30 @@ function ArtistContent({ page }: { page: ArtistPage }) {
   ];
 
   return (
-    <div>
-      <BrowseHero cover={heroCover(artist.thumb)} topPadding="pt-[300px]">
-        <h1 className={`${artistTitleSize(artist.name)} font-extrabold leading-[1.1] tracking-[-0.03em]`}>
-          {artist.name}
-        </h1>
-        {(subscribers || listeners) && (
-          <div className="mt-4 flex flex-wrap justify-center gap-2">
-            {subscribers && <Chip icon={UserIcon} label={subscribers} />}
-            {listeners && <Chip icon={ChartBarLineIcon} label={listeners} />}
-          </div>
-        )}
-        <HeroControls
-          onShuffle={shuffle}
-          onPlay={() => playAt(0)}
-          shuffleDisabled={top.length === 0}
-          playDisabled={top.length === 0}
-          menu={menu}
-        />
-      </BrowseHero>
+    <>
+      <PageHeader
+        ambient
+        title={artist.name}
+        artwork={heroCover(artist.thumb)}
+        meta={
+          <>
+            {subscribers && <span>{subscribers}</span>}
+            {subscribers && listeners && <span aria-hidden="true" className="mx-1.5">·</span>}
+            {listeners && <span>{listeners}</span>}
+          </>
+        }
+        actions={
+          <HeroControls
+            onShuffle={shuffle}
+            onPlay={() => playAt(0)}
+            shuffleDisabled={top.length === 0}
+            playDisabled={top.length === 0}
+            menu={menu}
+          />
+        }
+      />
 
-      <div className="px-8 pb-12">
+      <div className="pb-12">
         {page.description && (
           <div className="mt-7">
             <AboutText heading="About the artist" text={page.description} />
@@ -123,7 +115,7 @@ function ArtistContent({ page }: { page: ArtistPage }) {
 
         {top.length > 0 && (
           <section className="mt-7">
-            <h2 className="mb-3 text-[21px] font-semibold text-ink-1">Top songs</h2>
+            <SectionHeader title="Top songs" />
             <ol>
               {top.map((song, index) => (
                 <TrackRow
@@ -148,6 +140,6 @@ function ArtistContent({ page }: { page: ArtistPage }) {
           </div>
         ))}
       </div>
-    </div>
+    </>
   );
 }

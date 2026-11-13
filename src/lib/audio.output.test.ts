@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./bridge", () => ({
   registerStreamUrl: vi.fn(),
@@ -77,6 +77,11 @@ function fakeContext(state: "running" | "suspended") {
 
 let created: ReturnType<typeof fakeContext>[];
 let nextState: "running" | "suspended";
+
+beforeAll(async () => {
+  await import("../stores/settings");
+  await import("./audio");
+}, 60000);
 
 beforeEach(() => {
   vi.resetModules();

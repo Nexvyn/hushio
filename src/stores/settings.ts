@@ -4,6 +4,7 @@ import { persistStorage } from "../lib/persist";
 import { type MatchLanguage } from "../lib/importLanguage";
 import { type EqPreset, flatGains, normalizeEqGains, normalizeEqPresets } from "../lib/eq";
 import { desktopAppearance } from "../lib/desktopAppearance";
+import { DEFAULT_FONT, isAppFont, type AppFontId } from "../lib/fonts";
 import { applyTheme, type ThemeMode } from "../lib/theme";
 
 export const DEVICE_SETTINGS_KEYS = [
@@ -26,6 +27,23 @@ export const LOUDNESS_LEVELS = ["off", "quiet", "normal", "loud"] as const;
 export type LoudnessLevel = (typeof LOUDNESS_LEVELS)[number];
 export const DOWNLOAD_QUALITIES = ["standard", "high", "lossless"] as const;
 export type DownloadQuality = (typeof DOWNLOAD_QUALITIES)[number];
+export const LYRICS_TEXT_SIZES = ["small", "medium", "large"] as const;
+export type LyricsTextSize = (typeof LYRICS_TEXT_SIZES)[number];
+
+export const LYRICS_PROVIDERS = [
+  { id: "betterLyrics", label: "BetterLyrics" },
+  { id: "portato", label: "Portato" },
+  { id: "paxsenix", label: "PaxSenix" },
+  { id: "lrclib", label: "LRCLIB" },
+  { id: "kugou", label: "KuGou" },
+  { id: "simpmusic", label: "SimpMusic" },
+  { id: "lyricsPlus", label: "LyricsPlus" },
+  { id: "unison", label: "Unison" },
+  { id: "youtubeCaptions", label: "Video captions" },
+  { id: "genius", label: "Genius" },
+] as const;
+
+export type LyricsProviderId = (typeof LYRICS_PROVIDERS)[number]["id"];
 
 export type SettingsValues = {
   theme: ThemeMode;
@@ -59,6 +77,18 @@ export type SettingsValues = {
   eqGains: number[];
   eqPresets: EqPreset[];
   eqAutoHeadroom: boolean;
+  autoDownloadLiked: boolean;
+  pauseListeningHistory: boolean;
+  pauseSearchHistory: boolean;
+  noDuplicateQueue: boolean;
+  restoreQueueOnRestart: boolean;
+  homeSectionOrder: string[];
+  hiddenHomeSections: string[];
+  lyricsTextSize: LyricsTextSize;
+  lyricsProviders: LyricsProviderId[];
+  appFont: AppFontId;
+  keepScreenAwake: boolean;
+  dataSaver: boolean;
 };
 
 export type SettingsState = SettingsValues & {
@@ -79,6 +109,15 @@ export type SettingsState = SettingsValues & {
 export function clampLyricsOffset(value: number) {
   const rounded = Math.round(value * LYRICS_OFFSET_STEPS_PER_SECOND) / LYRICS_OFFSET_STEPS_PER_SECOND;
   return Math.min(LYRICS_OFFSET_LIMIT, Math.max(-LYRICS_OFFSET_LIMIT, rounded));
+}
+
+export function toggleLyricsProvider(
+  providers: LyricsProviderId[],
+  id: LyricsProviderId,
+): LyricsProviderId[] {
+  return providers.includes(id)
+    ? providers.filter((provider) => provider !== id)
+    : [...providers, id];
 }
 
 export function clampCrossfadeSeconds(value: number) {
@@ -142,6 +181,18 @@ export const useSettings = create<SettingsState>()(
       eqGains: flatGains(),
       eqPresets: [],
       eqAutoHeadroom: true,
+      autoDownloadLiked: false,
+      pauseListeningHistory: false,
+      pauseSearchHistory: false,
+      noDuplicateQueue: false,
+      restoreQueueOnRestart: true,
+      homeSectionOrder: [],
+      hiddenHomeSections: [],
+      lyricsTextSize: "medium",
+      lyricsProviders: LYRICS_PROVIDERS.map((provider) => provider.id),
+      appFont: DEFAULT_FONT,
+      keepScreenAwake: false,
+      dataSaver: false,
       setCrossfadeSeconds: (value) => set({ crossfadeSeconds: clampCrossfadeSeconds(value) }),
       setPlaybackSpeed: (value) => set({ playbackSpeed: clampPlaybackSpeed(value) }),
       setEqGains: (value) => set({ eqGains: normalizeEqGains(value) }),
@@ -163,7 +214,8 @@ export const useSettings = create<SettingsState>()(
         const theme = isThemeMode(stored.theme) ? stored.theme : current.theme;
         const eqGains = stored.eqGains === undefined ? current.eqGains : normalizeEqGains(stored.eqGains);
         const eqPresets = stored.eqPresets === undefined ? current.eqPresets : normalizeEqPresets(stored.eqPresets);
-        return { ...current, ...stored, theme, eqGains, eqPresets };
+        const appFont = isAppFont(stored.appFont) ? stored.appFont : current.appFont;
+        return { ...current, ...stored, theme, eqGains, eqPresets, appFont };
       },
     },
   ),

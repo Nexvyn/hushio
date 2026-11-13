@@ -1,8 +1,11 @@
 import { create } from "zustand";
+import { PODCASTS_ENABLED } from "../lib/features";
 
 export type ViewName =
   | "home"
   | "explore"
+  | "charts"
+  | "newreleases"
   | "search"
   | "library"
   | "playlists"
@@ -14,10 +17,12 @@ export type ViewName =
   | "artist"
   | "downloads"
   | "local"
-  | "replay"
+  | "listen"
   | "podcast"
   | "podcasts"
   | "mood"
+  | "smart"
+  | "duplicates"
   | "settings";
 
 export type View = { name: ViewName; param?: string };
@@ -29,6 +34,11 @@ const HISTORY_LIMIT = 40;
 function readViewScroll() {
   if (typeof document === "undefined") return 0;
   return document.getElementById("view-scroll")?.scrollTop ?? 0;
+}
+
+function gateView(view: View): View {
+  if (PODCASTS_ENABLED) return view;
+  return view.name === "podcast" || view.name === "podcasts" ? { name: "home" } : view;
 }
 
 function sameView(a: View, b: View) {
@@ -55,8 +65,9 @@ export const useNavigation = create<NavigationState>()((set) => ({
   pendingScroll: null,
   viewReloadNonce: 0,
 
-  navigate: (next) =>
+  navigate: (requested) =>
     set((state) => {
+      const next = gateView(requested);
       if (sameView(state.view, next)) return state;
       return {
         view: next,
@@ -68,8 +79,11 @@ export const useNavigation = create<NavigationState>()((set) => ({
       };
     }),
 
-  replaceView: (next) =>
-    set((state) => (sameView(state.view, next) ? state : { view: next })),
+  replaceView: (requested) =>
+    set((state) => {
+      const next = gateView(requested);
+      return sameView(state.view, next) ? state : { view: next };
+    }),
 
   goBack: () =>
     set((state) => {

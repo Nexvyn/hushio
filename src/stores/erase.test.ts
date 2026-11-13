@@ -19,6 +19,7 @@ import { resetStoresAfterErase } from "./erase";
 import { useLibrary } from "./library";
 import { useSession } from "./session";
 import { useSettings } from "./settings";
+import { useCrashes } from "./crashes";
 import { GUEST_ACCOUNT } from "./auth";
 import { takeOnboardingIntent } from "../lib/onboarding";
 
@@ -41,6 +42,14 @@ describe("erase without reload", () => {
     expect(useSession.getState()).toMatchObject({ onboardingDone: false, freshInstall: false });
     expect(useSettings.getState().theme).toBe(useSettings.getInitialState().theme);
     expect(bridge.googleAccountGet).toHaveBeenCalled();
+  });
+
+  it("forgets the crash logs shown in settings", () => {
+    useCrashes.setState({ logs: [{ at: 1, message: "boom" }], loaded: true });
+
+    resetStoresAfterErase();
+
+    expect(useCrashes.getState()).toMatchObject({ logs: [], loaded: false });
   });
 
   it("the guest sign-in action opens onboarding at choose through the intent memory", () => {

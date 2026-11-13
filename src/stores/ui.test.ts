@@ -34,3 +34,32 @@ describe("toasts", () => {
     expect(useUI.getState().toasts[0].duration).toBe(4600);
   });
 });
+
+describe("toast ids", () => {
+  it("returns the id of the toast it shows", () => {
+    const first = useUI.getState().toast("First");
+    const second = useUI.getState().toast("Second");
+    expect(useUI.getState().toasts.map((item) => item.id)).toEqual([first, second]);
+  });
+
+  it("dismisses a queued toast without touching the shown ones", () => {
+    const { toast } = useUI.getState();
+    for (let i = 1; i <= 4; i++) toast(`Message ${i}`);
+    const queued = toast("Waiting");
+
+    useUI.getState().dismissToast(queued);
+
+    expect(useUI.getState().pendingToasts).toHaveLength(0);
+    expect(useUI.getState().toasts).toHaveLength(4);
+  });
+
+  it("dismisses a shown toast and promotes the waiting one", () => {
+    const { toast } = useUI.getState();
+    const shown = toast("Loading");
+    for (let i = 1; i <= 4; i++) toast(`Message ${i}`);
+
+    useUI.getState().dismissToast(shown);
+
+    expect(useUI.getState().toasts.map((item) => item.message)).toEqual(["Message 1", "Message 2", "Message 3", "Message 4"]);
+  });
+});

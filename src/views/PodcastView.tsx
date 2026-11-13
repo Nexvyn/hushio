@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Mic01Icon, PlayIcon } from "@hugeicons/core-free-icons";
+import { PlayIcon } from "@hugeicons/core-free-icons";
+import { PageHeader } from "../components/PageHeader";
+import { SectionHeader } from "../components/SectionHeader";
 import { EqBars } from "../components/EqBars";
 import { ErrorState } from "../components/ErrorState";
 import { Icon } from "../components/Icon";
 import { getPodcast } from "../lib/podcasts";
 import type { PodcastEpisode, PodcastPage } from "../lib/podcastParse";
-import { PAGE_TITLE_SIZE, titleStep } from "../lib/format";
 import { useNavigation } from "../stores/navigation";
 import { usePlayer } from "../stores/player";
 
@@ -123,48 +124,33 @@ export function PodcastView() {
   const [latest] = page.episodes;
 
   return (
-    <div className="space-y-6 pb-12 pt-2">
-      <header className="animate-slide-up flex flex-col gap-6 sm:flex-row">
-        {page.thumb ? (
-          <img
-            src={page.thumb}
-            alt=""
-            className={`h-[176px] w-[176px] shrink-0 rounded-[16px] object-cover shadow-[0_0_0_1px_rgb(0_0_0/0.07),0_8px_24px_-8px_rgb(0_0_0/0.25)] ${cover}`}
-          />
-        ) : (
-          <span className="flex h-[176px] w-[176px] shrink-0 items-center justify-center rounded-[16px] bg-wash text-ink-2">
-            <Icon icon={Mic01Icon} />
-          </span>
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-ink-2">
-            <Icon icon={Mic01Icon} />
-            Podcast
-          </p>
-          <h1
-            className={`mt-1 break-words font-extrabold leading-[1.2] tracking-[-0.03em] text-ink-1 ${PAGE_TITLE_SIZE[titleStep(page.title)]}`}
-          >
-            {page.title}
-          </h1>
-          {page.author && <p className="mt-1 text-[14px] text-ink-2">{page.author}</p>}
-          {page.description && (
-            <p className="mt-3 line-clamp-3 max-w-[672px] text-[13px] text-ink-2">{page.description}</p>
-          )}
-          {latest && (
+    <div className="space-y-7 pb-12">
+      <PageHeader
+        ambient
+        title={page.title}
+        artwork={page.thumb}
+        meta={
+          <>
+            {page.author && <span className="block text-body text-ink-2">{page.author}</span>}
+            {page.description && <span className="mt-2 line-clamp-3 block max-w-[672px] text-meta text-ink-2">{page.description}</span>}
+          </>
+        }
+        actions={
+          latest && (
             <button
               type="button"
               onClick={() => playQueue([latest], 0)}
-              className={`mt-4 inline-flex h-10 items-center gap-2 rounded-full bg-primary px-5 text-[13px] font-semibold text-on-primary hover:opacity-90 motion-safe:transition-opacity ${focusRing}`}
+              className={`inline-flex h-10 items-center gap-2 rounded-full bg-primary px-5 text-[14px] font-semibold text-on-primary hover:opacity-90 motion-safe:transition-opacity ${focusRing}`}
             >
               <Icon icon={PlayIcon} />
               Play latest episode
             </button>
-          )}
-        </div>
-      </header>
+          )
+        }
+      />
 
       <section>
-        <h2 className="mb-2 text-[21px] font-semibold text-ink-1">Episodes</h2>
+        <SectionHeader title="Episodes" />
         {page.episodes.length > 0 ? (
           <div className="flex flex-col gap-1">
             {page.episodes.map((episode) => (

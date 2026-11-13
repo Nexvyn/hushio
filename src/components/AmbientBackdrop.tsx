@@ -14,11 +14,12 @@ export function paletteCoverFor(track: TrackCover): string {
   return upgradeArtwork(track.thumb, PALETTE_ART) || upgradeArtwork(peekArtistMeta(track.artist ?? "")?.thumb, PALETTE_ART);
 }
 
-type AmbientVariant = "full" | "banner";
+type AmbientVariant = "full" | "banner" | "header";
 
 const VARIANT_CLASS: Record<AmbientVariant, string> = {
   full: "absolute inset-0",
   banner: "absolute inset-x-0 top-0 h-[460px]",
+  header: "absolute inset-x-0 top-0 bottom-0",
 };
 
 const BANNER_MASK = "linear-gradient(to bottom, black 55%, transparent)";
@@ -140,7 +141,7 @@ export function AmbientBackdrop({ primary, src = "", variant = "full", className
   }, [stack.id, stack.previous]);
 
   const crossFade = !reduced && stack.id > 0;
-  const mask = variant === "banner" ? BANNER_MASK : undefined;
+  const mask = variant === "full" ? undefined : BANNER_MASK;
 
   return (
     <div

@@ -1,4 +1,5 @@
 :root {
+  --font-app: "Segoe UI Variable Display", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
 }
 
 :root,
@@ -21,6 +22,10 @@
   --selected: 45 45 45;
   --hover: 38 38 38;
   --pressed: 54 54 54;
+  --fill-a: 0.07;
+  --fill-hover-a: 0.10;
+  --edge-a: 0.08;
+  --tint-a: 0.16;
 
   --sidebar-selected: 40 40 40;
 
@@ -31,7 +36,7 @@
   --on-danger: 255 255 255;
   --on-scrim: 255 255 255;
   --focus: 237 237 237;
-  --disabled-opacity: 0.3;
+  --disabled-opacity: 0.5;
 
   --safe: 74 222 128;
   --warn: 250 191 36;
@@ -75,6 +80,10 @@
   --selected: 228 228 228;
   --hover: 234 234 234;
   --pressed: 226 226 226;
+  --fill-a: 0.06;
+  --fill-hover-a: 0.09;
+  --edge-a: 0;
+  --tint-a: 0.08;
 
   --sidebar-selected: 228 228 228;
 
@@ -125,6 +134,10 @@
     --selected: 228 228 228;
     --hover: 234 234 234;
     --pressed: 226 226 226;
+    --fill-a: 0.06;
+    --fill-hover-a: 0.09;
+    --edge-a: 0;
+    --tint-a: 0.08;
 
     --sidebar-selected: 228 228 228;
 

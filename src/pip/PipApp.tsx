@@ -193,7 +193,7 @@ export function PipApp() {
 
         <div className="px-1">
           <Groove
-            profile="compact"
+            variant="plain"
             compact
             seed={track?.id ?? ""}
             position={snapshot?.position ?? 0}

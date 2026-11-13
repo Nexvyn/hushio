@@ -10,6 +10,7 @@ export type MenuItem = {
   label: string;
   icon?: IconSvgElement;
   note?: string;
+  trailing?: string;
   onSelect?: (anchor?: Box) => void;
   disabled?: boolean;
   danger?: boolean;
@@ -21,7 +22,7 @@ export type MenuItem = {
   subject?: MenuSubject;
 };
 
-export type ContextMenuOptions = { above?: boolean; alignRight?: boolean; owner?: string };
+export type ContextMenuOptions = { above?: boolean; alignRight?: boolean; owner?: string; attached?: boolean };
 
 export type ContextMenuState = ContextMenuOptions & { items: MenuItem[]; x: number; y: number };
 
@@ -63,6 +64,7 @@ type UIState = {
   lyricsCenter: boolean;
   nowPlayingOpen: boolean;
   phoneQueueOpen: boolean;
+  phoneLyricsSearchOpen: boolean;
   osFullscreen: boolean;
   toasts: Toast[];
   pendingToasts: Toast[];
@@ -76,7 +78,7 @@ type UIState = {
   searchFilter: SearchFilter;
   setSearchQuery: (query: string) => void;
   setSearchFilter: (filter: SearchFilter) => void;
-  toast: (message: string, kind?: ToastKind, duration?: number, action?: ToastAction) => void;
+  toast: (message: string, kind?: ToastKind, duration?: number, action?: ToastAction) => number;
   dismissToast: (id: number) => void;
   setOsFullscreen: (value: boolean) => void;
   setRightPanel: (panel: "details" | "queue") => void;
@@ -88,6 +90,8 @@ type UIState = {
   closeNowPlaying: () => void;
   openPhoneQueue: () => void;
   closePhoneQueue: () => void;
+  openPhoneLyricsSearch: () => void;
+  closePhoneLyricsSearch: () => void;
   closePanels: () => void;
   openDialog: (request: DialogRequest) => void;
   closeDialog: () => void;
@@ -102,6 +106,7 @@ export const useUI = create<UIState>()((set) => ({
   lyricsCenter: false,
   nowPlayingOpen: false,
   phoneQueueOpen: false,
+  phoneLyricsSearchOpen: false,
   osFullscreen: false,
   toasts: [],
   pendingToasts: [],
@@ -123,23 +128,29 @@ export const useUI = create<UIState>()((set) => ({
 
   setSearchFilter: (filter) => set({ searchFilter: filter }),
 
-  toast: (message, kind = "info", duration = DEFAULT_TOAST_MS, action) =>
+  toast: (message, kind = "info", duration = DEFAULT_TOAST_MS, action) => {
+    const id = nextToastId++;
     set((state) => {
-      const next = { id: nextToastId++, message, kind, duration, action };
+      const next = { id, message, kind, duration, action };
       if (state.toasts.length < TOAST_LIMIT) {
         return { toasts: [...state.toasts, next] };
       }
       return { pendingToasts: [...state.pendingToasts, next] };
-    }),
+    });
+    return id;
+  },
 
   dismissToast: (id) =>
     set((state) => {
+      const queued = state.pendingToasts.filter((item) => item.id !== id);
+      if (!state.toasts.some((item) => item.id === id)) {
+        return queued.length === state.pendingToasts.length ? state : { pendingToasts: queued };
+      }
       const toasts = state.toasts.filter((item) => item.id !== id);
-      if (toasts.length === state.toasts.length) return state;
-      const next = state.pendingToasts[0];
+      const next = queued[0];
       return {
         toasts: next ? [...toasts, next] : toasts,
-        pendingToasts: next ? state.pendingToasts.slice(1) : state.pendingToasts,
+        pendingToasts: next ? queued.slice(1) : queued,
       };
     }),
 
@@ -166,6 +177,10 @@ export const useUI = create<UIState>()((set) => ({
   openPhoneQueue: () => set({ phoneQueueOpen: true }),
 
   closePhoneQueue: () => set({ phoneQueueOpen: false }),
+
+  openPhoneLyricsSearch: () => set({ phoneLyricsSearchOpen: true }),
+
+  closePhoneLyricsSearch: () => set({ phoneLyricsSearchOpen: false }),
 
   closePanels: () =>
     set({ rightPanel: "details", lyricsCenter: false, nowPlayingOpen: false }),

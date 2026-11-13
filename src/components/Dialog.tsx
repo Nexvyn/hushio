@@ -146,7 +146,7 @@ export function Dialog({ sheet = false }: { sheet?: boolean }) {
               placeholder={request.placeholder}
               rows={7}
               spellCheck={false}
-              className="mt-4 w-full resize-none rounded-xl border border-separator bg-ink-1/[0.06] px-3.5 py-2.5 text-sm leading-relaxed text-ink-1 placeholder:text-ink-2 focus:border-accent"
+              className="mt-4 w-full resize-none rounded-xl border border-separator bg-ink-1/[0.06] px-3.5 py-2.5 text-sm leading-relaxed text-ink-1 placeholder:text-ink-2 focus-visible:border-accent focus-visible:bg-elevated"
             />
           ) : (
             <input
@@ -158,7 +158,7 @@ export function Dialog({ sheet = false }: { sheet?: boolean }) {
               placeholder={request.placeholder}
               aria-invalid={failure?.request === request || undefined}
               spellCheck={false}
-              className="mt-4 h-10 w-full rounded-xl border border-separator bg-ink-1/[0.06] px-3.5 text-sm text-ink-1 placeholder:text-ink-2 focus:border-accent"
+              className="mt-4 h-10 w-full rounded-xl border border-separator bg-ink-1/[0.06] px-3.5 text-sm text-ink-1 placeholder:text-ink-2 focus-visible:border-accent focus-visible:bg-elevated"
             />
           ))}
         {failure?.request === request && (

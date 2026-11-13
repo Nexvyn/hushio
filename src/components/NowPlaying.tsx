@@ -1,19 +1,21 @@
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { normalizeCredit } from "../lib/credits";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowDown01Icon, Cancel01Icon, FavouriteIcon, MusicNote01Icon, Search01Icon, VolumeHighIcon, VolumeLowIcon, VolumeOffIcon } from "@hugeicons/core-free-icons";
+import { ArrowDown01Icon, Cancel01Icon, CastIcon, Chat01Icon, FavouriteIcon, MusicNote01Icon, Search01Icon, VolumeHighIcon, VolumeLowIcon, VolumeOffIcon } from "@hugeicons/core-free-icons";
 import { Icon } from "./Icon";
 import { CaptionButtons } from "./CaptionButtons";
 import { Groove } from "./Groove";
 import { PlaybackButtons, TransportButton } from "./PlaybackControls";
 import { AddToPlaylist } from "./PlayerBar";
 import { QueuePanel } from "./RightRail";
+import { LyricsChoice } from "./LyricsChoice";
 import { SyncedLyrics } from "./SyncedLyrics";
 import { VinylRack } from "./VinylRack";
 import { CENTRE_FRACTION as RACK_CENTRE_FRACTION, CENTRE_MAX as RACK_CENTRE_MAX } from "../lib/vinylRack";
 import { UpNext } from "./UpNext";
 import { upgradeArtwork } from "../lib/artwork";
 import { platform, setFullScreen } from "../lib/bridge";
+import { castFromNowPlaying } from "../lib/cast";
 import { submitSearch } from "../lib/searchActions";
 import { OnArtContext } from "../lib/onArt";
 import { hasCaptionButtons } from "../lib/desktopPlatform";
@@ -22,12 +24,14 @@ import { visibleLyricLines } from "../lib/lyricsLines";
 import { useLyricsOffset, useLyricsTimingKeys } from "../lib/lyricsOffset";
 import { reducedMotion } from "../lib/motion";
 import { useArtworkPalette } from "../lib/artworkPalette";
+import { setKeepAwake } from "../lib/wakeLock";
 import { AmbientBackdrop, paletteCoverFor } from "./AmbientBackdrop";
 import { useTrackLyrics } from "../lib/useTrackLyrics";
 import { peekArtistMeta } from "../stores/artistMeta";
 import { useLibrary } from "../stores/library";
 import { currentTrack, usePlayer } from "../stores/player";
 import { useSettings } from "../stores/settings";
+import { useComments } from "../stores/comments";
 import { useUI } from "../stores/ui";
 import { topBarLeadingInset } from "../lib/windowChrome";
 
@@ -121,6 +125,7 @@ const VOLUME_KEY_STEP: Record<string, number> = { ArrowUp: 0.05, ArrowRight: 0.0
 
 export function NowPlaying() {
   const open = useUI((state) => state.nowPlayingOpen);
+  const keepAwake = useSettings((state) => state.keepScreenAwake);
   const [mounted, setMounted] = useState(false);
   const [exiting, setExiting] = useState(false);
   const [hintVisible, setHintVisible] = useState(false);
@@ -168,6 +173,21 @@ export function NowPlaying() {
     },
     [],
   );
+
+  useEffect(() => {
+    if (!keepAwake) {
+      void setKeepAwake(false);
+      return;
+    }
+    if (!open) return;
+    void setKeepAwake(true);
+    const release = () => void setKeepAwake(false);
+    window.addEventListener("pagehide", release);
+    return () => {
+      window.removeEventListener("pagehide", release);
+      void setKeepAwake(false);
+    };
+  }, [open, keepAwake]);
 
   if (!mounted) return null;
   return <NowPlayingView exiting={exiting} hintVisible={hintVisible} />;
@@ -229,7 +249,7 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
   const [mode, setMode] = useState<Mode>("lyrics");
   const trackId = track?.id ?? null;
   const offset = useLyricsOffset(trackId);
-  const { lyrics, loading } = useTrackLyrics(track, duration);
+  const { lyrics, loading, reload } = useTrackLyrics(track, duration);
   const synced = lyrics?.synced ?? null;
   const lines = useMemo(() => (synced ? visibleLyricLines(synced) : []), [synced]);
   const hasLyrics = Boolean(synced?.length || lyrics?.plain?.trim());
@@ -325,7 +345,7 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
                     <Groove seed={track.id} position={position} duration={duration} onSeek={seek} lyrics={lines} playing={playing} onArt />
                   </div>
                   <div role="group" aria-label="Transport" className={`mt-4 flex w-full items-center justify-between ${chrome} ${chromeMotion}`}>
-                    <div className="-ml-[10px] shrink-0">
+                    <div className="-ml-[10px] flex shrink-0 items-center">
                       <TransportButton
                         label={liked ? "Remove from Library" : "Add to Library"}
                         icon={FavouriteIcon}
@@ -336,6 +356,15 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
                         onArt
                         onClick={() => toggleLike(track)}
                       />
+                      <TransportButton
+                        label="Comments"
+                        icon={Chat01Icon}
+                        onArt
+                        onClick={() => useComments.getState().open(track.id)}
+                      />
+                      {platform === "android" && (
+                        <TransportButton label="Cast" icon={CastIcon} onArt onClick={() => void castFromNowPlaying()} />
+                      )}
                     </div>
                     <PlaybackButtons onArt />
                     <div className="-mr-[10px] shrink-0">
@@ -399,7 +428,10 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
               ) : (
                 track && (
                   <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden pt-2">
-                    <p className="text-[13px] text-art/[0.55]">No lyrics for this song</p>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <p className="text-[13px] text-art/[0.55]">No lyrics for this song</p>
+                      <LyricsChoice track={track} duration={duration} overridden={false} onChanged={reload} />
+                    </div>
                     <div className="min-h-0 flex-1 overflow-hidden">
                       <UpNext />
                     </div>

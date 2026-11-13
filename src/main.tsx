@@ -10,13 +10,14 @@ import { startMediaSession } from "./lib/mediaSession";
 import { startSmtc } from "./lib/smtc";
 import { startDesktopAppearance } from "./lib/desktopAppearance";
 import { usesNativeMediaControls } from "./lib/desktopPlatform";
+import { startInsets } from "./lib/insets";
 import { PipApp } from "./pip/PipApp";
 import { startPipSync } from "./pip/pipSync";
 import { useLocalLibrary } from "./stores/localLibrary";
 import { applyAppearance, useSettings } from "./stores/settings";
 import { MotionRoot } from "./components/MotionRoot";
 import { refreshHtmlClasses, startHtmlClasses } from "./lib/htmlClasses";
-import { finishBlend, nextBlendTarget, usePlayer } from "./stores/player";
+import { finishBlend, nextBlendTarget, resumeQueueAfterHydration, usePlayer } from "./stores/player";
 
 applyAppearance(useSettings.getState());
 useSettings.subscribe(applyAppearance);
@@ -60,8 +61,10 @@ function mountMain() {
       unpin: () => useSettings.getState().setAudioSinkId(""),
     });
   }
+  if (platform === "android") startInsets();
   void useLocalLibrary.getState().startupRescan();
   startPipSync();
+  resumeQueueAfterHydration();
 
   ReactDOM.createRoot(root).render(
     <React.StrictMode>

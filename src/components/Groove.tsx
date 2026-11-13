@@ -3,6 +3,7 @@ import { fmtTime } from "../lib/format";
 import {
   GROOVE_BACK_LAYER_ALPHA,
   GROOVE_HIT_MIN_PX,
+  GROOVE_PLAIN_SIZE,
   GROOVE_SIZES,
   GROOVE_WAVE_FRAME_MS,
   GROOVE_WAVE_MAX_DT_S,
@@ -22,6 +23,8 @@ import {
 } from "../lib/groove";
 import { reducedMotion } from "../lib/motion";
 
+export type GrooveVariant = "plain" | "hills";
+
 type GrooveProps = {
   seed: string;
   position: number;
@@ -31,6 +34,7 @@ type GrooveProps = {
   compact?: boolean;
   playing?: boolean;
   profile?: GrooveProfile;
+  variant?: GrooveVariant;
   label?: string;
   className?: string;
   onArt?: boolean;
@@ -112,12 +116,12 @@ function paintGroove(canvas: HTMLCanvasElement | null, paint: Paint | null, cloc
   context.restore();
 }
 
-function GrooveTip({ time, line, left }: { time: number; line: string | null; left: number }) {
+function GrooveTip({ time, line, left, above = false }: { time: number; line: string | null; left: number; above?: boolean }) {
   return (
     <span
       aria-hidden="true"
       style={{ left: `${left}%` }}
-      className="pointer-events-none absolute bottom-0 flex h-5 max-w-[260px] -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-control bg-elevated px-1.5 text-[11px] leading-none text-ink-1 shadow-float"
+      className={`pointer-events-none absolute ${above ? "bottom-full mb-1" : "bottom-0"} flex h-5 max-w-[260px] -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-control bg-elevated px-1.5 text-[11px] leading-none text-ink-1 shadow-float`}
     >
       <span className="tabular-nums text-ink-2">{fmtTime(time)}</span>
       {line && <span className="truncate">{line}</span>}
@@ -134,10 +138,12 @@ export function Groove({
   compact = false,
   playing = false,
   profile = "stage",
+  variant = "hills",
   label = "Seek",
   className = "",
   onArt = false,
 }: GrooveProps) {
+  const plain = variant === "plain";
   const layerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const paintRef = useRef<Paint | null>(null);
@@ -153,27 +159,28 @@ export function Groove({
   const max = disabled ? 0 : duration;
   const reduced = reducedMotion();
   const seedNumber = useMemo(() => grooveSeed(seed), [seed]);
-  const size = GROOVE_SIZES[profile];
+  const size = plain ? GROOVE_PLAIN_SIZE : GROOVE_SIZES[profile];
   const boxHeight = grooveBoxHeight(size);
   const hitPad = Math.max(0, (GROOVE_HIT_MIN_PX - boxHeight) / 2);
   const fillColour = onArt ? `rgb(${readRaw("--on-art")})` : `rgb(${readRaw("--accent")})`;
 
   useEffect(() => {
     const node = layerRef.current;
-    if (!node) return;
+    if (!node || plain) return;
     const measure = () => setWidth(node.clientWidth);
     measure();
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(measure);
     observer.observe(node);
     return () => observer.disconnect();
-  }, []);
+  }, [plain]);
 
   useEffect(() => {
+    if (plain) return;
     const observer = new MutationObserver(() => setPalette((count) => count + 1));
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] });
     return () => observer.disconnect();
-  }, []);
+  }, [plain]);
 
   useEffect(() => {
     const onChange = () => setVisible(document.visibilityState !== "hidden");
@@ -189,6 +196,7 @@ export function Groove({
   const paintNow = useCallback(() => paintGroove(canvasRef.current, paintRef.current, clockRef.current, levelRef.current), []);
 
   useEffect(() => {
+    if (plain) return;
     paintRef.current = {
       width,
       progress,
@@ -198,9 +206,10 @@ export function Groove({
       track: onArt ? `rgb(${readRaw("--on-art")} / ${Number.parseFloat(readRaw("--on-art-track")) || 0.22})` : `rgb(${readRaw("--ink-1")} / ${inkIsDark() ? 0.18 : 0.12})`,
     };
     paintNow();
-  }, [width, progress, seedNumber, size, fillColour, palette, paintNow, onArt]);
+  }, [plain, width, progress, seedNumber, size, fillColour, palette, paintNow, onArt]);
 
   useEffect(() => {
+    if (plain) return;
     if (reduced || !visible) {
       levelRef.current = 0;
       paintNow();
@@ -228,7 +237,7 @@ export function Groove({
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [playing, reduced, visible, paintNow]);
+  }, [plain, playing, reduced, visible, paintNow]);
 
   const pointerRatio = (clientX: number, rect: { left: number; width: number }) => ratioAt(clientX - rect.left, rect.width);
 
@@ -283,16 +292,15 @@ export function Groove({
   };
 
   const knobScale = preview !== null ? 1.1 : 1;
+  const plainKnobVisibility = preview !== null ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100";
+  const plainFillStyle = onArt ? { backgroundColor: fillColour } : undefined;
 
-  return (
-    <div className={`flex w-full flex-col tabular-nums ${onArt ? "text-[13px] text-art/[0.72]" : "text-meta text-ink-2"} ${className}`}>
-      {!compact && (
-        <div className="relative h-5">
-          {hover !== null && !disabled && <GrooveTip time={hoverTime} line={hoverLine} left={hover * 100} />}
-        </div>
-      )}
-      <div
-        role="slider"
+  const tip = hover !== null && !disabled && !compact ? <GrooveTip time={hoverTime} line={hoverLine} left={hover * 100} above={plain} /> : null;
+  const tipStrip = !plain && !compact ? <div className="relative h-5">{tip}</div> : null;
+
+  const slider = (
+    <div
+      role="slider"
         tabIndex={disabled ? -1 : 0}
         aria-label={label}
         aria-valuemin={0}
@@ -314,7 +322,21 @@ export function Groove({
       >
         <span aria-hidden="true" className="absolute inset-x-0 bg-transparent" style={{ top: -hitPad, bottom: -hitPad }} />
         <div ref={layerRef} className="relative h-full w-full">
-          <canvas ref={canvasRef} aria-hidden="true" className="absolute inset-0 h-full w-full" />
+          {plain ? (
+            <>
+              <span
+                aria-hidden="true"
+                className={`pointer-events-none absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full ${onArt ? "bg-art/[0.22]" : "bg-ink-1/[0.16]"}`}
+              />
+              <span
+                aria-hidden="true"
+                style={{ width: `${progress * 100}%`, ...plainFillStyle }}
+                className={`pointer-events-none absolute left-0 top-1/2 h-1 -translate-y-1/2 rounded-full ${onArt ? "" : "bg-accent"}`}
+              />
+            </>
+          ) : (
+            <canvas ref={canvasRef} aria-hidden="true" className="absolute inset-0 h-full w-full" />
+          )}
           {!disabled && (
             <span
               data-groove-knob
@@ -327,11 +349,30 @@ export function Groove({
                 backgroundColor: fillColour,
                 transform: `translate(-50%, -50%) scale(${knobScale})`,
               }}
-              className="pointer-events-none absolute rounded-full ring-1 ring-base"
+              className={`pointer-events-none absolute rounded-full ring-1 ring-base ${plain ? `motion-safe:transition-opacity motion-safe:duration-quick ${plainKnobVisibility}` : ""}`}
             />
           )}
         </div>
       </div>
+  );
+
+  if (plain) {
+    return (
+      <div className={`flex h-4 w-full items-center gap-3 tabular-nums ${onArt ? "text-[13px] text-art/[0.72]" : "text-meta text-ink-2"} ${className}`}>
+        <span className="flex h-4 min-w-[2.5rem] shrink-0 items-center justify-end leading-4">{fmtTime(shown)}</span>
+        <div className="relative min-w-0 flex-1">
+          {slider}
+          {tip}
+        </div>
+        <span className="flex h-4 min-w-[2.5rem] shrink-0 items-center leading-4">{fmtTime(max)}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`flex w-full flex-col tabular-nums ${onArt ? "text-[13px] text-art/[0.72]" : "text-meta text-ink-2"} ${className}`}>
+      {tipStrip}
+      {slider}
       <div className="mt-1 flex items-center justify-between leading-4">
         <span>{fmtTime(shown)}</span>
         <span>{fmtTime(max)}</span>

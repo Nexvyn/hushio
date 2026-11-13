@@ -1,6 +1,9 @@
 import {
   ClipboardIcon,
+  Copy01Icon,
+  CopyMinusIcon,
   Delete02Icon,
+  FileExportIcon,
   FileUploadIcon,
   Folder01Icon,
   FolderAddIcon,
@@ -9,13 +12,18 @@ import {
   PinIcon,
   PinOffIcon,
   PlayListAddIcon,
+  SortByDown01Icon,
 } from "@hugeicons/core-free-icons";
 import { APP_NAME } from "./app";
 import { shortTitle } from "./browseText";
+import { downloadText, safeFileName } from "./downloadText";
 import { addSongsToPlaylists } from "./devicePlaylists";
 import { plural } from "./plural";
+import { playlistToJson, playlistToM3u8, playlistToSongList, shareable } from "./playlistFiles";
+import { copyText } from "./browseActions";
 import type { SearchSong } from "./searchParse";
 import { coversOf } from "./collections";
+import type { Track } from "../types";
 import { type LibraryTrack, type LikeInput, type Playlist, type PinnedSingles, useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
 import { usePlayer } from "../stores/player";
@@ -134,7 +142,9 @@ export function openDeletePlaylist(id: string) {
   if (!playlist) return;
   useUI.getState().openDialog({
     title: `Delete "${playlist.name}"?`,
-    body: "This can't be undone. The tracks themselves aren't affected.",
+    body: playlist.remote?.imported
+      ? "Removes it from Hushio only. The playlist and its songs stay on YouTube."
+      : "This can't be undone. The tracks themselves aren't affected.",
     confirmLabel: "Delete",
     danger: true,
     onConfirm: () => {
@@ -158,10 +168,129 @@ export function openDeleteFolder(id: string) {
   });
 }
 
+function exportPlaylist(playlist: Playlist, format: "m3u8" | "json"): void {
+  const ui = useUI.getState();
+  if (shareable(playlist.tracks).length === 0) {
+    ui.toast("Nothing to export in this playlist");
+    return;
+  }
+  const base = safeFileName(playlist.name);
+  if (format === "m3u8") {
+    downloadText(`${base}.m3u8`, playlistToM3u8(playlist.name, playlist.tracks), "audio/x-mpegurl");
+  } else {
+    downloadText(`${base}.json`, playlistToJson(playlist.name, playlist.tracks), "application/json");
+  }
+  ui.toast("Playlist exported", "success");
+}
+
+function copySongList(playlist: Playlist): void {
+  if (playlist.tracks.length === 0) {
+    useUI.getState().toast("Nothing to copy in this playlist");
+    return;
+  }
+  copyText(playlistToSongList(playlist.name, playlist.tracks), "Song list copied", "Couldn't copy song list");
+}
+
+export type SortKey = "title" | "artist" | "album" | "duration";
+
+const SORT_LABELS: Record<SortKey, string> = { title: "Title", artist: "Artist", album: "Album", duration: "Duration" };
+
+function sortValue(track: LibraryTrack, key: SortKey): string | number | null {
+  if (key === "duration") return track.duration > 0 ? track.duration : null;
+  const value = (key === "album" ? track.album : track[key])?.trim();
+  return value ? value : null;
+}
+
+export function sortTracks(tracks: LibraryTrack[], key: SortKey): LibraryTrack[] {
+  return [...tracks].sort((a, b) => {
+    const left = sortValue(a, key);
+    const right = sortValue(b, key);
+    if (left === null || right === null) {
+      if (left === right) return 0;
+      return left === null ? 1 : -1;
+    }
+    if (typeof left === "number" && typeof right === "number") return left - right;
+    return String(left).localeCompare(String(right), undefined, { sensitivity: "base" });
+  });
+}
+
+export function withoutDuplicates(tracks: LibraryTrack[]): LibraryTrack[] {
+  const seen = new Set<string>();
+  return tracks.filter((track) => {
+    if (seen.has(track.id)) return false;
+    seen.add(track.id);
+    return true;
+  });
+}
+
+function currentTracks(playlistId: string): LibraryTrack[] | null {
+  return useLibrary.getState().playlists.find((item) => item.id === playlistId)?.tracks ?? null;
+}
+
+function undoTracks(playlistId: string, tracks: LibraryTrack[]) {
+  return { label: "Undo", run: () => useLibrary.getState().setPlaylistTracks(playlistId, tracks) };
+}
+
+export function sortPlaylistBy(playlistId: string, key: SortKey) {
+  const previous = currentTracks(playlistId);
+  if (!previous) return;
+  useLibrary.getState().setPlaylistTracks(playlistId, sortTracks(previous, key));
+  useUI
+    .getState()
+    .toast(`Sorted by ${SORT_LABELS[key].toLowerCase()}`, "info", undefined, undoTracks(playlistId, previous));
+}
+
+export function removePlaylistDuplicates(playlistId: string) {
+  const previous = currentTracks(playlistId);
+  if (!previous) return;
+  const kept = withoutDuplicates(previous);
+  const removed = previous.length - kept.length;
+  const ui = useUI.getState();
+  if (removed === 0) {
+    ui.toast("No duplicates");
+    return;
+  }
+  useLibrary.getState().setPlaylistTracks(playlistId, kept);
+  ui.toast(
+    `Removed ${plural(removed, "duplicate", "duplicates")}`,
+    "info",
+    undefined,
+    undoTracks(playlistId, previous),
+  );
+}
+
+export function queueName(now: Date = new Date()): string {
+  return `Queue ${now.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+}
+
+export function saveQueueAsPlaylist(tracks: Track[]): string | null {
+  if (tracks.length === 0) return null;
+  const name = queueName();
+  const id = useLibrary.getState().createPlaylist(name);
+  for (const track of tracks) useLibrary.getState().addToPlaylist(id, track);
+  useUI.getState().toast(`Saved as ${name}`, "success", undefined, {
+    label: "Open",
+    run: () => useNavigation.getState().navigate({ name: "playlist", param: id }),
+  });
+  return id;
+}
+
 export function playlistHeaderItems(playlist: Playlist): MenuItem[] {
   const count = playlist.tracks.length;
   return [
     { label: "Rename", icon: PencilEdit02Icon, onSelect: () => openRenamePlaylist(playlist.id) },
+    { label: "Export as M3U8", icon: FileExportIcon, onSelect: () => exportPlaylist(playlist, "m3u8") },
+    { label: "Export as JSON", icon: FileExportIcon, onSelect: () => exportPlaylist(playlist, "json") },
+    { label: "Copy song list", icon: Copy01Icon, onSelect: () => copySongList(playlist) },
+    {
+      label: "Sort by",
+      icon: SortByDown01Icon,
+      children: (Object.keys(SORT_LABELS) as SortKey[]).map((key) => ({
+        label: SORT_LABELS[key],
+        onSelect: () => sortPlaylistBy(playlist.id, key),
+      })),
+    },
+    { label: "Remove duplicates", icon: CopyMinusIcon, onSelect: () => removePlaylistDuplicates(playlist.id) },
     { label: "Delete playlist", icon: Delete02Icon, danger: true, onSelect: () => openDeletePlaylist(playlist.id) },
     {
       label: playlist.name,

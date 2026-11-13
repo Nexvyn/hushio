@@ -16,7 +16,11 @@ export function usePhoneBack(enabled = true) {
       const nav = useNavigation.getState();
       const now = Date.now();
       const sheetOpen =
-        ui.contextMenu !== null || ui.dialog !== null || ui.playlistPicker !== null || ui.phoneQueueOpen;
+        ui.contextMenu !== null ||
+        ui.dialog !== null ||
+        ui.playlistPicker !== null ||
+        ui.phoneQueueOpen ||
+        ui.phoneLyricsSearchOpen;
       const action = resolveBack({
         sheetOpen,
         nowPlayingOpen: ui.nowPlayingOpen,
@@ -31,6 +35,7 @@ export function usePhoneBack(enabled = true) {
           if (ui.contextMenu) ui.closeContextMenu();
           else if (ui.dialog) ui.closeDialog();
           else if (ui.playlistPicker) ui.closePlaylistPicker();
+          else if (ui.phoneLyricsSearchOpen) ui.closePhoneLyricsSearch();
           else ui.closePhoneQueue();
           break;
         case "close-now-playing":

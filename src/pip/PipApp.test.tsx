@@ -30,7 +30,7 @@ import { PipApp } from "./PipApp";
 import type { PipSnapshot } from "./types";
 
 const playing = (overrides: Partial<PipSnapshot> = {}): PipSnapshot => ({
-  track: { id: "a", title: "Song A", artist: "Artist A", thumb: "" },
+  track: { id: "a", title: "Song A", artist: "Artist A", album: "", thumb: "" },
   playing: true,
   buffering: false,
   position: 30,

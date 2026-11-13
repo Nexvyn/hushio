@@ -127,6 +127,17 @@ describe("searchPage", () => {
 });
 
 describe("cachedSearchPage", () => {
+  it("does not keep an empty page, so a repeat asks the server again", async () => {
+    execute.mockResolvedValueOnce({ data: { contents: [] } }).mockResolvedValueOnce(page("a"));
+
+    const empty = await cachedSearchPage("Arijit", "all");
+    const full = await cachedSearchPage("Arijit", "all");
+
+    expect(empty.rows).toHaveLength(0);
+    expect(full.rows).toHaveLength(1);
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
+
   it("serves repeats of the same query and filter from the one-minute cache", async () => {
     execute.mockResolvedValue(page("a"));
 

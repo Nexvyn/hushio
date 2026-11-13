@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const { audio, playStream, seekTo, refreshHome } = vi.hoisted(() => ({
@@ -70,31 +70,11 @@ describe("HomeView", () => {
 
   afterEach(cleanup);
 
-  it("plays the test song through the queue when the play button is pressed", async () => {
-    playStream.mockResolvedValue(undefined);
-    const user = userEvent.setup();
+  it("shows a Home title and no dev test song button", () => {
     render(<HomeView />);
 
-    await user.click(screen.getByRole("button", { name: "Play test song" }));
-
-    expect(playStream).toHaveBeenCalledWith("test-song-id", "Test song");
-    expect(usePlayer.getState().queue.map((item) => item.id)).toEqual(["test-song-id"]);
-    expect(usePlayer.getState().playing).toBe(true);
-  });
-
-  it("shows an error toast when the test song fails to play", async () => {
-    playStream.mockRejectedValue(new Error("No Piped mirror had a playable stream"));
-    const user = userEvent.setup();
-    render(<HomeView />);
-
-    await user.click(screen.getByRole("button", { name: "Play test song" }));
-
-    await waitFor(() => expect(useUI.getState().toasts).toHaveLength(1));
-    expect(useUI.getState().toasts[0]).toMatchObject({
-      kind: "error",
-      message: "Couldn't play \"Test song\"",
-    });
-    expect(seekTo).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Play test song" })).toBeNull();
   });
 
   it("shows cached shelves while the refresh is still running", () => {
@@ -156,14 +136,11 @@ describe("HomeView", () => {
     expect(playStream).toHaveBeenCalledWith("recent-1", "Recent song");
   });
 
-  it("opens Search with the mood when a mood chip is pressed", async () => {
-    const user = userEvent.setup();
+  it("shows no mood chips under the Home title", () => {
     render(<HomeView />);
 
-    await user.click(screen.getByRole("button", { name: "Lo-fi beats" }));
-
-    expect(useUI.getState().searchQuery).toBe("Lo-fi beats");
-    expect(useNavigation.getState().view).toEqual({ name: "search" });
+    expect(screen.queryByRole("button", { name: "Lo-fi beats" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Today's hits" })).toBeNull();
   });
 
   it("offers a retry when Home fails to load and nothing is cached", async () => {

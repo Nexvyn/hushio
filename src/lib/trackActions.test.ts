@@ -104,6 +104,7 @@ describe("track menu (PRD 32.10.1 A)", () => {
       "Add to playlists",
       "New playlist",
       "Download",
+      "Comments",
       "Go to artist",
       "Go to album",
       "Copy link",

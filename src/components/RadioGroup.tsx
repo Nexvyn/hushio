@@ -29,7 +29,7 @@ export function RadioGroup<T extends string>({ label, options, value, onChange }
   }
 
   return (
-    <div role="radiogroup" aria-label={label} className="flex shrink-0 gap-0.5 rounded-[9px] bg-wash p-0.5">
+    <div role="radiogroup" aria-label={label} className="flex h-10 shrink-0 gap-0.5 rounded-[12px] bg-wash p-0.5">
       {options.map((option, index) => {
         const checked = option.value === value;
         return (
@@ -44,8 +44,8 @@ export function RadioGroup<T extends string>({ label, options, value, onChange }
             tabIndex={checked ? 0 : -1}
             onClick={() => onChange(option.value)}
             onKeyDown={(event) => onKeyDown(event, index)}
-            className={`rounded-[7px] px-3 py-1 text-[12.5px] font-medium motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out ${
-              checked ? "bg-primary text-on-primary" : "text-ink-2 hover:text-ink-1"
+            className={`rounded-[10px] px-3 text-[12.5px] font-medium motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out ${
+              checked ? "bg-accent text-on-accent" : "text-ink-2 hover:text-ink-1"
             }`}
           >
             {option.label}

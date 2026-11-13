@@ -117,7 +117,7 @@ export async function loadMoodPage(params: string, now = Date.now()): Promise<Mo
 }
 
 export async function getPlaylistTracks(id: string): Promise<SearchSong[]> {
-  const browseId = PLAYLIST_ID.test(id) ? id : `VL${id}`;
+  const browseId = id.startsWith("VL") ? id : `VL${id}`;
   const rows = parseSearchPage(await browse(browseId), false).rows;
   return rows.flatMap((row) => (row.kind === "track" ? [row.track] : []));
 }

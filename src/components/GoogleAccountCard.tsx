@@ -47,8 +47,7 @@ export function GoogleAccountCard({ account, signingIn, onSignIn, onCancelSignIn
       <div>
         <p className="text-[14px] font-semibold text-ink-1">Using Hushio as a guest</p>
         <p className="mt-1 text-[12.5px] leading-snug text-ink-2">
-          Your library stays on this computer. Sign in with Google to back it up to your YouTube account and Google
-          Drive.
+          Your library stays on this computer. Sign in with Google to sync your playlists to your YouTube account.
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-3">
@@ -74,8 +73,8 @@ export function GoogleAccountCard({ account, signingIn, onSignIn, onCancelSignIn
         <p className="text-[12.5px] leading-snug text-ink-2">Google sign-in isn't available in this build.</p>
       )}
       <p className="text-[12px] leading-snug text-ink-2">
-        Optional. Syncs your playlists and Liked Songs to your YouTube account, and your settings to your Google Drive.
-        Everything else stays on this computer.
+        Optional. Syncs your playlists and Liked Songs to your YouTube account. Everything else stays on this
+        computer.
       </p>
       {keyringNote}
     </div>

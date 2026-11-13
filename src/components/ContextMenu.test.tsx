@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import userEvent from "@testing-library/user-event";
 import { ContextMenu, openMenuAtPointer, openMenuFromKey, type MenuSource } from "./ContextMenu";
 import { useUI, type MenuItem } from "../stores/ui";
+import { FLOAT_PANEL } from "../lib/floatStyle";
 
 const initialUI = useUI.getState();
 
@@ -142,13 +143,22 @@ describe("ContextMenu rows", () => {
     expect(screen.getByRole("menu")).toBeTruthy();
   });
 
-  it("marks danger rows and spaces a group apart with no separator elements", async () => {
+  it("marks danger rows and uses no spacer or separator elements between groups", async () => {
     openAt(10, 10);
 
     expect(screen.getByRole("menuitem", { name: "Delete" }).getAttribute("data-danger")).toBe("true");
     expect(screen.getByRole("menuitem", { name: "Play now" }).getAttribute("data-danger")).toBeNull();
-    expect(document.querySelectorAll('[role="separator"], .h-px').length).toBe(0);
-    expect(screen.getByRole("menuitem", { name: "Delete" }).previousElementSibling?.className).toContain("h-2");
+    expect(document.querySelectorAll('[role="separator"], .h-px, .h-2').length).toBe(0);
+  });
+
+  it("uses the shared float panel and 40px rows, like the search suggestions", async () => {
+    openAt(10, 10);
+
+    expect(screen.getByRole("menu").className).toContain(FLOAT_PANEL);
+    for (const row of screen.getAllByRole("menuitem")) {
+      expect(row.className).toContain("h-10");
+      expect(row.className).toContain("px-3");
+    }
   });
 
   it("shows checked toggles as checkboxes", async () => {
@@ -320,5 +330,41 @@ describe("ContextMenu dismissal", () => {
 
     fireEvent.wheel(screen.getByText("outside"));
     await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+  });
+});
+
+describe("ContextMenu attached (goo) mode", () => {
+  afterEach(() => {
+    document.documentElement.classList.remove("reduce-motion");
+    act(() => useUI.getState().closeContextMenu());
+    cleanup();
+  });
+
+  it("grows an attached menu out of its trigger on the goo layer, with rows kept sharp", async () => {
+    render(<ContextMenu />);
+    act(() => useUI.getState().openContextMenu(300, 40, sampleItems(), { attached: true, alignRight: true }));
+
+    const menu = await screen.findByRole("menu");
+    const layer = menu.querySelector<HTMLElement>("[data-goo-layer]");
+    expect(layer?.style.filter).toContain("url(#goo)");
+    expect(menu.querySelector("[data-goo-panel]")?.className).toContain("top-10");
+    expect(screen.getByRole("menuitem", { name: "Play now" }).closest("[data-goo-layer]")).toBeNull();
+  });
+
+  it("does not stretch an attached menu under reduce motion", async () => {
+    document.documentElement.classList.add("reduce-motion");
+    render(<ContextMenu />);
+    act(() => useUI.getState().openContextMenu(300, 40, sampleItems(), { attached: true, alignRight: true }));
+
+    const panel = (await screen.findByRole("menu")).querySelector<HTMLElement>("[data-goo-panel]");
+    expect(panel?.style.transform).not.toContain("scaleY(0)");
+  });
+
+  it("keeps the goo layer off ordinary menus", async () => {
+    render(<ContextMenu />);
+    act(() => useUI.getState().openContextMenu(300, 40, sampleItems()));
+
+    const menu = await screen.findByRole("menu");
+    expect(menu.querySelector("[data-goo-layer]")).toBeNull();
   });
 });

@@ -5,8 +5,6 @@ import { parseSearchPage, type SearchSong } from "./searchParse";
 import type { Track } from "../types";
 
 export const VIDEO_WORD = /\bvideos?\b/i;
-export const PLACEHOLDER_ARTIST = "Unknown artist";
-export const PLACEHOLDER_ALBUM = "Unknown album";
 
 const PLAYLIST_ID = /^(VL|PL|OLAK5uy)/;
 const YEAR = /^\d{4}$/;
@@ -15,6 +13,7 @@ const SEPARATOR = "•";
 const BULLET_JOIN = " • ";
 const PLAYLIST_HEADERS = ["musicResponsiveHeaderRenderer", "musicDetailHeaderRenderer"] as const;
 const ARTIST_HEADERS = ["musicImmersiveHeaderRenderer", "musicVisualHeaderRenderer"] as const;
+const EDITABLE_HEADER = "musicEditablePlaylistDetailHeaderRenderer";
 
 export type ArtistInfo = { id: string; name: string; thumb: string | null };
 
@@ -87,11 +86,20 @@ function thumbOf(node: unknown): string | null {
   return typeof url === "string" ? upgradeArtwork(url) || null : null;
 }
 
+function headerNodesOf(data: unknown): unknown[] {
+  const tab = asArray(at(data, "contents", "twoColumnBrowseResultsRenderer", "tabs")).at(0);
+  const contents = asArray(at(tab, "tabRenderer", "content", "sectionListRenderer", "contents"));
+  return [at(data, "header"), ...contents];
+}
+
 function headerOf(data: unknown, names: readonly string[]): Json | null {
-  const header = at(data, "header");
-  for (const name of names) {
-    const found = at(header, name);
-    if (isRecord(found)) return found;
+  for (const node of headerNodesOf(data)) {
+    for (const name of names) {
+      const found = at(node, name);
+      if (isRecord(found)) return found;
+      const editable = at(node, EDITABLE_HEADER, "header", name);
+      if (isRecord(editable)) return editable;
+    }
   }
   return null;
 }
@@ -137,7 +145,7 @@ export function withThumb<T extends Track>(tracks: T[], thumb: string | null): T
 function creditSong(song: SearchSong, credit: Credit): SearchSong {
   return {
     ...song,
-    artist: song.artist === PLACEHOLDER_ARTIST ? credit.name : song.artist,
+    artist: song.artist ? song.artist : credit.name,
     artistId: song.artistId ?? credit.id,
   };
 }
@@ -200,7 +208,7 @@ function sectionsOf(data: unknown): unknown[] {
 export function parseArtistPage(data: unknown, artistId: string): ArtistPage {
   const immersive = at(data, "header", "musicImmersiveHeaderRenderer");
   const header = headerOf(data, ARTIST_HEADERS);
-  const name = text(at(header, "title")).trim() || PLACEHOLDER_ARTIST;
+  const name = text(at(header, "title")).trim();
   const credit: Credit = { id: artistId, name };
 
   const songs: SearchSong[] = [];
@@ -258,8 +266,8 @@ export function parseReleasePage(data: unknown, albumId: string): ReleasePage {
     kind,
     album: {
       id: albumId,
-      title: text(at(header, "title")).trim() || firstTrack?.album || PLACEHOLDER_ALBUM,
-      artist: artistSegment ?? firstTrack?.artist ?? PLACEHOLDER_ARTIST,
+      title: text(at(header, "title")).trim() || firstTrack?.album || "",
+      artist: artistSegment ?? firstTrack?.artist ?? "",
       year,
       thumb,
       releaseType,
@@ -279,7 +287,9 @@ export function parseRemotePlaylistPage(data: unknown): RemotePlaylistPage {
 
   const lines = [text(at(header, "straplineTextOne")), text(at(header, "subtitle"))].flatMap(segmentsOf);
   const year = lines.find((segment) => YEAR.test(segment)) ?? null;
-  const credit = lines.filter((segment) => !YEAR.test(segment) && segment.toLowerCase() !== "playlist");
+  const credit = lines.filter(
+    (segment) => !YEAR.test(segment) && !["playlist", "youtube music"].includes(segment.toLowerCase()),
+  );
   const curator = at(header, "facepile", "avatarStackViewModel", "text", "content");
   if (typeof curator === "string" && curator && !credit.includes(curator)) credit.unshift(curator);
   const views = segmentsOf(text(at(header, "secondSubtitle"))).find((segment) => /view/i.test(segment));
@@ -300,8 +310,10 @@ export function parseShelfPage(data: unknown): ShelfPage {
     collect(data, "musicPlaylistShelfContinuation")[0] ??
     collect(data, "musicShelfContinuation")[0] ??
     collect(data, "musicPlaylistShelfRenderer")[0];
+  const appended = collect(data, "appendContinuationItemsAction")[0];
+  const rows = shelf ? asArray(at(shelf, "contents")) : asArray(at(appended, "continuationItems"));
   return {
-    songs: uniqueSongs(songsOf(asArray(at(shelf, "contents")))),
+    songs: uniqueSongs(songsOf(rows)),
     continuation: continuationOf(shelf) ?? continuationOf(data),
   };
 }

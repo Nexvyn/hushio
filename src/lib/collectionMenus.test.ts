@@ -82,10 +82,18 @@ describe("empty sidebar area menu (PRD 32.10.1 N)", () => {
 });
 
 describe("playlist header menu (PRD 32.10.1 C)", () => {
-  it("offers Rename and a danger Delete playlist, with a subject showing the song count", () => {
+  it("offers Rename, the two exports and a danger Delete playlist, with a subject showing the song count", () => {
     const items = playlistHeaderItems(playlist({ tracks: [track, { ...track, id: "t2" }] }));
 
-    expect(labelsOf(items)).toEqual(["Rename", "Delete playlist"]);
+    expect(labelsOf(items)).toEqual([
+      "Rename",
+      "Export as M3U8",
+      "Export as JSON",
+      "Copy song list",
+      "Sort by",
+      "Remove duplicates",
+      "Delete playlist",
+    ]);
     expect(itemNamed(items, "Delete playlist").danger).toBe(true);
     expect(items.find((item) => item.subject)?.subject).toMatchObject({
       title: "Road trip",
@@ -178,12 +186,12 @@ describe("folder menu (PRD 32.10.1 K)", () => {
 
 describe("shortcut row menu (PRD 32.10.1 L)", () => {
   it("toggles the pin for a shortcut row", () => {
-    expect(labelsOf(pinnedSingleMenuItems("replay", false))).toEqual(["Pin to top"]);
+    expect(labelsOf(pinnedSingleMenuItems("downloads", false))).toEqual(["Pin to top"]);
     expect(labelsOf(pinnedSingleMenuItems("liked", true))).toEqual(["Unpin"]);
 
-    itemNamed(pinnedSingleMenuItems("replay", false), "Pin to top").onSelect?.();
+    itemNamed(pinnedSingleMenuItems("downloads", false), "Pin to top").onSelect?.();
 
-    expect(useLibrary.getState().pinnedSingles.replay).toBe(false);
+    expect(useLibrary.getState().pinnedSingles.downloads).toBe(true);
   });
 });
 

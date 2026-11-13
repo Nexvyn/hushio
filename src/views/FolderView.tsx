@@ -1,4 +1,4 @@
-import { Folder01Icon, FolderRemoveIcon, PlayIcon, PlayListIcon, PlusSignIcon, ShuffleIcon } from "@hugeicons/core-free-icons";
+import { FolderRemoveIcon, PlayIcon, PlayListIcon, PlusSignIcon, ShuffleIcon } from "@hugeicons/core-free-icons";
 import { ActionMenu } from "../components/ActionMenu";
 import { Button } from "../components/Button";
 import { PILL, ROUND } from "../components/BrowseHero";
@@ -46,8 +46,6 @@ export function FolderView() {
   return (
     <div className="pb-16">
       <CollectionHero
-        icon={Folder01Icon}
-        kind="Folder"
         title={folder.name}
         covers={coversOf(tracks)}
         facts={facts}

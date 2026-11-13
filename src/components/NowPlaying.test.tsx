@@ -458,11 +458,11 @@ describe("NowPlaying", () => {
     expect(image?.parentElement?.className).toContain("aspect-square");
   });
 
-  it("keeps the transport row to exactly seven buttons and no volume slider", () => {
+  it("keeps the transport row to exactly eight buttons and no volume slider", () => {
     render(<NowPlaying />);
     openView();
     const row = within(screen.getByRole("group", { name: "Transport" }));
-    expect(row.getAllByRole("button")).toHaveLength(7);
+    expect(row.getAllByRole("button")).toHaveLength(8);
     expect(row.queryByRole("slider", { name: "Volume" })).toBeNull();
   });
 

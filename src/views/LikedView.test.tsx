@@ -65,7 +65,8 @@ describe("Liked Songs with nothing liked", () => {
   it("shows the empty state and disables the play controls", () => {
     render(<LikedView />);
 
-    expect(screen.getByText("Songs you like will show up here")).toBeTruthy();
+    expect(screen.getByText("No liked songs yet")).toBeTruthy();
+    expect(screen.getByText("No liked songs yet").closest("section")?.className).toContain("place-items-center");
     expect((screen.getByRole("button", { name: "Play Liked Songs" }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: "Shuffle" }) as HTMLButtonElement).disabled).toBe(true);
   });
@@ -73,7 +74,7 @@ describe("Liked Songs with nothing liked", () => {
   it("opens search from the empty state button", () => {
     render(<LikedView />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Find something to like" }));
+    fireEvent.click(screen.getByRole("button", { name: "Find songs" }));
     expect(useNavigation.getState().view).toEqual({ name: "search" });
   });
 });
@@ -91,7 +92,7 @@ describe("Liked Songs with songs", () => {
     expect(screen.getByRole("heading", { name: "Liked Songs" })).toBeTruthy();
     expect(screen.getByText("3 songs · 30 min · Your most liked:", { exact: false })).toBeTruthy();
     expect(screen.getByText("Artist A", { selector: "span.font-semibold" })).toBeTruthy();
-    expect(screen.queryByText("Songs you like will show up here")).toBeNull();
+    expect(screen.queryByText("No liked songs yet")).toBeNull();
   });
 
   it("lists every liked song in order", () => {
@@ -141,7 +142,7 @@ describe("Liked Songs with songs", () => {
 
 describe("fmtTotal", () => {
   it.each([
-    [0, "1 min"],
+    [0, "0 min"],
     [1800, "30 min"],
     [3600, "1 hr"],
     [5400, "1 hr 30 min"],

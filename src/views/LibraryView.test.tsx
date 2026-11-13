@@ -73,6 +73,15 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
+describe("Your Library page copy", () => {
+  it("has one Your Library heading and no eyebrow restating it", () => {
+    render(<><LibraryView /><ContextMenu /></>);
+
+    expect(screen.getAllByRole("heading", { level: 1, name: "Your Library" })).toHaveLength(1);
+    expect(screen.queryByText("Everything you keep")).toBeNull();
+  });
+});
+
 describe("Your Library with nothing saved", () => {
   it("shows zero counts and the no playlists empty state", () => {
     render(<><LibraryView /><ContextMenu /></>);
@@ -97,7 +106,7 @@ describe("Your Library collections", () => {
     useLibrary.setState({ liked: [song(1), song(2)] });
     render(<><LibraryView /><ContextMenu /></>);
 
-    expect(screen.getByText("Pinned · 2 songs")).toBeTruthy();
+    expect(screen.getByText("Pinned")).toBeTruthy();
     expect(screen.getByText("Nothing saved yet")).toBeTruthy();
     expect(screen.getByText("On this device")).toBeTruthy();
   });
@@ -106,20 +115,21 @@ describe("Your Library collections", () => {
     useLibrary.setState({ liked: [song(1), song(2)] });
     render(<><LibraryView /><ContextMenu /></>);
 
-    fireEvent.click(screen.getByRole("button", { name: "More options for Liked Songs" }));
+    fireEvent.contextMenu(screen.getByText("Liked Songs").closest("button") as HTMLElement);
     fireEvent.click(screen.getByRole("menuitem", { name: "Unpin" }));
 
     expect(useLibrary.getState().pinnedSingles.liked).toBe(false);
-    expect(screen.getByText("2 songs")).toBeTruthy();
+    expect(screen.queryByText("Pinned")).toBeNull();
   });
 
-  it("plays Liked Songs from its stack", () => {
-    useLibrary.setState({ liked: [song(1), song(2)] });
+  it("lists the four collections as rows with their counts", () => {
     render(<><LibraryView /><ContextMenu /></>);
 
-    fireEvent.click(screen.getByRole("button", { name: "Play Liked Songs" }));
-    expect(usePlayer.getState().playingFrom).toBe("__liked__");
-    expect(usePlayer.getState().queue.map((item) => item.id)).toEqual(["s1", "s2"]);
+    expect(screen.getByText("Liked Songs").closest("button")).toBeTruthy();
+    expect(screen.getByText("Downloads").closest("button")).toBeTruthy();
+    expect(screen.getByText("Local Music").closest("button")).toBeTruthy();
+    expect(screen.getAllByText("Playlists")[0].closest("button")).toBeTruthy();
+    expect(screen.queryByText("0 playlists", { exact: true })).toBeNull();
   });
 });
 

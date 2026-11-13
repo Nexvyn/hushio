@@ -18,6 +18,9 @@ export const DURATION_MS = {
   intro: 160,
   pageIn: 240,
   pageOut: 120,
+  gooOut: 160,
+  gooFade: 120,
+  gooDelay: 60,
 } as const;
 
 export type DurationName = keyof typeof DURATION_MS;

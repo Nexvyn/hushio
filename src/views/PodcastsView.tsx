@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Mic01Icon } from "@hugeicons/core-free-icons";
-import { Icon } from "../components/Icon";
+import { PageHeader } from "../components/PageHeader";
+import { SectionHeader } from "../components/SectionHeader";
 import { PodcastCard } from "../components/PodcastCard";
 import { freshPodcasts, loadPodcasts } from "../lib/podcasts";
 import type { PodcastShelf } from "../lib/podcastParse";
@@ -42,12 +42,8 @@ export function PodcastsView() {
   }, []);
 
   return (
-    <div className="pt-2">
-      <h1 className="flex items-center gap-2 text-[34px] font-extrabold tracking-[-0.03em] text-ink-1">
-        <Icon icon={Mic01Icon} />
-        Podcasts
-      </h1>
-      <p className="mb-7 mt-1 text-[13px] text-ink-2">Popular in your region on YouTube Music</p>
+    <div>
+      <PageHeader title="Podcasts" meta="Popular in your region" />
 
       {shelves === null ? (
         Array.from({ length: SKELETON_SHELVES }, (_, index) => <ShelfSkeleton key={index} />)
@@ -55,8 +51,8 @@ export function PodcastsView() {
         <p className="text-[14px] text-ink-2">Podcasts couldn't be loaded right now. Try again in a moment.</p>
       ) : (
         shelves.map((shelf, index) => (
-          <section key={`${index}-${shelf.title}`} className="animate-slide-up mt-10 first:mt-0">
-            <h2 className="mb-3 text-[19px] font-semibold text-ink-1">{shelf.title}</h2>
+          <section key={`${index}-${shelf.title}`} className="animate-slide-up mt-7 first:mt-0">
+            <SectionHeader title={shelf.title} />
             <div className="no-scrollbar flex gap-3 overflow-x-auto pb-2">
               {shelf.shows.map((show) => (
                 <PodcastCard

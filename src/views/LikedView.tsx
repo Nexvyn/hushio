@@ -39,7 +39,7 @@ export function LikedView() {
 
   return (
     <div className="pb-16">
-      <CollectionHero icon={FavouriteIcon} kind="Liked by you" title="Liked Songs" covers={covers} facts={facts}>
+      <CollectionHero title="Liked Songs" covers={covers} facts={facts}>
         <button
           type="button"
           aria-label="Play Liked Songs"
@@ -62,13 +62,14 @@ export function LikedView() {
         </button>
       </CollectionHero>
 
-      <div className="mt-6">
+      <div className={`mt-6 ${empty ? "flex min-h-[50vh] flex-col" : ""}`}>
         {empty ? (
           <EmptyState
+            centered
             icon={FavouriteIcon}
-            title="Songs you like will show up here"
-            message="Click the heart on any song, in the player, a playlist or search, and it lands here. Its cover joins the wall above."
-            action={{ label: "Find something to like", onClick: () => navigate({ name: "search" }) }}
+            title="No liked songs yet"
+            message="Tap the heart on any song to keep it here."
+            action={{ label: "Find songs", onClick: () => navigate({ name: "search" }) }}
           />
         ) : (
           <ol>

@@ -1,6 +1,8 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { normalizeCredit } from "../lib/credits";
 import {
+  CheckmarkCircle02Icon,
+  Download01Icon,
   FullScreenIcon,
   Mic01Icon,
   MoonIcon,
@@ -17,11 +19,13 @@ import { PlaybackControls, TransportButton } from "./PlaybackControls";
 import { PipButton } from "../pip/PipButton";
 import { setFullScreen } from "../lib/bridge";
 import { upgradeArtwork } from "../lib/artwork";
+import { cancelDownload, isDownloadable, revealDownload, startDownload } from "../lib/downloads";
 import { sleepMenuItems, sleepStatus } from "../lib/sleepActions";
 import { formatSleepLeft } from "../lib/sleepTimer";
 import { visibleLyricLines } from "../lib/lyricsLines";
 import { playerAddMenuItems, songOf } from "../lib/trackActions";
 import { useTrackLyrics } from "../lib/useTrackLyrics";
+import { useLibrary } from "../stores/library";
 import { currentTrack, usePlayer } from "../stores/player";
 import { useSettings } from "../stores/settings";
 import { useSleepTimer } from "../stores/sleepTimer";
@@ -108,11 +112,53 @@ export function AddToPlaylist({ track, onArt = false }: { track: Track | null; o
   );
 }
 
+const RING_MASK = "radial-gradient(farthest-side, transparent calc(100% - 2px), currentColor calc(100% - 2px))";
+
+function DownloadButton({ track }: { track: Track | null }) {
+  const item = useLibrary((state) => (track ? state.downloads[track.id] : undefined));
+  if (track && !isDownloadable(track.id)) return null;
+  const busy = item?.status === "queued" || item?.status === "downloading";
+  const path = item?.status === "done" ? item.path : null;
+  const percent = Math.round((item?.progress ?? 0) * 100);
+  const label = busy ? `Downloading, ${percent}%` : path ? "Downloaded" : "Download";
+  const onClick = () => {
+    if (!track) return;
+    if (busy) void cancelDownload(track.id);
+    else if (path) revealDownload(path);
+    else void startDownload(track);
+  };
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={track === null}
+      onClick={onClick}
+      className={`hit-area grid h-9 w-9 shrink-0 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-[var(--disabled-opacity)] ${path ? "text-accent" : busy ? "text-ink-1" : "text-ink-2 hover:text-ink-1"}`}
+    >
+      {busy ? (
+        <span
+          aria-hidden="true"
+          className="relative block h-5 w-5 rounded-full bg-ink-1/20 text-accent"
+          style={{ WebkitMask: RING_MASK, mask: RING_MASK }}
+        >
+          <span
+            className="absolute inset-0 rounded-full"
+            style={{ background: `conic-gradient(currentColor ${Math.round((item?.progress ?? 0) * 360)}deg, transparent 0)` }}
+          />
+        </span>
+      ) : (
+        <Icon icon={path ? CheckmarkCircle02Icon : Download01Icon} />
+      )}
+    </button>
+  );
+}
+
 function NowPlaying({ track }: { track: Track | null }) {
   const toggleNowPlaying = useUI((state) => state.toggleNowPlaying);
   const art = upgradeArtwork(track?.thumb);
   return (
-    <div className="flex min-w-0 items-center pl-2">
+    <div className="flex min-w-0 items-center">
       <button
         type="button"
         title="Now playing view"
@@ -128,8 +174,11 @@ function NowPlaying({ track }: { track: Track | null }) {
           {track ? normalizeCredit(track.artist) : "Search for something to play"}
         </p>
       </div>
-      <LikeButton track={track} className="hit-area ml-1 h-8 w-8" />
-      <AddToPlaylist track={track} />
+      <div className="ml-2 flex shrink-0 items-center gap-1">
+        <LikeButton track={track} className="hit-area h-9 w-9" />
+        <AddToPlaylist track={track} />
+        <DownloadButton track={track} />
+      </div>
     </div>
   );
 }
@@ -144,7 +193,7 @@ function PlayerGroove({ track }: { track: Track | null }) {
   const lines = useMemo(() => (synced ? visibleLyricLines(synced) : []), [synced]);
   return (
     <Groove
-      profile="bar"
+      variant="plain"
       seed={track?.id ?? ""}
       position={position}
       duration={duration}
@@ -178,7 +227,7 @@ function VolumeControl() {
         step={0.01}
         value={level}
         onChange={(event) => setVolume(Number(event.target.value))}
-        className="w-24 cursor-pointer rounded-full accent-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+        className="hidden w-24 cursor-pointer rounded-full accent-ink-1 min-[1100px]:block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
       />
     </div>
   );
@@ -197,7 +246,7 @@ function FullScreenButton() {
 }
 
 export function PlayerBar({ trackInfo = true, transport = true, surface = "bar" }: { trackInfo?: boolean; transport?: boolean; surface?: "bar" | "none" }) {
-  const surfaceClass = surface === "bar" ? "bg-base" : "";
+  const surfaceClass = surface === "bar" ? "bg-surface" : "";
   const track = usePlayer(currentTrack);
   const rightPanel = useUI((state) => state.rightPanel);
   const toggleQueue = useUI((state) => state.toggleQueue);
@@ -239,14 +288,14 @@ export function PlayerBar({ trackInfo = true, transport = true, surface = "bar" 
   }
 
   return (
-    <footer aria-label="Player" className={`relative h-[88px] shrink-0 px-3 ${surfaceClass}`}>
-      <div className="grid h-full grid-cols-[minmax(0,3fr)_minmax(0,4fr)_minmax(0,3fr)] items-center gap-4">
+    <footer aria-label="Player" className={`relative h-[84px] shrink-0 px-4 py-3 ${surfaceClass}`}>
+      <div className="grid h-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] items-center gap-4">
         {trackInfo ? <NowPlaying track={track} /> : <div aria-hidden="true" />}
-        <div className="flex flex-col justify-center gap-2">
+        <div className="flex w-full min-w-0 flex-col justify-center gap-1">
           <PlaybackControls />
           <PlayerGroove track={track} />
         </div>
-        {utilities}
+        <div className="flex min-w-0 items-center justify-end">{utilities}</div>
       </div>
     </footer>
   );

@@ -51,8 +51,8 @@ describe("onboarding state machine", () => {
 
   it("a sync failure is kept on the restoring screen", () => {
     let state = onboardingReducer(initialOnboarding("choose"), { type: "googleSignedIn" });
-    state = onboardingReducer(state, { type: "syncFinished", error: "Drive is full" });
-    expect(state).toMatchObject({ syncDone: true, syncError: "Drive is full" });
+    state = onboardingReducer(state, { type: "syncFinished", error: "Sync failed" });
+    expect(state).toMatchObject({ syncDone: true, syncError: "Sync failed" });
   });
 });
 

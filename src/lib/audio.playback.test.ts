@@ -17,6 +17,7 @@ vi.mock("./bridge", () => ({
   localLibraryTrackPath,
   trackAnalysis,
   fileSrc: (path: string) => `asset://${path}`,
+  platform: "windows",
   persistRead: async () => null,
   persistWrite: async () => true,
 }));
@@ -422,5 +423,166 @@ describe("clipping guard", () => {
     const pre = preGain.setTargetAtTime.mock.lastCall?.[0] as number;
     const peak = pre * level * 10 ** (boostDb / 20);
     expect(peak).toBeLessThanOrEqual(1 + 1e-6);
+  });
+});
+
+function expiring(id: string, seconds: number) {
+  const expire = Math.floor(Date.now() / 1000) + seconds;
+  return { url: `https://r1.googlevideo.com/${id}?expire=${expire}`, mime: "audio/webm", lufs: null };
+}
+
+describe("resuming after a pause", () => {
+  it("reloads a stream whose URL expired while paused, from the same position", async () => {
+    resolveStream.mockImplementation(async (id: string) => expiring(id, 600));
+    await mod.playStream("a", "A");
+    playhead(42);
+    mod.pause();
+    await vi.advanceTimersByTimeAsync(9 * 60 * 1000);
+
+    await mod.play();
+    await flush();
+
+    expect(resolveStream).toHaveBeenLastCalledWith("a", true);
+    expect(main.currentTime).toBe(42);
+    expect(playSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("reloads a stream after a pause longer than ten minutes", async () => {
+    await mod.playStream("a", "A");
+    playhead(42);
+    mod.pause();
+    await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 1000);
+
+    await mod.play();
+    await flush();
+
+    expect(resolveStream).toHaveBeenLastCalledWith("a", true);
+    expect(main.currentTime).toBe(42);
+  });
+
+  it("resumes a fresh stream after a short pause without reloading it", async () => {
+    resolveStream.mockImplementation(async (id: string) => expiring(id, 3600));
+    await mod.playStream("a", "A");
+    playhead(42);
+    mod.pause();
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+
+    await mod.play();
+    await flush();
+
+    expect(resolveStream).toHaveBeenCalledTimes(1);
+    expect(playSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("never reloads a local file on resume", async () => {
+    localLibraryTrackPath.mockResolvedValue("/music/a.mp3");
+    await mod.playStream("local:abc", "A");
+    mod.pause();
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+
+    await mod.play();
+    await flush();
+
+    expect(resolveStream).not.toHaveBeenCalled();
+    expect(playSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("never reloads a network track on resume", async () => {
+    await mod.playStream("net:abc", "A");
+    mod.pause();
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+
+    await mod.play();
+    await flush();
+
+    expect(resolveStream).not.toHaveBeenCalled();
+    expect(playSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("never reloads a downloaded song on resume", async () => {
+    const { useLibrary } = await import("../stores/library");
+    useLibrary.setState({
+      downloads: {
+        [mod.TEST_SONG_ID]: {
+          track: { id: mod.TEST_SONG_ID, title: mod.TEST_SONG_TITLE, artist: "Artist", duration: 200 },
+          path: "/music/song.m4a",
+          status: "done",
+          progress: 1,
+          downloaded: 1,
+          total: 1,
+        },
+      },
+    });
+    pathExists.mockResolvedValue(true);
+    await mod.playStream(mod.TEST_SONG_ID, mod.TEST_SONG_TITLE);
+    mod.pause();
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+
+    await mod.play();
+    await flush();
+
+    expect(resolveStream).not.toHaveBeenCalled();
+    expect(mod.activeDeck().src).toBe("asset:///music/song.m4a");
+  });
+
+  it("allows a fresh retry when play is pressed after a retry has failed", async () => {
+    await mod.playStream("a", "A");
+    mod.activeDeck().dispatchEvent(new Event("error"));
+    await flush();
+    mod.activeDeck().dispatchEvent(new Event("error"));
+    await flush();
+    expect(resolveStream).toHaveBeenCalledTimes(2);
+
+    await mod.play();
+    await flush();
+    mod.activeDeck().dispatchEvent(new Event("error"));
+    await flush();
+
+    expect(resolveStream).toHaveBeenCalledTimes(3);
+    expect(resolveStream).toHaveBeenLastCalledWith("a", true);
+  });
+});
+
+describe("stall watchdog", () => {
+  it("refreshes the stream when the playhead does not move for 8 seconds", async () => {
+    await mod.playStream("a", "A");
+
+    await vi.advanceTimersByTimeAsync(8000);
+    await flush();
+
+    expect(resolveStream).toHaveBeenCalledTimes(2);
+    expect(resolveStream).toHaveBeenLastCalledWith("a", true);
+  });
+
+  it("cancels the watchdog once the playhead moves", async () => {
+    await mod.playStream("a", "A");
+    await vi.advanceTimersByTimeAsync(4000);
+    playhead(3);
+
+    await vi.advanceTimersByTimeAsync(10000);
+    await flush();
+
+    expect(resolveStream).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not fire for a deck that is paused", async () => {
+    await mod.playStream("a", "A");
+    mod.pause();
+
+    await vi.advanceTimersByTimeAsync(10000);
+    await flush();
+
+    expect(resolveStream).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts again when the deck reports waiting for data", async () => {
+    await mod.playStream("a", "A");
+    playhead(3);
+    mod.activeDeck().dispatchEvent(new Event("waiting"));
+
+    await vi.advanceTimersByTimeAsync(8000);
+    await flush();
+
+    expect(resolveStream).toHaveBeenLastCalledWith("a", true);
   });
 });

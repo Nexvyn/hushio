@@ -50,15 +50,20 @@ describe("shortTitle and titleSource", () => {
 });
 
 describe("meta lines", () => {
-  it("drops empty parts and uppercases the rest", () => {
-    expect(joinMeta(["Album", null, "2 tracks", false, ""])).toBe("ALBUM • 2 TRACKS");
+  it("drops empty parts and keeps sentence case", () => {
+    expect(joinMeta(["Album", null, "2 tracks", false, ""])).toBe("Album · 2 tracks");
   });
 
   it("builds album and playlist meta with singular and plural track counts", () => {
-    expect(albumMeta("Album", "2023", 1)).toBe("ALBUM • 2023 • 1 TRACK");
-    expect(albumMeta("Single", null, 12)).toBe("SINGLE • 12 TRACKS");
-    expect(playlistMeta("2022", 0)).toBe("PLAYLIST • 2022 • 0 TRACKS");
-    expect(playlistMeta(null, 1)).toBe("PLAYLIST • 1 TRACK");
+    expect(albumMeta("Album", "2023", 1)).toBe("Album · 2023 · 1 track");
+    expect(albumMeta("Single", null, 12)).toBe("Single · 12 tracks");
+  });
+
+  it("builds the playlist line from song count and total length", () => {
+    expect(playlistMeta(34, 7560)).toBe("34 songs · 2 hr 6 min");
+    expect(playlistMeta(1, 0)).toBe("1 song");
+    expect(playlistMeta(0, 0)).toBe("0 songs");
+    expect(playlistMeta(3, 2700)).toBe("3 songs · 45 min");
   });
 
   it("pluralises counts", () => {

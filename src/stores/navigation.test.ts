@@ -21,6 +21,14 @@ describe("navigation history", () => {
     expect(useNavigation.getState().navPast).toHaveLength(1);
   });
 
+  it("sends podcast views to Home while podcasts are disabled", () => {
+    useNavigation.getState().navigate({ name: "explore" });
+    useNavigation.getState().navigate({ name: "podcasts" });
+    expect(useNavigation.getState().view).toEqual({ name: "home" });
+    useNavigation.getState().navigate({ name: "podcast", param: "MPSPx" });
+    expect(useNavigation.getState().view).toEqual({ name: "home" });
+  });
+
   it("goes back and forward", () => {
     useNavigation.getState().navigate({ name: "explore" });
     useNavigation.getState().navigate({ name: "library" });

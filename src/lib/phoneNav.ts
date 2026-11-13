@@ -19,6 +19,8 @@ export const INSET_TOP = "var(--inset-top, env(safe-area-inset-top, 0px))";
 const TAB_OF: Record<ViewName, TabId> = {
   home: "home",
   explore: "home",
+  charts: "home",
+  newreleases: "home",
   podcasts: "home",
   podcast: "home",
   mood: "home",
@@ -28,11 +30,13 @@ const TAB_OF: Record<ViewName, TabId> = {
   playlist: "library",
   folder: "library",
   ytplaylist: "library",
+  smart: "library",
+  duplicates: "library",
   import: "library",
   album: "library",
   artist: "library",
   local: "library",
-  replay: "library",
+  listen: "library",
   downloads: "downloads",
   settings: "settings",
 };

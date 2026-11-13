@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../lib/bridge", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../lib/bridge")>()),
@@ -8,35 +8,76 @@ vi.mock("../lib/bridge", async (importOriginal) => ({
 
 import { profileMenuItems } from "./ProfileButton";
 import { GUEST_ACCOUNT } from "../stores/auth";
-import { useSettings } from "../stores/settings";
-import type { MenuItem } from "../stores/ui";
+import { useNavigation } from "../stores/navigation";
 
-function themeItem(): MenuItem {
-  const item = profileMenuItems(GUEST_ACCOUNT).find((entry) => entry.label === "Theme");
-  if (!item) throw new Error("Theme item missing");
-  return item;
-}
+describe("ProfileButton menu", () => {
+  it("does not repeat the theme control that the top bar already shows", () => {
+    const labels = profileMenuItems(GUEST_ACCOUNT).map((entry) => entry.label);
 
-describe("ProfileButton theme item", () => {
-  beforeEach(() => {
-    useSettings.setState({ theme: "system" });
+    expect(labels).not.toContain("Theme");
+    expect(labels).toContain("Account");
   });
 
-  afterEach(() => {
-    useSettings.setState({ theme: "system" });
+  it("lists Settings after the account items and before sign in", () => {
+    const labels = profileMenuItems(GUEST_ACCOUNT).map((entry) => entry.label);
+
+    expect(labels.indexOf("Settings")).toBeGreaterThan(labels.indexOf("Sync status"));
+    expect(labels.indexOf("Settings")).toBeLessThan(labels.indexOf("Sign in"));
   });
 
-  it("lists Light, Dark and System with the current mode checked", () => {
-    const children = themeItem().children ?? [];
+  it("opens the Settings view from the Settings item", () => {
+    useNavigation.setState({ view: { name: "library" } });
+    const item = profileMenuItems(GUEST_ACCOUNT).find((entry) => entry.label === "Settings");
 
-    expect(children.map((child) => child.label)).toEqual(["Light", "Dark", "System"]);
-    expect(children.map((child) => child.checked)).toEqual([false, false, true]);
+    item?.onSelect?.();
+
+    expect(useNavigation.getState().view).toEqual({ name: "settings" });
+  });
+});
+
+describe("ProfileButton menu rows", () => {
+  const google = { ...GUEST_ACCOUNT, mode: "google" as const, name: "Aman Gupta", email: "aman@example.com", googleSub: "sub-1", configured: true };
+
+  it("has no separate header line", () => {
+    const items = profileMenuItems(GUEST_ACCOUNT);
+
+    expect(items.some((entry) => entry.header)).toBe(false);
+    expect(items[0].label).toBe("Account");
   });
 
-  it("sets the theme through the settings store when a choice is picked", () => {
-    const dark = (themeItem().children ?? []).find((child) => child.label === "Dark");
-    dark?.onSelect?.();
+  it("shows the sign-in state on the Account row", () => {
+    const guest = profileMenuItems(GUEST_ACCOUNT).find((entry) => entry.label === "Account");
+    const signedIn = profileMenuItems(google).find((entry) => entry.label === "Account");
 
-    expect(useSettings.getState().theme).toBe("dark");
+    expect(guest?.icon).toBeDefined();
+    expect(guest?.trailing).toBeUndefined();
+    expect(signedIn?.trailing).toBe("Aman Gupta");
+  });
+
+  it("has exactly one sign-in entry and it matches the account state", () => {
+    const guestLabels = profileMenuItems(GUEST_ACCOUNT).map((entry) => entry.label);
+    const signedInLabels = profileMenuItems(google).map((entry) => entry.label);
+
+    expect(guestLabels.filter((label) => label === "Sign in")).toHaveLength(1);
+    expect(guestLabels).not.toContain("Sign out");
+    expect(signedInLabels.filter((label) => label.startsWith("Sign"))).toEqual(["Sign out"]);
+  });
+
+  it("opens the Recents view from the Recents item", () => {
+    useNavigation.setState({ view: { name: "library" } });
+    const item = profileMenuItems(GUEST_ACCOUNT).find((entry) => entry.label === "Recents");
+
+    item?.onSelect?.();
+
+    expect(useNavigation.getState().view).toEqual({ name: "search" });
+  });
+
+  it("gives the Sync row an icon and a single trailing state", () => {
+    const sync = profileMenuItems(GUEST_ACCOUNT).find((entry) => entry.label === "Sync");
+
+    expect(sync?.icon).toBeDefined();
+    expect(sync?.note).toBeUndefined();
+    expect(sync?.trailing).toBe("Off");
+    expect(profileMenuItems(google).find((entry) => entry.label === "Sync")?.trailing).toBe("On");
   });
 });

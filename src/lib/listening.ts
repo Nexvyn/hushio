@@ -1,4 +1,5 @@
 import { playbackEvent, type PlaybackKind, type WireTrack } from "./bridge";
+import { useSettings } from "../stores/settings";
 import type { Track } from "../types";
 
 type Session = { track: Track; duration: number; since: number | null };
@@ -16,10 +17,19 @@ function wire(track: Track, duration: number): WireTrack {
   };
 }
 
+function historyOn(): boolean {
+  return !useSettings.getState().pauseListeningHistory;
+}
+
 function send(type: PlaybackKind, deltaMs?: number) {
   const current = session;
   if (!current) return;
-  const event = { type, track: wire(current.track, current.duration), ...(deltaMs === undefined ? {} : { deltaMs }) };
+  const event = {
+    type,
+    track: wire(current.track, current.duration),
+    ...(deltaMs === undefined ? {} : { deltaMs }),
+    ...(historyOn() ? {} : { history: false }),
+  };
   playbackEvent(event).catch((error: unknown) => {
     console.warn(`[hushio] listening event failed: ${error instanceof Error ? error.message : String(error)}`);
   });

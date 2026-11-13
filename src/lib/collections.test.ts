@@ -30,7 +30,7 @@ describe("libraryRows", () => {
       playlists: [playlist("a"), playlist("b", { pinned: true })],
     });
 
-    expect(keys(rows.fixed)).toEqual(["single:liked", "single:spotify", "single:replay", "playlist:b"]);
+    expect(keys(rows.fixed)).toEqual(["single:liked", "single:spotify", "playlist:b"]);
     expect(keys(rows.movable)).toEqual(["single:downloads", "single:local", "playlist:a"]);
   });
 

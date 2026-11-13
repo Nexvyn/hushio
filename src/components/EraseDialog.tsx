@@ -15,19 +15,19 @@ type Phase = "confirm" | "working" | "remote-failed" | "local-failed";
 const COPY: Record<EraseMode, { title: string; body: string; confirm: string; done: string }> = {
   google: {
     title: `Disconnect and erase ${APP_NAME} data?`,
-    body: `This signs ${APP_NAME} out of your Google account and erases ${APP_NAME}'s data from your Google Drive. Your YouTube playlists stay unless you tick the first box. Downloaded songs stay on this computer unless you tick the second box.`,
+    body: `This signs ${APP_NAME} out of your Google account and erases ${APP_NAME}'s data on this computer. Your YouTube playlists stay unless you tick the first box. Downloaded songs stay on this computer unless you tick the second box.`,
     confirm: "Disconnect & erase",
     done: `Your ${APP_NAME} data was erased from this computer and your Google account.`,
   },
   guest: {
     title: "Erase all local data?",
-    body: "This erases your library, settings, listening history and Replay stats from this computer. It can't be undone.",
+    body: "This erases your library, settings, listening history and stats from this computer. It can't be undone.",
     confirm: "Erase all local data",
     done: `Your ${APP_NAME} data was erased from this computer.`,
   },
   reset: {
     title: "Reset app data on this computer?",
-    body: "This erases your library, playlists, listening history and settings on this computer. Downloads, YouTube and Google Drive data are kept.",
+    body: "This erases your library, playlists, listening history and settings on this computer. Downloads and YouTube data are kept.",
     confirm: "Reset app data",
     done: "App data was reset on this computer.",
   },

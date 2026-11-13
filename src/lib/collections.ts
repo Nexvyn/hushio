@@ -2,7 +2,7 @@ import { upgradeArtwork } from "./artwork";
 import { arrange } from "./libraryOrder";
 import type { Folder, FollowedArtist, PinnedSingles, Playlist } from "../stores/library";
 
-export const SINGLE_ROWS = ["liked", "spotify", "replay", "downloads", "local"] as const;
+export const SINGLE_ROWS = ["liked", "spotify", "downloads", "local"] as const;
 export type SingleRow = (typeof SINGLE_ROWS)[number];
 
 export type RowEntry =

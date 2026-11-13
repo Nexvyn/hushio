@@ -141,13 +141,13 @@ describe("pickSuggestions", () => {
 
   it("allows three songs from the seed artist, matched by artist id", () => {
     const candidates = [1, 2, 3, 4].map((n) => item(n, { artist: "Seed", artistId: "UCseed" }));
-    const seed = { artist: "Other name", artistId: "UCseed" };
+    const seed = { title: "Seed", artist: "Other name", artistId: "UCseed", thumb: null, duration: 0 };
     expect(ids(pickSuggestions(candidates, options({ seed })))).toEqual([vid(1), vid(2), vid(3)]);
   });
 
   it("matches the seed artist by normalised name when the id is missing", () => {
     const candidates = [1, 2, 3, 4].map((n) => item(n, { artist: "Seed Band", artistId: null }));
-    const seed = { artist: "seed band, guest", artistId: null };
+    const seed = { title: "Seed", artist: "seed band, guest", artistId: null, thumb: null, duration: 0 };
     expect(ids(pickSuggestions(candidates, options({ seed })))).toEqual([vid(1), vid(2), vid(3)]);
   });
 

@@ -252,3 +252,55 @@ describe("Groove wave loop", () => {
     expect(knob.style.left).toBe("25%");
   });
 });
+
+describe("Groove variants", () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("keeps the hills canvas by default", () => {
+    const { container } = render(<Groove seed="t1" position={10} duration={200} onSeek={vi.fn()} profile="stage" />);
+    expect(container.querySelector("canvas")).not.toBeNull();
+  });
+
+  it("renders a plain track with an accent fill and a knob, and no canvas", () => {
+    const { container } = render(<Groove seed="t1" position={50} duration={200} onSeek={vi.fn()} variant="plain" />);
+    expect(container.querySelector("canvas")).toBeNull();
+    expect(slider().style.height).toBe("12px");
+    const knob = container.querySelector("[data-groove-knob]") as HTMLElement;
+    expect(knob.style.width).toBe("12px");
+    expect(knob.className).toContain("group-hover:opacity-100");
+    const fill = slider().querySelector("span.bg-accent") as HTMLElement;
+    expect(fill.style.width).toBe("25%");
+  });
+
+  it("runs no animation loop in plain mode, even while playing", () => {
+    const frame = vi.spyOn(window, "requestAnimationFrame");
+    render(<Groove seed="t1" position={10} duration={200} onSeek={vi.fn()} variant="plain" playing />);
+    expect(frame).not.toHaveBeenCalled();
+  });
+
+  it("reserves no strip above the plain track, so the bar stays compact", () => {
+    const { container } = render(<Groove seed="t1" position={0} duration={100} onSeek={vi.fn()} variant="plain" />);
+    expect(container.querySelectorAll(".h-5")).toHaveLength(0);
+    expect(container.firstElementChild?.className).toContain("h-4");
+  });
+
+  it("shows the hover time above the plain track", () => {
+    render(<Groove seed="t1" position={0} duration={100} onSeek={vi.fn()} variant="plain" lyrics={[{ time: 10, text: "first line" }]} />);
+    const node = slider();
+    node.getBoundingClientRect = () => ({ left: 0, top: 0, width: 200, height: 12, right: 200, bottom: 12, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    fireEvent(node, new MouseEvent("pointermove", { bubbles: true, clientX: 60, button: 0 }));
+    const tip = screen.getByText("first line").closest("span[aria-hidden]") as HTMLElement;
+    expect(tip.className).toContain("bottom-full");
+    expect(node.contains(tip)).toBe(false);
+  });
+
+  it("keeps the time labels level with the track in plain mode", () => {
+    const { container } = render(<Groove seed="t1" position={69} duration={213} onSeek={vi.fn()} variant="plain" />);
+    expect(screen.getByText("1:09")).toBeTruthy();
+    expect(screen.getByText("3:33")).toBeTruthy();
+    expect(container.firstElementChild?.className).toContain("items-center");
+  });
+});

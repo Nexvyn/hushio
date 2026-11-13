@@ -58,7 +58,7 @@ import {
 
 const track = { id: "a", title: "Song A", artist: "Artist A", thumb: null };
 const snapshot = (overrides: Partial<PipSnapshot> = {}): PipSnapshot => ({
-  track: { id: "a", title: "Song A", artist: "Artist A", thumb: "" },
+  track: { id: "a", title: "Song A", artist: "Artist A", album: "", thumb: "" },
   playing: true,
   buffering: false,
   position: 1,
@@ -77,10 +77,15 @@ describe("buildSnapshot", () => {
     usePlayer.setState({ queue: [track], index: 0, playing: true, position: 12, duration: 200, volume: 0.4 });
   });
 
+  it("copies the album of the current track into the snapshot", () => {
+    usePlayer.setState({ queue: [{ ...track, album: "Album A" }], index: 0 });
+    expect(buildSnapshot(usePlayer.getState(), []).track).toMatchObject({ album: "Album A" });
+  });
+
   it("copies the player fields and the current track", () => {
     const built = buildSnapshot(usePlayer.getState(), []);
     expect(built).toMatchObject({
-      track: { id: "a", title: "Song A", artist: "Artist A", thumb: "" },
+      track: { id: "a", title: "Song A", artist: "Artist A", album: "", thumb: "" },
       playing: true,
       position: 12,
       duration: 200,

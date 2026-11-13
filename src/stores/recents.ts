@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { isTestSong } from "../lib/devSong";
 import { persistStorage } from "../lib/persist";
+import { useSettings } from "./settings";
 
 export const RECENT_SEARCH_LIMIT = 12;
 export const RECENT_ITEM_LIMIT = 30;
@@ -23,6 +25,7 @@ export const useRecents = create<RecentSearchesState>()(
     (set) => ({
       searches: [],
       pushSearch: (query) => {
+        if (useSettings.getState().pauseSearchHistory) return;
         const trimmed = query.trim();
         if (!trimmed) return;
         set((state) => ({
@@ -62,7 +65,7 @@ export const useRecentItems = create<RecentItemsState>()(
     (set) => ({
       items: [],
       add: (item) =>
-        set((state) => ({
+        set((state) => (item.kind === "song" && isTestSong(item.id) ? state : {
           items: [
             { ...item, subtitle: cleanSubtitle(item.subtitle) },
             ...state.items.filter((entry) => !(entry.kind === item.kind && entry.id === item.id)),

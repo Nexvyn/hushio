@@ -75,7 +75,7 @@ export async function getSessionContext(market: Market): Promise<SessionContext>
 
 export type VideoType = "song" | "upload" | "episode" | "video";
 
-export type RadioSeed = { artist: string; artistId: string | null };
+export type RadioSeed = { title: string; artist: string; artistId: string | null; thumb: string | null; duration: number };
 
 export type RadioItem = Track & {
   artistId: string | null;
@@ -180,7 +180,7 @@ function bylineArtist(row: Json): { artist: string; artistId: string | null } {
   const artistId = ids.find((id): id is string => typeof id === "string") ?? null;
   const credited = at(row, "credits", "artistName");
   return {
-    artist: artist || (typeof credited === "string" ? credited : "Unknown artist"),
+    artist: artist || (typeof credited === "string" ? credited : ""),
     artistId,
   };
 }
@@ -211,17 +211,18 @@ export function parseRadioPage(data: unknown, seedId: string): RadioPage | null 
   let seed: RadioSeed | null = null;
   for (const entry of asArray(panel.contents)) {
     const wrapper = at(entry, "playlistPanelVideoWrapperRenderer");
-    if (!isRecord(wrapper)) continue;
-    const sides = [
-      at(wrapper, "primaryRenderer", "playlistPanelVideoRenderer"),
-      ...asArray(wrapper.counterpart).map((side) => at(side, "counterpartRenderer", "playlistPanelVideoRenderer")),
-    ].filter(isRecord);
+    const sides = isRecord(wrapper)
+      ? [
+          at(wrapper, "primaryRenderer", "playlistPanelVideoRenderer"),
+          ...asArray(wrapper.counterpart).map((side) => at(side, "counterpartRenderer", "playlistPanelVideoRenderer")),
+        ].filter(isRecord)
+      : [at(entry, "playlistPanelVideoRenderer")].filter(isRecord);
     const side = sides.find((candidate) => radioVideoType(candidate) === "song") ?? sides[0];
     if (!side || at(side, "unplayableText")) continue;
     const row = radioRow(side);
     if (!row) continue;
     if (side.selected === true || row.id === seedId) {
-      seed = { artist: row.artist, artistId: row.artistId };
+      seed = { title: row.title, artist: row.artist, artistId: row.artistId, thumb: row.thumb, duration: row.duration };
       continue;
     }
     items.push(row);

@@ -17,7 +17,6 @@ function fakeSteps() {
     stopSync: make("stopSync"),
     resumeSync: make("resumeSync"),
     deleteYoutubePlaylists: make("deleteYoutubePlaylists"),
-    deleteDriveFiles: make("deleteDriveFiles"),
     revokeTokens: make("revokeTokens"),
     removeKeyring: make("removeKeyring"),
     wipeLocal: make("wipeLocal"),
@@ -66,13 +65,13 @@ describe("EraseDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Disconnect & erase" }));
     await waitFor(() => expect(onErased).toHaveBeenCalledTimes(1));
     expect(calls).toContain("deleteYoutubePlaylists");
-    expect(calls.indexOf("deleteDriveFiles")).toBeLessThan(calls.indexOf("wipeLocal"));
+    expect(calls.indexOf("revokeTokens")).toBeLessThan(calls.indexOf("wipeLocal"));
   });
 
   it("shows the remote error, erases nothing locally, and Try again reruns the remote steps", async () => {
     const { steps, calls, failing } = fakeSteps();
     const onErased = vi.fn();
-    failing.current = "deleteDriveFiles";
+    failing.current = "revokeTokens";
     open("google");
     render(<EraseDialog steps={steps} onErased={onErased} />);
     fireEvent.click(screen.getByRole("button", { name: "Disconnect & erase" }));
@@ -83,7 +82,7 @@ describe("EraseDialog", () => {
     failing.current = null;
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     await waitFor(() => expect(onErased).toHaveBeenCalledTimes(1));
-    expect(calls.filter((call) => call === "deleteDriveFiles")).toHaveLength(2);
+    expect(calls.filter((call) => call === "revokeTokens")).toHaveLength(2);
   });
 
   it("Erase this computer only skips the remote steps after a failure", async () => {

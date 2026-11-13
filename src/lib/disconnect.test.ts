@@ -11,7 +11,6 @@ function fakeSteps(failing?: keyof EraseSteps) {
     stopSync: make("stopSync"),
     resumeSync: make("resumeSync"),
     deleteYoutubePlaylists: make("deleteYoutubePlaylists"),
-    deleteDriveFiles: make("deleteDriveFiles"),
     revokeTokens: make("revokeTokens"),
     removeKeyring: make("removeKeyring"),
     wipeLocal: async (deleteDownloads: boolean) => {
@@ -26,14 +25,14 @@ const ACCOUNT: EraseOptions = { scope: "account", deleteYoutubePlaylists: false,
 const LOCAL_ONLY: EraseOptions = { scope: "computer", deleteYoutubePlaylists: false, deleteDownloads: false };
 
 const LOCAL_STEPS = ["stopSync", "removeKeyring", "wipeLocal"];
-const REMOTE_STEPS = ["stopSync", "deleteDriveFiles", "revokeTokens"];
+const REMOTE_STEPS = ["stopSync", "revokeTokens"];
 
 describe("runErase", () => {
   it("runs every remote step before the local wipe", async () => {
     const { steps, calls } = fakeSteps();
     const outcome = await runErase(steps, { ...ACCOUNT, deleteYoutubePlaylists: true });
     expect(outcome).toEqual({ ok: true });
-    expect(calls).toEqual(["stopSync", "deleteYoutubePlaylists", "deleteDriveFiles", "revokeTokens", "removeKeyring", "wipeLocal"]);
+    expect(calls).toEqual(["stopSync", "deleteYoutubePlaylists", "revokeTokens", "removeKeyring", "wipeLocal"]);
   });
 
   it("removes the keyring entries before the app data is wiped", async () => {
@@ -49,10 +48,10 @@ describe("runErase", () => {
   });
 
   it("stops at a failed remote step and erases nothing locally", async () => {
-    const { steps, calls } = fakeSteps("deleteDriveFiles");
+    const { steps, calls } = fakeSteps("revokeTokens");
     const outcome = await runErase(steps, ACCOUNT);
-    expect(outcome).toEqual({ ok: false, stage: "remote", message: "deleteDriveFiles failed" });
-    expect(calls).toEqual(REMOTE_STEPS.slice(0, 2));
+    expect(outcome).toEqual({ ok: false, stage: "remote", message: "revokeTokens failed" });
+    expect(calls).toEqual(REMOTE_STEPS);
     expect(calls).not.toContain("removeKeyring");
     expect(calls).not.toContain("wipeLocal");
   });
@@ -63,7 +62,7 @@ describe("runErase", () => {
     const retry = fakeSteps();
     const outcome = await runErase(retry.steps, ACCOUNT, "remote");
     expect(outcome).toEqual({ ok: true });
-    expect(retry.calls.slice(0, 3)).toEqual(REMOTE_STEPS);
+    expect(retry.calls.slice(0, 2)).toEqual(REMOTE_STEPS);
   });
 
   it("erase-only skips every remote step", async () => {
@@ -93,7 +92,6 @@ describe("runErase", () => {
     await runErase(steps, ACCOUNT, "remote", (label) => labels.push(label));
     expect(labels).toEqual([
       "Stopping sync",
-      "Deleting Google Drive files",
       "Signing out of Google",
       "Signing out of Google",
       "Erasing this computer",

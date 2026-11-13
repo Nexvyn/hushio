@@ -1,5 +1,6 @@
 import type { Track } from "../types";
 import { upgradeArtwork } from "./artwork";
+import { PODCASTS_ENABLED } from "./features";
 import { asArray, at, collect, isRecord, parseDuration, text, type Json } from "./innertube";
 
 export type SearchFilter = "all" | "songs" | "videos" | "albums" | "artists" | "playlists";
@@ -148,13 +149,16 @@ function browseOf(row: Json): BrowseItem | null {
   const columns = columnsOf(row);
   const title = text(columns[0]?.text).trim();
   if (!title) return null;
-  const endpoint = asArray(at(columns[0], "text", "runs"))
-    .map((run) => at(run, "navigationEndpoint", "browseEndpoint"))
-    .find((candidate) => typeof at(candidate, "browseId") === "string");
+  const endpoint = [
+    ...asArray(at(columns[0], "text", "runs")).map((run) => at(run, "navigationEndpoint", "browseEndpoint")),
+    at(row, "navigationEndpoint", "browseEndpoint"),
+  ].find((candidate) => typeof at(candidate, "browseId") === "string");
   const browseId = at(endpoint, "browseId");
   if (typeof browseId !== "string") return null;
+  const type = browseTypeOf(browseId, pageTypeOf(endpoint));
+  if (type === "podcast" && !PODCASTS_ENABLED) return null;
   return {
-    type: browseTypeOf(browseId, pageTypeOf(endpoint)),
+    type,
     browseId,
     title,
     subtitle: text(columns[1]?.text).trim(),
@@ -174,10 +178,12 @@ function trackOf(row: Json): SearchSong | null {
   const fixed = asArray(row.fixedColumns).map((column) =>
     text(at(column, "musicResponsiveListItemFixedColumnRenderer", "text")).trim(),
   );
-  const last = segments.at(-1);
-  const durationText = last !== undefined && DURATION.test(last) ? last : fixed.find((value) => DURATION.test(value));
+  const overlay = text(at(collect(row, "thumbnailOverlayTimeStatusRenderer")[0], "text")).trim();
+  const length = text(row.lengthText).trim();
+  const durationText = [segments.at(-1) ?? "", ...fixed, overlay, length].find((value) => DURATION.test(value));
   const first = segments[0]?.toLowerCase();
   const rowType = first !== undefined && TYPE_WORDS.has(first) ? first : null;
+  if (rowType === "episode" && !PODCASTS_ENABLED) return null;
   const artistSegment = segments.find(
     (segment) => segment !== durationText && !TYPE_WORDS.has(segment.toLowerCase()) && !TALLY.test(segment),
   );
@@ -187,7 +193,7 @@ function trackOf(row: Json): SearchSong | null {
   return {
     id: videoId,
     title,
-    artist: artistSegment ?? found.artist?.name ?? "Unknown artist",
+    artist: artistSegment ?? found.artist?.name ?? "",
     artistId: found.artist?.id ?? null,
     album: found.album?.name ?? null,
     albumId: found.album?.id ?? null,
@@ -206,18 +212,22 @@ function topCardOf(card: Json): SearchRow | null {
   if (typeof videoId === "string") {
     const segments = segmentsOf(card.subtitle);
     if (segments[0]?.toLowerCase() === "video") return null;
-    const artist = segments.find((segment) => !TYPE_WORDS.has(segment.toLowerCase())) ?? "Unknown artist";
+    const segmentArtist = segments.find(
+      (segment) => !DURATION.test(segment) && !TYPE_WORDS.has(segment.toLowerCase()) && !TALLY.test(segment),
+    );
+    const durationText = segments.find((segment) => DURATION.test(segment));
+    const found = credits([{ text: card.subtitle }]);
     return {
       kind: "top",
       song: {
         id: videoId,
         title,
-        artist,
+        artist: segmentArtist ?? found.artist?.name ?? "",
         thumb,
-        artistId: null,
+        artistId: found.artist?.id ?? null,
         albumId: null,
         album: null,
-        duration: 0,
+        duration: durationText ? parseDuration(durationText) : 0,
         explicit: false,
         isVideo: false,
       },
@@ -226,11 +236,13 @@ function topCardOf(card: Json): SearchRow | null {
   const browseEndpoint = at(card, "onTap", "browseEndpoint");
   const browseId = at(browseEndpoint, "browseId");
   if (typeof browseId !== "string") return null;
+  const type = browseTypeOf(browseId, pageTypeOf(browseEndpoint));
+  if (type === "podcast" && !PODCASTS_ENABLED) return null;
   return {
     kind: "browse",
     top: true,
     item: {
-      type: browseTypeOf(browseId, pageTypeOf(browseEndpoint)),
+      type,
       browseId,
       title,
       subtitle: text(card.subtitle).trim(),

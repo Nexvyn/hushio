@@ -77,6 +77,7 @@ type PlayerPersisted = Pick<
   PlayerValues,
   | "queue"
   | "index"
+  | "position"
   | "volume"
   | "muted"
   | "shuffle"
@@ -109,12 +110,18 @@ export type PlayerState = PlayerValues & {
 };
 
 let loadedId: string | null = null;
+let resumePosition = 0;
+let restoredOnLaunch = false;
 
-function load(track: Track) {
+function load(track: Track, fromSeconds = 0) {
   loadedId = track.id;
   usePlayer.setState({ duration: 0 });
   prefetchLyrics(track);
-  playStream(track.id, track.title).catch(() => {
+  const started =
+    fromSeconds > 0
+      ? playStream(track.id, track.title, fromSeconds)
+      : playStream(track.id, track.title);
+  started.catch(() => {
     usePlayer.setState({ playing: false, buffering: false });
     useUI.getState().toast(`Couldn't play "${track.title}"`, "error");
   });
@@ -214,16 +221,18 @@ function startCurrent() {
   const { queue, index, played } = usePlayer.getState();
   const track = queue[index];
   if (!track) return;
+  const restored = resumePosition;
+  resumePosition = 0;
   usePlayer.setState({
     playing: true,
-    position: 0,
+    position: restored,
     error: null,
     awaitingAutoplay: false,
     played: [track, ...played.filter((item) => item.id !== track.id)].slice(0, PLAYED_LIMIT),
   });
   useLibrary.getState().pushHistory(track);
   startListen(track);
-  load(track);
+  load(track, restored);
   refillIfNeeded();
 }
 
@@ -265,6 +274,7 @@ export const usePlayer = create<PlayerState>()(
 
       playQueue: (tracks, startIndex = 0, from) => {
         if (tracks.length === 0) return;
+        resumePosition = 0;
         const start = Math.min(Math.max(startIndex, 0), tracks.length - 1);
         const { shuffle, contextId } = get();
         const queue = shuffle
@@ -341,8 +351,12 @@ export const usePlayer = create<PlayerState>()(
           return unique.length;
         }
 
+        const noDuplicates = useSettings.getState().noDuplicateQueue;
         const upcoming = new Set(queue.slice(index + 1).map((track) => track.id));
-        const add = unique.filter((track) => !upcoming.has(track.id));
+        const wholeQueue = new Set(queue.map((track) => track.id));
+        const add = unique.filter((track) =>
+          noDuplicates ? !wholeQueue.has(track.id) : !upcoming.has(track.id),
+        );
         if (add.length === 0) return 0;
         const ids = add.map((track) => track.id);
 
@@ -516,6 +530,7 @@ export const usePlayer = create<PlayerState>()(
       partialize: (state): PlayerPersisted => ({
         queue: state.queue,
         index: state.index,
+        position: state.position,
         volume: state.volume,
         muted: state.muted,
         shuffle: state.shuffle,
@@ -528,13 +543,41 @@ export const usePlayer = create<PlayerState>()(
         if (!state) return;
         setAudioVolume(state.volume);
         setMuted(state.muted);
-      },
-    },
+        resumePosition = state.position;
+        restoredOnLaunch = true;
+      },    },
   ),
 );
 
 export function currentTrack(state: PlayerState): Track | null {
   return state.queue[state.index] ?? null;
+}
+
+export function resumeSavedQueue(): void {
+  if (!restoredOnLaunch) return;
+  restoredOnLaunch = false;
+  if (!useSettings.getState().restoreQueueOnRestart) {
+    usePlayer.setState({ queue: [], index: 0, position: 0, playing: false, unshuffled: null });
+    resumePosition = 0;
+    return;
+  }
+  const { queue, index } = usePlayer.getState();
+  if (queue.length === 0) return;
+  usePlayer.setState({ index: Math.min(Math.max(index, 0), queue.length - 1) });
+}
+
+export function resumeQueueAfterHydration(): void {
+  const ready = () => usePlayer.persist.hasHydrated() && useSettings.persist.hasHydrated();
+  if (ready()) {
+    resumeSavedQueue();
+    return;
+  }
+  const check = () => {
+    if (!ready()) return;
+    resumeSavedQueue();
+  };
+  if (!usePlayer.persist.hasHydrated()) usePlayer.persist.onFinishHydration(check);
+  if (!useSettings.persist.hasHydrated()) useSettings.persist.onFinishHydration(check);
 }
 
 export function nextBlendTarget(): BlendTarget | null {

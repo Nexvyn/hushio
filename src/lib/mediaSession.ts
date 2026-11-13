@@ -48,7 +48,7 @@ function metadataFor(track: Track): MediaMetadataInit {
   return {
     title: track.title,
     artist: track.artist,
-    album: APP_NAME,
+    album: track.album || APP_NAME,
     artwork: ARTWORK_SIZES.flatMap((size) => {
       const src = upgradeArtwork(track.thumb, size);
       return src ? [{ src, sizes: `${size}x${size}`, type: "image/jpeg" }] : [];

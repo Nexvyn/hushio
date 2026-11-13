@@ -208,6 +208,35 @@ describe("parseSearchPage", () => {
     expect(page.rows[0]).toMatchObject({ kind: "top", song: { id: "top1", title: "Levitating", artist: "Dua Lipa" } });
   });
 
+  it("does not read a duration on a top song card as the artist", () => {
+    const [row] = parseSearchPage({ contents: [songCard("Interlude", "top2", ["Song", "3:23"])] }, false).rows;
+    expect(row).toMatchObject({ kind: "top", song: { id: "top2", artist: "" } });
+  });
+
+  it("keeps both the artist and the duration on a top song card", () => {
+    const [row] = parseSearchPage({ contents: [songCard("Levitating", "top3", ["Song", "Dua Lipa", "3:23"])] }, false).rows;
+    expect(row).toMatchObject({ kind: "top", song: { id: "top3", artist: "Dua Lipa", duration: 203 } });
+  });
+
+  it("reads the top song artist and its id from the credit link", () => {
+    const card = {
+      musicCardShelfRenderer: {
+        title: { runs: [{ text: "Levitating" }] },
+        subtitle: {
+          runs: [
+            { text: "Song" },
+            { text: " • " },
+            { text: "Dua Lipa", navigationEndpoint: { browseEndpoint: browseEndpoint("UCdua", "MUSIC_PAGE_TYPE_ARTIST") } },
+          ],
+        },
+        onTap: { watchEndpoint: { videoId: "top3" } },
+        ...thumb(SQUARE),
+      },
+    };
+    const [row] = parseSearchPage({ contents: [card] }, false).rows;
+    expect(row).toMatchObject({ kind: "top", song: { artist: "Dua Lipa", artistId: "UCdua" } });
+  });
+
   it("turns an artist card into a top browse row and ignores cards on the videos filter", () => {
     const data = { contents: [artistCard("Dua Lipa", "UCdua", "Artist")] };
 
@@ -236,6 +265,19 @@ describe("parseSearchPage", () => {
     expect(types).toEqual(["album", "playlist", "artist", "other"]);
   });
 
+  it("drops podcast show rows while podcasts are disabled", () => {
+    const data = {
+      contents: [
+        browseRow("MPSPshow", "Show", "MUSIC_PAGE_TYPE_PODCAST_SHOW_DETAIL_PAGE", "Podcast"),
+        browseRow("MPREa", "Album A", "MUSIC_PAGE_TYPE_ALBUM", "Album • 2020"),
+      ],
+    };
+
+    const types = parseSearchPage(data, false).rows.map((row) => (row.kind === "browse" ? row.item.type : null));
+
+    expect(types).toEqual(["album"]);
+  });
+
   it("keeps the first row for a repeated video or browse id", () => {
     const data = {
       contents: [
@@ -250,6 +292,28 @@ describe("parseSearchPage", () => {
 
     expect(page.rows).toHaveLength(2);
     expect(page.rows[0]).toMatchObject({ kind: "track", track: { title: "First" } });
+  });
+
+  it("reads album and playlist rows whose browse id sits on the row endpoint", () => {
+    const row = {
+      musicResponsiveListItemRenderer: {
+        flexColumns: [
+          { musicResponsiveListItemFlexColumnRenderer: { text: { runs: [{ text: "Aashiqui 2" }] } } },
+          { musicResponsiveListItemFlexColumnRenderer: { text: { runs: [{ text: "Album" }, { text: " • " }, { text: "Arijit Singh" }] } } },
+        ],
+        navigationEndpoint: { browseEndpoint: browseEndpoint("MPREb_album", "MUSIC_PAGE_TYPE_ALBUM") },
+        ...thumb(SQUARE),
+      },
+    };
+
+    const page = parseSearchPage({ contents: [row] }, false);
+
+    expect(page.rows).toEqual([
+      {
+        kind: "browse",
+        item: { type: "album", browseId: "MPREb_album", title: "Aashiqui 2", subtitle: "Album • Arijit Singh", thumb: ART },
+      },
+    ]);
   });
 
   it("returns no continuation when the response has none", () => {

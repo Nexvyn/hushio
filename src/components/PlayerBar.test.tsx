@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const { audio, playStream, play, pause, seekTo, setVolume, setMuted } = vi.hoisted(() => {
+const { audio, playStream, play, pause, seekTo, setVolume, setMuted, startDownload, cancelDownload, revealDownload } = vi.hoisted(() => {
   if (!window.matchMedia) {
     Object.defineProperty(window, "matchMedia", {
       writable: true,
@@ -22,8 +22,18 @@ const { audio, playStream, play, pause, seekTo, setVolume, setMuted } = vi.hoist
     seekTo: vi.fn(),
     setVolume: vi.fn(),
     setMuted: vi.fn(),
+    startDownload: vi.fn(),
+    cancelDownload: vi.fn(),
+    revealDownload: vi.fn(),
   };
 });
+
+vi.mock("../lib/downloads", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/downloads")>()),
+  startDownload,
+  cancelDownload,
+  revealDownload,
+}));
 
 vi.mock("../lib/audio", () => ({
   audio,
@@ -92,7 +102,9 @@ describe("PlayerBar surface", () => {
     const { container } = render(<PlayerBar />);
 
     const footer = screen.getByLabelText("Player");
-    expect(footer.className).toContain("bg-base");
+    expect(footer.className).toContain("bg-surface");
+    expect(footer.className).not.toContain("bg-base");
+    expect(footer.className).not.toContain("border-t");
     expect(container.querySelector('[class*="bg-ambient"]')).toBeNull();
   });
 
@@ -247,3 +259,113 @@ describe("PlayerBar with a queue", () => {
     expect((screen.getByRole("button", { name: "Like" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
+
+describe("PlayerBar seek bar and layout", () => {
+  beforeEach(() => {
+    usePlayer.getState().playQueue([track(0), track(1)], 0);
+    usePlayer.setState({ playing: true, duration: 200, position: 50 });
+  });
+
+  it("draws the seek bar as a plain track with no canvas and no animation loop", () => {
+    const frame = vi.spyOn(window, "requestAnimationFrame");
+    const { container } = render(<PlayerBar />);
+
+    const slider = screen.getByRole("slider", { name: "Seek" });
+    expect(slider.querySelector("canvas")).toBeNull();
+    expect(container.querySelector("canvas")).toBeNull();
+    expect(frame).not.toHaveBeenCalled();
+    frame.mockRestore();
+  });
+
+  it("hides the volume slider below 1100px but keeps the speaker button", () => {
+    render(<PlayerBar />);
+
+    const slider = screen.getByRole("slider", { name: "Volume" });
+    expect(slider.className).toContain("min-[1100px]:block");
+    expect(screen.getByRole("button", { name: /^(Mute|Unmute)$/ })).toBeTruthy();
+  });
+
+  it("keeps the transport and the seek bar in one centred column", () => {
+    render(<PlayerBar />);
+
+    const playback = screen.getByRole("group", { name: "Playback" });
+    const column = playback.parentElement as HTMLElement;
+    expect(column.className).toContain("justify-center");
+    expect(column.className).toContain("min-w-0");
+    expect(column.contains(screen.getByRole("slider", { name: "Seek" }))).toBe(true);
+    expect(column.parentElement?.className).toContain("grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]");
+    expect(column.className).toContain("gap-1");
+    expect(column.parentElement?.parentElement?.className).toContain("h-[84px]");
+    expect(column.parentElement?.className).toContain("items-center");
+  });
+});
+
+describe("PlayerBar download button", () => {
+  const downloadItem = (status: "queued" | "downloading" | "done", progress = 0, path: string | null = null) => ({
+    track: { id: "t0", title: "Track 0", artist: "Artist 0", thumb: undefined, album: undefined, duration: 0 },
+    path,
+    status,
+    progress,
+    downloaded: 0,
+    total: 0,
+  });
+
+  beforeEach(() => {
+    usePlayer.getState().playQueue([track(0), track(1)], 0);
+  });
+
+  it("starts a download for the playing song", async () => {
+    const user = userEvent.setup();
+    render(<PlayerBar />);
+
+    await user.click(screen.getByRole("button", { name: "Download" }));
+    expect(startDownload).toHaveBeenCalledWith(expect.objectContaining({ id: "t0" }));
+  });
+
+  it("shows progress while downloading and cancels on click", async () => {
+    const user = userEvent.setup();
+    useLibrary.setState({ downloads: { t0: downloadItem("downloading", 0.5) } });
+    render(<PlayerBar />);
+
+    await user.click(screen.getByRole("button", { name: "Downloading, 50%" }));
+    expect(cancelDownload).toHaveBeenCalledWith("t0");
+    expect(startDownload).not.toHaveBeenCalled();
+  });
+
+  it("marks a finished download and reveals the file on click", async () => {
+    const user = userEvent.setup();
+    useLibrary.setState({ downloads: { t0: downloadItem("done", 1, "/music/t0.m4a") } });
+    render(<PlayerBar />);
+
+    await user.click(screen.getByRole("button", { name: "Downloaded" }));
+    expect(revealDownload).toHaveBeenCalledWith("/music/t0.m4a");
+  });
+
+  it("leaves the download button out for local files", () => {
+    usePlayer.getState().playQueue([{ ...track(0), id: "local:0" }], 0);
+    render(<PlayerBar />);
+
+    expect(screen.queryByRole("button", { name: "Download" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Downloading/ })).toBeNull();
+  });
+});
+
+describe("PlayerBar left column", () => {
+  beforeEach(() => {
+    usePlayer.getState().playQueue([track(0), track(1)], 0);
+  });
+
+  it("puts the like and add buttons right after the title block, 8px away", () => {
+    render(<PlayerBar />);
+
+    const title = screen.getByText("Track 0");
+    const textBlock = title.parentElement as HTMLElement;
+    const actions = textBlock.nextElementSibling as HTMLElement;
+    expect(textBlock.className).toContain("min-w-0");
+    expect(textBlock.className).not.toContain("flex-1");
+    expect(actions.className).toContain("ml-2");
+    expect(actions.contains(screen.getByRole("button", { name: "Like" }))).toBe(true);
+    expect(actions.contains(screen.getByRole("button", { name: "Add to playlist" }))).toBe(true);
+  });
+});
+

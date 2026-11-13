@@ -209,6 +209,20 @@ describe("startMediaSession metadata", () => {
     ]);
   });
 
+  it("publishes the track album when the track has one", () => {
+    stop = startMediaSession();
+    state().playQueue([{ ...track(0), album: "Album 0" }], 0);
+
+    expect(session.metadata).toMatchObject({ title: "Track 0", artist: "Artist 0", album: "Album 0" });
+  });
+
+  it("falls back to the app name when the track has no album", () => {
+    stop = startMediaSession();
+    state().playQueue([{ ...track(0), album: null }], 0);
+
+    expect(session.metadata).toMatchObject({ album: "Hushio" });
+  });
+
   it("updates metadata when the track changes", () => {
     stop = startMediaSession();
     state().playQueue(list(3), 0);

@@ -1,7 +1,9 @@
 import { platform, type Platform } from "./bridge";
+import { DATA_SAVER_ART_SIZE, setArtworkSize } from "./artwork";
 import { desktopAppearance } from "./desktopAppearance";
+import { applyFontVars } from "./fonts";
 import { motionVars } from "./motion";
-import { useSettings } from "../stores/settings";
+import { useSettings, type LyricsTextSize } from "../stores/settings";
 
 export const OS_REDUCE_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
@@ -13,6 +15,16 @@ const PLATFORM_CLASSES: Record<Platform, string> = {
 };
 
 const MANAGED_CLASSES = ["reduce-motion", "reduce-blur", ...Object.values(PLATFORM_CLASSES)];
+
+const LYRIC_SCALE: Record<LyricsTextSize, string> = {
+  small: "0.78",
+  medium: "1",
+  large: "1.28",
+};
+
+export function lyricScale(size: LyricsTextSize): string {
+  return LYRIC_SCALE[size] ?? "1";
+}
 
 export type HtmlFlags = {
   reduceAnimation: boolean;
@@ -40,6 +52,8 @@ export function applyHtmlClasses(root: HTMLElement, flags: HtmlFlags): void {
   for (const [name, value] of Object.entries(motionVars(reduced))) {
     root.style.setProperty(name, value);
   }
+  root.style.setProperty("--lyric-scale", lyricScale(useSettings.getState().lyricsTextSize));
+  applyFontVars(root, useSettings.getState().appFont);
 }
 
 function currentFlags(): HtmlFlags {
@@ -56,6 +70,8 @@ function currentFlags(): HtmlFlags {
 
 export function refreshHtmlClasses(): void {
   applyHtmlClasses(document.documentElement, currentFlags());
+  const settings = useSettings.getState();
+  setArtworkSize(settings.dataSaver ? DATA_SAVER_ART_SIZE : 544);
 }
 
 export function startHtmlClasses(): () => void {

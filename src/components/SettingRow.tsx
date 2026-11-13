@@ -1,6 +1,5 @@
 import { useId, type MouseEvent, type ReactNode } from "react";
 import type { IconSvgElement } from "@hugeicons/react";
-import { Icon } from "./Icon";
 import { Switch } from "./Switch";
 
 export type SettingRowProps = {
@@ -12,10 +11,10 @@ export type SettingRowProps = {
   toggle?: { checked: boolean; onChange: (checked: boolean) => void };
   disabled?: boolean;
   danger?: boolean;
+  stacked?: boolean;
 };
 
 export function SettingRow({
-  icon,
   title,
   note,
   value,
@@ -23,8 +22,19 @@ export function SettingRow({
   toggle,
   disabled = false,
   danger = false,
+  stacked = false,
 }: SettingRowProps) {
   const titleId = useId();
+  const controls = (
+    <div className={`flex items-center gap-3 ${stacked ? "" : "shrink-0"}`}>
+      {value && <span className="text-meta tabular-nums text-ink-2">{value}</span>}
+      {toggle ? (
+        <Switch checked={toggle.checked} disabled={disabled} aria-labelledby={titleId} onCheckedChange={toggle.onChange} />
+      ) : (
+        control
+      )}
+    </div>
+  );
 
   function onRowClick(event: MouseEvent<HTMLDivElement>) {
     if (!toggle || disabled) return;
@@ -35,42 +45,20 @@ export function SettingRow({
   return (
     <div
       onClick={onRowClick}
-      className={`flex items-center gap-4 px-4 py-3 ${toggle && !disabled ? "cursor-pointer" : ""}`}
+      className={`flex min-h-[52px] py-2 ${stacked ? "flex-col gap-2" : "items-center gap-4"} ${
+        toggle && !disabled ? "cursor-pointer" : ""
+      }`}
     >
-      <span
-        aria-hidden="true"
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] bg-wash ${
-          danger ? "text-danger-text" : "text-ink-2"
-        }`}
-      >
-        <Icon icon={icon} />
-      </span>
-
-      <div className="min-w-0 flex-1">
+      <div className={`min-w-0 ${stacked ? "" : "flex-1"}`}>
         <p
           id={titleId}
-          className={`text-[13.5px] font-medium ${
-            danger ? "text-danger-text" : disabled ? "text-ink-2" : "text-ink-1"
-          }`}
+          className={`text-body font-medium ${danger ? "text-danger-text" : disabled ? "text-ink-2" : "text-ink-1"}`}
         >
           {title}
         </p>
-        {note && <p className="mt-0.5 text-[12px] leading-snug text-ink-2">{note}</p>}
+        {note && <p className="mt-0.5 text-meta text-ink-2">{note}</p>}
       </div>
-
-      <div className="flex shrink-0 items-center gap-3">
-        {value && <span className="text-[12.5px] tabular-nums text-ink-2">{value}</span>}
-        {toggle ? (
-          <Switch
-            checked={toggle.checked}
-            disabled={disabled}
-            aria-labelledby={titleId}
-            onCheckedChange={toggle.onChange}
-          />
-        ) : (
-          control
-        )}
-      </div>
+      {controls}
     </div>
   );
 }

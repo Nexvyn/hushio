@@ -10,7 +10,7 @@ export type ExportTrack = {
   duration?: number;
 };
 
-function shareable(tracks: readonly ExportTrack[]): ExportTrack[] {
+export function shareable(tracks: readonly ExportTrack[]): ExportTrack[] {
   return tracks.filter((track) => YT_ID.test(track.id));
 }
 
@@ -38,6 +38,14 @@ export function playlistToM3u8(name: string, tracks: readonly ExportTrack[]): st
   for (const track of shareable(tracks)) {
     const seconds = Math.round(track.duration ?? 0);
     lines.push(`#EXTINF:${seconds || -1},${track.artist} - ${track.title}`, trackShareLink(track.id));
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+export function playlistToSongList(name: string, tracks: readonly ExportTrack[]): string {
+  const lines = [`# ${name.replace(/[\r\n]+/g, " ").trim()}`];
+  for (const track of tracks) {
+    lines.push(track.artist ? `${track.artist} - ${track.title}` : track.title);
   }
   return `${lines.join("\n")}\n`;
 }

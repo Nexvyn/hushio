@@ -20,7 +20,7 @@ const closeButton =
   "flex h-full w-11 items-center justify-center text-ink-2 motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out hover:bg-[rgb(var(--danger))] hover:text-on-danger";
 
 const compactBase =
-  "flex h-10 w-10 items-center justify-center rounded-[12px] [corner-shape:squircle] text-ink-2 motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+  "grid h-10 w-10 place-items-center rounded-[12px] [corner-shape:squircle] text-ink-2 motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
 const compactButton = `${compactBase} hover:bg-ink-1/[0.06] hover:text-ink-1`;
 

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Album01Icon,
   Cancel01Icon,
+  ChartLineData01Icon,
+  Compass01Icon,
   GridViewIcon,
   Loading03Icon,
   MusicNote01Icon,
@@ -10,15 +12,22 @@ import {
   PlayListIcon,
   Search01Icon,
   SearchX,
+  SparklesIcon,
   UserIcon,
 } from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
-import { Artwork, BrowseRow, SongRow } from "../components/SearchRows";
+import { Artwork, BrowseRow } from "../components/SearchRows";
+import { TrackRow } from "../components/TrackRow";
 import { Button } from "../components/Button";
+import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { Icon } from "../components/Icon";
-import { Pill } from "../components/Pill";
+import { RecogniseSong } from "../components/RecogniseSong";
 import { platform } from "../lib/bridge";
+import { normalizeCredit } from "../lib/credits";
+import { shellFor, useViewportWidth } from "../lib/layoutTier";
+import { currentTrack, usePlayer } from "../stores/player";
+import { trackMenuItems } from "../lib/trackActions";
 import { APP_NAME } from "../lib/app";
 import { cachedSearchPage, peekSearchPage, searchMore } from "../lib/search";
 import { openRecentItem, playSong, recentSearchMenuItems, submitSearch } from "../lib/searchActions";
@@ -32,7 +41,7 @@ import {
   type SearchRow,
   type SearchSong,
 } from "../lib/searchParse";
-import { useNavigation } from "../stores/navigation";
+import { type View, useNavigation } from "../stores/navigation";
 import { useRecentItems, useRecents, type RecentItem, type RecentKind } from "../stores/recents";
 import { useUI } from "../stores/ui";
 
@@ -161,7 +170,7 @@ function TopSongCard({ song, query }: { song: SearchSong; query: string }) {
       <Artwork src={song.thumb} size="h-24 w-24" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-[20px] font-semibold text-ink-1">{song.title}</p>
-        <p className="truncate text-[13px] text-ink-2">{song.artist}</p>
+        <p className="truncate text-[13px] text-ink-2">{normalizeCredit(song.artist)}</p>
         <div className="mt-3 flex gap-2">
           <Button variant="primary" className="gap-1.5" onClick={() => playSong(song, query)}>
             <Icon icon={PlayIcon} />
@@ -183,7 +192,7 @@ function RecentlyOpened({ items }: { items: RecentItem[] }) {
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-[17px] font-semibold text-ink-1">Recently opened</h2>
+        <h2 className="text-section text-ink-1">Recently opened</h2>
         <button
           type="button"
           onClick={clear}
@@ -229,7 +238,7 @@ function RecentSearches({ searches }: { searches: string[] }) {
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-[17px] font-semibold text-ink-1">Recent searches</h2>
+        <h2 className="text-section text-ink-1">Recent searches</h2>
         <button
           type="button"
           onClick={clearSearches}
@@ -264,34 +273,86 @@ function RecentSearches({ searches }: { searches: string[] }) {
   );
 }
 
+const BROWSE_ENTRIES: { label: string; icon: IconSvgElement; view: View }[] = [
+  { label: "Explore", icon: Compass01Icon, view: { name: "explore" } },
+  { label: "Charts", icon: ChartLineData01Icon, view: { name: "charts" } },
+  { label: "New releases", icon: SparklesIcon, view: { name: "newreleases" } },
+];
+
+function BrowseSection() {
+  const navigate = useNavigation((state) => state.navigate);
+  return (
+    <section className="space-y-3">
+      <h2 className="text-section text-ink-1">Browse</h2>
+      <ul className="space-y-2">
+        {BROWSE_ENTRIES.map((entry) => (
+          <li key={entry.label}>
+            <button
+              type="button"
+              onClick={() => navigate(entry.view)}
+              className="flex h-16 w-full items-center gap-4 rounded-[12px] bg-panel px-4 text-left text-[16px] font-semibold text-ink-1 motion-safe:transition-colors motion-safe:duration-quick active:bg-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            >
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] bg-wash text-ink-2">
+                <Icon icon={entry.icon} />
+              </span>
+              {entry.label}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function IdleSearch() {
   const items = useRecentItems((state) => state.items);
   const searches = useRecents((state) => state.searches);
-  if (items.length === 0 && searches.length === 0) {
-    const shortcut = platform === "macos" ? "⌘F" : "Ctrl+F";
-    return (
-      <section className="flex flex-col items-center py-16 text-center">
-        <span className="mb-4 text-ink-2">
-          <Icon icon={Search01Icon} />
-        </span>
-        <h2 className="text-[17px] font-semibold text-ink-1">{`Search ${APP_NAME}`}</h2>
-        <p className="mt-1 max-w-md text-[12.5px] text-ink-2">
-          {`Find songs, albums, artists and playlists from YouTube Music. Press ${shortcut} anywhere to jump into search.`}
-        </p>
-      </section>
-    );
-  }
+  const width = useViewportWidth();
+  const phone = platform === "android" && shellFor(width) === "phone";
+  const empty = items.length === 0 && searches.length === 0;
+  const shortcut = platform === "macos" ? "⌘F" : "Ctrl+F";
   return (
     <div className="space-y-10">
-      {items.length > 0 && <RecentlyOpened items={items} />}
-      {searches.length > 0 && <RecentSearches searches={searches} />}
+      {phone && <BrowseSection />}
+      {empty ? (
+        <section className="flex flex-col items-center py-16 text-center">
+          <span className="mb-4 text-ink-2">
+            <Icon icon={Search01Icon} />
+          </span>
+          <h2 className="text-section text-ink-1">{`Search ${APP_NAME}`}</h2>
+          <p className="mt-1 max-w-md text-[12.5px] text-ink-2">
+            {`Find songs, albums, artists and playlists. Press ${shortcut} anywhere to jump into search.`}
+          </p>
+        </section>
+      ) : (
+        <>
+          {items.length > 0 && <RecentlyOpened items={items} />}
+          {searches.length > 0 && <RecentSearches searches={searches} />}
+        </>
+      )}
     </div>
+  );
+}
+
+function SongResult({ song, query }: { song: SearchSong; query: string }) {
+  const current = usePlayer((state) => currentTrack(state)?.id);
+  const playing = usePlayer((state) => state.playing);
+  return (
+    <TrackRow
+      song={song}
+      current={current === song.id}
+      playing={playing}
+      artwork
+      dividerInset="after:left-[60px]"
+      menu={() => trackMenuItems(song)}
+      onPlay={() => playSong(song, query)}
+    />
   );
 }
 
 function ResultRow({ row, query }: { row: SearchRow; query: string }) {
   if (row.kind === "browse") return <BrowseRow item={row.item} query={query} />;
-  return <SongRow song={row.kind === "track" ? row.track : row.song} query={query} />;
+  return <SongResult song={row.kind === "track" ? row.track : row.song} query={query} />;
 }
 
 export function SearchView() {
@@ -302,7 +363,14 @@ export function SearchView() {
   const settled = useSettledQuery(trimmed);
   const { results, sentinel, retry } = useSearchResults(settled, filter);
 
-  if (!trimmed) return <IdleSearch />;
+  if (!trimmed) {
+    return (
+      <>
+        <RecogniseSong />
+        <IdleSearch />
+      </>
+    );
+  }
 
   const top = topResult(results.rows, filter);
   const sections = searchSections(top.rest, filter);
@@ -317,17 +385,20 @@ export function SearchView() {
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-0 z-10 -mx-10 flex flex-wrap items-center justify-center gap-2 bg-base px-10 pb-4 pt-4">
+      <div className="flex h-10 items-center gap-2 overflow-x-auto">
         {FILTER_TABS.map((tab) => (
-          <Pill
+          <button
             key={tab.filter}
-            active={filter === tab.filter}
+            type="button"
+            aria-pressed={filter === tab.filter}
             onClick={() => setFilter(tab.filter)}
-            className="gap-1.5"
+            className={`inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-[12px] px-3.5 text-[13px] font-medium motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+              filter === tab.filter ? "bg-accent text-on-accent" : "bg-wash text-ink-2 hover:bg-hover"
+            }`}
           >
             <Icon icon={tab.icon} />
             {tab.label}
-          </Pill>
+          </button>
         ))}
         {loading && (
           <span
@@ -348,35 +419,31 @@ export function SearchView() {
       ) : loading ? (
         <ListSkeleton rows={9} />
       ) : results.rows.length === 0 ? (
-        <section className="flex flex-col items-center py-16 text-center">
-          <span className="mb-4 text-ink-2">
-            <Icon icon={SearchX} />
-          </span>
-          <h2 className="break-words text-[17px] font-semibold text-ink-1">{`No results for “${settled}”`}</h2>
-          <p className="mt-1 text-[12.5px] text-ink-2">Check the spelling, or try a different keyword.</p>
-        </section>
+        <EmptyState icon={SearchX} title={`No results for “${settled}”`} message="Check the spelling or try another keyword." />
       ) : (
         <div className="animate-fade-in space-y-8">
           {top.browse && (
             <section className="space-y-2">
-              <h2 className="text-[17px] font-semibold text-ink-1">Top result</h2>
-              <BrowseRow item={top.browse} query={settled} />
+              <h2 className="text-section text-ink-1">Top result</h2>
+              <div className="-mx-2">
+                <BrowseRow item={top.browse} query={settled} />
+              </div>
             </section>
           )}
           {top.song && (
             <section className="space-y-2">
-              <h2 className="text-[17px] font-semibold text-ink-1">Top result</h2>
+              <h2 className="text-section text-ink-1">Top result</h2>
               <TopSongCard song={top.song} query={settled} />
             </section>
           )}
           {sections.map((section) => (
             <section key={section.title ?? "results"} className="space-y-1">
-              {section.title && <h2 className="text-[17px] font-semibold text-ink-1">{section.title}</h2>}
-              <div>
+              {section.title && <h2 className="text-section text-ink-1">{section.title}</h2>}
+              <ol className="-mx-2">
                 {section.rows.map((row) => (
                   <ResultRow key={rowKey(row)} row={row} query={settled} />
                 ))}
-              </div>
+              </ol>
             </section>
           ))}
           {results.loadingMore && <ListSkeleton rows={3} />}

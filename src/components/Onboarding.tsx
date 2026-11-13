@@ -41,9 +41,8 @@ export function Onboarding({ initial }: OnboardingProps) {
   const progress = useSync((store) => store.status);
 
   async function firstSync() {
-    await Promise.allSettled([useSync.getState().syncNow(), useSync.getState().syncDriveNow()]);
-    const { status, drive } = useSync.getState();
-    dispatch({ type: "syncFinished", error: status.lastError ?? drive.lastError ?? null });
+    await useSync.getState().syncNow();
+    dispatch({ type: "syncFinished", error: useSync.getState().status.lastError });
   }
 
   async function signInWithGoogle() {
@@ -76,7 +75,7 @@ export function Onboarding({ initial }: OnboardingProps) {
 
   return (
     <div className="fixed inset-0 flex flex-col bg-base text-ink-1">
-      <div data-tauri-drag-region className="flex h-12 shrink-0 items-center justify-end">
+      <div data-tauri-drag-region className="flex h-14 shrink-0 items-center justify-end">
         {hasCaptionButtons(platform) && <CaptionButtons />}
       </div>
       <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-2">
@@ -188,7 +187,7 @@ function ChooseStep({
           <Way
             icon={GoogleIcon}
             title="Continue with Google"
-            note={state.busy ? "Finish in your browser" : "Sync across computers with your own YouTube and Google Drive"}
+            note={state.busy ? "Finish in your browser" : "Sync your playlists and liked songs with your YouTube account"}
             busy={state.busy}
             disabled={state.busy}
             onClick={onGoogle}
@@ -259,7 +258,7 @@ function RestoringStep({
     <>
       <Heading>Syncing your library</Heading>
       <Lede>
-        Your YouTube playlists and liked music, and your library from Google Drive, are coming to this computer.
+        Your YouTube playlists and liked music are coming to this computer.
       </Lede>
       <p role="status" className="flex items-center gap-2 text-[13px] text-ink-2">
         {state.syncDone ? (

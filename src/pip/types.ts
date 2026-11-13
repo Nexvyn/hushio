@@ -4,6 +4,7 @@ export type PipTrackInfo = {
   id: string;
   title: string;
   artist: string;
+  album: string;
   thumb: string;
 };
 

@@ -114,7 +114,13 @@ describe("parseRadioPage", () => {
 
     const page = lib.parseRadioPage(data, "seed-1");
 
-    expect(page?.seed).toEqual({ artist: "Seed Artist", artistId: "UCseed" });
+    expect(page?.seed).toEqual({
+      title: "Title seed-1",
+      artist: "Seed Artist",
+      artistId: "UCseed",
+      thumb: "https://i.ytimg.com/seed-1.jpg",
+      duration: 210,
+    });
     expect(page?.continuation).toBe("next-token");
     expect(page?.items.map((item) => item.id)).toEqual(["a", "b"]);
     expect(page?.items[0]).toMatchObject({ duration: 3902, videoType: "song", artistId: "UCartist", thumb: "https://i.ytimg.com/a.jpg" });
@@ -172,11 +178,91 @@ describe("parseRadioPage", () => {
     const bare = { ...row({ videoId: "credit" }), longBylineText: { runs: [] }, credits: { artistName: "Credited" } };
     const unknown = { ...row({ videoId: "nobody" }), longBylineText: { runs: [] } };
     const page = lib.parseRadioPage(panelResponse([wrap(bare), wrap(unknown)]), "seed");
-    expect(page?.items.map((item) => item.artist)).toEqual(["Credited", "Unknown artist"]);
+    expect(page?.items.map((item) => item.artist)).toEqual(["Credited", ""]);
   });
 
   it("returns null when the response has no panel", () => {
     expect(lib.parseRadioPage({ contents: [] }, "seed")).toBeNull();
+  });
+});
+
+describe("parseRadioPage with bare playlistPanelVideoRenderer entries", () => {
+  let lib: Lib;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    lib = await import("./innertube");
+  });
+
+  const bare = (videoId: string, selected?: boolean, extra: Record<string, unknown> = {}) => ({
+    playlistPanelVideoRenderer: {
+      ...extra,
+      title: { runs: [{ text: "Con Calma (feat. Snow)" }] },
+      longBylineText: {
+        runs: [
+          {
+            text: "Daddy Yankee",
+            navigationEndpoint: {
+              browseEndpoint: {
+                browseId: "UCXRloA7YFgCfd6sU2_Y12cA",
+                browseEndpointContextSupportedConfigs: {
+                  browseEndpointContextMusicConfig: { pageType: "MUSIC_PAGE_TYPE_ARTIST" },
+                },
+              },
+            },
+          },
+          { text: " • " },
+          { text: "3.2B views" },
+          { text: " • " },
+          { text: "15M likes" },
+        ],
+      },
+      thumbnail: {
+        thumbnails: [
+          { url: "https://i.ytimg.com/small.jpg", width: 60, height: 60 },
+          { url: `https://i.ytimg.com/${videoId}.jpg`, width: 544, height: 544 },
+        ],
+      },
+      lengthText: { runs: [{ text: "3:13" }] },
+      videoId,
+      selected,
+      navigationEndpoint: {
+        watchEndpoint: {
+          videoId,
+          watchEndpointMusicSupportedConfigs: {
+            watchEndpointMusicConfig: { musicVideoType: "MUSIC_VIDEO_TYPE_ATV" },
+          },
+        },
+      },
+    },
+  });
+
+  it("reads bare entries as items with the linked artist and duration", () => {
+    const page = lib.parseRadioPage(panelResponse([bare("con-calma")]), "seed");
+    expect(page?.items).toHaveLength(1);
+    expect(page?.items[0]).toMatchObject({
+      id: "con-calma",
+      title: "Con Calma (feat. Snow)",
+      artist: "Daddy Yankee",
+      artistId: "UCXRloA7YFgCfd6sU2_Y12cA",
+      duration: 193,
+      videoType: "song",
+      thumb: "https://i.ytimg.com/con-calma.jpg",
+    });
+  });
+
+  it("detects the seed from a selected bare entry and leaves it out of items", () => {
+    const page = lib.parseRadioPage(panelResponse([bare("seed-x", true), bare("next-x")]), "seed-x");
+    expect(page?.seed).toMatchObject({ title: "Con Calma (feat. Snow)", artist: "Daddy Yankee", duration: 193 });
+    expect(page?.items.map((item) => item.id)).toEqual(["next-x"]);
+  });
+
+  it("skips an unplayable bare entry", () => {
+    const page = lib.parseRadioPage(
+      panelResponse([bare("gone", undefined, { unplayableText: "Unavailable" }), bare("ok")]),
+      "seed",
+    );
+    expect(page?.items.map((item) => item.id)).toEqual(["ok"]);
   });
 });
 

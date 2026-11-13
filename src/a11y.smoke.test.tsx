@@ -12,7 +12,6 @@ import { LikedView } from "./views/LikedView";
 import { DownloadsView } from "./views/DownloadsView";
 import { LocalMusicView } from "./views/LocalMusicView";
 import { SettingsView } from "./views/SettingsView";
-import { ReplayView } from "./views/ReplayView";
 import { PodcastsView } from "./views/PodcastsView";
 
 vi.mock("./lib/bridge", async (importOriginal) => ({
@@ -46,7 +45,7 @@ function focusRuleCss(): string {
 
 const VIEWS = {
   Sidebar, TopBar, PlayerBar, HomeView, SearchView, ExploreView, LibraryView,
-  LikedView, DownloadsView, LocalMusicView, SettingsView, ReplayView, PodcastsView,
+  LikedView, DownloadsView, LocalMusicView, SettingsView, PodcastsView,
 };
 
 describe("a11y smoke: main views", () => {

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { PODCASTS_ENABLED } from "../lib/features";
 
 const { loadMoods, freshMoods, getMoodCovers } = vi.hoisted(() => ({
   loadMoods: vi.fn(),
@@ -38,6 +39,14 @@ const moods: MoodEntry[] = [
   { title: "Focus", browseId: CATEGORY, params: "p-focus", color: "#123456", section: "Moods" },
   { title: "Jazz", browseId: CATEGORY, params: "p-jazz", color: null, section: "Genres" },
 ];
+
+const genres: MoodEntry[] = Array.from({ length: 38 }, (_, index) => ({
+  title: `Genre ${index + 1}`,
+  browseId: CATEGORY,
+  params: `p-genre-${index + 1}`,
+  color: null,
+  section: "Genres",
+}));
 
 let observers: ((entries: { isIntersecting: boolean }[]) => void)[];
 
@@ -96,7 +105,51 @@ describe("ExploreView", () => {
     act(() => observers[0]([{ isIntersecting: true }]));
 
     await waitFor(() => expect(getMoodCovers).toHaveBeenCalledWith(CATEGORY, "p-focus"));
-    await waitFor(() => expect(document.querySelectorAll("img")).toHaveLength(2));
+    await waitFor(() => expect(document.querySelectorAll("img")).toHaveLength(1));
+  });
+
+  it("renders a mood as an artwork tile with its name over the image", async () => {
+    loadMoods.mockResolvedValue([moods[0]]);
+    getMoodCovers.mockResolvedValue([COVER]);
+    render(<ExploreView />);
+    const tile = await screen.findByRole("button", { name: "Focus" });
+    await waitFor(() => expect(observers).toHaveLength(1));
+    act(() => observers[0]([{ isIntersecting: true }]));
+    await waitFor(() => expect(tile.querySelector("img")?.getAttribute("src")).toBe(COVER));
+    expect(tile.className).toContain("aspect-[16/10]");
+    expect(tile.className).toContain("rounded-[12px]");
+    expect(tile.textContent).toBe("Focus");
+  });
+
+  it("renders a quiet fallback tile with the name when a mood has no artwork", () => {
+    loadMoods.mockReturnValue(new Promise(() => {}));
+    render(<ExploreView />);
+    const tile = screen.getByRole("button", { name: "Today's hits" });
+    expect(tile.querySelector("img")).toBeNull();
+    expect(tile.textContent).toBe("Today's hits");
+    expect(tile.className).toContain("bg-wash");
+  });
+
+  it("uses no bordered row classes on tiles", async () => {
+    loadMoods.mockResolvedValue(moods);
+    render(<ExploreView />);
+    const tile = await screen.findByRole("button", { name: "Jazz" });
+    expect(tile.className).not.toMatch(/\bborder\b|\bh-14\b|\bbg-hover\b/);
+    expect(tile.className).toContain("aspect-square");
+  });
+
+  it("shows the first 12 genres and expands in place", async () => {
+    loadMoods.mockResolvedValue([...moods.slice(0, 1), ...genres]);
+    render(<ExploreView />);
+    const shown = () => screen.queryAllByRole("button", { name: /^Genre \d+$/ });
+    await waitFor(() => expect(shown()).toHaveLength(12));
+    expect(screen.getByRole("heading", { level: 2, name: /Genres\s*38/ })).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: "Show all 38" }));
+    expect(shown()).toHaveLength(38);
+
+    await userEvent.click(screen.getByRole("button", { name: "Show less" }));
+    expect(shown()).toHaveLength(12);
   });
 
   it("opens the mood page for a mood with params", async () => {
@@ -114,26 +167,29 @@ describe("ExploreView", () => {
     expect(useNavigation.getState().view).toEqual({ name: "search" });
   });
 
-  it("opens Podcasts from the banner", async () => {
+  it("shows no Podcasts tile while podcasts are disabled", () => {
+    loadMoods.mockReturnValue(new Promise(() => {}));
+    render(<ExploreView />);
+    expect(screen.queryByRole("button", { name: /Podcasts/ })).toBeNull();
+    expect(loadPodcasts).not.toHaveBeenCalled();
+  });
+
+  it.skipIf(!PODCASTS_ENABLED)("opens Podcasts from the banner when podcasts are enabled", async () => {
     loadMoods.mockReturnValue(new Promise(() => {}));
     render(<ExploreView />);
     await userEvent.click(screen.getByRole("button", { name: /Podcasts/ }));
     expect(useNavigation.getState().view).toEqual({ name: "podcasts" });
   });
 
-  it("fans the first three show thumbnails onto the banner", async () => {
+  it.skipIf(!PODCASTS_ENABLED)("shows the first show thumbnail on the podcasts tile when podcasts are enabled", async () => {
     loadMoods.mockReturnValue(new Promise(() => {}));
     const show = (n: number) => ({ id: `MPSP${n}`, title: `Show ${n}`, thumb: `${COVER}${n}`, author: null });
     loadPodcasts.mockResolvedValue([
-      { title: "Shows", shows: [show(1), { ...show(2), thumb: null }, show(3), show(4), show(5)], episodes: [] },
+      { title: "Shows", shows: [{ ...show(2), thumb: null }, show(3), show(4)], episodes: [] },
     ]);
     render(<ExploreView />);
     const banner = screen.getByRole("button", { name: /Podcasts/ });
-    await waitFor(() => expect(banner.querySelectorAll("img")).toHaveLength(3));
-    expect(Array.from(banner.querySelectorAll("img"), (img) => img.getAttribute("src"))).toEqual([
-      `${COVER}1`,
-      `${COVER}3`,
-      `${COVER}4`,
-    ]);
+    await waitFor(() => expect(banner.querySelectorAll("img")).toHaveLength(1));
+    expect(banner.querySelector("img")?.getAttribute("src")).toBe(`${COVER}3`);
   });
 });

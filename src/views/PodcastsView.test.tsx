@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { PODCASTS_ENABLED } from "../lib/features";
 
 const { audio, playStream, loadPodcasts, freshPodcasts } = vi.hoisted(() => ({
   audio: new Audio(),
@@ -98,7 +99,7 @@ describe("PodcastsView", () => {
     expect(screen.getByRole("button", { name: /Show B/ }).textContent).toContain("Podcast");
   });
 
-  it("opens the podcast page when a show is clicked", async () => {
+  it.skipIf(!PODCASTS_ENABLED)("opens the podcast page when a show is clicked while podcasts are enabled", async () => {
     loadPodcasts.mockResolvedValue(shelves);
     render(<PodcastsView />);
     await userEvent.click(await screen.findByRole("button", { name: /Show A/ }));

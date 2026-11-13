@@ -187,11 +187,11 @@ describe("getPlaylistTracks", () => {
     expect(execute).toHaveBeenCalledWith("/browse", { browseId: "VLPL9", client: "YTMUSIC" });
   });
 
-  it("adds the VL prefix to a bare playlist id and leaves prefixed ids alone", async () => {
-    answer({ VLabc: { contents: [song("a1")] }, PLxyz: { contents: [song("b1")] } });
+  it("adds the VL prefix to every playlist id that lacks it", async () => {
+    answer({ VLabc: { contents: [song("a1")] }, VLPLxyz: { contents: [song("b1")] } });
     await moodPageModule.getPlaylistTracks("abc");
     await moodPageModule.getPlaylistTracks("PLxyz");
-    expect(execute.mock.calls.map((call) => call[1].browseId)).toEqual(["VLabc", "PLxyz"]);
+    expect(execute.mock.calls.map((call) => call[1].browseId)).toEqual(["VLabc", "VLPLxyz"]);
   });
 });
 

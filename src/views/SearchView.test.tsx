@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 const { audio, playStream, seekTo, cachedSearchPage, peekSearchPage, searchMore, chrome } = vi.hoisted(() => ({
   audio: new Audio(),
-  chrome: { platform: "windows" as "windows" | "macos" },
+  chrome: { platform: "windows" as "windows" | "macos" | "android" },
   playStream: vi.fn(),
   seekTo: vi.fn(),
   cachedSearchPage: vi.fn(),
@@ -102,6 +102,7 @@ describe("SearchView", () => {
 
   afterEach(() => {
     chrome.platform = "windows";
+    window.innerWidth = 1024;
     cleanup();
     vi.unstubAllGlobals();
   });
@@ -112,10 +113,15 @@ describe("SearchView", () => {
     expect(screen.getByText("Search Hushio")).toBeTruthy();
     expect(
       screen.getByText(
-        "Find songs, albums, artists and playlists from YouTube Music. Press Ctrl+F anywhere to jump into search.",
+        "Find songs, albums, artists and playlists. Press Ctrl+F anywhere to jump into search.",
       ),
     ).toBeTruthy();
     expect(cachedSearchPage).not.toHaveBeenCalled();
+  });
+
+  it("shows no podcast filter while podcasts are disabled", () => {
+    render(<SearchView />);
+    expect(screen.queryByRole("button", { name: /podcast/i })).toBeNull();
   });
 
   it("names the Cmd+F shortcut on macOS", () => {
@@ -124,7 +130,7 @@ describe("SearchView", () => {
 
     expect(
       screen.getByText(
-        "Find songs, albums, artists and playlists from YouTube Music. Press ⌘F anywhere to jump into search.",
+        "Find songs, albums, artists and playlists. Press ⌘F anywhere to jump into search.",
       ),
     ).toBeTruthy();
   });
@@ -201,7 +207,7 @@ describe("SearchView", () => {
     render(<SearchView />);
 
     expect(await screen.findByRole("heading", { name: "No results for “zzz”" })).toBeTruthy();
-    expect(screen.getByText("Check the spelling, or try a different keyword.")).toBeTruthy();
+    expect(screen.getByText("Check the spelling or try another keyword.")).toBeTruthy();
     expect(screen.getByRole("status").textContent).toBe("No results for “zzz”");
   });
 
@@ -243,5 +249,68 @@ describe("SearchView", () => {
     await user.click(screen.getByRole("button", { name: /^Dua Lipa/ }));
 
     expect(useNavigation.getState().view).toEqual({ name: "artist", param: "UC1" });
+  });
+
+  describe("browse entries", () => {
+    function usePhone() {
+      chrome.platform = "android";
+      window.innerWidth = 400;
+    }
+
+    it("shows Explore, Charts and New releases on the phone when the search is empty", () => {
+      usePhone();
+      render(<SearchView />);
+
+      expect(screen.getByRole("heading", { name: "Browse" })).toBeTruthy();
+      for (const name of ["Explore", "Charts", "New releases"]) {
+        expect(screen.getByRole("button", { name }).className).toContain("h-16");
+      }
+    });
+
+    it("puts Browse above recent searches", () => {
+      usePhone();
+      useRecents.setState({ searches: ["daft punk"] });
+      render(<SearchView />);
+
+      const browse = screen.getByRole("heading", { name: "Browse" });
+      const recent = screen.getByRole("heading", { name: "Recent searches" });
+      expect(browse.compareDocumentPosition(recent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it.each([
+      ["Explore", { name: "explore" }],
+      ["Charts", { name: "charts" }],
+      ["New releases", { name: "newreleases" }],
+    ])("opens %s from the phone search", async (label, view) => {
+      usePhone();
+      const user = userEvent.setup();
+      render(<SearchView />);
+
+      await user.click(screen.getByRole("button", { name: label }));
+
+      expect(useNavigation.getState().view).toEqual(view);
+      expect(useNavigation.getState().navPast.at(-1)?.view).toEqual({ name: "search" });
+    });
+
+    it("does not show the browse entries on desktop", () => {
+      render(<SearchView />);
+
+      expect(screen.queryByRole("heading", { name: "Browse" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Explore" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Charts" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "New releases" })).toBeNull();
+    });
+
+    it("hides the browse entries while a query is typed", async () => {
+      usePhone();
+      cachedSearchPage.mockResolvedValue({ rows: [songRow("s1", "Physical")], continuation: null });
+      useUI.setState({ searchQuery: "dua" });
+      render(<SearchView />);
+
+      await screen.findByRole("button", { name: /^Physical/ });
+
+      expect(screen.queryByRole("heading", { name: "Browse" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Explore" })).toBeNull();
+    });
   });
 });

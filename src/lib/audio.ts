@@ -9,10 +9,11 @@ import {
 } from "./bridge";
 import { downloadedPath } from "./downloads";
 import { EQ_BANDS_HZ } from "./eq";
-import { isLocalId } from "./localLibrary";
+import { isLocalId, isNetworkId, networkTrackUrl } from "./localLibrary";
 import { analysable, Leveling, Lru } from "./loudness";
 import { headTrimTarget, TRIM_MIN_S, tailReached } from "./playbackEdges";
 import { resolveStream } from "./resolveStream";
+import { DATA_SAVER_KBPS } from "./streamingQuality";
 import {
   androidDuration,
   androidPause,
@@ -30,8 +31,7 @@ import { ANDROID } from "./androidPlayback";
 import { clampCrossfadeSeconds, useSettings, type SettingsValues } from "../stores/settings";
 import { useUI } from "../stores/ui";
 
-export const TEST_SONG_ID = "dQw4w9WgXcQ";
-export const TEST_SONG_TITLE = "Test song";
+export { TEST_SONG_ID, TEST_SONG_TITLE } from "./devSong";
 
 const EQ_Q = 1.41;
 const SINK_RETRY_MS = 300;
@@ -40,6 +40,10 @@ const LIMIT_RATIO = 20;
 const LIMIT_ATTACK_S = 0.002;
 const LIMIT_RELEASE_S = 0.15;
 const RETRY_WINDOW_S = 30;
+const STALL_MS = 8000;
+const STALE_PAUSE_MS = 10 * 60 * 1000;
+const STALE_MARGIN_MS = 2 * 60 * 1000;
+const EXPIRE_PARAM = /[?&/]expire[=/](\d{9,11})/;
 const PEAK_SAMPLES = 96;
 const PEAK_MIN_HZ = 20;
 const PEAK_MAX_HZ = 20000;
@@ -65,7 +69,9 @@ export type BlendHooks = {
 };
 
 type Song = { id: string; title: string };
-type Source = { src: string; analysis: string; lufs: number | null };
+type StreamInfo = { reloadAt: number | null };
+type Source = { src: string; analysis: string; lufs: number | null; stream?: StreamInfo };
+type Stall = { mark: number; timer: ReturnType<typeof setTimeout> };
 type Graph = { ctx: AudioContext; bands: BiquadFilterNode[]; preGain: GainNode };
 type Armed = {
   fromId: string;
@@ -98,6 +104,8 @@ let loadSeq = 0;
 let pendingSeek = 0;
 let retryCount = 0;
 let retriedAt = Number.NEGATIVE_INFINITY;
+let pausedAt: number | null = null;
+let stall: Stall | null = null;
 let graph: Graph | null = null;
 let volume = 1;
 let curve = { out: 1, incoming: 0 };
@@ -109,6 +117,7 @@ let eqState: EqSettings = { enabled: false, gains: NO_GAINS, autoHeadroom: true 
 let eqPeakDb = 0;
 const deckIds: (string | undefined)[] = [undefined, undefined];
 const deckSources: (string | undefined)[] = [undefined, undefined];
+const deckStreams: (StreamInfo | undefined)[] = [undefined, undefined];
 const leveling = new Leveling(() => useSettings.getState().loudnessLevel);
 const analyses = new Lru<TrackAnalysis>(ANALYSIS_LIMIT);
 const analysing = new Set<string>();
@@ -409,17 +418,32 @@ async function localSource(id: string): Promise<Source> {
   return { src: fileSrc(path), analysis: path, lufs: null };
 }
 
+function networkSource(id: string): Source {
+  const url = networkTrackUrl(id);
+  return { src: url, analysis: url, lufs: null };
+}
+
 async function sourceFor(id: string, refresh: boolean): Promise<Source> {
   if (isLocalId(id)) return localSource(id);
+  if (isNetworkId(id)) return networkSource(id);
   return (await savedSource(id)) ?? streamSource(id, refresh);
 }
 
 async function streamSource(id: string, refresh: boolean): Promise<Source> {
-  const stream = await resolveStream(id, refresh);
+  const ceiling = useSettings.getState().dataSaver ? DATA_SAVER_KBPS : undefined;
+  const stream =
+    ceiling === undefined
+      ? await resolveStream(id, refresh)
+      : await resolveStream(id, refresh, ceiling);
   const port = await streamProxyPort();
   await registerStreamUrl(id, stream.url);
   const url = `http://127.0.0.1:${port}/?id=${encodeURIComponent(id)}`;
-  return { src: url, analysis: url, lufs: stream.lufs };
+  return { src: url, analysis: url, lufs: stream.lufs, stream: { reloadAt: reloadAtOf(stream.url) } };
+}
+
+function reloadAtOf(url: string): number | null {
+  const expire = EXPIRE_PARAM.exec(url)?.[1];
+  return expire === undefined ? null : Number(expire) * 1000 - STALE_MARGIN_MS;
 }
 
 async function loadStream(id: string, refresh: boolean, seq: number): Promise<void> {
@@ -427,6 +451,7 @@ async function loadStream(id: string, refresh: boolean, seq: number): Promise<vo
   if (seq !== loadSeq) return;
   deckIds[mainIndex] = id;
   deckSources[mainIndex] = source.analysis;
+  deckStreams[mainIndex] = source.stream;
   activeDeck().src = source.src;
   applySpeed();
   if (source.lufs !== null) noteLoudness(id, source.lufs);
@@ -441,8 +466,32 @@ function isAbort(error: unknown): boolean {
   return typeof error === "object" && error !== null && "name" in error && error.name === "AbortError";
 }
 
+function disarmStall(): void {
+  if (stall === null) return;
+  clearTimeout(stall.timer);
+  stall = null;
+}
+
+function armStall(): void {
+  if (ANDROID || stall !== null || !wantPlaying) return;
+  const seq = loadSeq;
+  const mark = activeDeck().currentTime;
+  const timer = setTimeout(() => {
+    stall = null;
+    if (!wantPlaying || seq !== loadSeq || activeDeck().currentTime !== mark) return;
+    void onFailure(seq);
+  }, STALL_MS);
+  stall = { mark, timer };
+}
+
+function noteProgress(): void {
+  if (stall !== null && activeDeck().currentTime !== stall.mark) disarmStall();
+}
+
 async function startPlayback(seq: number): Promise<void> {
   if (seq !== loadSeq || !wantPlaying) return;
+  disarmStall();
+  armStall();
   try {
     await activeDeck().play();
   } catch (error) {
@@ -471,17 +520,41 @@ async function onFailure(seq: number): Promise<void> {
     return;
   }
   wantPlaying = false;
+  pausedAt = Date.now();
+  disarmStall();
   activeDeck().pause();
   useUI.getState().toast(`Couldn't play "${current.title}"`, "error");
 }
 
-export async function playStream(id: string, title: string): Promise<void> {
+function isStale(pausedFor: number): boolean {
+  const stream = deckStreams[mainIndex];
+  if (!stream) return false;
+  return (stream.reloadAt !== null && Date.now() >= stream.reloadAt) || pausedFor > STALE_PAUSE_MS;
+}
+
+async function reloadMain(current: Song): Promise<void> {
+  const at = activeDeck().currentTime;
+  pendingSeek = Number.isFinite(at) && at > 0 ? at : 0;
+  const seq = ++loadSeq;
+  try {
+    await loadStream(current.id, true, seq);
+  } catch (error) {
+    console.warn(`[hushio] stale source reload failed: ${describeError(error)}`);
+    await onFailure(seq);
+    return;
+  }
+  await startPlayback(seq);
+}
+
+export async function playStream(id: string, title: string, fromSeconds = 0): Promise<void> {
   if (ANDROID) return androidPlayStream(id, title);
   abortBlend();
   disarmSilence();
+  disarmStall();
   song = { id, title };
   wantPlaying = true;
-  pendingSeek = 0;
+  pausedAt = null;
+  pendingSeek = fromSeconds > 0 ? fromSeconds : 0;
   retryCount = 0;
   retriedAt = Number.NEGATIVE_INFINITY;
   const seq = ++loadSeq;
@@ -491,8 +564,21 @@ export async function playStream(id: string, title: string): Promise<void> {
 
 export async function play(): Promise<void> {
   if (ANDROID) return androidPlay();
-  if (!song) return;
+  const current = song;
+  if (!current) return;
+  const resuming = !wantPlaying;
+  const pausedFor = pausedAt === null ? 0 : Date.now() - pausedAt;
+  pausedAt = null;
   wantPlaying = true;
+  if (resuming) {
+    retryCount = 0;
+    retriedAt = Number.NEGATIVE_INFINITY;
+    if (isStale(pausedFor)) {
+      abortBlend();
+      await reloadMain(current);
+      return;
+    }
+  }
   if (fade) resumeFade(fade);
   await startPlayback(loadSeq);
 }
@@ -502,7 +588,9 @@ export function pause(): void {
     androidPause();
     return;
   }
+  if (wantPlaying) pausedAt = Date.now();
   wantPlaying = false;
+  disarmStall();
   if (fade) freezeFade(fade);
   else abortBlend();
   activeDeck().pause();
@@ -579,6 +667,7 @@ function arm(fromId: string, next: BlendTarget, fadeMs: number, remainingMs: num
           standbyDeck().src = source.src;
           deckIds[standby] = next.id;
           deckSources[standby] = source.analysis;
+          deckStreams[standby] = source.stream;
           applySpeed();
           if (source.lufs !== null) noteLoudness(next.id, source.lufs);
         }
@@ -662,6 +751,7 @@ function completeBlend(ended: boolean): void {
   song = { id: target.id, title: target.title };
   retryCount = 0;
   retriedAt = Number.NEGATIVE_INFINITY;
+  disarmStall();
   outgoing.pause();
   outgoing.removeAttribute("src");
   curve = { out: 1, incoming: 0 };
@@ -705,6 +795,7 @@ function abortBlend(): void {
     armed = null;
     standbyDeck().removeAttribute("src");
     deckIds[1 - mainIndex] = undefined;
+    deckStreams[1 - mainIndex] = undefined;
   }
   if (!fade) return;
   clearInterval(fade.timer);
@@ -712,6 +803,7 @@ function abortBlend(): void {
   standbyDeck().pause();
   standbyDeck().removeAttribute("src");
   deckIds[1 - mainIndex] = undefined;
+  deckStreams[1 - mainIndex] = undefined;
   curve = { out: 1, incoming: 0 };
   refreshVolumes();
 }
@@ -747,10 +839,18 @@ for (const [index, deck] of decks.entries()) {
     else failBlend();
   });
   deck.addEventListener("timeupdate", () => {
-    if (deck === activeDeck()) maybeArm();
+    if (deck !== activeDeck()) return;
+    noteProgress();
+    maybeArm();
   });
+  for (const type of ["waiting", "stalled"] as const) {
+    deck.addEventListener(type, () => {
+      if (deck === activeDeck()) armStall();
+    });
+  }
   deck.addEventListener("playing", () => {
     if (graph?.ctx.state === "suspended") void graph.ctx.resume();
+    if (deck === activeDeck()) disarmStall();
   });
   deck.addEventListener("durationchange", () => {
     void analyseDeck(index);

@@ -22,7 +22,7 @@ export const GUEST_ACCOUNT: GoogleAccount = {
 const SESSION_ENDED = "Your Google session ended. Sign in again to keep your library in sync.";
 const SIGNED_OUT = "Signed out. Sync is off.";
 const SIGN_OUT_BODY =
-  "Your library stays on this computer. Sync stops until you sign in again. Your playlists stay on YouTube and your settings stay in your Google Drive.";
+  "Your library stays on this computer. Sync stops until you sign in again. Your playlists stay on YouTube.";
 
 type AuthState = {
   account: GoogleAccount;

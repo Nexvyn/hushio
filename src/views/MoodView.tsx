@@ -2,16 +2,17 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { PlayIcon, ShuffleIcon } from "@hugeicons/core-free-icons";
 import { EqBars } from "../components/EqBars";
 import { Icon } from "../components/Icon";
+import { PILL } from "../components/BrowseHero";
+import { PageHeader } from "../components/PageHeader";
+import { SectionHeader } from "../components/SectionHeader";
 import { Artwork } from "../components/SearchRows";
 import { openMenuAtPointer, openMenuFromKey } from "../components/ContextMenu";
 import { browseMenuItems } from "../lib/browseActions";
 import { trackMenuItems } from "../lib/trackActions";
-import { Turntable } from "../components/Turntable";
-import { APP_NAME } from "../lib/app";
 import { freshMoods, getMoodCovers, loadMoods } from "../lib/explore";
 import { useCovers } from "../lib/exploreCovers";
 import { fmtTime } from "../lib/format";
-import { FALLBACK_MOODS, MOOD_BROWSE_ID, moodByParams, tone, type MoodEntry } from "../lib/moods";
+import { FALLBACK_MOODS, MOOD_BROWSE_ID, moodByParams, type MoodEntry } from "../lib/moods";
 import {
   loadMix,
   loadMoodPage,
@@ -96,11 +97,8 @@ function BrowseCard({
 
 function Shelf({ title, count, children }: { title: string; count?: number; children: ReactNode }) {
   return (
-    <section className="mt-10">
-      <h2 className="mb-4 flex items-baseline gap-2 text-[21px] font-semibold text-ink-1">
-        {title}
-        {count !== undefined && <span className="text-[14px] font-medium tabular-nums text-ink-3">{count}</span>}
-      </h2>
+    <section className="mt-7">
+      <SectionHeader title={title} count={count} />
       {children}
     </section>
   );
@@ -120,7 +118,7 @@ export function MoodView() {
 
   const mood = moodByParams(moods, param);
   const lists = useMemo(() => listsOf(page), [page]);
-  const { ref: headerRef, covers: savedCovers } = useCovers<HTMLElement>(
+  const { ref: headerRef, covers: savedCovers } = useCovers<HTMLDivElement>(
     `mood:${MOOD_BROWSE_ID}|${param}`,
     () => getMoodCovers(MOOD_BROWSE_ID, param),
   );
@@ -165,10 +163,9 @@ export function MoodView() {
   const meta = mixing
     ? "Mixing its top playlists…"
     : mix.length > 0
-      ? `A ${APP_NAME} mix from its top playlists · ${mix.length} songs`
+      ? `${mix.length} songs`
       : "";
   const cover = lists.playlists[0]?.thumb ?? savedCovers?.[0] ?? null;
-  const spinning = playing && mix.some((track) => track.id === current);
 
   const playMix = (start: number) => playQueue(mix, start);
   const shuffleMix = () => {
@@ -177,43 +174,32 @@ export function MoodView() {
   };
 
   return (
-    <div className="pt-2">
-      <header
-        ref={headerRef}
-        style={{ backgroundColor: tone(mood?.color ?? null) }}
-        className="flex items-center gap-8 overflow-hidden rounded-[18px] p-8 text-white"
-      >
-        <div className="min-w-0 flex-1">
-          {mood?.section && (
-            <p className="text-[12px] font-semibold uppercase tracking-[0.08em] opacity-80">{mood.section}</p>
-          )}
-          <h1 className="font-display text-[40px] font-extrabold leading-[1.1] tracking-[-0.03em]">
-            {mood?.title ?? page?.title}
-          </h1>
-          <p className="mt-2 min-h-[18px] text-[13px] opacity-85">{meta}</p>
-          {mix.length > 0 && (
-            <div className="mt-5 flex gap-2">
-              <button
-                type="button"
-                onClick={() => playMix(0)}
-                className="inline-flex h-10 items-center gap-2 rounded-full bg-white px-4 text-[13px] font-semibold text-black"
-              >
-                <Icon icon={PlayIcon} />
-                Play mix
-              </button>
-              <button
-                type="button"
-                onClick={shuffleMix}
-                className="inline-flex h-10 items-center gap-2 rounded-full bg-white/20 px-4 text-[13px] font-semibold text-white backdrop-blur-md"
-              >
-                <Icon icon={ShuffleIcon} />
-                Shuffle
-              </button>
-            </div>
-          )}
-        </div>
-        <Turntable cover={cover} spinning={spinning} />
-      </header>
+    <div>
+      <div ref={headerRef}>
+        <PageHeader
+          title={mood?.title ?? page?.title ?? ""}
+          artwork={cover}
+          meta={meta}
+          actions={
+            mix.length > 0 && (
+              <>
+                <button type="button" onClick={() => playMix(0)} className={PILL}>
+                  <Icon icon={PlayIcon} />
+                  Play mix
+                </button>
+                <button
+                  type="button"
+                  onClick={shuffleMix}
+                  className="inline-flex h-10 items-center gap-2 rounded-full bg-wash px-5 text-[14px] font-semibold text-ink-1 hover:bg-hover motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                >
+                  <Icon icon={ShuffleIcon} />
+                  Shuffle
+                </button>
+              </>
+            )
+          }
+        />
+      </div>
 
       {page === undefined ? (
         <div className="mt-10 space-y-9">

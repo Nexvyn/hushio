@@ -1,5 +1,6 @@
 import { useId } from "react";
 import { Cover, focusRing } from "./HomeShelves";
+import { SectionHeader } from "./SectionHeader";
 import { startPlaySource } from "../lib/playSource";
 import { hash32 } from "../lib/queue";
 import type { CardRef, FeedSection, PlaylistRef, SectionItem, SideRef } from "../lib/feed";
@@ -209,7 +210,7 @@ function Body({ section }: { section: FeedSection }) {
   const navigate = useNavigation((state) => state.navigate);
   if (section.layout === "crate" && section.playlists) {
     return (
-      <div className="flex gap-3 overflow-x-auto pb-2">
+      <div className="no-scrollbar flex gap-3 overflow-x-auto pb-2">
         {section.playlists.map((playlist) => (
           <PlaylistTile
             key={playlist.id}
@@ -238,7 +239,7 @@ function Body({ section }: { section: FeedSection }) {
   }
   const fluid = section.layout === "mixes";
   const items = section.shelf ? section.shelf.items.map(fromShelfItem) : section.items;
-  const layout = fluid ? "grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4" : "flex gap-3 overflow-x-auto pb-2";
+  const layout = fluid ? "grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4" : "no-scrollbar flex items-start gap-3 overflow-x-auto pb-3";
   return (
     <div className={layout}>
       {items.map((item, index) => (
@@ -258,11 +259,9 @@ export function FeedSectionView({ section }: { section: FeedSection }) {
         if (isControl(event.target)) tap(section.kind);
       }}
     >
-      {section.eyebrow && <p className="mb-1 text-[12px] font-medium text-ink-2">{section.eyebrow.label}</p>}
-      <h2 id={titleId} className="mb-1 text-[20px] font-bold tracking-[-0.01em] text-ink-1">
-        {section.title}
-      </h2>
-      {section.subtitle && <p className="mb-3 text-[13px] text-ink-2">{section.subtitle}</p>}
+      {section.eyebrow && <p className="mb-1 text-meta font-medium text-ink-2">{section.eyebrow.label}</p>}
+      <SectionHeader id={titleId} title={section.title} />
+      {section.subtitle && <p className="-mt-1.5 mb-3 text-meta text-ink-2">{section.subtitle}</p>}
       <Body section={section} />
     </section>
   );

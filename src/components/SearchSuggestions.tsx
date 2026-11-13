@@ -1,12 +1,18 @@
 import { useEffect, useState, type MouseEvent } from "react";
+import { motion } from "motion/react";
 import { ArrowUpLeft01Icon, Search01Icon } from "@hugeicons/core-free-icons";
 import { Artwork, TYPE_LABEL } from "./SearchRows";
 import { Icon } from "./Icon";
+import { FLOAT_ROW } from "../lib/floatStyle";
+import { GOO_LAYER_STYLE, GOO_SHAPE, gooVariants } from "./Goo";
+import { reducedMotion } from "../lib/motion";
 import { peekTypeAhead, typeAhead } from "../lib/search";
 import type { SuggestionRow } from "../lib/searchParse";
+import { joinSubtitle } from "../lib/subtitle";
 
 const TYPE_AHEAD_DEBOUNCE_MS = 160;
 const MIN_QUERY = 2;
+const MAX_ROWS = 8;
 
 export function useTypeAhead(query: string, enabled: boolean): SuggestionRow[] {
   const trimmed = query.trim();
@@ -37,20 +43,16 @@ export function useTypeAhead(query: string, enabled: boolean): SuggestionRow[] {
     };
   }, [trimmed, active]);
 
-  return active && settled.key === trimmed ? settled.rows : [];
+  return active && settled.key === trimmed ? settled.rows.slice(0, MAX_ROWS) : [];
 }
 
 export const optionId = (listId: string, index: number) => `${listId}-option-${index}`;
 
-const rowClass = (active: boolean) =>
-  `flex h-11 min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-[10px] px-2 text-left transition-colors active:bg-pressed ${
-    active ? "bg-wash" : "hover:bg-wash"
-  }`;
+const rowClass = (active: boolean) => `${FLOAT_ROW} cursor-pointer ${active ? "bg-wash" : "hover:bg-wash active:bg-pressed"}`;
 
 function richSubtitle(row: Extract<SuggestionRow, { kind: "track" | "browse" }>): string {
-  if (row.kind === "track") return `${row.track.isVideo ? "Video" : "Song"} • ${row.track.artist}`;
-  const label = TYPE_LABEL[row.item.type];
-  return row.item.subtitle ? `${label} • ${row.item.subtitle}` : label;
+  if (row.kind === "track") return joinSubtitle(row.track.isVideo ? "Video" : "Song", row.track.artist);
+  return joinSubtitle(TYPE_LABEL[row.item.type], row.item.subtitle);
 }
 
 function richTitle(row: Extract<SuggestionRow, { kind: "track" | "browse" }>): string {
@@ -82,13 +84,24 @@ export function SearchSuggestions({
 }: SearchSuggestionsProps) {
   const typed = query.trim();
   const keepFocus = (event: MouseEvent) => event.preventDefault();
+  const reduced = reducedMotion();
+  const { stretch, reveal } = gooVariants(reduced);
   return (
-    <div
+    <motion.div
       id={listId}
       role="listbox"
       aria-label="Search suggestions"
-      className="animate-fade-in absolute left-0 right-0 top-full z-50 mt-2 max-h-[min(600px,calc(100vh-88px))] overflow-y-auto rounded-[14px] border border-separator bg-elevated p-1.5 shadow-[var(--shadow-list)]"
+      initial={reduced ? false : "initial"}
+      animate="animate"
+      exit="exit"
+      className="no-scrollbar pointer-events-none absolute left-0 right-0 top-0 z-50"
     >
+      <div aria-hidden="true" data-goo-layer="" className="pointer-events-none absolute inset-0" style={GOO_LAYER_STYLE}>
+        <div className={`${GOO_SHAPE} top-0 h-10`} />
+        <motion.div variants={stretch} data-goo-panel="" className={`${GOO_SHAPE} bottom-0 top-10 origin-top`} />
+      </div>
+      <motion.div variants={reveal} className="pointer-events-none relative pt-10">
+      <div className="pointer-events-auto relative p-2">
       <div
         id={optionId(listId, 0)}
         role="option"
@@ -128,7 +141,7 @@ export function SearchSuggestions({
                 aria-label={`Fill in "${row.text}"`}
                 onMouseDown={keepFocus}
                 onClick={() => onFill(row.text)}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-2 transition-colors hover:bg-wash hover:text-ink-1 active:bg-pressed"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-ink-2 transition-colors hover:bg-wash hover:text-ink-1 active:bg-pressed"
               >
                 <Icon icon={ArrowUpLeft01Icon} />
               </button>
@@ -148,11 +161,13 @@ export function SearchSuggestions({
             <Artwork src={richThumb(row)} round={row.kind === "browse" && row.item.type === "artist"} size="h-9 w-9" />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[14px] font-semibold text-ink-1">{richTitle(row)}</span>
-              <span className="block truncate text-[12px] text-ink-2">{richSubtitle(row)}</span>
+              <span className="block truncate text-[12px] leading-tight text-ink-2">{richSubtitle(row)}</span>
             </span>
           </div>
         );
       })}
-    </div>
+      </div>
+      </motion.div>
+    </motion.div>
   );
 }

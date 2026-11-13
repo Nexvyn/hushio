@@ -11,14 +11,13 @@ import {
   type RemotePlaylistPage,
 } from "./browseParse";
 import { playlistMeta } from "./browseText";
+import { MAX_SONGS } from "./importParse";
 import type { SearchSong } from "./searchParse";
 
 export const MAX_SHELF_PAGES = 50;
 
-const PLAYLIST_ID = /^(VL|PL|OLAK5uy)/;
-
 export function playlistBrowseId(id: string): string {
-  return PLAYLIST_ID.test(id) ? id : `VL${id}`;
+  return id.startsWith("VL") ? id : `VL${id}`;
 }
 
 async function browseRequest(payload: { browseId: string } | { continuation: string }): Promise<unknown> {
@@ -31,13 +30,16 @@ async function browseRequest(payload: { browseId: string } | { continuation: str
 
 export async function restOfShelf(token: string | null): Promise<SearchSong[]> {
   const songs: SearchSong[] = [];
+  const seen = new Set<string>();
   let next = token;
-  for (let page = 0; next !== null && page < MAX_SHELF_PAGES; page++) {
+  for (let page = 0; next !== null && page < MAX_SHELF_PAGES && songs.length < MAX_SONGS; page++) {
     const data = await browseRequest({ continuation: next }).catch(() => null);
     if (data === null) break;
     const shelf = parseShelfPage(data);
-    if (shelf.songs.length === 0) break;
-    songs.push(...shelf.songs);
+    const fresh = shelf.songs.filter((song) => !seen.has(song.id));
+    if (fresh.length === 0) break;
+    for (const song of fresh) seen.add(song.id);
+    songs.push(...fresh);
     next = shelf.continuation;
   }
   return songs;
@@ -50,7 +52,13 @@ export async function getArtistPage(artistId: string): Promise<ArtistPage> {
 export async function getAlbumPage(albumId: string): Promise<ReleasePage> {
   const page = parseReleasePage(await browseRequest({ browseId: albumId }), albumId);
   const more = await restOfShelf(page.continuation);
-  const tracks = withThumb(uniqueSongs([...page.tracks, ...more]), page.album.thumb);
+  const albumTitle = page.kind === "album" ? page.album.title : "";
+  const tracks = withThumb(
+    uniqueSongs([...page.tracks, ...more]).map((track) =>
+      albumTitle && !track.album ? { ...track, album: albumTitle } : track,
+    ),
+    page.album.thumb,
+  );
   return { ...page, tracks, continuation: null };
 }
 
@@ -58,5 +66,6 @@ export async function getPlaylistPage(playlistId: string): Promise<RemotePlaylis
   const page = parseRemotePlaylistPage(await browseRequest({ browseId: playlistBrowseId(playlistId) }));
   const more = await restOfShelf(page.continuation);
   const tracks = withThumb(uniqueSongs([...page.tracks, ...more]), page.thumb);
-  return { ...page, tracks, continuation: null, meta: playlistMeta(page.year, tracks.length) };
+  const totalSeconds = tracks.reduce((sum, track) => sum + track.duration, 0);
+  return { ...page, tracks, continuation: null, meta: playlistMeta(tracks.length, totalSeconds) };
 }

@@ -193,7 +193,7 @@ describe("parseArtistPage", () => {
                 content: {
                   sectionListRenderer: {
                     contents: [
-                      { musicShelfRenderer: { contents: [trackRow({ id: "u1", title: "Loose", artist: "Unknown artist" })] } },
+                      { musicShelfRenderer: { contents: [trackRow({ id: "u1", title: "Loose", artist: "" })] } },
                     ],
                   },
                 },
@@ -205,8 +205,8 @@ describe("parseArtistPage", () => {
     };
     const page = parseArtistPage(data, "UCnova");
 
-    expect(page.artist.name).toBe("Unknown artist");
-    expect(page.songs[0]).toMatchObject({ artist: "Unknown artist", artistId: "UCnova" });
+    expect(page.artist.name).toBe("");
+    expect(page.songs[0]).toMatchObject({ artist: "", artistId: "UCnova" });
   });
 
   it("keeps shelves with browse cards, skips video shelves and cards without a browse id", () => {
@@ -236,7 +236,7 @@ describe("parseArtistPage", () => {
     const page = parseArtistPage({}, "UCempty");
 
     expect(page).toEqual({
-      artist: { id: "UCempty", name: "Unknown artist", thumb: null },
+      artist: { id: "UCempty", name: "", thumb: null },
       description: null,
       subscriberCount: null,
       monthlyListeners: null,
@@ -351,7 +351,7 @@ describe("parseReleasePage", () => {
     expect(page.album.title).toBe("Loose");
 
     const empty = parseReleasePage(releaseData({ header: { musicDetailHeaderRenderer: {} }, rows: [] }), "MPREnone");
-    expect(empty.album).toMatchObject({ title: "Unknown album", artist: "Unknown artist", releaseType: "Album", artistId: null });
+    expect(empty.album).toMatchObject({ title: "", artist: "", releaseType: "Album", artistId: null });
   });
 
   it("treats a playlist shelf or a VL/PL id as a playlist page, without a description", () => {
@@ -418,6 +418,43 @@ describe("parseRemotePlaylistPage", () => {
     expect(page.continuation).toBe("p2");
   });
 
+  it("reads the title from the header inside the first section of a two-column page", () => {
+    const data = {
+      contents: {
+        twoColumnBrowseResultsRenderer: {
+          tabs: [
+            {
+              tabRenderer: {
+                content: {
+                  sectionListRenderer: {
+                    contents: [
+                      {
+                        musicEditablePlaylistDetailHeaderRenderer: {
+                          header: {
+                            musicResponsiveHeaderRenderer: {
+                              title: { runs: [{ text: "Top 50 Spotify 2026" }] },
+                              subtitle: { runs: [{ text: "Playlist" }] },
+                              secondSubtitle: { runs: [{ text: "7.3M views" }] },
+                            },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    const page = parseRemotePlaylistPage(data);
+
+    expect(page.title).toBe("Top 50 Spotify 2026");
+    expect(page.credit).toBe("7.3M views");
+  });
+
   it("falls back to the default title and an empty credit", () => {
     const page = parseRemotePlaylistPage({});
     expect(page).toMatchObject({ title: "Playlist", credit: "", year: null, thumb: null, tracks: [], continuation: null });
@@ -441,6 +478,23 @@ describe("parseShelfPage", () => {
   it("returns no songs and no token for an empty continuation", () => {
     expect(parseShelfPage({})).toEqual({ songs: [], continuation: null });
   });
+
+  it("reads continuation rows that arrive as appended actions", () => {
+    const page = parseShelfPage({
+      onResponseReceivedActions: [
+        {
+          appendContinuationItemsAction: {
+            continuationItems: [
+              trackRow({ id: "c1", title: "C1" }),
+              { continuationItemRenderer: { continuationEndpoint: { continuationCommand: { token: "next" } } } },
+            ],
+          },
+        },
+      ],
+    });
+    expect(page.songs.map((song) => song.id)).toEqual(["c1"]);
+    expect(page.continuation).toBe("next");
+  });
 });
 
 describe("uniqueSongs", () => {
@@ -460,6 +514,60 @@ describe("uniqueSongs", () => {
     expect(uniqueSongs([song("1", "first"), song("2", "two"), song("1", "again")]).map((item) => item.title)).toEqual([
       "first",
       "two",
+    ]);
+  });
+});
+
+function playlistRow(id: string, extra: Record<string, unknown>) {
+  return {
+    musicResponsiveListItemRenderer: {
+      playlistItemData: { videoId: id },
+      flexColumns: [
+        { musicResponsiveListItemFlexColumnRenderer: { text: { runs: [{ text: `Title ${id}` }] } } },
+        { musicResponsiveListItemFlexColumnRenderer: { text: { runs: [{ text: "Nova" }] } } },
+      ],
+      thumbnail: { musicThumbnailRenderer: { thumbnail: { thumbnails: [{ url: "https://x/t=w60", width: 60, height: 60 }] } } },
+      ...extra,
+    },
+  };
+}
+
+const fixedDuration = (value: string) => ({
+  fixedColumns: [{ musicResponsiveListItemFixedColumnRenderer: { text: { runs: [{ text: value }] } } }],
+});
+
+describe("playlist row durations", () => {
+  it("reads the duration from fixedColumns on the first page", () => {
+    const page = parseRemotePlaylistPage({
+      contents: {
+        twoColumnBrowseResultsRenderer: {
+          tabs: [{ tabRenderer: { content: { sectionListRenderer: { contents: [{ musicPlaylistShelfRenderer: { contents: [playlistRow("p1", fixedDuration("4:12"))] } }] } } } }],
+        },
+      },
+    });
+    expect(page.tracks[0]).toMatchObject({ id: "p1", duration: 252 });
+  });
+
+  it("reads the duration from fixedColumns on continuation rows", () => {
+    const page = parseShelfPage({
+      continuationContents: {
+        musicPlaylistShelfContinuation: { contents: [playlistRow("c1", fixedDuration("1:02:03"))] },
+      },
+    });
+    expect(page.songs[0]).toMatchObject({ id: "c1", duration: 3723 });
+  });
+
+  it("falls back to the thumbnail time overlay and lengthText", () => {
+    const overlay = playlistRow("o1", {
+      thumbnailOverlay: { thumbnailOverlayTimeStatusRenderer: { text: { simpleText: "3:05" } } },
+    });
+    const length = playlistRow("l1", { lengthText: { runs: [{ text: "2:30" }] } });
+    const page = parseShelfPage({
+      continuationContents: { musicPlaylistShelfContinuation: { contents: [overlay, length] } },
+    });
+    expect(page.songs.map((song) => [song.id, song.duration])).toEqual([
+      ["o1", 185],
+      ["l1", 150],
     ]);
   });
 });

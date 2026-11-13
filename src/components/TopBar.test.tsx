@@ -54,6 +54,8 @@ import { useUI } from "../stores/ui";
 
 const initialPlayer = usePlayer.getState();
 
+const appSources = import.meta.glob("../**/*.{ts,tsx,css}", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
+
 function song(id: string, title: string): SearchSong {
   return {
     id,
@@ -233,6 +235,174 @@ describe("TopBar window chrome", () => {
   });
 });
 
+describe("TopBar squircle controls", () => {
+  afterEach(() => {
+    chrome.platform = "windows";
+    cleanup();
+  });
+
+  it("gives the nav, home, search, theme and profile controls 40px squircle shapes", () => {
+    render(<TopBar />);
+
+    for (const name of ["Back", "Forward", "Home"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button.className).toContain("h-10");
+      expect(button.className).toContain("w-10");
+      expect(button.className).toContain("rounded-[12px]");
+      expect(button.className).toContain("[corner-shape:squircle]");
+    }
+    const explore = screen.getByRole("button", { name: "Explore" });
+    expect(input().parentElement?.contains(explore)).toBe(true);
+    expect(screen.getByRole("button", { name: "Back" }).parentElement?.contains(explore)).toBe(false);
+    expect(explore.className).toContain("h-10");
+    expect(explore.className).toContain("w-10");
+    expect(explore.className).toContain("absolute");
+    expect(explore.className).toContain("[corner-shape:squircle]");
+    expect(screen.getByRole("button", { name: /^Switch to .* theme$/ }).className).toContain("[corner-shape:squircle]");
+    for (const button of [screen.getByRole("button", { name: /^Switch to .* theme$/ }), screen.getByRole("button", { name: /^Profile menu/ })]) {
+      expect(button.className).toContain("lifted-hover");
+      expect(button.className).not.toContain("lifted-fill");
+      expect(button.className).not.toContain("lifted-edge");
+      expect(button.className).toContain("h-10");
+      expect(button.className).toContain("w-10");
+    }
+    const profile = screen.getByRole("button", { name: /^Profile menu/ });
+    expect(profile.className).toContain("h-10");
+    expect(profile.className).toContain("w-10");
+    expect(profile.className).toContain("rounded-[12px]");
+    expect(profile.className).toContain("[corner-shape:squircle]");
+    expect(profile.className).toContain("overflow-hidden");
+    expect(profile.className).toContain("focus-visible:ring-focus");
+  });
+
+  it("gives the search field a 40px squircle instead of a pill", () => {
+    render(<TopBar />);
+
+    const field = input();
+    expect(field.className).toContain("h-10");
+    expect(field.className).toContain("rounded-[12px]");
+    expect(field.className).toContain("[corner-shape:squircle]");
+    expect(field.className).not.toContain("rounded-full");
+  });
+
+  it("uses the compact caption buttons with no gaps and 16px right padding on Windows", () => {
+    render(<TopBar />);
+
+    const close = screen.getByRole("button", { name: "Close" });
+    expect(close.className).toContain("[corner-shape:squircle]");
+    expect(close.className).toContain("h-10");
+    expect(close.parentElement?.className).toContain("gap-0");
+    expect(screen.getByRole("banner").className).toContain("pr-4");
+  });
+});
+
+describe("TopBar dark surfaces and centring", () => {
+  afterEach(cleanup);
+
+  it("gives the field a lifted fill, a hairline edge and a readable placeholder", () => {
+    render(<TopBar />);
+
+    const field = input();
+    expect(field.className).toContain("lifted-fill");
+    expect(field.className).toContain("lifted-edge");
+    expect(field.className).toContain("lifted-field");
+    expect(field.className).toContain("placeholder:text-ink-1/60");
+    expect(field.className).not.toContain("bg-wash");
+  });
+
+  it("gives only the Home button the lifted field fill, and the theme button none", () => {
+    useNavigation.setState({ view: { name: "library" }, navPast: [], navFuture: [] });
+    render(<TopBar />);
+
+    const home = screen.getByRole("button", { name: "Home" });
+    expect(home.className).toContain("lifted-fill");
+    expect(home.className).toContain("lifted-edge");
+    const theme = screen.getByRole("button", { name: /^Switch to .+ theme$/ });
+    expect(theme.className).not.toContain("lifted-fill");
+    expect(theme.className).not.toContain("lifted-edge");
+  });
+
+  it("centres icon buttons with place-items-center", () => {
+    render(<TopBar />);
+
+    for (const name of ["Back", "Forward", "Home", "Explore", "Switch to", "Profile menu"]) {
+      const button = screen.getByRole("button", { name: new RegExp(`^${name}`) });
+      expect(button.className).toContain("place-items-center");
+    }
+  });
+});
+
+describe("TopBar goo dropdown", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    typeAhead.mockResolvedValue(suggestions);
+    peekTypeAhead.mockReturnValue(undefined);
+    useUI.setState({ toasts: [], pendingToasts: [], searchQuery: "", searchFilter: "all" });
+    useNavigation.setState({ view: { name: "home" }, navPast: [], navFuture: [] });
+  });
+
+  afterEach(cleanup);
+
+  it("defines the goo filter exactly once in the app source", () => {
+    const definitions = Object.entries(appSources)
+      .filter(([path]) => !path.includes(".test."))
+      .filter(([, source]) => source.includes('GOO_FILTER_ID = "goo"'));
+    expect(definitions.length).toBe(1);
+  });
+
+  it("puts the goo filter on the background layer only, never on the text", async () => {
+    const user = userEvent.setup();
+    render(<TopBar />);
+    await user.click(input());
+    await user.type(input(), "dua");
+    const listbox = await screen.findByRole("listbox", { name: "Search suggestions" });
+
+    const layer = listbox.querySelector<HTMLElement>("[data-goo-layer]");
+    expect(layer?.style.filter).toContain("url(#goo)");
+    const option = screen.getByRole("option", { name: /Levitating/ });
+    expect(option.closest("[data-goo-layer]")).toBeNull();
+    expect(layer?.contains(option)).toBe(false);
+  });
+
+  it("attaches the panel to the field with no gap", async () => {
+    const user = userEvent.setup();
+    render(<TopBar />);
+    await user.click(input());
+    await user.type(input(), "dua");
+    const listbox = await screen.findByRole("listbox", { name: "Search suggestions" });
+
+    expect(listbox.className).toContain("top-0");
+    expect(listbox.className).not.toContain("top-full");
+    expect(listbox.querySelector("[data-goo-panel]")?.className).toContain("top-10");
+  });
+
+  it("keeps the field above the goo layer so its text stays sharp", async () => {
+    const user = userEvent.setup();
+    render(<TopBar />);
+    await user.click(input());
+    await user.type(input(), "dua");
+    await screen.findByRole("listbox");
+
+    expect(input().className).toContain("z-[60]");
+    expect(input().getAttribute("data-open")).toBe("true");
+  });
+});
+
+describe("TopBar height", () => {
+  afterEach(cleanup);
+
+  it("is 56 px tall and no 68 px top bar is left in the source", () => {
+    render(<TopBar />);
+
+    expect(screen.getByRole("banner").className).toContain("h-14");
+    const stale = Object.entries(appSources)
+      .filter(([path]) => !path.includes(".test."))
+      .filter(([, source]) => /\b68\s?px\b|h-\[68px\]/.test(source))
+      .map(([path]) => path);
+    expect(stale).toEqual([]);
+  });
+});
+
 describe("TopBar layout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -253,6 +423,53 @@ describe("TopBar layout", () => {
     expect(centre.contains(screen.getByRole("button", { name: "Home" }))).toBe(true);
     expect(centre.contains(input())).toBe(true);
     expect(input().getAttribute("placeholder")).toBe("What do you want to play?");
+  });
+
+  it("places the clear button left of Explore inside the field and keeps the text clear of both", async () => {
+    const user = userEvent.setup();
+    render(<TopBar />);
+    expect(input().className).toContain("pr-10");
+
+    await user.click(input());
+    await user.type(input(), "dua");
+
+    expect(input().className).toContain("pr-[4.25rem]");
+    expect(screen.getByRole("button", { name: "Clear search" }).className).toContain("right-[44px]");
+    expect(screen.getByRole("button", { name: "Explore" }).className).toContain("right-0");
+  });
+
+  it("styles the suggestion dropdown as a scrollbar-free float under the field", async () => {
+    const user = userEvent.setup();
+    render(<TopBar />);
+    await user.click(input());
+    await user.type(input(), "dua");
+
+    const listbox = await screen.findByRole("listbox", { name: "Search suggestions" });
+    expect(listbox.className).toContain("no-scrollbar");
+    expect(listbox.className).not.toMatch(/overflow-(y-)?auto/);
+    for (const token of ["left-0", "right-0", "top-0", "no-scrollbar"]) {
+      expect(listbox.className).toContain(token);
+    }
+    expect(listbox.className).not.toContain("mt-2");
+    expect(listbox.className).not.toContain("border-separator");
+    expect(screen.getByRole("option", { name: /Levitating/ }).className).toContain("h-10");
+    expect(screen.getByRole("option", { name: /Levitating/ }).className).toContain("px-3");
+  });
+
+  it("opens the dropdown without motion under reduced motion", async () => {
+    document.documentElement.classList.add("reduce-motion");
+    try {
+      const user = userEvent.setup();
+      render(<TopBar />);
+      await user.click(input());
+      await user.type(input(), "dua");
+      const listbox = await screen.findByRole("listbox", { name: "Search suggestions" });
+      const panel = listbox.querySelector<HTMLElement>("[data-goo-panel]");
+      expect(panel?.style.transform).not.toContain("scaleY(0)");
+      expect(listbox.querySelector<HTMLElement>("[data-goo-layer]")?.style.filter).toContain("url(#goo)");
+    } finally {
+      document.documentElement.classList.remove("reduce-motion");
+    }
   });
 
   it("shows the clear button only while the field has text, and clears the query", async () => {
@@ -322,22 +539,24 @@ describe("TopBar profile menu", () => {
 
   afterEach(() => {
     useAuth.setState(initialAuth, true);
+    vi.unstubAllEnvs();
     cleanup();
   });
 
   it("opens the menu for a guest with account items and Sign in, and closes on Escape with focus back on the button", async () => {
+    vi.stubEnv("DEV", false);
     const user = userEvent.setup();
     renderBar();
 
     await user.click(profileButton());
     const menu = await screen.findByRole("menu");
     const labels = within(menu).getAllByRole("menuitem").map((item) => item.textContent);
-    expect(labels).toEqual(["Account", "Settings", "ThemeSystem", "Recents", "Sync statusOff", "Sign in"]);
+    expect(labels).toEqual(["Account", "Recents", "SyncOff", "Settings", "Sign in"]);
     expect(profileButton().getAttribute("aria-expanded")).toBe("true");
 
     await user.keyboard("{Escape}");
 
-    expect(screen.queryByRole("menu")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
     expect(document.activeElement).toBe(profileButton());
   });
 
@@ -351,16 +570,6 @@ describe("TopBar profile menu", () => {
     await user.keyboard("{ArrowDown}");
 
     expect(document.activeElement).toBe(items[(start + 1) % items.length]);
-  });
-
-  it("opens Settings from the menu", async () => {
-    const user = userEvent.setup();
-    renderBar();
-    await user.click(profileButton());
-    await user.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^Settings/ }));
-
-    expect(useNavigation.getState().view).toEqual({ name: "settings" });
-    expect(screen.queryByRole("menu")).toBeNull();
   });
 
   it("starts sign-in from the guest menu", async () => {
@@ -385,6 +594,7 @@ describe("TopBar profile menu", () => {
     const menu = within(await screen.findByRole("menu"));
     expect(menu.queryByRole("menuitem", { name: "Sign in" })).toBeNull();
     expect(menu.getByText("Aman Gupta")).toBeTruthy();
+    expect(menu.queryByText("Not signed in")).toBeNull();
 
     await user.click(menu.getByRole("menuitem", { name: "Sign out" }));
 
@@ -435,5 +645,63 @@ describe("TopBar streak", () => {
 
     expect(screen.queryByRole("button", { name: /streak/i })).toBeNull();
     expect(screen.queryByText(/streak/i)).toBeNull();
+  });
+});
+
+describe("TopBar Explore button", () => {
+  afterEach(cleanup);
+
+  it("shows the active Explore page as a subtle tint with no border or outline", () => {
+    useNavigation.setState({ view: { name: "explore" } });
+    render(<TopBar />);
+
+    const explore = screen.getByRole("button", { name: "Explore" });
+    const classes = explore.className.split(/s+/).filter((token) => !token.includes(":"));
+
+    expect(explore.getAttribute("aria-current")).toBe("page");
+    expect(explore.className).toContain("lifted-tint");
+    expect(classes.some((token) => token.startsWith("border") || token.startsWith("outline") || token.startsWith("ring"))).toBe(false);
+  });
+});
+
+describe("TopBar avatar attached menu", () => {
+  const initialAuth = useAuth.getState();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    typeAhead.mockResolvedValue([]);
+    peekTypeAhead.mockReturnValue(undefined);
+    useUI.setState({ toasts: [], pendingToasts: [], searchQuery: "", searchFilter: "all", contextMenu: null });
+    useNavigation.setState({ view: { name: "home" }, navPast: [], navFuture: [] });
+    useAuth.setState({ ...initialAuth, account: GUEST_ACCOUNT }, true);
+  });
+
+  afterEach(() => {
+    useAuth.setState(initialAuth, true);
+    cleanup();
+  });
+
+  it("opens the account menu as an attached goo menu and marks the avatar open", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <TopBar />
+        <ContextMenu />
+      </>,
+    );
+    const avatar = () => screen.getByRole("button", { name: /^Profile menu/ });
+
+    expect(avatar().getAttribute("data-open")).toBeNull();
+    await user.click(avatar());
+
+    expect(useUI.getState().contextMenu?.attached).toBe(true);
+    expect(avatar().getAttribute("data-open")).toBe("true");
+    expect(avatar().className).toContain("z-[110]");
+    expect(document.querySelector("[data-goo-layer]")).not.toBeNull();
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    expect(avatar().getAttribute("data-open")).toBeNull();
   });
 });

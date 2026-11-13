@@ -17,8 +17,7 @@ body {
   overflow: hidden;
   background-color: rgb(var(--base));
   color: rgb(var(--ink-1));
-  font-family: "Segoe UI Variable Text", "Segoe UI", -apple-system, "SF Pro Text",
-    "Roboto Flex", Roboto, system-ui, sans-serif;
+  font-family: var(--font-app, "Segoe UI Variable Text", "Segoe UI", -apple-system, "SF Pro Text", "Roboto Flex", Roboto, system-ui, sans-serif);
   font-weight: 400;
 }
 
@@ -66,6 +65,14 @@ input[type="search"]::-ms-clear {
 
 .overlay-scroll::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+.overlay-scroll.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.overlay-scroll.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 .edge-fades {
@@ -212,6 +219,7 @@ textarea:focus-visible {
 
 :root {
   --hit-min: 40px;
+  --lyric-scale: 1;
 }
 
 :root.platform-android {
@@ -240,4 +248,51 @@ textarea:focus-visible {
 
 .volume-art {
   background: linear-gradient(to right, rgb(var(--on-art)) var(--level), rgb(var(--on-art) / var(--on-art-track)) var(--level));
+}
+
+.lifted-fill {
+  background-color: rgb(var(--ink-1) / var(--fill-a));
+}
+
+.lifted-fill:hover,
+.lifted-hover:hover {
+  background-color: rgb(var(--ink-1) / var(--fill-hover-a));
+}
+
+.lifted-edge {
+  border-color: rgb(var(--ink-1) / var(--edge-a));
+}
+
+.lifted-tint {
+  background-color: rgb(var(--ink-1) / var(--tint-a));
+}
+
+.lifted-field::placeholder {
+  color: rgb(var(--ink-1) / 0.6);
+}
+
+.lifted-field:focus {
+  outline: none;
+  background-color: rgb(var(--ink-1) / var(--fill-hover-a));
+}
+
+.lifted-field:focus-visible {
+  box-shadow: inset 0 0 0 1px rgb(var(--ink-1) / 0.35);
+}
+
+.lifted-field[data-open="true"] {
+  background-color: transparent;
+  border-color: transparent;
+}
+
+.lifted-field[data-open="true"],
+.lifted-edge[data-open="true"] {
+  border-color: transparent;
+  box-shadow: none;
+  transition: none;
+}
+
+.lifted-fill[data-open="true"] {
+  background-color: transparent;
+  transition: none;
 }

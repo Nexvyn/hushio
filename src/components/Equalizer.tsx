@@ -1,5 +1,5 @@
+import type { ButtonHTMLAttributes } from "react";
 import { openMenuAtPointer, openMenuFromKey } from "./ContextMenu";
-import { Pill } from "./Pill";
 import {
   addEqPreset,
   checkPresetName,
@@ -32,11 +32,19 @@ type BoardProps = {
 };
 
 const BAND_INPUT =
-  "h-full cursor-pointer appearance-none rounded-full bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-default [&::-webkit-slider-runnable-track]:w-1 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-wash [&::-webkit-slider-thumb]:size-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-ink-1";
+  "h-full cursor-pointer appearance-none rounded-full bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-default [&::-webkit-slider-runnable-track]:w-1 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-wash [&::-webkit-slider-thumb]:size-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full";
+
+const CHIP =
+  "inline-flex h-10 items-center justify-center rounded-[12px] px-4 text-[13px] font-medium motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out disabled:cursor-default disabled:hover:bg-wash";
+
+function EqChip({ active, className = "", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) {
+  const tone = active ? "bg-accent text-on-accent" : "bg-wash text-ink-2 hover:bg-hover";
+  return <button type="button" className={`${CHIP} ${tone} ${className}`} {...props} />;
+}
 
 export function EqBoard({ gains, enabled, onBandChange }: BoardProps) {
   return (
-    <div className={`motion-safe:transition-opacity motion-safe:duration-quick ${enabled ? "" : "opacity-[var(--disabled-opacity)]"}`}>
+    <div>
       <div className="relative" style={{ height: EQ_H }}>
         {EQ_RULES.map((rule) => (
           <span
@@ -61,14 +69,14 @@ export function EqBoard({ gains, enabled, onBandChange }: BoardProps) {
                 aria-valuetext={formatEqGain(gain)}
                 onChange={(event) => onBandChange(index, Number(event.target.value))}
                 onDoubleClick={() => onBandChange(index, 0)}
-                className={BAND_INPUT}
+                className={`${BAND_INPUT} ${enabled ? "[&::-webkit-slider-thumb]:bg-ink-1" : "[&::-webkit-slider-thumb]:bg-ink-2"}`}
                 style={{ writingMode: "vertical-lr", direction: "rtl", width: EQ_BAND_HIT, justifySelf: "center" }}
               />
             );
           })}
         </div>
       </div>
-      <div className="mt-2 grid grid-cols-10 gap-x-1 text-center text-[11.5px] tabular-nums text-ink-1">
+      <div className={`mt-2 grid grid-cols-10 gap-x-1 text-center text-[11.5px] tabular-nums ${enabled ? "text-ink-1" : "text-ink-2"}`}>
         {EQ_BANDS_HZ.map((_, index) => (
           <span key={EQ_BAND_LABELS[index]}>{formatEqGain(gains[index] ?? 0)}</span>
         ))}
@@ -156,13 +164,14 @@ export function Equalizer() {
       <EqBoard gains={gains} enabled={enabled} onBandChange={changeBand} />
       <div className="flex flex-wrap gap-1.5">
         {Object.keys(EQ_PRESETS).map((name) => (
-          <Pill key={name} active={matched === name} onClick={() => setEqGains([...EQ_PRESETS[name]])}>
+          <EqChip key={name} aria-pressed={matched === name} active={matched === name} onClick={() => setEqGains([...EQ_PRESETS[name]])}>
             {name}
-          </Pill>
+          </EqChip>
         ))}
         {presets.map((preset) => (
-          <Pill
+          <EqChip
             key={preset.name}
+            aria-pressed={matched === preset.name}
             active={matched === preset.name}
             title="Right-click to rename, update or delete"
             onClick={() => setEqGains([...preset.gains])}
@@ -172,11 +181,11 @@ export function Equalizer() {
             }}
           >
             {preset.name}
-          </Pill>
+          </EqChip>
         ))}
-        <Pill disabled={!enabled || matched !== null} onClick={openSave}>
+        <EqChip disabled={!enabled || matched !== null} onClick={openSave}>
           Save as preset
-        </Pill>
+        </EqChip>
       </div>
     </div>
   );

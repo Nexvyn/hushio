@@ -10,7 +10,6 @@ export type EraseSteps = {
   stopSync: () => Promise<unknown>;
   resumeSync: () => Promise<unknown>;
   deleteYoutubePlaylists: () => Promise<unknown>;
-  deleteDriveFiles: () => Promise<unknown>;
   revokeTokens: () => Promise<unknown>;
   removeKeyring: () => Promise<unknown>;
   wipeLocal: (deleteDownloads: boolean) => Promise<unknown>;
@@ -25,7 +24,6 @@ type EraseStep = Exclude<keyof EraseSteps, "resumeSync">;
 export const STEP_LABELS: Record<EraseStep, string> = {
   stopSync: "Stopping sync",
   deleteYoutubePlaylists: "Deleting YouTube playlists",
-  deleteDriveFiles: "Deleting Google Drive files",
   revokeTokens: "Signing out of Google",
   removeKeyring: "Signing out of Google",
   wipeLocal: "Erasing this computer",
@@ -58,7 +56,6 @@ function remotePlan(steps: EraseSteps, options: EraseOptions): Planned[] {
   if (options.deleteYoutubePlaylists) {
     plan.push({ step: "deleteYoutubePlaylists", run: steps.deleteYoutubePlaylists });
   }
-  plan.push({ step: "deleteDriveFiles", run: steps.deleteDriveFiles });
   plan.push({ step: "revokeTokens", run: steps.revokeTokens });
   return plan;
 }

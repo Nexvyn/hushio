@@ -143,7 +143,7 @@ describe("MoodView", () => {
   it("shows the mix size and plays the mix from the row that was clicked", async () => {
     loadMix.mockResolvedValue([alpha, beta, gamma]);
     render(<MoodView />);
-    expect(await screen.findByText("A Hushio mix from its top playlists · 3 songs")).toBeTruthy();
+    expect(await screen.findByText("3 songs")).toBeTruthy();
 
     await userEvent.click(screen.getByRole("button", { name: /Beta/ }));
 

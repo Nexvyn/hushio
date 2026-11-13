@@ -15,7 +15,9 @@ export function buildSnapshot(player: PlayerState, liked: readonly { id: string 
   const track = currentTrack(player);
   const likedIds = new Set(liked.map((item) => item.id));
   return {
-    track: track ? { id: track.id, title: track.title, artist: track.artist, thumb: track.thumb ?? "" } : null,
+    track: track
+      ? { id: track.id, title: track.title, artist: track.artist, album: track.album ?? "", thumb: track.thumb ?? "" }
+      : null,
     playing: player.playing,
     buffering: player.buffering,
     position: player.position,

@@ -9,7 +9,6 @@ const bridge = vi.hoisted(() => ({
   guestDetectMarker: vi.fn(),
   introDone: vi.fn(),
   ytSyncNow: vi.fn(),
-  driveSyncNow: vi.fn(),
 }));
 
 vi.mock("../lib/bridge", async (importOriginal) => ({
@@ -46,16 +45,6 @@ const idleYt = {
   pulledPlaylists: 0,
 };
 
-const idleDrive = {
-  mode: "google",
-  lastSyncAt: null,
-  restoreSeq: 0,
-  restoredStores: [],
-  state: "idle",
-  lastError: null,
-  pending: 0,
-};
-
 function expectNamedControlsAndSizedIcons() {
   for (const control of screen.queryAllByRole("button")) {
     const name = control.getAttribute("aria-label") ?? control.textContent ?? "";
@@ -76,7 +65,6 @@ describe("Onboarding", () => {
     bridge.persistWrite.mockResolvedValue(true);
     bridge.persistRead.mockResolvedValue(null);
     bridge.ytSyncNow.mockResolvedValue(idleYt);
-    bridge.driveSyncNow.mockResolvedValue(idleDrive);
     useSession.setState({ loaded: true, onboardingDone: false, freshInstall: false });
     useAuth.setState({ account: GUEST_ACCOUNT, loaded: true, signingIn: false });
   });

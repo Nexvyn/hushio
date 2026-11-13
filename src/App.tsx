@@ -1,6 +1,8 @@
+import { GooFilter } from "./components/Goo";
 import { useEffect, useLayoutEffect } from "react";
 import { EdgeFades } from "./components/EdgeFades";
 import { ContextMenu } from "./components/ContextMenu";
+import { CommentsDialog } from "./components/CommentsDialog";
 import { Dialog } from "./components/Dialog";
 import { EraseDialog } from "./components/EraseDialog";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -19,7 +21,7 @@ import { TopBar } from "./components/TopBar";
 import { platform, watchFullScreen } from "./lib/bridge";
 import { listenForDownloadProgress } from "./lib/downloads";
 import { startLaunchActions } from "./lib/launch";
-import { railFor, shellFor, useViewportWidth } from "./lib/layoutTier";
+import { railFor, shellFor, sidebarFor, useViewportWidth } from "./lib/layoutTier";
 import { startWindowGlass } from "./lib/windowGlass";
 import { startUpdates } from "./stores/updates";
 import { useKeyboardShortcuts, useSwipeNavigation } from "./lib/shortcuts";
@@ -29,6 +31,8 @@ import { startYtSync } from "./stores/sync";
 import { useNavigation } from "./stores/navigation";
 import { useUI } from "./stores/ui";
 import { CurrentView } from "./views/CurrentView";
+import { AmbientSync } from "./components/AmbientBackdrop";
+import { ViewTransition } from "./components/ViewTransition";
 
 export default function App() {
   const view = useNavigation((state) => state.view);
@@ -93,18 +97,19 @@ export default function App() {
   return (
     <div
       spellCheck={false}
-      className="flex h-screen select-none flex-col overflow-hidden bg-base text-ink-1"
+      className="flex h-screen select-none flex-col overflow-hidden bg-surface text-ink-1"
     >
+      <GooFilter />
       <TopBar />
 
       <div className="flex min-h-0 flex-1 gap-2 px-2 pb-2">
-        <Sidebar />
+        <Sidebar mode={sidebarFor(width)} />
 
-        <main className="relative min-w-0 flex-1 overflow-hidden rounded-[10px] border border-card-edge/[0.08] bg-surface shadow-[var(--shadow-card)]">
-          <EdgeFades id="view-scroll" className="h-full">
-            <div
-              key={`${viewReloadNonce}:${view.name}:${view.name === "settings" ? "" : (view.param ?? "")}`}
-              className="animate-fade-in px-10 pb-6 pt-5"
+        <main className="relative min-w-0 flex-1 overflow-hidden rounded-[10px] bg-surface">
+          <EdgeFades id="view-scroll" className="no-scrollbar h-full">
+            <ViewTransition
+              routeKey={`${viewReloadNonce}:${view.name}:${view.name === "settings" ? "" : (view.param ?? "")}`}
+              className="px-10 pb-6 pt-5"
             >
               <ErrorBoundary
                 scope="view"
@@ -112,15 +117,16 @@ export default function App() {
               >
                 <CurrentView view={view} />
               </ErrorBoundary>
-            </div>
+            </ViewTransition>
           </EdgeFades>
           {lyricsCenter && <LyricsCenter />}
           <SwipeArrow />
         </main>
 
-        <RightRail mode={android && railFor(width) === "sheet" ? "sheet" : "column"} />
+        <RightRail mode={railFor(width)} />
       </div>
 
+      <AmbientSync />
       <PlayerBar />
       <NowPlaying />
       <Toasts />
@@ -129,6 +135,7 @@ export default function App() {
       <EraseDialog />
       <PlaylistPicker />
       <ContextMenu />
+      <CommentsDialog />
     </div>
   );
 }

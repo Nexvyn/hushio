@@ -1,6 +1,5 @@
 import { create, type StoreApi } from "zustand";
 import {
-  eraseDriveFiles,
   eraseKeyring,
   eraseLocalData,
   eraseResumeSync,
@@ -14,13 +13,17 @@ import type { EraseSteps } from "../lib/disconnect";
 import { useArtistBundles } from "./artistBundles";
 import { useArtistMeta } from "./artistMeta";
 import { useAuth } from "./auth";
+import { useCrashes } from "./crashes";
+import { useDiscord } from "./discord";
 import { useHomeCache } from "./homeCache";
 import { useHomeEngagement } from "./homeEngagement";
 import { useLibrary } from "./library";
 import { useLyricsNudge } from "./lyricsNudge";
 import { useNavigation } from "./navigation";
+import { useNetwork } from "./network";
 import { usePlayer } from "./player";
 import { useRecents, useRecentItems } from "./recents";
+import { useScrobble } from "./scrobble";
 import { useSession } from "./session";
 import { useSettings } from "./settings";
 import { useSync } from "./sync";
@@ -50,7 +53,6 @@ export function bridgeSteps(): EraseSteps {
     stopSync: eraseStopSync,
     resumeSync: eraseResumeSync,
     deleteYoutubePlaylists: eraseYoutubePlaylists,
-    deleteDriveFiles: eraseDriveFiles,
     revokeTokens: eraseRevoke,
     removeKeyring: eraseKeyring,
     wipeLocal: async (deleteDownloads) => {
@@ -77,6 +79,10 @@ export function resetStoresAfterErase(): void {
   resetStore(useHomeEngagement);
   resetStore(useLyricsNudge);
   resetStore(useSync);
+  resetStore(useScrobble);
+  resetStore(useDiscord);
+  resetStore(useNetwork);
+  resetStore(useCrashes);
   resetStore(useNavigation);
   void useAuth.getState().load();
   useSession.getState().resetAfterErase();

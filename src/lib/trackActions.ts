@@ -4,6 +4,7 @@ import {
   ArrowDownDoubleIcon,
   ArrowUp01Icon,
   ArrowUpDoubleIcon,
+  Chat01Icon,
   Copy01Icon,
   Delete02Icon,
   Download01Icon,
@@ -15,6 +16,7 @@ import {
   PlayIcon,
   PlayListAddIcon,
   Playlist01Icon,
+  UserAdd01Icon,
   UserIcon,
 } from "@hugeicons/core-free-icons";
 import type { Box } from "./pickerLayout";
@@ -25,6 +27,8 @@ import { downloadedPath, revealDownload, startDownload } from "./downloads";
 import { sleepMenuItems } from "./sleepActions";
 import type { SearchSong } from "./searchParse";
 import { type LibraryTrack, type Playlist, useLibrary } from "../stores/library";
+import { useComments } from "../stores/comments";
+import { useListenTogether } from "../stores/listenTogether";
 import { useNavigation } from "../stores/navigation";
 import { usePlayer } from "../stores/player";
 import { type MenuItem, type ToastAction, useUI } from "../stores/ui";
@@ -116,6 +120,29 @@ export function trackMenuItems(track: SearchSong): MenuItem[] {
         ? { label: "Show in folder", icon: FolderOpenIcon, separatorBefore: true, onSelect: () => revealDownload(saved) }
         : { label: "Download", icon: Download01Icon, separatorBefore: true, onSelect: () => void startDownload(track) },
     );
+  }
+  if (!local) {
+    items.push({
+      label: "Comments",
+      icon: Chat01Icon,
+      separatorBefore: true,
+      onSelect: () => useComments.getState().open(track.id),
+    });
+  }
+  if (useListenTogether.getState().room.status === "joined" && useListenTogether.getState().room.role === "guest") {
+    items.push({
+      label: "Suggest to the room",
+      icon: UserAdd01Icon,
+      onSelect: () =>
+        useListenTogether.getState().suggest({
+          id: `${track.id}-${Date.now()}`,
+          trackId: track.id,
+          title: track.title,
+          artist: track.artist,
+          thumb: track.thumb,
+          fromName: "",
+        }),
+    });
   }
   if (artistId) {
     items.push({

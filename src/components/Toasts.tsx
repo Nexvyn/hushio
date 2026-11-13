@@ -132,7 +132,7 @@ export function Toasts({ bottom }: { bottom?: string }) {
 
   return (
     <div
-      className={`pointer-events-none fixed left-1/2 z-[110] flex -translate-x-1/2 flex-col items-center gap-2.5 ${bottom ? "" : "top-[78px]"}`}
+      className={`pointer-events-none fixed left-1/2 z-[110] flex -translate-x-1/2 flex-col items-center gap-2.5 ${bottom ? "" : "top-[66px]"}`}
       style={bottom ? { bottom } : undefined}
     >
       {[...toasts].reverse().map((toast) => (

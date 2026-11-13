@@ -16,6 +16,8 @@ import { reducedMotion } from "../lib/motion";
 import { type Box, pickerMotion } from "../lib/pickerLayout";
 import { ArrowRight01Icon, CheckIcon } from "@hugeicons/core-free-icons";
 import { Icon } from "./Icon";
+import { FLOAT_PANEL, FLOAT_ROW } from "../lib/floatStyle";
+import { GOO_SHAPE, GOO_LAYER_STYLE, gooVariants } from "./Goo";
 import { useUI, type ContextMenuOptions, type ContextMenuState, type MenuItem, type MenuSubject } from "../stores/ui";
 import "../styles/menu.css";
 
@@ -34,13 +36,10 @@ const SUB_CLOSE_MS = 150;
 const MAIN_SIZE = { width: 230, height: 320 };
 const SUB_SIZE = { width: 200, height: 340 };
 const KEY_ANCHOR_INSET = 16;
-const PANEL_SHAPE = "rounded-[12px] [corner-shape:squircle] shadow-[var(--shadow-float)] ring-1 ring-card-edge/[0.08]";
-const PANEL =
-  `fixed z-[100] max-h-[70vh] min-w-[220px] max-w-[320px] overflow-y-auto bg-elevated p-2 ${PANEL_SHAPE}`;
-const SUB_PANEL =
-  `fixed z-[101] max-h-[340px] min-w-[200px] max-w-[320px] overflow-y-auto bg-elevated p-2 ${PANEL_SHAPE}`;
-const ROW =
-  "hit-area relative flex min-h-9 w-full items-center gap-2 rounded-[10px] px-3 py-2 text-left text-[13.5px] text-ink-1 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus disabled:opacity-[var(--disabled-opacity)] data-[danger=true]:text-danger-text";
+const PANEL = `fixed z-[100] max-h-[70vh] min-w-[220px] max-w-[320px] overflow-y-auto no-scrollbar ${FLOAT_PANEL}`;
+const SUB_PANEL = `fixed z-[101] max-h-[340px] min-w-[200px] max-w-[320px] overflow-y-auto no-scrollbar ${FLOAT_PANEL}`;
+const ATTACHED_PANEL = "fixed z-[100] max-h-[70vh] w-[230px] overflow-y-auto no-scrollbar px-2 pb-2 pt-12";
+const ROW = `${FLOAT_ROW} hit-area relative w-full data-[danger=true]:text-danger-text`;
 
 let sheetSeq = 0;
 
@@ -135,6 +134,7 @@ type PanelProps = {
   subject?: MenuSubject;
   label: string;
   submenu?: boolean;
+  attached?: boolean;
   above?: boolean;
   flipped?: boolean;
   openIndex?: number;
@@ -147,13 +147,14 @@ type PanelProps = {
 };
 
 const MenuPanel = forwardRef<HTMLDivElement, PanelProps>(function MenuPanel(
-  { rows, subject, label, submenu = false, above = false, flipped = false, openIndex, byKeys, style, onRowEnter, onRowActivate, onPanelEnter, onPanelLeave },
+  { rows, subject, label, submenu = false, attached = false, above = false, flipped = false, openIndex, byKeys, style, onRowEnter, onRowActivate, onPanelEnter, onPanelLeave },
   ref,
 ) {
   const lightRef = useRef<HTMLSpanElement>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [reduced] = useState(reducedMotion);
   const presence = pickerMotion(reduced);
+  const goo = gooVariants(reduced);
 
   const setPanel = (node: HTMLDivElement | null) => {
     panelRef.current = node;
@@ -195,12 +196,17 @@ const MenuPanel = forwardRef<HTMLDivElement, PanelProps>(function MenuPanel(
         onPanelLeave?.();
       }}
       style={{ transformOrigin: flipped ? "top right" : "top left", ...style }}
-      initial={presence.initial}
-      animate={presence.animate}
-      exit={presence.exit}
-      transition={presence.transition}
-      className={`${submenu ? SUB_PANEL : PANEL}${above ? " is-above" : ""}${flipped ? " is-flipped" : ""}`}
+      {...(attached
+        ? { variants: goo.reveal, initial: reduced ? false : "initial", animate: "animate", exit: "exit" }
+        : { initial: presence.initial, animate: presence.animate, exit: presence.exit, transition: presence.transition })}
+      className={`${attached ? ATTACHED_PANEL : submenu ? SUB_PANEL : PANEL}${above ? " is-above" : ""}${flipped ? " is-flipped" : ""}`}
     >
+      {attached && (
+        <div aria-hidden="true" data-goo-layer="" className="pointer-events-none absolute inset-0" style={GOO_LAYER_STYLE}>
+          <div className="absolute right-0 top-0 h-10 w-10 rounded-[12px] [corner-shape:squircle] bg-elevated" />
+          <motion.div variants={goo.stretch} data-goo-panel="" className={`${GOO_SHAPE} bottom-0 top-10 origin-top`} />
+        </div>
+      )}
       <span ref={lightRef} aria-hidden="true" className="menu-light" />
       {subject && (
         <>
@@ -230,7 +236,6 @@ const MenuPanel = forwardRef<HTMLDivElement, PanelProps>(function MenuPanel(
       )}
       {rows.map((item, index) => (
         <Fragment key={`${index}:${item.label}`}>
-          {item.separatorBefore && index > 0 && <span aria-hidden="true" className="block h-2" />}
           {item.header ? (
             <div role="presentation" className="px-3 pb-1 pt-2 text-[12px] font-medium text-ink-2">
               {item.label}
@@ -270,6 +275,7 @@ const MenuPanel = forwardRef<HTMLDivElement, PanelProps>(function MenuPanel(
                 <span className="block truncate">{item.label}</span>
                 {item.note && <span className="block truncate text-[12px] text-ink-2">{item.note}</span>}
               </span>
+              {item.trailing && <span className="min-w-0 max-w-[60%] truncate text-[12.5px] text-ink-2">{item.trailing}</span>}
               {item.checked === true && <Icon icon={CheckIcon} />}
               {item.children && <Icon icon={ArrowRight01Icon} />}
             </button>
@@ -486,6 +492,7 @@ function MenuSheet({ menu }: { menu: ContextMenuState }) {
         subject={subject}
         label={subject?.title ?? "Menu"}
         above={menu.above}
+        attached={menu.attached}
         openIndex={sub?.index}
         byKeys={byKeys}
         style={placed ? { left: placed.left, top: placed.top, transformOrigin: placed.origin } : { left: 0, top: 0, visibility: "hidden" }}

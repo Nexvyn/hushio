@@ -24,17 +24,6 @@ const FALLBACK_TITLE = "For you";
 const SEPARATOR = " • ";
 const TYPE_WORDS = new Set(["song", "video", "episode", "album", "single", "ep", "artist", "playlist", "podcast"]);
 
-export const HOME_MOODS = [
-  "Today's hits",
-  "Lo-fi beats",
-  "Workout energy",
-  "Focus flow",
-  "Rock classics",
-  "Jazz evenings",
-  "Pop hits",
-  "Chill mix",
-];
-
 export type HomeItem =
   | { kind: "track"; track: Track }
   | { kind: "album"; id: string; title: string; artist: string; thumb: string | null }
@@ -56,7 +45,7 @@ function artistOf(subtitle: string): string {
     .split(SEPARATOR)
     .map((part) => part.trim())
     .find((part) => part.length > 0 && !TYPE_WORDS.has(part.toLowerCase()));
-  return segment ?? "Unknown artist";
+  return segment ?? "";
 }
 
 function cardOf(entry: unknown): Card | null {

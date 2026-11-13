@@ -12,6 +12,8 @@ export const GROOVE_SIZES = {
   compact: { bar: 3, hill: 3, knob: 8 },
 } satisfies Record<string, GrooveSize>;
 
+export const GROOVE_PLAIN_SIZE: GrooveSize = { bar: 4, hill: 0, knob: 12 };
+
 export type GrooveProfile = keyof typeof GROOVE_SIZES;
 
 const GROOVE_WAVE_WAVELENGTH_PX = 140;

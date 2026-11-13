@@ -15,7 +15,6 @@ describe("tabFor", () => {
     expect(tabFor({ name: "library", param: "liked" })).toBe("library");
     expect(tabFor({ name: "playlist", param: "p1" })).toBe("library");
     expect(tabFor({ name: "album", param: "a1" })).toBe("library");
-    expect(tabFor({ name: "replay" })).toBe("library");
     expect(tabFor({ name: "downloads" })).toBe("downloads");
     expect(tabFor({ name: "settings" })).toBe("settings");
   });

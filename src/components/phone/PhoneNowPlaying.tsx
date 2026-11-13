@@ -111,8 +111,8 @@ function SeekBar() {
         </div>
       </div>
       <div className="flex justify-between text-[11.5px] tabular-nums text-ink-2">
-        <span>{fmtTime(position)}</span>
-        <span>{fmtTime(duration)}</span>
+        <span className="tabular-nums">{fmtTime(position)}</span>
+        <span className="tabular-nums">{fmtTime(duration)}</span>
       </div>
     </div>
   );

@@ -76,7 +76,7 @@ describe("PodcastView", () => {
     getPodcast.mockResolvedValue(page);
     render(<PodcastView />);
     expect(await screen.findByRole("heading", { level: 1, name: "Show A" })).toBeTruthy();
-    expect(screen.getByText("Podcast")).toBeTruthy();
+
     expect(screen.getByText("Host A")).toBeTruthy();
     expect(screen.getByText("A show about things.")).toBeTruthy();
     expect(screen.getByRole("heading", { level: 2, name: "Episodes" })).toBeTruthy();

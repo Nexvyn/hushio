@@ -21,6 +21,7 @@ import {
   playlistBrowseId,
   restOfShelf,
 } from "./browse";
+import { MAX_SONGS } from "./importParse";
 
 function row(id: string) {
   return {
@@ -73,15 +74,52 @@ function continuationPage(rows: unknown[], token: string | null) {
   };
 }
 
+function appendPage(rows: unknown[], token: string | null) {
+  return {
+    onResponseReceivedActions: [
+      {
+        appendContinuationItemsAction: {
+          continuationItems: [
+            ...rows,
+            ...(token ? [{ continuationItemRenderer: { continuationEndpoint: { continuationCommand: { token } } } }] : []),
+          ],
+        },
+      },
+    ],
+  };
+}
+
+function playlistFirstPage(rows: unknown[], token: string | null) {
+  return {
+    contents: {
+      twoColumnBrowseResultsRenderer: {
+        secondaryContents: {
+          sectionListRenderer: {
+            contents: [
+              {
+                musicPlaylistShelfRenderer: {
+                  contents: rows,
+                  ...(token ? { continuations: [{ nextContinuationData: { continuation: token } }] } : {}),
+                },
+              },
+            ],
+          },
+        },
+      },
+    },
+  };
+}
+
 beforeEach(() => {
   execute.mockReset();
 });
 
 describe("playlistBrowseId", () => {
-  it("keeps playlist ids as they are and prefixes plain ids with VL", () => {
-    expect(playlistBrowseId("PLabc")).toBe("PLabc");
-    expect(playlistBrowseId("VLabc")).toBe("VLabc");
-    expect(playlistBrowseId("OLAK5uy_x")).toBe("OLAK5uy_x");
+  it("keeps VL ids as they are and prefixes every other playlist id with VL", () => {
+    expect(playlistBrowseId("VLPLabc")).toBe("VLPLabc");
+    expect(playlistBrowseId("PLabc")).toBe("VLPLabc");
+    expect(playlistBrowseId("OLAK5uy_x")).toBe("VLOLAK5uy_x");
+    expect(playlistBrowseId("RDCLAK5uy_y")).toBe("VLRDCLAK5uy_y");
     expect(playlistBrowseId("abc")).toBe("VLabc");
   });
 });
@@ -156,8 +194,41 @@ describe("getPlaylistPage", () => {
     expect(execute).toHaveBeenNthCalledWith(1, "/browse", { browseId: "VLabc", client: "YTMUSIC" });
     expect(page.title).toBe("Mix");
     expect(page.tracks.map((track) => track.id)).toEqual(["p1", "p2", "p3"]);
-    expect(page.meta).toBe("PLAYLIST • 3 TRACKS");
+    expect(page.meta).toBe("3 songs");
     expect(page.continuation).toBeNull();
+  });
+
+  it("keeps track durations from both the first page and continuation rows", async () => {
+    const timed = (id: string, value: string) => ({
+      musicResponsiveListItemRenderer: {
+        ...row(id).musicResponsiveListItemRenderer,
+        fixedColumns: [{ musicResponsiveListItemFixedColumnRenderer: { text: { runs: [{ text: value }] } } }],
+      },
+    });
+    execute
+      .mockResolvedValueOnce({
+        data: {
+          header: { musicResponsiveHeaderRenderer: { title: { runs: [{ text: "Mix" }] } } },
+          contents: {
+            twoColumnBrowseResultsRenderer: {
+              secondaryContents: {
+                sectionListRenderer: {
+                  contents: [{ musicPlaylistShelfRenderer: { contents: [timed("p1", "4:12")], continuations: [{ nextContinuationData: { continuation: "c1" } }] } }],
+                },
+              },
+            },
+          },
+        },
+      })
+      .mockResolvedValueOnce({ data: continuationPage([timed("p2", "1:00:00")], null) });
+
+    const page = await getPlaylistPage("abc");
+
+    expect(page.tracks.map((track) => [track.id, track.duration])).toEqual([
+      ["p1", 252],
+      ["p2", 3600],
+    ]);
+    expect(page.meta).toBe("2 songs · 1 hr 4 min");
   });
 });
 
@@ -187,5 +258,58 @@ describe("restOfShelf", () => {
     expect(MAX_SHELF_PAGES).toBe(50);
     expect(execute).toHaveBeenCalledTimes(MAX_SHELF_PAGES);
     expect(songs).toHaveLength(MAX_SHELF_PAGES);
+  });
+
+  it("stops when a page only repeats songs already read", async () => {
+    execute
+      .mockResolvedValueOnce({ data: appendPage([row("b1")], "t1") })
+      .mockResolvedValueOnce({ data: appendPage([row("b1")], "t2") })
+      .mockResolvedValueOnce({ data: appendPage([row("b2")], null) });
+
+    const songs = await restOfShelf("t0");
+
+    expect(songs.map((song) => song.id)).toEqual(["b1"]);
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops once the import limit is reached", async () => {
+    let batch = 0;
+    execute.mockImplementation(async () => {
+      const rows = Array.from({ length: 1000 }, (_, index) => row(`m${batch}-${index}`));
+      batch += 1;
+      return { data: appendPage(rows, "more") };
+    });
+
+    const songs = await restOfShelf("start");
+
+    expect(songs).toHaveLength(MAX_SONGS);
+    expect(execute).toHaveBeenCalledTimes(MAX_SONGS / 1000);
+  }, 60_000);
+});
+
+describe("getPlaylistPage across continuations", () => {
+  it("reads every page of a long playlist and drops repeated ids", async () => {
+    execute
+      .mockResolvedValueOnce({ data: playlistFirstPage([row("p1"), row("p2")], "t1") })
+      .mockResolvedValueOnce({ data: appendPage([row("p3"), row("p2")], "t2") })
+      .mockResolvedValueOnce({ data: appendPage([row("p4")], null) });
+
+    const page = await getPlaylistPage("PLlong");
+
+    expect(page.tracks.map((track) => track.id)).toEqual(["p1", "p2", "p3", "p4"]);
+    expect(page.meta).toBe("4 songs");
+    expect(execute).toHaveBeenNthCalledWith(2, "/browse", { continuation: "t1", client: "YTMUSIC" });
+    expect(execute).toHaveBeenNthCalledWith(3, "/browse", { continuation: "t2", client: "YTMUSIC" });
+  });
+
+  it("keeps the songs already read when a later page fails", async () => {
+    execute
+      .mockResolvedValueOnce({ data: playlistFirstPage([row("p1")], "t1") })
+      .mockResolvedValueOnce({ data: appendPage([row("p2")], "t2") })
+      .mockRejectedValueOnce(new Error("offline"));
+
+    const page = await getPlaylistPage("PLlong");
+
+    expect(page.tracks.map((track) => track.id)).toEqual(["p1", "p2"]);
   });
 });

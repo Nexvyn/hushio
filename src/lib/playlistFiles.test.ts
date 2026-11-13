@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parsePlaylistFile, trackFrom } from "./importPlaylistFile";
-import { type ExportTrack, playlistToJson, playlistToM3u8 } from "./playlistFiles";
+import { parseSongListReport } from "./importParse";
+import { type ExportTrack, playlistToJson, playlistToM3u8, playlistToSongList } from "./playlistFiles";
 
 const ID_A = "dQw4w9WgXcQ";
 const ID_B = "aaaaaaaaaaa";
@@ -69,5 +70,23 @@ describe("JSON export", () => {
 
   it("exports an empty track list when nothing is shareable", () => {
     expect(JSON.parse(playlistToJson("Only local", [tracks[2]])).tracks).toEqual([]);
+  });
+});
+
+describe("song list copy", () => {
+  it("writes the name on a # line and one Artist - Title line per song", () => {
+    expect(playlistToSongList("  Road trip  ", tracks)).toBe(
+      ["# Road trip", "Band - Never", "Other - Quiet", "Me - Mine", ""].join("\n"),
+    );
+  });
+
+  it.each(["Road trip", "Night, late", "Mix - Live"])("pastes back into the text import as the same songs (%s)", (name) => {
+    const songs = parseSongListReport(playlistToSongList(name, tracks)).songs;
+
+    expect(songs.map((song) => [song.artist, song.title])).toEqual([
+      ["Band", "Never"],
+      ["Other", "Quiet"],
+      ["Me", "Mine"],
+    ]);
   });
 });

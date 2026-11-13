@@ -31,7 +31,7 @@ beforeEach(() => {
   });
   exitApp.mockClear();
   useNavigation.setState({ view: { name: "home" }, navPast: [], navFuture: [], pendingScroll: null });
-  useUI.setState({ contextMenu: null, dialog: null, playlistPicker: null, phoneQueueOpen: false, nowPlayingOpen: false, toasts: [], pendingToasts: [] });
+  useUI.setState({ contextMenu: null, dialog: null, playlistPicker: null, phoneQueueOpen: false, phoneLyricsSearchOpen: false, nowPlayingOpen: false, toasts: [], pendingToasts: [] });
 });
 
 afterEach(() => {
@@ -46,6 +46,15 @@ describe("usePhoneBack", () => {
     useUI.setState({ contextMenu: { items: [], x: 0, y: 0 }, nowPlayingOpen: true });
     press();
     expect(useUI.getState().contextMenu).toBeNull();
+    expect(useUI.getState().nowPlayingOpen).toBe(true);
+  });
+
+  it("closes the phone lyrics search sheet on back", async () => {
+    renderHook(() => usePhoneBack());
+    await vi.waitFor(() => expect(listen).toHaveBeenCalled());
+    useUI.setState({ nowPlayingOpen: true, phoneLyricsSearchOpen: true });
+    press();
+    expect(useUI.getState().phoneLyricsSearchOpen).toBe(false);
     expect(useUI.getState().nowPlayingOpen).toBe(true);
   });
 

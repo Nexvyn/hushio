@@ -74,7 +74,7 @@ export async function cachedSearchPage(query: string, filter: SearchFilter): Pro
   const cached = peekSearchPage(query, filter);
   if (cached) return cached;
   const page = await searchPage(query, filter);
-  if (query.trim()) pageCache.set(cacheKey(filter, query), page);
+  if (query.trim() && page.rows.length > 0) pageCache.set(cacheKey(filter, query), page);
   return page;
 }
 

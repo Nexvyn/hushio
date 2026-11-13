@@ -9,6 +9,7 @@ export function fmtTime(seconds: number): string {
 }
 
 export function fmtTotal(seconds: number): string {
+  if (seconds <= 0) return "0 min";
   const minutes = Math.max(1, Math.round(seconds / 60));
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;

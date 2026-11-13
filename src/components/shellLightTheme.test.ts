@@ -14,6 +14,7 @@ import remotePlaylistView from "../views/RemotePlaylistView.tsx?raw";
 import playlistView from "../views/PlaylistView.tsx?raw";
 import likedView from "../views/LikedView.tsx?raw";
 import downloadsView from "../views/DownloadsView.tsx?raw";
+import onboarding from "./Onboarding.tsx?raw";
 import tokens from "../styles/tokens.css?raw";
 
 const files = {
@@ -22,6 +23,7 @@ const files = {
   playerBar,
   sidebar,
   themeButton,
+  onboarding,
   collectionHero,
   browseHero,
   coverStack,

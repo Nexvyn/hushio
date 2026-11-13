@@ -11,12 +11,13 @@ type EmptyStateProps = {
   icon?: IconSvgElement;
   action?: EmptyStateAction;
   secondaryAction?: EmptyStateAction;
+  centered?: boolean;
 };
 
-export function EmptyState({ title, message, icon, action, secondaryAction }: EmptyStateProps) {
+export function EmptyState({ title, message, icon, action, secondaryAction, centered = false }: EmptyStateProps) {
   const ink = useInk();
-  return (
-    <section className="animate-fade-in flex flex-col items-center px-6 py-12 text-center">
+  const body = (
+    <>
       {icon && (
         <span aria-hidden="true" className={`mb-3 grid h-11 w-11 place-items-center rounded-full ${ink.tint} ${ink.secondary}`}>
           <Icon icon={icon} />
@@ -38,6 +39,14 @@ export function EmptyState({ title, message, icon, action, secondaryAction }: Em
           )}
         </div>
       )}
+    </>
+  );
+  if (!centered) {
+    return <section className="animate-fade-in flex flex-col items-center px-6 py-12 text-center">{body}</section>;
+  }
+  return (
+    <section className="animate-fade-in grid flex-1 place-items-center px-6 py-12 text-center">
+      <div className="flex flex-col items-center">{body}</div>
     </section>
   );
 }

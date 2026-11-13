@@ -146,7 +146,13 @@ describe("Downloads row actions", () => {
     await user.click(screen.getByRole("button", { name: "Retry download" }));
 
     expect(resolve).toHaveBeenCalledWith("d", true, undefined, true);
-    expect(bridge.downloadStart).toHaveBeenCalledWith(expect.objectContaining({ id: "d" }), "https://rr.test/s", undefined, false);
+    expect(bridge.downloadStart).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "d" }),
+      "https://rr.test/s",
+      undefined,
+      false,
+      false,
+    );
   });
 
   it("cancels a queued or running song", async () => {

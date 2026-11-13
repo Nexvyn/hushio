@@ -24,11 +24,15 @@ export function addedMessage(count: number): string {
   return `Added ${plural(count, "song", "songs")} to queue`;
 }
 
-export function copyLink(url: string): void {
-  navigator.clipboard.writeText(url).then(
-    () => useUI.getState().toast("Link copied", "success"),
-    () => useUI.getState().toast("Couldn't copy link", "error"),
+export function copyText(text: string, copied: string, failed: string): void {
+  navigator.clipboard.writeText(text).then(
+    () => useUI.getState().toast(copied, "success"),
+    () => useUI.getState().toast(failed, "error"),
   );
+}
+
+export function copyLink(url: string): void {
+  copyText(url, "Link copied", "Couldn't copy link");
 }
 
 function loadTracks(item: BrowseItem): Promise<SearchSong[]> {

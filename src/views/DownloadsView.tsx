@@ -1,4 +1,5 @@
 import type { IconSvgElement } from "@hugeicons/react";
+import { useNavigation } from "../stores/navigation";
 import {
   Alert02Icon,
   Cancel01Icon,
@@ -205,7 +206,7 @@ export function DownloadsView() {
 
   return (
     <div className="pb-14">
-      <CollectionHero icon={Download01Icon} kind="Saved for offline" title="Downloads" covers={covers} facts={facts}>
+      <CollectionHero title="Downloads" covers={covers} facts={facts}>
         <button
           type="button"
           aria-label="Play Downloads"
@@ -242,7 +243,8 @@ export function DownloadsView() {
           <EmptyState
             icon={Download01Icon}
             title="No downloads yet"
-            message={`Right-click any song and choose "Download", or use the download arrow on a song row. Its cover joins the wall above once it starts.`}
+            message="Use the download arrow on a song to keep it offline."
+            action={{ label: "Find songs", onClick: () => useNavigation.getState().navigate({ name: "search" }) }}
           />
         ) : (
           <ol>

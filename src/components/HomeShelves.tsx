@@ -1,6 +1,7 @@
 import { useId, useRef } from "react";
 import { ArrowLeft01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { Icon } from "./Icon";
+import { SectionHeader } from "./SectionHeader";
 import { openMenuAtPointer, openMenuFromKey } from "./ContextMenu";
 import { browseMenuItems } from "../lib/browseActions";
 import { songOf, trackMenuItems } from "../lib/trackActions";
@@ -115,16 +116,14 @@ export function HomeShelfView({ shelf }: { shelf: HomeShelf }) {
 
   return (
     <section aria-labelledby={titleId}>
-      <h2 id={titleId} className="mb-3 text-[20px] font-bold tracking-[-0.01em] text-ink-1">
-        {shelf.title}
-      </h2>
+      <SectionHeader id={titleId} title={shelf.title} />
       <div className="group relative">
         <button type="button" aria-label="Scroll left" className={`${arrowClass} left-1`} onClick={() => scrollBy(-1)}>
           <Icon icon={ArrowLeft01Icon} />
         </button>
         <div
           ref={scroller}
-          className="flex gap-3 overflow-x-auto pb-2 [scrollbar-width:thin] motion-safe:scroll-smooth [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-ink-1/20"
+          className="no-scrollbar flex items-start gap-3 overflow-x-auto pb-3 motion-safe:scroll-smooth"
         >
           {shelf.items.map((item, index) => (
             <ShelfCard key={`${item.kind}-${index}`} item={item} />

@@ -108,7 +108,7 @@ describe("AlbumView", () => {
   it("builds the meta line with the release type, year and track count", async () => {
     renderAlbum(releasePage({}, songs(1)));
 
-    expect(await screen.findByText("ALBUM • 2023 • 1 TRACK")).toBeTruthy();
+    expect(await screen.findByText("Album · 2023 · 1 track")).toBeTruthy();
   });
 
   it("shows the From line when the title names a source", async () => {

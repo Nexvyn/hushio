@@ -1,3 +1,4 @@
+import { TEST_SONG_ID } from "./devSong";
 import type { AlbumRef, ArtistBundle, ArtistRef } from "./artistBundle";
 import { learnedBoost } from "./engagement";
 import type { HomeShelf } from "./home";
@@ -250,7 +251,7 @@ function describeFeed(ctx: Ctx): Descriptor[] {
   const lastPlayed = Math.max(-Infinity, ...profile.artists.flatMap((artist) => (artist.lastPlayedAt === null ? [] : [artist.lastPlayedAt])));
   const hoursSincePlay = lastPlayed === -Infinity ? Infinity : (now - lastPlayed) / HOUR_MS;
 
-  if (profile.recentlyPlayed.length >= 4) {
+  if (profile.recentlyPlayed.filter((track) => track.id !== TEST_SONG_ID).length >= 4) {
     out.push({
       kind: "jump-back-in",
       priority: 95 + (hoursSincePlay < 8 ? 5 : 0),
@@ -259,7 +260,7 @@ function describeFeed(ctx: Ctx): Descriptor[] {
         id: "jump-back-in",
         title: "Jump back in",
         layout: "tiles",
-        items: trackItems(profile.recentlyPlayed.filter((track) => !ctx.hidden.has(track.id)).slice(0, 6)),
+        items: trackItems(profile.recentlyPlayed.filter((track) => !ctx.hidden.has(track.id) && track.id !== TEST_SONG_ID).slice(0, 6)),
       }),
     });
   }
