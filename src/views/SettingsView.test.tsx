@@ -21,6 +21,8 @@ vi.mock("../lib/bridge", () => ({
   appVersion: async () => "1.1.1",
   persistRead: async () => null,
   persistWrite: async () => true,
+  scrobbleStatus: async () => null,
+  discordStatus: async () => null,
 }));
 
 import { SettingsView } from "./SettingsView";

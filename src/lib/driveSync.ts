@@ -1,4 +1,12 @@
-import type { DriveSyncStatus } from "./bridge";
+export type DriveSyncStatus = {
+  mode: "google";
+  lastSyncAt: number | null;
+  restoreSeq: number;
+  restoredStores: string[];
+  state: "idle" | "pending" | "syncing" | "error";
+  lastError: string | null;
+  pending: number;
+};
 
 function clock(ms: number): string {
   const date = new Date(ms);

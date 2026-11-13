@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DriveSyncStatus } from "./bridge";
-import { driveStatusText } from "./driveSync";
+import { driveStatusText, type DriveSyncStatus } from "./driveSync";
 
 const base: DriveSyncStatus = { mode: "google", lastSyncAt: null, restoreSeq: 0, restoredStores: [], state: "idle", lastError: null, pending: 0 };
 

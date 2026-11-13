@@ -1,10 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
-import { ArrowLeft01Icon, ArrowRight01Icon, Cancel01Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { ArrowRight01Icon, Cancel01Icon, Search01Icon } from "@hugeicons/core-free-icons";
 import { Icon } from "../components/Icon";
-import { SettingRow } from "../components/SettingRow";
+import { SectionHeader } from "../components/SectionHeader";
 import { appVersion, platform } from "../lib/bridge";
 import { shellFor, useViewportWidth } from "../lib/layoutTier";
 import { useAuth } from "../stores/auth";
+import { useDiscord } from "../stores/discord";
+import { useScrobble } from "../stores/scrobble";
 import { useSync } from "../stores/sync";
 import { useUpdates } from "../stores/updates";
 import { useNavigation } from "../stores/navigation";
@@ -14,8 +16,11 @@ import {
   CATEGORY_IDS,
   type CategoryId,
   type SettingsCategory,
-  type SettingsGroup,
 } from "./settings/categories";
+import { GroupView, PageHeader } from "./settings/SettingsLayout";
+import { HomeSectionsSettings } from "./settings/HomeSectionsSettings";
+import { NetworkServersSettings } from "./settings/NetworkServersSettings";
+import { CrashLogs } from "./settings/CrashLogs";
 import { filterCategories } from "./settings/search";
 
 const STEP: Record<string, number> = { ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 };
@@ -41,21 +46,6 @@ function useAppVersion() {
   return version;
 }
 
-function GroupView({ group }: { group: SettingsGroup }) {
-  return (
-    <section className="mt-6 first:mt-0">
-      {group.title && <h3 className="mb-1 px-1 text-[13px] font-semibold text-ink-2">{group.title}</h3>}
-      {group.note && <p className="mb-2 px-1 text-[12.5px] text-ink-2">{group.note}</p>}
-      <div className="divide-y divide-separator overflow-hidden rounded-[11px] border border-separator bg-panel">
-        {group.rows.map((row) => (
-          <SettingRow key={row.id} {...row} />
-        ))}
-        {group.body && <div className="px-4 py-4">{group.body}</div>}
-      </div>
-    </section>
-  );
-}
-
 function SearchBox({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key !== "Escape") return;
@@ -77,14 +67,14 @@ function SearchBox({ value, onChange }: { value: string; onChange: (value: strin
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={onKeyDown}
-        className="h-9 w-full rounded-full border border-separator bg-surface pl-10 pr-10 text-[13px] text-ink-1 placeholder:text-ink-2"
+        className="h-10 w-full rounded-[12px] [corner-shape:squircle] border border-separator bg-surface pl-10 pr-10 text-base text-ink-1 md:text-body placeholder:text-ink-2 focus-visible:border-focus focus-visible:outline-none"
       />
       {value && (
         <button
           type="button"
           aria-label="Clear search"
           onClick={() => onChange("")}
-          className="hit-area absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-ink-2 transition-colors hover:text-ink-1"
+          className="hit-area absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-[12px] [corner-shape:squircle] text-ink-2 motion-safe:transition-colors hover:text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
         >
           <Icon icon={Cancel01Icon} />
         </button>
@@ -104,9 +94,19 @@ function CategoryNav({ categories, active, onSelect }: CategoryNavProps) {
   const [light, setLight] = useState({ top: 0, height: 0 });
 
   useLayoutEffect(() => {
-    const button = buttons.current.get(active);
-    if (button) setLight({ top: button.offsetTop, height: button.offsetHeight });
-  }, [active]);
+    function measure() {
+      const button = buttons.current.get(active);
+      if (!button) return;
+      const top = button.offsetTop;
+      const height = button.offsetHeight;
+      setLight((previous) =>
+        previous.top === top && previous.height === height ? previous : { top, height },
+      );
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [active, categories]);
 
   function onKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     const step = STEP[event.key];
@@ -121,7 +121,7 @@ function CategoryNav({ categories, active, onSelect }: CategoryNavProps) {
     <nav aria-label="Settings categories" className="relative flex flex-col gap-0.5">
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 rounded-[9px] bg-ink-1/[0.08] motion-safe:transition-transform motion-safe:duration-swap motion-safe:ease-out"
+        className="pointer-events-none absolute inset-x-0 rounded-[12px] [corner-shape:squircle] bg-ink-1/[0.08] motion-safe:transition-transform motion-safe:duration-swap motion-safe:ease-out"
         style={{ transform: `translateY(${light.top}px)`, height: light.height }}
       />
       {categories.map((category, index) => {
@@ -138,7 +138,7 @@ function CategoryNav({ categories, active, onSelect }: CategoryNavProps) {
             aria-current={current ? "page" : undefined}
             onClick={() => onSelect(category.id)}
             onKeyDown={(event) => onKeyDown(event, index)}
-            className={`relative flex w-full items-center gap-3 rounded-[9px] px-3 py-2.5 text-left text-[14px] font-medium transition-colors ${
+            className={`relative flex w-full items-center gap-3 rounded-[12px] [corner-shape:squircle] px-3 py-2.5 text-left text-body font-medium motion-safe:transition-colors ${
               current ? "text-ink-1" : "text-ink-2 hover:text-ink-1"
             }`}
           >
@@ -167,21 +167,8 @@ function PhoneSettings({ categories, results, query, onQueryChange, open, onOpen
   if (!searching && open) {
     return (
       <div key={open.id} className="settings-pane pb-6">
-        <header className="flex items-start gap-1">
-          <button
-            type="button"
-            aria-label="Back to settings"
-            onClick={onBack}
-            className="-ml-2 flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-ink-1 motion-safe:transition-colors hover:bg-wash"
-          >
-            <Icon icon={ArrowLeft01Icon} />
-          </button>
-          <div className="min-w-0 pt-2">
-            <h2 className="text-[22px] font-semibold tracking-[-0.02em] text-ink-1">{open.label}</h2>
-            <p className="mt-1 text-[13px] text-ink-2">{open.lede}</p>
-          </div>
-        </header>
-        <div className="mt-4">
+        <PageHeader title={open.label} onBack={onBack} />
+        <div className="space-y-7">
           {open.groups.map((group, index) => (
             <GroupView key={group.title ?? index} group={group} />
           ))}
@@ -194,33 +181,35 @@ function PhoneSettings({ categories, results, query, onQueryChange, open, onOpen
 
   return (
     <div className="pb-6">
-      <h1 className="pt-1 text-[34px] font-extrabold tracking-[-0.03em] text-ink-1">Settings</h1>
+      <h1 className="text-section text-ink-1">Settings</h1>
       <div className="mt-4">
         <SearchBox value={query} onChange={onQueryChange} />
       </div>
       {searching && results.length === 0 && (
-        <p className="px-1 pt-4 text-[13px] text-ink-2">No settings match “{query.trim()}”</p>
+        <p className="pt-4 text-body text-ink-2">No settings match “{query.trim()}”</p>
       )}
       {searching
         ? results.map((category) => (
-            <section key={category.id} className="mt-6">
-              <h2 className="mb-2 text-[17px] font-semibold text-ink-1">{category.label}</h2>
-              {category.groups.map((group, index) => (
-                <GroupView key={group.title ?? index} group={group} />
-              ))}
+            <section key={category.id} className="mt-7 first:mt-0">
+              <SectionHeader title={category.label} />
+              <div className="space-y-7">
+                {category.groups.map((group, index) => (
+                  <GroupView key={group.title ?? index} group={group} />
+                ))}
+              </div>
             </section>
           ))
         : list.length > 0 && (
-            <ul className="mt-4 divide-y divide-separator overflow-hidden rounded-[11px] border border-separator bg-panel">
+            <ul className="mt-4 divide-y divide-separator">
               {list.map((category) => (
                 <li key={category.id}>
                   <button
                     type="button"
                     data-cat={category.id}
                     onClick={() => onOpen(category.id)}
-                    className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left text-[14px] font-medium text-ink-1 motion-safe:transition-colors active:bg-wash"
+                    className="flex min-h-[52px] w-full items-center gap-3 py-2 text-left text-body font-medium text-ink-1 motion-safe:transition-colors active:opacity-70"
                   >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] bg-wash text-ink-2">
+                    <span className="shrink-0 text-ink-2">
                       <Icon icon={category.icon} />
                     </span>
                     <span className="min-w-0 flex-1 truncate">{category.label}</span>
@@ -253,15 +242,25 @@ export function SettingsView() {
   const account = useAuth((state) => state.account);
   const signingIn = useAuth((state) => state.signingIn);
   const syncStatus = useSync((state) => state.status);
-  const driveStatus = useSync((state) => state.drive);
   const tvConnected = useSync((state) => state.tvConnected);
   const tvCode = useSync((state) => state.tvCode);
   const tvBusy = useSync((state) => state.tvBusy);
   const tvError = useSync((state) => state.tvError);
+  const scrobbleStatus = useScrobble((state) => state.status);
+  const scrobbleBusy = useScrobble((state) => state.busy);
+  const discordStatus = useDiscord((state) => state.status);
   const [query, setQuery] = useState("");
   const viewportWidth = useViewportWidth();
 
   const active = resolveCategory(view.param);
+  const loadScrobble = useScrobble((state) => state.load);
+  const loadDiscord = useDiscord((state) => state.load);
+
+  useEffect(() => {
+    void loadScrobble();
+    void loadDiscord();
+  }, [loadScrobble, loadDiscord]);
+
   const categories = buildCategories({
     settings,
     version,
@@ -283,11 +282,7 @@ export function SettingsView() {
     },
     sync: {
       status: syncStatus,
-      drive: driveStatus,
-      syncNow: () => {
-        void useSync.getState().syncNow();
-        void useSync.getState().syncDriveNow();
-      },
+      syncNow: () => void useSync.getState().syncNow(),
       tv: {
         connected: tvConnected,
         code: tvCode,
@@ -299,11 +294,37 @@ export function SettingsView() {
         disconnect: () => void useSync.getState().disconnectTv(),
       },
     },
+    scrobble: {
+      status: scrobbleStatus,
+      busy: scrobbleBusy,
+      setEnabled: (service, enabled) => void useScrobble.getState().setEnabled(service, enabled),
+      connectListenbrainz: (token) => void useScrobble.getState().connectListenbrainz(token),
+      disconnectListenbrainz: () => void useScrobble.getState().disconnectListenbrainz(),
+      beginLastfm: () => void useScrobble.getState().beginLastfm(),
+      finishLastfm: () => void useScrobble.getState().finishLastfm(),
+      disconnectLastfm: () => void useScrobble.getState().disconnectLastfm(),
+    },
+    discord: {
+      status: discordStatus,
+      setEnabled: (enabled) => void useDiscord.getState().setEnabled(enabled),
+    },
   });
   const searching = query.trim() !== "";
   const results = filterCategories(categories, query);
   const current = categories.find((category) => category.id === active);
   const phone = platform === "android" && shellFor(viewportWidth) === "phone";
+
+  if (view.param === "home-sections") {
+    return <HomeSectionsSettings />;
+  }
+
+  if (view.param === "crash-logs") {
+    return <CrashLogs />;
+  }
+
+  if (view.param === "network-servers") {
+    return <NetworkServersSettings />;
+  }
 
   function select(id: CategoryId) {
     replaceView({ name: "settings", param: id });
@@ -325,36 +346,34 @@ export function SettingsView() {
 
   return (
     <div className="flex min-h-[calc(100vh-7rem)] gap-8">
-      <aside className="flex w-[220px] shrink-0 flex-col gap-4">
-        <h1 className="text-[34px] font-extrabold tracking-[-0.03em] text-ink-1">Settings</h1>
+      <aside className="flex w-[220px] shrink-0 flex-col gap-3">
         <SearchBox value={query} onChange={setQuery} />
         <CategoryNav categories={categories} active={active} onSelect={select} />
       </aside>
 
-      <div className="min-w-0 flex-1 pt-2">
+      <div className="min-w-0 max-w-[680px] flex-1">
         {searching ? (
           results.length > 0 ? (
-            results.map((category) => (
-              <section key={category.id} className="mb-10">
-                <h2 className="text-[17px] font-semibold text-ink-1">{category.label}</h2>
-                <div className="mt-3">
-                  {category.groups.map((group, index) => (
-                    <GroupView key={group.title ?? index} group={group} />
-                  ))}
-                </div>
-              </section>
-            ))
+            <div className="space-y-10">
+              {results.map((category) => (
+                <section key={category.id}>
+                  <SectionHeader title={category.label} />
+                  <div className="space-y-7">
+                    {category.groups.map((group, index) => (
+                      <GroupView key={group.title ?? index} group={group} />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
           ) : (
-            <p className="px-1 pt-2 text-[13px] text-ink-2">No settings match “{query.trim()}”</p>
+            <p className="pt-2 text-body text-ink-2">No settings match “{query.trim()}”</p>
           )
         ) : (
           current && (
             <div key={current.id}>
-              <header>
-                <h2 className="text-[22px] font-semibold tracking-[-0.02em] text-ink-1">{current.label}</h2>
-                <p className="mt-1 text-[13px] text-ink-2">{current.lede}</p>
-              </header>
-              <div className="mt-5">
+              <PageHeader title={current.label} />
+              <div className="space-y-7">
                 {current.groups.map((group, index) => (
                   <GroupView key={group.title ?? index} group={group} />
                 ))}

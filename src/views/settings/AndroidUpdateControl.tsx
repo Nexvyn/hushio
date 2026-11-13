@@ -80,9 +80,9 @@ export function AndroidUpdateControl({ current }: { current: string | null }) {
   return (
     <div className="flex flex-col items-end gap-1 text-right">
       {copy ? (
-        <p className="text-[13px] text-ink-1" aria-live="polite">
+        <p className="text-meta tabular-nums text-ink-2" aria-live="polite">
           {copy.title}
-          {copy.note ? <span className="block text-ink-3">{copy.note}</span> : null}
+          {copy.note ? <span className="block">{copy.note}</span> : null}
         </p>
       ) : null}
       {phase.kind === "available" ? (

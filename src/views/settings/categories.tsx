@@ -4,6 +4,8 @@ import {
   AudioWave01Icon,
   ChartLineData01Icon,
   CloudDownloadIcon,
+  CloudServerIcon,
+  Copy01Icon,
   DashboardSpeed01Icon,
   DatabaseIcon,
   Delete02Icon,
@@ -13,27 +15,31 @@ import {
   FileImportIcon,
   ImportIcon,
   FilterIcon,
+  FlashlightIcon,
   FolderAddIcon,
   FolderDownloadIcon,
   FolderOpenIcon,
   FullScreenIcon,
+  GamepadIcon,
   GlobeIcon,
   Infinity01Icon,
   InformationCircleIcon,
   Link01Icon,
   Logout01Icon,
   MaximizeScreenIcon,
+  Menu01Icon,
   Mic01Icon,
   MusicNote01Icon,
   PaintBoardIcon,
   PlayCircleIcon,
+  RadioIcon,
   RefreshIcon,
   RepeatIcon,
-  ReplayIcon,
   SidebarBottomIcon,
   SlidersHorizontalIcon,
   SparklesIcon,
   Speaker01Icon,
+  TextIcon,
   Timer01Icon,
   TranslateIcon,
   UserIcon,
@@ -54,8 +60,8 @@ import type { SettingRowProps } from "../../components/SettingRow";
 import { YouTubeMusicPrompt } from "../../components/YouTubeMusicPrompt";
 import { Slider } from "../../components/Slider";
 import { APP_NAME, APP_SLUG } from "../../lib/app";
-import type { DriveSyncStatus, GoogleAccount, Platform, YtSyncStatus, YtTvCode } from "../../lib/bridge";
-import { driveStatusText } from "../../lib/driveSync";
+import type { GoogleAccount, Platform, YtSyncStatus, YtTvCode } from "../../lib/bridge";
+import { APP_FONTS, isAppFont } from "../../lib/fonts";
 import { DOWNLOAD_PAGE, RELEASES_PAGE, actionLabel, updateCopy, type UpdateState } from "../../lib/updates";
 import { MATCH_LANGUAGE_OPTIONS } from "../../lib/importLanguage";
 import { failedText, quotaText, syncStatusText } from "../../lib/ytSync";
@@ -64,13 +70,17 @@ import { confirmImportBackup, exportBackup } from "../../lib/importBackup";
 import { useErase } from "../../stores/erase";
 import { useLocalLibrary } from "../../stores/localLibrary";
 import type { View } from "../../stores/navigation";
+import { scrobbleRows, type ScrobbleContext } from "./scrobble";
+import { discordNote, type DiscordContext } from "./discord";
 import type {
   DownloadQuality,
   LoudnessLevel,
+  LyricsTextSize,
   SettingsState,
   SettingsValues,
   StreamingQuality,
 } from "../../stores/settings";
+import { LYRICS_PROVIDERS, toggleLyricsProvider } from "../../stores/settings";
 
 export const CATEGORY_IDS = [
   "account",
@@ -79,12 +89,12 @@ export const CATEGORY_IDS = [
   "lyrics",
   "display",
   "library",
+  "scrobbling",
   "data",
   "about",
 ] as const;
 
 export type CategoryId = (typeof CATEGORY_IDS)[number];
-
 export type RowSpec = SettingRowProps & { id: string };
 
 export type SettingsGroup = {
@@ -97,7 +107,6 @@ export type SettingsGroup = {
 export type SettingsCategory = {
   id: CategoryId;
   label: string;
-  lede: string;
   icon: IconSvgElement;
   groups: SettingsGroup[];
 };
@@ -123,7 +132,6 @@ export type TvContext = {
 
 export type SyncContext = {
   status: YtSyncStatus;
-  drive: DriveSyncStatus;
   syncNow: () => void;
   tv: TvContext;
 };
@@ -144,6 +152,8 @@ export type BuildContext = {
   auth: AuthContext;
   updates: UpdatesContext;
   sync: SyncContext;
+  scrobble?: ScrobbleContext;
+  discord?: DiscordContext;
 };
 
 type BooleanKey = {
@@ -151,7 +161,7 @@ type BooleanKey = {
 }[keyof SettingsValues];
 
 const UNLIMITED_SYNC_NOTE =
-  "Unofficial. Uses YouTube Music web calls for every change. It can stop working, and it can put your Google account at risk. Off uses the official YouTube API, and switches to the unofficial calls only when the daily quota runs out.";
+  "Unofficial. Uses YouTube web calls for every change. It can stop working, and it can put your Google account at risk. Off uses the official YouTube API, and switches to the unofficial calls only when the daily quota runs out.";
 
 const STREAMING_OPTIONS: RadioOption<StreamingQuality>[] = [
   { value: "low", label: "Low" },
@@ -171,6 +181,12 @@ const DOWNLOAD_OPTIONS: RadioOption<DownloadQuality>[] = [
   { value: "standard", label: "Standard" },
   { value: "high", label: "High" },
   { value: "lossless", label: "Lossless" },
+];
+
+const LYRICS_SIZE_OPTIONS: RadioOption<LyricsTextSize>[] = [
+  { value: "small", label: "Small" },
+  { value: "medium", label: "Medium" },
+  { value: "large", label: "Large" },
 ];
 
 function flag(settings: SettingsState, key: BooleanKey) {
@@ -202,7 +218,7 @@ function tvRows(visible: boolean, tv: TvContext): RowSpec[] {
       {
         id: "tv-disconnect",
         icon: Logout01Icon,
-        title: "Disconnect YouTube Music",
+        title: "Disconnect YouTube account",
         control: <Button onClick={tv.disconnect}>Disconnect</Button>,
       },
     ];
@@ -211,7 +227,7 @@ function tvRows(visible: boolean, tv: TvContext): RowSpec[] {
     {
       id: "tv-connect",
       icon: Link01Icon,
-      title: "Connect YouTube Music",
+      title: "Connect YouTube account",
       control: (
         <Button disabled={tv.busy} onClick={tv.connect}>
           Connect
@@ -222,7 +238,7 @@ function tvRows(visible: boolean, tv: TvContext): RowSpec[] {
 }
 
 const DANGER_BUTTON =
-  "inline-flex items-center justify-center rounded-[9px] bg-danger px-3 py-1.5 text-[13px] font-medium text-white transition-[filter] hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+  "inline-flex h-10 items-center justify-center rounded-[12px] [corner-shape:squircle] bg-danger px-4 text-body font-medium text-on-danger motion-safe:transition-[filter] hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
 function accountCategory({ settings: s, navigate, auth, sync }: BuildContext): SettingsCategory {
   const signedIn = auth.account.mode === "google";
@@ -236,7 +252,6 @@ function accountCategory({ settings: s, navigate, auth, sync }: BuildContext): S
   return {
     id: "account",
     label: "Account",
-    lede: "Your Google account, sync and the services you've connected",
     icon: UserIcon,
     groups: [
       {
@@ -265,13 +280,6 @@ function accountCategory({ settings: s, navigate, auth, sync }: BuildContext): S
                 Sync now
               </Button>
             ),
-          },
-          {
-            id: "drive-sync-status",
-            icon: DatabaseIcon,
-            title: "Google Drive",
-            note: driveStatusText(sync.drive, signedIn),
-            disabled: !signedIn,
           },
           {
             id: "unlimited-sync",
@@ -331,6 +339,7 @@ function accountCategory({ settings: s, navigate, auth, sync }: BuildContext): S
             icon: TranslateIcon,
             title: "Song versions",
             note: "When a song has versions in several languages, imports and playlists pick this one.",
+            stacked: true,
             control: (
               <RadioGroup
                 label="Song versions"
@@ -350,7 +359,7 @@ function accountCategory({ settings: s, navigate, auth, sync }: BuildContext): S
             icon: Delete02Icon,
             title: signedIn ? "Disconnect & erase" : "Erase all local data",
             note: signedIn
-              ? `Deletes ${APP_NAME}'s sync data from your Google Drive, removes this computer's sign-in and erases ${APP_NAME}'s data on this computer. Your YouTube playlists and Liked Songs are kept unless you choose otherwise.`
+              ? `Removes this computer's Google sign-in and erases ${APP_NAME}'s data on this computer. Your YouTube playlists and Liked Songs are kept unless you choose otherwise.`
               : `Deletes everything ${APP_NAME} stores on this computer. This can't be undone.`,
             danger: true,
             control: (
@@ -359,7 +368,7 @@ function accountCategory({ settings: s, navigate, auth, sync }: BuildContext): S
                 onClick={() => useErase.getState().open(signedIn ? "google" : "guest")}
                 className={DANGER_BUTTON}
               >
-                {signedIn ? "Disconnect & erase" : "Erase all local data"}
+                {signedIn ? "Disconnect & erase" : "Erase"}
               </button>
             ),
           },
@@ -420,6 +429,20 @@ function playbackCategory(context: BuildContext): SettingsCategory {
       toggle: flag(s, "dontRepeatSuggestions"),
     },
     {
+      id: "no-duplicate-queue",
+      icon: Copy01Icon,
+      title: "Don't add duplicate songs to the queue",
+      note: "A song you already have in the queue is left out.",
+      toggle: flag(s, "noDuplicateQueue"),
+    },
+    {
+      id: "restore-queue",
+      icon: RefreshIcon,
+      title: "Restore the queue on restart",
+      note: "Picks up where you left off, with the same song and position.",
+      toggle: flag(s, "restoreQueueOnRestart"),
+    },
+    {
       id: "playback-speed",
       icon: DashboardSpeed01Icon,
       title: "Playback speed",
@@ -451,7 +474,6 @@ function playbackCategory(context: BuildContext): SettingsCategory {
   return {
     id: "playback",
     label: "Playback",
-    lede: "How songs start, end and follow each other",
     icon: PlayCircleIcon,
     groups: [{ rows }],
   };
@@ -478,7 +500,6 @@ function soundCategory(context: BuildContext): SettingsCategory {
   return {
     id: "sound",
     label: "Sound",
-    lede: "Quality, loudness, where it plays and how it's shaped",
     icon: AudioWave01Icon,
     groups: [
       {
@@ -547,7 +568,6 @@ function lyricsCategory({ settings: s }: BuildContext): SettingsCategory {
   return {
     id: "lyrics",
     label: "Lyrics",
-    lede: "How lyrics follow the song",
     icon: Mic01Icon,
     groups: [
       {
@@ -601,17 +621,45 @@ function lyricsCategory({ settings: s }: BuildContext): SettingsCategory {
               />
             ),
           },
+          {
+            id: "lyrics-text-size",
+            icon: TextIcon,
+            title: "Lyrics text size",
+            note: "How big the lyrics are.",
+            control: (
+              <RadioGroup
+                label="Lyrics text size"
+                options={LYRICS_SIZE_OPTIONS}
+                value={s.lyricsTextSize}
+                onChange={(value) => s.setValue("lyricsTextSize", value)}
+              />
+            ),
+          },
         ],
+      },
+      {
+        title: "Lyrics sources",
+        note: "Hushio asks each source in turn and takes the first answer that has timings.",
+        rows: LYRICS_PROVIDERS.map((provider) => ({
+          id: `lyrics-provider-${provider.id}`,
+          icon: Mic01Icon,
+          title: provider.label,
+          toggle: {
+            checked: s.lyricsProviders.includes(provider.id),
+            onChange: () =>
+              s.setValue("lyricsProviders", toggleLyricsProvider(s.lyricsProviders, provider.id)),
+          },
+        })),
       },
     ],
   };
 }
 
-function displayCategory({ settings: s }: BuildContext): SettingsCategory {
+function displayCategory(context: BuildContext): SettingsCategory {
+  const { settings: s, navigate } = context;
   return {
     id: "display",
     label: "Display",
-    lede: "Motion, glass and how covers show",
     icon: PaintBoardIcon,
     groups: [
       {
@@ -651,8 +699,68 @@ function displayCategory({ settings: s }: BuildContext): SettingsCategory {
             note: "Keeps the player bar free of the volume slider.",
             toggle: flag(s, "hideVolumeBar"),
           },
+          {
+            id: "keep-screen-awake",
+            icon: FlashlightIcon,
+            title: "Keep the screen awake",
+            note: "Stops the screen going dark while Now Playing is open.",
+            toggle: flag(s, "keepScreenAwake"),
+          },
+          {
+            id: "data-saver",
+            icon: Wifi01Icon,
+            title: "Data saver",
+            note: "Streams the lowest quality and loads smaller covers.",
+            toggle: flag(s, "dataSaver"),
+          },
+          {
+            id: "app-font",
+            icon: TextIcon,
+            title: "App font",
+            note: "The font used for UI text and lyrics.",
+            control: (
+              <RadioGroup
+                label="App font"
+                options={APP_FONTS.map((font) => ({ value: font.id, label: font.label }))}
+                value={s.appFont}
+                onChange={(value) => {
+                  if (isAppFont(value)) s.setValue("appFont", value);
+                }}
+              />
+            ),
+          },
+          {
+            id: "home-sections",
+            icon: Menu01Icon,
+            title: "Home sections",
+            note: "Reorder the sections on Home, or hide one.",
+            control: <Button onClick={() => navigate({ name: "settings", param: "home-sections" })}>Open</Button>,
+          },
         ],
       },
+      ...(context.discord
+        ? [
+            {
+              title: "Discord",
+              note: discordNote(context.discord.status),
+              rows: [
+                {
+                  id: "discord-rich-presence",
+                  icon: GamepadIcon,
+                  title: "Show what I'm playing in Discord",
+                  note: context.discord.status.connected
+                    ? "Discord is running and listening."
+                    : "Discord isn't running right now. This turns on by itself when it starts.",
+                  disabled: !context.discord.status.available,
+                  toggle: {
+                    checked: context.discord.status.enabled,
+                    onChange: (value: boolean) => context.discord?.setEnabled(value),
+                  },
+                },
+              ],
+            },
+          ]
+        : []),
     ],
   };
 }
@@ -662,7 +770,6 @@ function libraryCategory(context: BuildContext): SettingsCategory {
   return {
     id: "library",
     label: "Library",
-    lede: "Your music folders and downloads",
     icon: Album02Icon,
     groups: [
       {
@@ -696,6 +803,13 @@ function libraryCategory(context: BuildContext): SettingsCategory {
             title: "Filter non-music audio",
             note: "Hides clips, recordings and voice notes. Applies on rescan.",
             toggle: flag(s, "filterNonMusicAudio"),
+          },
+          {
+            id: "auto-download-liked",
+            icon: CloudDownloadIcon,
+            title: "Auto-download songs you like",
+            note: "Saves a copy of every song you like.",
+            toggle: flag(s, "autoDownloadLiked"),
           },
         ],
       },
@@ -732,26 +846,66 @@ function libraryCategory(context: BuildContext): SettingsCategory {
           },
         ],
       },
+      {
+        title: "Network folders",
+        note: "Play the music on a WebDAV or SMB server. The password stays on this computer.",
+        rows: [
+          {
+            id: "network-servers",
+            icon: CloudServerIcon,
+            title: "Network folders",
+            note: "Add a server and its songs appear under Local music.",
+            control: (
+              <Button onClick={() => navigate({ name: "settings", param: "network-servers" })}>Open</Button>
+            ),
+          },
+        ],
+      },
     ],
   };
 }
 
-function dataCategory({ navigate }: BuildContext): SettingsCategory {
+function scrobblingCategory(context: BuildContext): SettingsCategory {
+  return {
+    id: "scrobbling",
+    label: "Scrobbling",
+    icon: RadioIcon,
+    groups: [
+      {
+        note: "A scrobble is sent once a song is halfway through, or after four minutes.",
+        rows: context.scrobble ? scrobbleRows(context.scrobble) : [],
+      },
+    ],
+  };
+}
+
+function dataCategory(context: BuildContext): SettingsCategory {
+  const { settings: s } = context;
   return {
     id: "data",
     label: "Your data",
-    lede: "Your listening, your backups and a fresh start",
     icon: DatabaseIcon,
     groups: [
       {
         rows: [
           {
-            id: "replay",
-            icon: ReplayIcon,
-            title: "Replay",
-            note: "Your listening wrapped over time",
-            control: <Button onClick={() => navigate({ name: "replay" })}>Open</Button>,
+            id: "pause-listening-history",
+            icon: Timer01Icon,
+            title: "Pause listening history",
+            note: "Stops recording what you play, in the stats and in the recent list.",
+            toggle: flag(s, "pauseListeningHistory"),
           },
+          {
+            id: "pause-search-history",
+            icon: FilterIcon,
+            title: "Pause search history",
+            note: "Stops keeping the searches you make.",
+            toggle: flag(s, "pauseSearchHistory"),
+          },
+        ],
+      },
+      {
+        rows: [
           {
             id: "export-data",
             icon: FileExportIcon,
@@ -770,7 +924,7 @@ function dataCategory({ navigate }: BuildContext): SettingsCategory {
             id: "reset-app-data",
             icon: Delete02Icon,
             title: "Reset app data (local)",
-            note: "Erase library, playlists, history and settings on this device. Downloads, YouTube and Drive data are kept.",
+            note: "Erase library, playlists, history and settings on this device. Downloads and YouTube data are kept.",
             danger: true,
             control: (
               <button type="button" onClick={() => useErase.getState().open("reset")} className={DANGER_BUTTON}>
@@ -816,13 +970,12 @@ function updateControl({ state, check, install, restart, openPage }: UpdatesCont
   }
 }
 
-function aboutCategory({ version, updates, platform }: BuildContext): SettingsCategory {
+function aboutCategory({ version, updates, platform, navigate }: BuildContext): SettingsCategory {
   const android = platform === "android";
   const copy = updateCopy(updates.state);
   return {
     id: "about",
     label: "About",
-    lede: `The version you're running and where ${APP_NAME} lives`,
     icon: InformationCircleIcon,
     groups: [
       {
@@ -848,6 +1001,13 @@ function aboutCategory({ version, updates, platform }: BuildContext): SettingsCa
             note: `${APP_SLUG}.space: downloads, news and help`,
             control: <Button onClick={() => updates.openPage(DOWNLOAD_PAGE)}>Open</Button>,
           },
+          {
+            id: "crash-logs",
+            icon: Alert01Icon,
+            title: "Crash logs",
+            note: "Recent crashes, with copy and clear.",
+            control: <Button onClick={() => navigate({ name: "settings", param: "crash-logs" })}>Open</Button>,
+          },
         ],
       },
     ],
@@ -861,6 +1021,7 @@ const ANDROID_HIDDEN_ROWS = new Set([
   "hide-volume-bar",
   "download-folder",
   "export-downloads",
+  "discord-rich-presence",
 ]);
 
 const ANDROID_LATER_ROWS = new Set(["crossfade", "automix"]);
@@ -892,6 +1053,7 @@ export function buildCategories(context: BuildContext): SettingsCategory[] {
       lyricsCategory(context),
       displayCategory(context),
       libraryCategory(context),
+      scrobblingCategory(context),
       dataCategory(context),
       aboutCategory(context),
     ],

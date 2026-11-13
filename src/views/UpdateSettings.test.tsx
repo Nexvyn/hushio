@@ -27,6 +27,9 @@ vi.mock("../lib/bridge", () => ({
   updatesCheck: vi.fn(async () => {}),
   updatesInstall: vi.fn(async () => {}),
   updatesRestart: vi.fn(async () => {}),
+  scrobbleStatus: async () => null,
+  discordStatus: async () => null,
+  networkServers: async () => null,
 }));
 
 import * as bridge from "../lib/bridge";

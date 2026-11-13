@@ -7,6 +7,9 @@ vi.mock("../lib/bridge", () => ({
   appVersion: async () => "1.1.1",
   persistRead: async () => null,
   persistWrite: async () => true,
+  scrobbleStatus: async () => null,
+  discordStatus: async () => null,
+  networkServers: async () => null,
 }));
 
 import { SettingsView } from "./SettingsView";
@@ -28,7 +31,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("phone settings", () => {
-  it("shows the eight categories as a list first", () => {
+  it("shows the nine categories as a list first", () => {
     render(<SettingsView />);
     const rows = screen.getAllByRole("button").filter((button) => button.hasAttribute("data-cat"));
     expect(rows.map((row) => row.textContent)).toEqual([
@@ -38,6 +41,7 @@ describe("phone settings", () => {
       "Lyrics",
       "Display",
       "Library",
+      "Scrobbling",
       "Your data",
       "About",
     ]);

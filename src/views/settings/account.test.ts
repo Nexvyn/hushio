@@ -32,7 +32,6 @@ function context(mode: "guest" | "google", requestSignOut = vi.fn(), syncNow = v
     },
     sync: {
       status: { ...IDLE, state },
-      drive: { mode: "google" as const, lastSyncAt: null, restoreSeq: 0, restoredStores: [], state: "idle" as const, lastError: null, pending: 0 },
       syncNow,
       tv: { connected: false, code: null, busy: false, error: null, connect: vi.fn(), cancel: vi.fn(), open: vi.fn(), disconnect: vi.fn() },
     },
@@ -78,7 +77,7 @@ describe("account settings", () => {
     expect(unlimited(context("guest"))?.disabled).toBe(true);
   });
 
-  it("offers Connect YouTube Music only while unlimited sync is on", () => {
+  it("offers Connect YouTube account only while unlimited sync is on", () => {
     const ids = (ctx: BuildContext) => accountRows(ctx).map((row) => row.id);
     useSettings.setState({ unlimitedSync: false });
     expect(ids(context("google"))).not.toContain("tv-connect");
