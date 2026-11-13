@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import type { LyricsCandidate, LyricsResult } from "../../lib/bridge";
 import { forgetLyrics } from "../../lib/lyrics";
+import { OnArtContext } from "../../lib/onArt";
 import type { Track } from "../../types";
 
 const { lyricsGet, lyricsSearch, lyricsPick, lyricsReset, listenBack, exitApp } = vi.hoisted(() => {
@@ -102,7 +103,7 @@ describe("PhoneLyrics", () => {
     render(<PhoneLyrics />);
 
     expect(await screen.findByText("No lyrics")).toBeTruthy();
-    fireEvent.click(screen.getAllByRole("button", { name: "Search lyrics" })[1]);
+    fireEvent.click(screen.getByRole("button", { name: "Search lyrics" }));
 
     expect(await screen.findByRole("dialog", sheetName)).toBeTruthy();
     expect(lyricsSearch).toHaveBeenCalledWith("Coldplay Yellow", 272);
@@ -162,5 +163,18 @@ describe("PhoneLyrics", () => {
 
     await waitFor(() => expect(screen.queryByRole("dialog", sheetName)).toBeNull(), { timeout: 3000 });
     expect(useUI.getState().nowPlayingOpen).toBe(true);
+  });
+
+  it("draws the search button in the on-art colour over the artwork", async () => {
+    lyricsGet.mockResolvedValue(automatic);
+    render(
+      <OnArtContext.Provider value={true}>
+        <PhoneLyrics />
+      </OnArtContext.Provider>,
+    );
+    expect(await screen.findByText("automatic line")).toBeTruthy();
+    const search = screen.getByRole("button", { name: "Search lyrics" });
+    expect(search.className).toContain("text-art");
+    expect(search.className).not.toContain("text-ink-1");
   });
 });

@@ -78,6 +78,7 @@ type PlayerPersisted = Pick<
   | "queue"
   | "index"
   | "position"
+  | "duration"
   | "volume"
   | "muted"
   | "shuffle"
@@ -100,6 +101,7 @@ export type PlayerState = PlayerValues & {
   clearUpcoming: () => void;
   next: (manual?: boolean) => void;
   prev: () => void;
+  prevTrack: () => void;
   toggle: () => void;
   seek: (seconds: number) => void;
   setVolume: (value: number) => void;
@@ -449,12 +451,17 @@ export const usePlayer = create<PlayerState>()(
       },
 
       prev: () => {
-        const { queue, index, position } = get();
+        const { position } = get();
         if (position > RESTART_AFTER_S) {
           seekTo(0);
           set({ position: 0 });
           return;
         }
+        get().prevTrack();
+      },
+
+      prevTrack: () => {
+        const { queue, index } = get();
         if (queue.length === 0) return;
         set({ index: index > 0 ? index - 1 : queue.length - 1, position: 0 });
         startCurrent();
@@ -531,6 +538,7 @@ export const usePlayer = create<PlayerState>()(
         queue: state.queue,
         index: state.index,
         position: state.position,
+        duration: state.duration,
         volume: state.volume,
         muted: state.muted,
         shuffle: state.shuffle,
@@ -557,7 +565,7 @@ export function resumeSavedQueue(): void {
   if (!restoredOnLaunch) return;
   restoredOnLaunch = false;
   if (!useSettings.getState().restoreQueueOnRestart) {
-    usePlayer.setState({ queue: [], index: 0, position: 0, playing: false, unshuffled: null });
+    usePlayer.setState({ queue: [], index: 0, position: 0, duration: 0, playing: false, unshuffled: null });
     resumePosition = 0;
     return;
   }

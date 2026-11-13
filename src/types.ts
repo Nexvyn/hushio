@@ -4,5 +4,6 @@ export type Track = {
   artist: string;
   thumb: string | null;
   album?: string | null;
+  duration?: number;
   episode?: true;
 };

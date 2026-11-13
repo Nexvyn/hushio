@@ -117,4 +117,38 @@ describe("MiniPlayer", () => {
     const fill = screen.getByRole("region", { name: "Mini player" }).querySelector("[style*='scaleX']");
     expect(fill?.getAttribute("style")).toContain("scaleX(0.15)");
   });
+
+  it("draws the progress fill in solid ink so it is visible", () => {
+    render(<MiniPlayer />);
+    const fill = screen.getByRole("region", { name: "Mini player" }).querySelector("[data-progress-fill]");
+    expect(fill?.className).toContain("bg-ink-1");
+    expect(fill?.className).not.toContain("/0.055");
+  });
+
+  it("shows the play control as a plain 44px icon button", () => {
+    render(<MiniPlayer />);
+    const play = screen.getByRole("button", { name: "Play" });
+    expect(play.className).toContain("size-11");
+    expect(play.className).toContain("text-ink-1");
+    expect(play.className).not.toContain("bg-primary");
+  });
+
+  it("keeps the elevated bar and ink text until a cover colour is ready", () => {
+    render(<MiniPlayer />);
+    const region = screen.getByRole("region", { name: "Mini player" });
+    const bar = region.firstElementChild as HTMLElement;
+    expect(bar.style.backgroundColor).toBe("");
+    expect(screen.getByText("Track 1").className).toContain("text-ink-1");
+    expect(screen.getByText("Artist 1").className).toContain("text-ink-2");
+    expect(screen.getByRole("button", { name: "Play" }).querySelector("svg")?.getAttribute("width")).toBe("24");
+  });
+
+  it("draws a solid bar without a border", () => {
+    render(<MiniPlayer />);
+    const bar = screen.getByRole("region", { name: "Mini player" }).firstElementChild as HTMLElement;
+    expect(bar.className).toContain("bg-elevated");
+    expect(bar.className).toContain("rounded-[12px]");
+    expect(bar.className).not.toContain("border");
+    expect(bar.style.height).toBe("56px");
+  });
 });

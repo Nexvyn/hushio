@@ -1,7 +1,7 @@
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { normalizeCredit } from "../lib/credits";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowDown01Icon, Cancel01Icon, CastIcon, Chat01Icon, FavouriteIcon, MusicNote01Icon, Search01Icon, VolumeHighIcon, VolumeLowIcon, VolumeOffIcon } from "@hugeicons/core-free-icons";
+import { ArrowDown01Icon, Cancel01Icon, CastIcon,FavouriteIcon, MusicNote01Icon, Search01Icon, VolumeHighIcon, VolumeLowIcon, VolumeOffIcon } from "@hugeicons/core-free-icons";
 import { Icon } from "./Icon";
 import { CaptionButtons } from "./CaptionButtons";
 import { Groove } from "./Groove";
@@ -31,7 +31,6 @@ import { peekArtistMeta } from "../stores/artistMeta";
 import { useLibrary } from "../stores/library";
 import { currentTrack, usePlayer } from "../stores/player";
 import { useSettings } from "../stores/settings";
-import { useComments } from "../stores/comments";
 import { useUI } from "../stores/ui";
 import { topBarLeadingInset } from "../lib/windowChrome";
 
@@ -355,12 +354,6 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
                         pressed={liked}
                         onArt
                         onClick={() => toggleLike(track)}
-                      />
-                      <TransportButton
-                        label="Comments"
-                        icon={Chat01Icon}
-                        onArt
-                        onClick={() => useComments.getState().open(track.id)}
                       />
                       {platform === "android" && (
                         <TransportButton label="Cast" icon={CastIcon} onArt onClick={() => void castFromNowPlaying()} />

@@ -171,6 +171,17 @@ describe("next and previous edge cases", () => {
     expect(state().position).toBe(0);
   });
 
+  it("a swipe back always goes to the previous song, even after more than 3 seconds", () => {
+    state().playQueue(list(3), 2);
+    usePlayer.setState({ position: 42 });
+    state().prevTrack();
+
+    expect(state().index).toBe(1);
+    expect(state().position).toBe(0);
+    expect(seekTo).not.toHaveBeenCalledWith(0);
+    expect(playStream).toHaveBeenLastCalledWith("t1", "Track 1");
+  });
+
   it("goes back at 3 seconds or less", () => {
     state().playQueue(list(3), 1);
     usePlayer.setState({ position: 3 });

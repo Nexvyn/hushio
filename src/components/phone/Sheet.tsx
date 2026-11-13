@@ -1,6 +1,6 @@
 import { useRef, type ReactNode } from "react";
 import { motion } from "motion/react";
-import { fade, instant, reducedMotion, settle } from "../../lib/motion";
+import { PHONE_MS, fade, phoneSmooth, phoneTransition, phoneTween, reducedMotion } from "../../lib/motion";
 import { INSET_BOTTOM } from "../../lib/phoneNav";
 import { useSheetDrag } from "./useSheetDrag";
 
@@ -16,11 +16,10 @@ type SheetProps = {
 export function Sheet({ label, onClose, header, height, zClass = "z-[115]", children }: SheetProps) {
   const reduced = reducedMotion();
   const panel = useRef<HTMLElement>(null);
-  const drag = useSheetDrag(panel, onClose, (event) => {
+  const drag = useSheetDrag(onClose, (event) => {
     const target = event.target as HTMLElement;
     return target.closest("[data-sheet-grab]") !== null;
   });
-  const transition = drag.live ? instant : reduced ? fade : settle;
 
   return (
     <motion.div className={`fixed inset-0 ${zClass} flex flex-col justify-end`}>
@@ -31,7 +30,7 @@ export function Sheet({ label, onClose, header, height, zClass = "z-[115]", chil
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={fade}
+        transition={reduced ? fade : phoneTween(PHONE_MS.scrim)}
         onClick={onClose}
       />
       <motion.section
@@ -39,16 +38,16 @@ export function Sheet({ label, onClose, header, height, zClass = "z-[115]", chil
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        initial={reduced ? { opacity: 0 } : { y: "100%" }}
-        animate={{ y: drag.offset, opacity: 1 }}
-        exit={reduced ? { opacity: 0 } : { y: "100%" }}
-        transition={transition}
+        initial={reduced ? { opacity: 0 } : undefined}
+        animate={{ y: 0, opacity: 1 }}
+        exit={reduced ? { opacity: 0 } : { y: window.innerHeight }}
+        transition={phoneTransition(reduced, phoneSmooth)}
         {...drag.handlers}
-        className="relative flex w-full flex-col overflow-hidden rounded-t-[16px] border-t border-separator bg-elevated text-ink-1"
-        style={{ height, maxHeight: "90vh", paddingBottom: INSET_BOTTOM }}
+        className="relative flex w-full flex-col overflow-hidden rounded-t-[20px] bg-elevated text-ink-1"
+        style={{ height, maxHeight: "90vh", paddingBottom: INSET_BOTTOM, y: drag.y }}
       >
         <div data-sheet-grab className="flex shrink-0 cursor-grab touch-none flex-col items-center pb-1 pt-2">
-          <span aria-hidden="true" className="h-1 w-8 rounded-full bg-ink-3" />
+          <span aria-hidden="true" className="h-1 w-9 rounded-full bg-ink-3" />
         </div>
         {header && (
           <div data-sheet-grab className="shrink-0 px-4 pb-2 touch-none">

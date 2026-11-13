@@ -15,6 +15,7 @@ import {
 import { LYRICS_LOADING_LINES, pickLyricsLine } from "../lib/lyricsPhrases";
 import { reducedMotion } from "../lib/motion";
 import { romanize } from "../lib/romanize";
+import { usePhone } from "../lib/usePhone";
 import { usePlayer } from "../stores/player";
 import { useSettings } from "../stores/settings";
 
@@ -40,6 +41,11 @@ const ART_LINE_CLASS = "text-[calc(30px*var(--lyric-scale))] leading-[1.28] trac
 const ART_ACTIVE_CLASS = "text-[calc(30px*var(--lyric-scale))] leading-[1.28] tracking-[-0.01em] font-semibold [font-family:var(--font-lyric)] font-synthesis-none";
 const SUB_CLASS = "font-display text-[calc(22px*var(--lyric-scale))] leading-[1.3] font-bold";
 const ART_SUB_CLASS = "text-[calc(22px*var(--lyric-scale))] leading-[1.3] font-medium [font-family:var(--font-lyric)] font-synthesis-none";
+const PHONE_ANCHOR = 0.34;
+const PHONE_ACTIVE_CLASS = "text-[22px] leading-[30px] font-bold";
+const PHONE_LINE_CLASS = "text-[18px] leading-[26px] font-medium";
+const PHONE_SUB_CLASS = "text-[15px] leading-[22px] font-medium";
+const PHONE_IDLE_OPACITY = 0.7;
 
 type Glide = { frame: number; from: number; to: number; start: number };
 type GlideRef = MutableRefObject<Glide | null>;
@@ -106,12 +112,14 @@ function WordLine({
   offset,
   still,
   onArt,
+  lineClass,
 }: {
   words: Words;
   spans: WordSpan[];
   offset: number;
   still: boolean;
   onArt: boolean;
+  lineClass: string;
 }) {
   const playing = usePlayer((state) => state.playing);
   const [, redraw] = useReducer((count: number) => (count + 1) % 1000000, 0);
@@ -132,7 +140,7 @@ function WordLine({
   }, [playing, offset, still]);
 
   return (
-    <span className={onArt ? ART_ACTIVE_CLASS : LINE_CLASS}>
+    <span className={lineClass}>
       {words.map((word: SyncedLyricWord, index) => {
         const percent = wordPercent(position.current, spans[index] ?? { start: word.start, end: word.end });
         return (
@@ -195,8 +203,9 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
   const reduceAnimation = useSettings((state) => state.reduceAnimation);
   const reduceBlur = useSettings((state) => state.reduceDynamicBlur);
   const still = reduceAnimation || reducedMotion();
-  const anchor = onArt ? ART_ANCHOR : ANCHOR;
-  const blurLines = blurOn && !still && !reduceBlur;
+  const phone = usePhone();
+  const anchor = phone ? PHONE_ANCHOR : onArt ? ART_ANCHOR : ANCHOR;
+  const blurLines = blurOn && !still && !reduceBlur && !phone;
   const source = lyrics?.source ?? "";
   const phrase = useMemo(() => pickLyricsLine(LYRICS_LOADING_LINES, trackKey ?? source), [trackKey, source]);
 
@@ -323,7 +332,8 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
     const focus = !browsing;
     const distance = Math.abs(index - activeIndex);
     const depth = depthStyle(index - activeIndex, index < activeIndex, false);
-    const opacity = focus && !onArt ? depth.opacity : 1;
+    const active = index === activeIndex;
+    const opacity = phone ? (active || onArt ? 1 : PHONE_IDLE_OPACITY) : focus && !onArt ? depth.opacity : 1;
     const motionStyle = still ? { transition: "none" } : { transition: onArt ? ART_TRANSITION : DEPTH_TRANSITION };
     if (line.gap) {
       return (
@@ -340,17 +350,21 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
       );
     }
 
-    const active = index === activeIndex;
     const artBlur = focus && !still && !reduceBlur && distance > 2 ? 1 : 0;
-    const blurPx = onArt ? artBlur : focus && blurLines ? LINE_BLUR_PX[Math.min(distance, LINE_BLUR_PX.length - 1)] : 0;
+    const blurPx = phone ? 0 : onArt ? artBlur : focus && blurLines ? LINE_BLUR_PX[Math.min(distance, LINE_BLUR_PX.length - 1)] : 0;
     const filters = [blurPx > 0 ? `blur(${blurPx}px)` : "", !onArt && active && focus && blurLines ? GLOW : ""].filter(Boolean).join(" ");
     const roman = romanOn ? (line.roman ?? romanize(line.text)) : null;
     const words = line.words ?? [];
     const wordSynced = active && words.length > 0;
     const [spanStart, spanEnd] = wordSynced ? sweepWindow(lines, index) : [0, 0];
-    const ink = onArt ? (active ? "text-art" : "text-art/[0.45]") : "text-ink-1";
+    const ink = onArt
+      ? active ? "text-art" : phone ? "text-art/[0.55]" : "text-art/[0.45]"
+      : phone ? (active ? "text-ink-1" : "text-ink-2") : "text-ink-1";
     const subInk = onArt ? "text-art/[0.45]" : "text-ink-2";
-    const subClass = onArt ? ART_SUB_CLASS : SUB_CLASS;
+    const subClass = phone ? PHONE_SUB_CLASS : onArt ? ART_SUB_CLASS : SUB_CLASS;
+    const lineClass = phone
+      ? (active ? PHONE_ACTIVE_CLASS : PHONE_LINE_CLASS)
+      : onArt ? (active ? ART_ACTIVE_CLASS : ART_LINE_CLASS) : LINE_CLASS;
 
     return (
       <button
@@ -369,7 +383,7 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
           ...motionStyle,
           opacity,
           filter: filters || undefined,
-          transform: onArt ? (active && focus && !still ? "scale(1.06)" : undefined) : focus ? depth.transform : undefined,
+          transform: phone ? undefined : onArt ? (active && focus && !still ? "scale(1.06)" : undefined) : focus ? depth.transform : undefined,
           transformOrigin: "left center",
         }}
       >
@@ -380,9 +394,10 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
             offset={offset}
             still={still}
             onArt={onArt}
+            lineClass={lineClass}
           />
         ) : (
-          <span className={onArt ? (active ? ART_ACTIVE_CLASS : ART_LINE_CLASS) : LINE_CLASS}>
+          <span className={lineClass}>
             {line.text}
           </span>
         )}
@@ -421,7 +436,7 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
       >
         {!(onArt && fits) && <div style={{ height: "calc(10% + 4px)" }} />}
         <div className={onArt && fits ? "flex min-h-full flex-col justify-center" : undefined}>
-          <div ref={contentRef} className="flex flex-col space-y-5" onKeyDown={moveFocus}>
+          <div ref={contentRef} className={`flex flex-col ${phone ? "space-y-3.5" : "space-y-5"}`} onKeyDown={moveFocus}>
             {lines.map(renderLine)}
           </div>
           <SourceCredit source={source} onArt={onArt} />
