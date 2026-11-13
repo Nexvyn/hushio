@@ -47,6 +47,18 @@ export function albumMeta(releaseType: string, year: string | null, trackCount: 
   return joinMeta([releaseType, year, plural(trackCount, "track", "tracks")]);
 }
 
+const CREDIT_SPLIT = /\s*[•·]\s*/;
+const CREDIT_JOIN = " • ";
+const PLATFORM_NAME = "youtube music";
+
+export function ownerCredit(credit: string | null | undefined): string {
+  return (credit ?? "")
+    .split(CREDIT_SPLIT)
+    .map((part) => part.trim())
+    .filter((part) => part !== "" && part.toLowerCase() !== PLATFORM_NAME)
+    .join(CREDIT_JOIN);
+}
+
 export function playlistMeta(trackCount: number, totalSeconds: number): string {
   return joinMeta([plural(trackCount, "song", "songs"), totalSeconds > 0 ? fmtTotal(totalSeconds) : null]);
 }

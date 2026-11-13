@@ -1,5 +1,9 @@
 const ALLOWED_ART = /^(https:\/\/|data:image\/|blob:|localart:|http:\/\/localart\.localhost\/)/i;
 const YOUTUBE_THUMB = /^(https:\/\/i\.ytimg\.com\/vi\/[^/?#]+\/)(default|mqdefault|hqdefault|sddefault|hq720)(?:\.jpg)?(?:\?.*)?$/i;
+const YOUTUBE_LARGE = /^(https:\/\/i\.ytimg\.com\/vi\/[^/?#]+\/)(?:hqdefault|sddefault|maxresdefault)\.jpg(?:\?.*)?$/i;
+const GOOGLE_ART = /^https:\/\/(?:lh3\.googleusercontent\.com|yt3\.googleusercontent\.com|yt3\.ggpht\.com)\//i;
+const SMALL_THUMB_MAX = 120;
+const SIZE_STEPS = [120, 226, 544] as const;
 export const DATA_SAVER_ART_SIZE = 160;
 const DEFAULT_ART_SIZE = 544;
 
@@ -29,4 +33,23 @@ export function upgradeArtwork(input: string | null | undefined, target = 544): 
     .replace(/=w\d+(-c)?-h\d+/g, `=w${size}$1-h${size}`)
     .replace(/\/w\d+(-c)?-h\d+((?:-[a-z0-9]+)*)\//, `/w${size}$1-h${size}$2/`)
     .replace(/\/default\.jpg(?:\?.*)?$/i, "/hqdefault.jpg");
+}
+
+function devicePixelRatio(): number {
+  return typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
+}
+
+export function thumbPixels(target: number, dpr = devicePixelRatio()): number {
+  const need = Math.ceil(target * dpr);
+  return SIZE_STEPS.find((step) => step >= need) ?? SIZE_STEPS[SIZE_STEPS.length - 1];
+}
+
+export function thumbArtwork(input: string | null | undefined, target: number, dpr?: number): string {
+  const url = input?.trim() ?? "";
+  if (!artworkUrlOk(url)) return "";
+  if (YOUTUBE_LARGE.test(url)) {
+    return target <= SMALL_THUMB_MAX ? url.replace(YOUTUBE_LARGE, "$1mqdefault.jpg") : upgradeArtwork(url);
+  }
+  if (GOOGLE_ART.test(url)) return upgradeArtwork(url, thumbPixels(target, dpr));
+  return url;
 }

@@ -5,6 +5,7 @@ import {
   heroCover,
   joinMeta,
   listenersChip,
+  ownerCredit,
   pageTitleSize,
   playlistMeta,
   shortTitle,
@@ -64,6 +65,13 @@ describe("meta lines", () => {
     expect(playlistMeta(1, 0)).toBe("1 song");
     expect(playlistMeta(0, 0)).toBe("0 songs");
     expect(playlistMeta(3, 2700)).toBe("3 songs · 45 min");
+  });
+
+  it("drops the platform name from the owner line, in any case", () => {
+    expect(ownerCredit("YouTube Music")).toBe("");
+    expect(ownerCredit("youtube music • Jane Doe")).toBe("Jane Doe");
+    expect(ownerCredit("Jane Doe • 2.1M views")).toBe("Jane Doe • 2.1M views");
+    expect(ownerCredit(null)).toBe("");
   });
 
   it("pluralises counts", () => {

@@ -1,14 +1,25 @@
-import { useId } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { Cover, focusRing } from "./HomeShelves";
 import { SectionHeader } from "./SectionHeader";
+import { PhoneArt } from "./phone/PhoneArt";
+import { PhoneSongRow } from "./phone/PhoneTrackRow";
+import { PhoneSectionHeader, PhoneShelfArt, PhoneShelfCard, PhoneShelfRow, type ShelfVariant } from "./phone/PhoneShelf";
+import type { FeaturedItem } from "./phone/PhoneFeatured";
+import { thumbArtwork } from "../lib/artwork";
 import { startPlaySource } from "../lib/playSource";
 import { hash32 } from "../lib/queue";
-import type { CardRef, FeedSection, PlaylistRef, SectionItem, SideRef } from "../lib/feed";
+import type { CardRef, FeedSection, PlaylistRef, SectionItem, SectionKind, SideRef } from "../lib/feed";
 import type { HomeItem } from "../lib/home";
-import { playFromRow } from "../stores/player";
+import type { SearchSong } from "../lib/searchParse";
+import { trackMenuItems } from "../lib/trackActions";
+import { usePhone } from "../lib/usePhone";
+import { currentTrack, playFromRow, usePlayer } from "../stores/player";
 import { useNavigation } from "../stores/navigation";
 import { useHomeEngagement } from "../stores/homeEngagement";
 import type { Track } from "../types";
+
+const SIDE_ART = 74;
+const SONG_PREVIEW = 4;
 
 function fromShelfItem(item: HomeItem): SectionItem {
   switch (item.kind) {
@@ -249,9 +260,241 @@ function Body({ section }: { section: FeedSection }) {
   );
 }
 
+export type PhoneSectionStyle = ShelfVariant | "songs";
+
+const STYLE_BY_KIND: Partial<Record<SectionKind, PhoneSectionStyle>> = {
+  "jump-back-in": "tile",
+  "playlists-for-you": "large",
+  "your-mixes": "large",
+  stations: "large",
+  "albums-for-you": "compact",
+  "new-from-your-artists": "compact",
+  "favorite-artists": "round",
+  "heavy-rotation": "songs",
+  "dust-off": "songs",
+};
+
+export function phoneSectionStyle(section: Pick<FeedSection, "kind" | "layout" | "title">): PhoneSectionStyle {
+  const byKind = STYLE_BY_KIND[section.kind];
+  if (byKind) return byKind;
+  if (section.layout === "list") return "songs";
+  if (section.layout === "circles") return "round";
+  if (section.layout === "crate" || section.layout === "moods" || section.layout === "mixes" || section.layout === "radios") return "large";
+  if (section.layout === "tiles") return "tile";
+  if (/new releases/i.test(section.title)) return "compact";
+  return "default";
+}
+
+export function featuredFrom(sections: readonly FeedSection[]): FeaturedItem | null {
+  for (const section of sections) {
+    if (section.layout === "crate" && section.playlists && section.playlists.length > 0) {
+      const playlist = section.playlists[0];
+      return {
+        label: section.title,
+        title: playlist.title,
+        subtitle: playlist.subtitle,
+        thumb: playlist.thumb,
+        source: { type: "yt-playlist", playlistId: playlist.id, name: playlist.title },
+        target: { name: "ytplaylist", param: playlist.id },
+      };
+    }
+    const items = section.shelf ? section.shelf.items.map(fromShelfItem) : section.items;
+    const first = items[0];
+    if (first?.kind === "album") {
+      return {
+        label: section.title,
+        title: first.album.title,
+        subtitle: first.album.artist,
+        thumb: first.album.thumb,
+        source: { type: "album", albumId: first.album.id, name: first.album.title },
+        target: { name: "album", param: first.album.id },
+      };
+    }
+    if (first?.kind === "playlist") {
+      return {
+        label: section.title,
+        title: first.playlist.title,
+        subtitle: first.playlist.subtitle,
+        thumb: first.playlist.thumb,
+        source: { type: "yt-playlist", playlistId: first.playlist.id, name: first.playlist.title },
+        target: { name: "ytplaylist", param: first.playlist.id },
+      };
+    }
+  }
+  return null;
+}
+
+type PhoneCard = {
+  key: string;
+  art: ReactNode;
+  round?: boolean;
+  tag?: string;
+  title: string;
+  subtitle?: string;
+  onActivate: () => void;
+};
+
+function phoneCardOf(item: SectionItem, items: readonly SectionItem[], index: number, navigate: Navigate, variant: ShelfVariant): PhoneCard {
+  const key = `${item.kind}-${index}`;
+  switch (item.kind) {
+    case "track": {
+      const queue = items.flatMap((entry) => (isTrack(entry) ? [entry.track] : []));
+      const position = items.slice(0, index).filter(isTrack).length;
+      return {
+        key,
+        art: <PhoneShelfArt src={item.track.thumb} variant={variant} />,
+        title: item.track.title,
+        subtitle: item.track.artist,
+        onActivate: () => playFromRow(queue, position),
+      };
+    }
+    case "album":
+      return {
+        key,
+        art: <PhoneShelfArt src={item.album.thumb} variant={variant} />,
+        title: item.album.title,
+        subtitle: item.album.artist,
+        onActivate: () => navigate({ name: "album", param: item.album.id }),
+      };
+    case "artist":
+      return {
+        key,
+        art: <PhoneShelfArt src={item.artist.thumb} variant={variant} round />,
+        round: true,
+        title: item.artist.name,
+        onActivate: () => navigate({ name: "artist", param: item.artist.id }),
+      };
+    case "playlist":
+      return {
+        key,
+        art: <PhoneShelfArt src={item.playlist.thumb} variant={variant} />,
+        title: item.playlist.title,
+        subtitle: item.playlist.subtitle,
+        onActivate: () => navigate({ name: "ytplaylist", param: item.playlist.id }),
+      };
+    case "card": {
+      const radio = item.card.style === "radio";
+      return {
+        key,
+        art: <PhoneShelfArt src={item.card.thumb} variant={variant} round={radio} />,
+        round: radio,
+        tag: radio ? "RADIO" : undefined,
+        title: item.card.name,
+        subtitle: item.card.caption,
+        onActivate: () => void startPlaySource(item.card.source),
+      };
+    }
+    case "side":
+      return {
+        key,
+        art: (
+          <span className="grid aspect-square w-full grid-cols-2 gap-px overflow-hidden rounded-[10px] [corner-shape:squircle]">
+            {[0, 1, 2, 3].map((slot) => (
+              <PhoneArt key={slot} src={thumbArtwork(item.side.thumbs[slot] ?? null, SIDE_ART) || null} radius="rounded-none" className="block aspect-square w-full" />
+            ))}
+          </span>
+        ),
+        title: `Side ${item.side.letter}`,
+        subtitle: item.side.caption,
+        onActivate: () => void startPlaySource(item.side.source),
+      };
+  }
+}
+
+function PhoneBody({ section, variant }: { section: FeedSection; variant: ShelfVariant }) {
+  const navigate = useNavigation((state) => state.navigate);
+  const cards: PhoneCard[] =
+    section.layout === "crate" && section.playlists
+      ? section.playlists.map((playlist) => ({
+          key: playlist.id,
+          art: <PhoneShelfArt src={playlist.thumb} variant={variant} />,
+          title: playlist.title,
+          subtitle: playlist.subtitle,
+          onActivate: () => navigate({ name: "ytplaylist", param: playlist.id }),
+        }))
+      : (() => {
+          const items = section.shelf ? section.shelf.items.map(fromShelfItem) : section.items;
+          return items.map((item, index) => phoneCardOf(item, items, index, navigate, variant));
+        })();
+  return (
+    <PhoneShelfRow variant={variant}>
+      {cards.map((card) => (
+        <PhoneShelfCard
+          key={card.key}
+          art={card.art}
+          round={card.round}
+          tag={card.tag}
+          title={card.title}
+          subtitle={card.subtitle}
+          variant={variant}
+          onActivate={card.onActivate}
+        />
+      ))}
+    </PhoneShelfRow>
+  );
+}
+
+function songOf(track: Track, note?: string): SearchSong {
+  return {
+    ...track,
+    artist: note ?? track.artist,
+    artistId: null,
+    albumId: null,
+    album: track.album ?? null,
+    duration: 0,
+    explicit: false,
+    isVideo: false,
+  };
+}
+
+function PhoneSongList({ section }: { section: FeedSection }) {
+  const [expanded, setExpanded] = useState(false);
+  const current = usePlayer((state) => currentTrack(state)?.id);
+  const playing = usePlayer((state) => state.playing);
+  const tracks = section.items.flatMap((item) => (isTrack(item) ? [item] : []));
+  const queue = tracks.map((item) => item.track);
+  const shown = expanded ? tracks : tracks.slice(0, SONG_PREVIEW);
+  return (
+    <>
+      <ol>
+        {shown.map((item, index) => {
+          const song = songOf(item.track, item.note);
+          return (
+            <PhoneSongRow
+              key={`${item.track.id}-${index}`}
+              index={index}
+              song={song}
+              current={current === item.track.id}
+              playing={playing}
+              menu={() => trackMenuItems(song)}
+              onPlay={() => playFromRow(queue, index)}
+            />
+          );
+        })}
+      </ol>
+      {tracks.length > SONG_PREVIEW && (
+        <button
+          type="button"
+          onClick={() => setExpanded((value) => !value)}
+          className={`mt-1 flex h-11 items-center rounded-[10px] px-0 text-[14px] font-medium text-ink-2 motion-safe:transition-colors hover:text-ink-1 ${focusRing}`}
+        >
+          {expanded ? "Show less" : "Show all"}
+        </button>
+      )}
+    </>
+  );
+}
+
+function PhoneSection({ section }: { section: FeedSection }) {
+  const style = phoneSectionStyle(section);
+  if (style === "songs") return <PhoneSongList section={section} />;
+  return <PhoneBody section={section} variant={style} />;
+}
+
 export function FeedSectionView({ section }: { section: FeedSection }) {
   const titleId = useId();
   const tap = useHomeEngagement((state) => state.tap);
+  const phone = usePhone();
   return (
     <section
       aria-labelledby={titleId}
@@ -260,9 +503,13 @@ export function FeedSectionView({ section }: { section: FeedSection }) {
       }}
     >
       {section.eyebrow && <p className="mb-1 text-meta font-medium text-ink-2">{section.eyebrow.label}</p>}
-      <SectionHeader id={titleId} title={section.title} />
-      {section.subtitle && <p className="-mt-1.5 mb-3 text-meta text-ink-2">{section.subtitle}</p>}
-      <Body section={section} />
+      {phone ? <PhoneSectionHeader id={titleId} title={section.title} /> : <SectionHeader id={titleId} title={section.title} />}
+      {section.subtitle && (
+        <p className={phone ? "mb-3 text-[13px] leading-[17px] text-ink-2" : "-mt-1.5 mb-3 text-meta text-ink-2"}>
+          {section.subtitle}
+        </p>
+      )}
+      {phone ? <PhoneSection section={section} /> : <Body section={section} />}
     </section>
   );
 }
