@@ -285,4 +285,25 @@ describe("search, escape and layers", () => {
 
     expect(pause).toHaveBeenCalled();
   });
+
+  it("? opens the shortcut list in the dialog", () => {
+    const event = press("Slash", { key: "?", shiftKey: true });
+
+    expect(event.defaultPrevented).toBe(true);
+    const dialog = useUI.getState().dialog;
+    expect(dialog?.title).toBe("Keyboard shortcuts");
+    expect(dialog?.body).toContain("Space: Play or pause");
+    expect(dialog?.body).toContain("?: Show this list");
+  });
+
+  it("? does not open the list while typing in a text input", () => {
+    const field = document.createElement("input");
+    field.type = "text";
+    document.body.appendChild(field);
+
+    press("Slash", { key: "?", shiftKey: true }, field);
+    field.remove();
+
+    expect(useUI.getState().dialog).toBeNull();
+  });
 });

@@ -4,6 +4,7 @@ import { PlayListAddIcon, Tick02Icon } from "@hugeicons/core-free-icons";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
 import { shortTitle } from "../lib/browseText";
+import { FLOAT_PANEL, FLOAT_ROW } from "../lib/floatStyle";
 import { addSongsToPlaylists } from "../lib/devicePlaylists";
 import { plural } from "../lib/plural";
 import { type Box, placePicker, pickerMotion, PICKER_WIDTH } from "../lib/pickerLayout";
@@ -14,7 +15,7 @@ import type { Track } from "../types";
 
 const ITEM = "[data-picker-item]:not(:disabled)";
 const ROW =
-  "hit-area flex h-10 w-full shrink-0 items-center gap-2 rounded-lg px-3 text-left text-[14px] text-ink-1 outline-none enabled:hover:bg-ink-1/[0.06] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus motion-safe:transition-colors";
+  `${FLOAT_ROW} w-full shrink-0 enabled:hover:bg-wash`;
 
 export function PlaylistPicker() {
   const tracks = useUI((state) => state.playlistPicker);
@@ -171,7 +172,7 @@ function Picker({ tracks, anchor: anchorProp }: { tracks: Track[]; anchor: Box |
         aria-modal="true"
         aria-label="Add to playlists"
         tabIndex={-1}
-        className={`${anchored ? "absolute" : "relative"} flex max-w-[calc(100vw-16px)] flex-col gap-2 overflow-hidden rounded-[12px] [corner-shape:squircle] bg-elevated p-2 shadow-[var(--shadow-float)] ring-1 ring-card-edge/[0.08] outline-none`}
+        className={`${anchored ? "absolute" : "relative"} flex max-w-[calc(100vw-16px)] flex-col gap-2 overflow-hidden ${FLOAT_PANEL} outline-none`}
         style={{
           width: PICKER_WIDTH,
           maxHeight: placement.maxHeight,

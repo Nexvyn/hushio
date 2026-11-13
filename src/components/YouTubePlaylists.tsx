@@ -1,0 +1,190 @@
+import { useEffect, useId, useState } from "react";
+import { Button } from "./Button";
+import { useAuth } from "../stores/auth";
+import { newId, useLibrary, type LikeInput } from "../stores/library";
+import { useNavigation } from "../stores/navigation";
+import { useUI } from "../stores/ui";
+import { ytLinkPlaylist, ytMyPlaylists, ytPlaylistVideos, type YtRemotePlaylist, type YtRemoteVideo } from "../lib/bridge";
+import { plural } from "../lib/plural";
+
+type ListState =
+  | { status: "loading" }
+  | { status: "ready"; playlists: YtRemotePlaylist[] }
+  | { status: "error"; message: string };
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function toTrack(video: YtRemoteVideo): LikeInput {
+  return {
+    id: video.videoId,
+    title: video.title,
+    artist: video.artist,
+    thumb: video.thumbnail,
+    duration: video.durationSeconds ?? 0,
+  };
+}
+
+export function YouTubePlaylists() {
+  const signedIn = useAuth((state) => state.account.mode === "google");
+  const signingIn = useAuth((state) => state.signingIn);
+  const signIn = useAuth((state) => state.signIn);
+  const libraryPlaylists = useLibrary((state) => state.playlists);
+  const importLinked = useLibrary((state) => state.importLinkedPlaylist);
+  const navigate = useNavigation((state) => state.navigate);
+  const toast = useUI((state) => state.toast);
+  const [list, setList] = useState<ListState>({ status: "loading" });
+  const [attempt, setAttempt] = useState(0);
+  const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set());
+  const [importingAll, setImportingAll] = useState(false);
+  const headingId = useId();
+
+  useEffect(() => {
+    if (!signedIn) return;
+    let live = true;
+    setList({ status: "loading" });
+    ytMyPlaylists()
+      .then((playlists) => {
+        if (live) setList({ status: "ready", playlists });
+      })
+      .catch((error: unknown) => {
+        if (live) setList({ status: "error", message: errorText(error) });
+      });
+    return () => {
+      live = false;
+    };
+  }, [signedIn, attempt]);
+
+  const linked = new Map<string, string>();
+  for (const playlist of libraryPlaylists) {
+    if (playlist.remote) linked.set(playlist.remote.ytPlaylistId, playlist.id);
+  }
+
+  async function importOne(playlist: YtRemotePlaylist): Promise<boolean> {
+    setPending((current) => new Set(current).add(playlist.id));
+    try {
+      const videos = await ytPlaylistVideos(playlist.id);
+      const id = newId();
+      await ytLinkPlaylist(id, playlist.id);
+      importLinked(id, playlist.title, playlist.id, videos.map(toTrack));
+      return true;
+    } catch (error) {
+      toast(errorText(error), "error");
+      return false;
+    } finally {
+      setPending((current) => {
+        const next = new Set(current);
+        next.delete(playlist.id);
+        return next;
+      });
+    }
+  }
+
+  async function importAll(playlists: YtRemotePlaylist[]) {
+    setImportingAll(true);
+    let count = 0;
+    for (const playlist of playlists) {
+      if (linked.has(playlist.id)) continue;
+      if (await importOne(playlist)) count += 1;
+    }
+    setImportingAll(false);
+    if (count > 0) toast(`Imported ${plural(count, "playlist", "playlists")}`, "success");
+  }
+
+  function renderBody() {
+    if (!signedIn) {
+      return (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-separator pt-4">
+          <p className="text-[14px] text-ink-2">Sign in with Google to bring in your YouTube playlists</p>
+          <Button onClick={() => void signIn()} disabled={signingIn}>
+            Sign in
+          </Button>
+        </div>
+      );
+    }
+    if (list.status === "loading") {
+      return (
+        <p role="status" className="mt-4 text-[14px] text-ink-2">
+          Loading your playlists…
+        </p>
+      );
+    }
+    if (list.status === "error") {
+      return (
+        <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-separator pt-4">
+          <p className="text-[14px] text-ink-2">{list.message}</p>
+          <Button onClick={() => setAttempt((count) => count + 1)}>Try again</Button>
+        </div>
+      );
+    }
+    if (list.playlists.length === 0) {
+      return <p className="mt-4 text-[14px] text-ink-2">No playlists on your YouTube account yet.</p>;
+    }
+    return (
+      <ul className="mt-4 border-t border-separator">
+        {list.playlists.map((playlist) => {
+          const localId = linked.get(playlist.id);
+          const busy = pending.has(playlist.id);
+          return (
+            <li key={playlist.id} className="flex items-center gap-3 border-b border-separator py-3">
+              {playlist.thumbnail ? (
+                <img
+                  src={playlist.thumbnail}
+                  alt=""
+                  className="size-10 shrink-0 rounded-[10px] object-cover [corner-shape:squircle]"
+                />
+              ) : (
+                <span aria-hidden="true" className="size-10 shrink-0 rounded-[10px] bg-wash [corner-shape:squircle]" />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[14px] text-ink-1">{playlist.title}</p>
+                <p className="text-[12.5px] tabular-nums text-ink-2">{plural(playlist.count, "song", "songs")}</p>
+              </div>
+              {localId ? (
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="text-[13px] text-ink-2">Imported</span>
+                  <Button variant="ghost" onClick={() => navigate({ name: "playlist", param: localId })}>
+                    Open
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  className="shrink-0"
+                  disabled={busy || importingAll}
+                  onClick={() => void importOne(playlist)}
+                >
+                  {busy ? "Importing…" : "Import"}
+                </Button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
+
+  const ready = list.status === "ready" ? list.playlists : null;
+  const remaining = ready?.filter((playlist) => !linked.has(playlist.id)) ?? [];
+
+  return (
+    <section aria-labelledby={headingId} className="mt-10 max-w-[672px]">
+      <div className="flex items-center justify-between gap-4">
+        <h2 id={headingId} className="text-[18px] font-semibold text-ink-1">
+          YouTube playlists
+        </h2>
+        {signedIn && ready && ready.length > 0 && (
+          <Button
+            disabled={remaining.length === 0 || importingAll}
+            onClick={() => {
+              if (ready) void importAll(ready);
+            }}
+          >
+            {importingAll ? "Importing…" : "Import all"}
+          </Button>
+        )}
+      </div>
+      {renderBody()}
+    </section>
+  );
+}

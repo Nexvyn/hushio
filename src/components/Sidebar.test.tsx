@@ -43,13 +43,44 @@ describe("Your Library sidebar", () => {
 
     expect(rowKeys(container)).toEqual([
       "single:liked",
-      "single:spotify",
-      "single:replay",
       "playlist:b",
       "single:downloads",
       "single:local",
       "playlist:a",
+      "single:spotify",
     ]);
+  });
+
+  it("has no Replay row and keeps Import as the last row", () => {
+    useLibrary.setState({ playlists: [playlist("a")] });
+    const { container } = render(<Sidebar />);
+
+    expect(rowKeys(container)).not.toContain("single:replay");
+    expect(rowKeys(container).at(-1)).toBe("single:spotify");
+    expect(screen.queryByRole("button", { name: /Replay/ })).toBeNull();
+  });
+
+  it("gives every row the same padding, 40px art box and pin column, and matches the header inset", () => {
+    useLibrary.setState({ playlists: [playlist("a", true)] });
+    const { container } = render(<Sidebar />);
+
+    const header = container.querySelector("aside > div");
+    const nav = container.querySelector("nav");
+    expect(header?.className).toContain("h-12");
+    expect(header?.className).toContain("px-5");
+    expect(nav?.className).toContain("px-2");
+    const create = screen.getByRole("button", { name: "Create" });
+    expect(create.className).toContain("h-8 w-8");
+    expect(header?.querySelector("button span")?.className).toContain("w-10");
+    const rows = Array.from(container.querySelectorAll<HTMLElement>("[data-row-key]"));
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(row.className).toContain("h-14 px-3");
+      expect(row.firstElementChild?.className).toContain("h-10 w-10 shrink-0");
+      expect(row.querySelector("span.flex-col")?.className).toContain("justify-center");
+      expect(row.querySelector("span[aria-hidden='true']")?.className).toContain("h-8 w-8 shrink-0");
+    }
+    expect(container.querySelector("ul")?.className).toContain("space-y-1");
   });
 
   it("moves an unpinned row down with Alt+ArrowDown, keeps focus on it, and saves the order", () => {
@@ -61,7 +92,7 @@ describe("Your Library sidebar", () => {
     fireEvent.keyDown(downloads, { key: "ArrowDown", altKey: true });
 
     expect(useLibrary.getState().libraryOrder).toEqual(["single:local", "single:downloads", "playlist:a"]);
-    expect(rowKeys(container).slice(3)).toEqual(["single:local", "single:downloads", "playlist:a"]);
+    expect(rowKeys(container).slice(1, 4)).toEqual(["single:local", "single:downloads", "playlist:a"]);
     expect(document.activeElement).toBe(screen.getByRole("button", { name: /Downloads/ }));
   });
 
@@ -71,7 +102,7 @@ describe("Your Library sidebar", () => {
 
     fireEvent.keyDown(screen.getByRole("button", { name: /Mix a/ }), { key: "ArrowUp", altKey: true });
 
-    expect(rowKeys(container).slice(3)).toEqual(["single:downloads", "playlist:a", "single:local"]);
+    expect(rowKeys(container).slice(1, 4)).toEqual(["single:downloads", "playlist:a", "single:local"]);
   });
 
   it("does not move a pinned row and ignores Arrow keys without Alt", () => {
@@ -98,7 +129,7 @@ describe("Your Library sidebar", () => {
     useLibrary.setState({ liked: [{ id: "s1", title: "S", artist: "A", thumb: null, album: null, duration: 1, explicit: false }] });
     render(<Sidebar />);
 
-    expect(screen.getByText("Playlist · 1 track")).toBeTruthy();
+    expect(screen.getByText("Playlist · 1 song")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Liked Songs/ }));
     expect(useNavigation.getState().view).toEqual({ name: "library", param: "liked" });
   });
@@ -153,5 +184,61 @@ describe("Your Library drag and drop", () => {
     expect(useLibrary.getState().playlists[0].folderId).toBe("f1");
     expect(useLibrary.getState().libraryOrder).toBeUndefined();
     expect(useUI.getState().toasts.map((toast) => toast.message)).toEqual(['Moved “Mix a” into the folder']);
+  });
+});
+
+describe("Your Library sidebar discover links", () => {
+  beforeEach(() => {
+    useNavigation.setState(initialNavigation, true);
+  });
+
+  afterEach(cleanup);
+
+  it("opens Charts and New releases from the sidebar", () => {
+    render(<Sidebar />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Charts/ }));
+    expect(useNavigation.getState().view).toEqual({ name: "charts" });
+
+    fireEvent.click(screen.getByRole("button", { name: /New releases/ }));
+    expect(useNavigation.getState().view).toEqual({ name: "newreleases" });
+  });
+
+  it("marks the open discover page as current", () => {
+    useNavigation.setState({ view: { name: "charts" } });
+    render(<Sidebar />);
+
+    expect(screen.getByRole("button", { name: /Charts/ }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("button", { name: /New releases/ }).getAttribute("aria-current")).toBeNull();
+  });
+
+  it("labels the icon-only rail buttons", () => {
+    render(<Sidebar mode="rail" />);
+
+    expect(screen.getByRole("button", { name: "Charts" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "New releases" })).toBeTruthy();
+  });
+});
+
+describe("Your Library sidebar settings", () => {
+  beforeEach(() => {
+    useLibrary.setState({ ...initialLibrary, pinnedSingles: DEFAULT_PINS, libraryOrder: undefined, playlists: [] }, true);
+    useNavigation.setState(initialNavigation, true);
+  });
+
+  afterEach(cleanup);
+
+  it("has no Settings link in the full sidebar", () => {
+    render(<Sidebar />);
+
+    expect(screen.queryByRole("button", { name: "Settings" })).toBeNull();
+    expect(screen.queryByText("Settings")).toBeNull();
+  });
+
+  it("has no Settings icon in the icon rail", () => {
+    render(<Sidebar mode="rail" />);
+
+    expect(screen.queryByRole("button", { name: "Settings" })).toBeNull();
+    expect(screen.queryByTitle("Settings")).toBeNull();
   });
 });

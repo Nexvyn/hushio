@@ -61,7 +61,7 @@ export function PlaylistView() {
   const top = topArtist(tracks);
   const facts = (
     <>
-      {empty ? "No songs yet" : `${plural(tracks.length, "song", "songs")} · ${fmtTotal(total)}`}
+      {empty ? "No songs yet" : `${plural(tracks.length, "song", "songs")}${total > 0 ? ` · ${fmtTotal(total)}` : ""}`}
       {top && (
         <>
           {" · Top artist: "}
@@ -85,8 +85,7 @@ export function PlaylistView() {
   return (
     <div className="pb-14">
       <CollectionHero
-        icon={PlayListIcon}
-        kind="Your playlist"
+        ambient
         title={playlist.name}
         covers={coversOf(tracks)}
         facts={facts}
@@ -118,7 +117,7 @@ export function PlaylistView() {
           <EmptyState
             icon={PlayListIcon}
             title="Let's find something for your playlist"
-            message="Search for songs you love, or browse Explore to discover something new, then right-click any song to add it here. Its cover joins the wall above."
+            message="Search for songs you love, or browse Explore to discover something new, then right-click any song to add it here."
             action={{ label: "Search for songs", onClick: searchForSongs }}
             secondaryAction={{ label: "Browse Explore", onClick: () => navigate({ name: "explore" }) }}
           />

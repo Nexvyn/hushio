@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const { audio, playStream, play, pause, seekTo, setVolume, setMuted } = vi.hoisted(() => ({
@@ -33,6 +33,8 @@ vi.mock("../lib/persist", () => ({
 }));
 
 import { RightRail } from "./RightRail";
+import { queueName } from "../lib/collectionActions";
+import { useLibrary } from "../stores/library";
 import { usePlayer } from "../stores/player";
 import { useUI } from "../stores/ui";
 import type { Track } from "../types";
@@ -80,6 +82,21 @@ describe("RightRail", () => {
     expect(useUI.getState().rightPanel).toBe("queue");
   });
 
+  it("saves the playing song and the rest of the queue as a playlist", async () => {
+    useLibrary.setState({ playlists: [] });
+    usePlayer.getState().playQueue([track(0), track(1), track(2)], 1);
+    const user = userEvent.setup();
+    render(<RightRail />);
+
+    await user.click(screen.getByRole("tab", { name: "Queue" }));
+    await user.click(screen.getByRole("button", { name: "Save as playlist" }));
+
+    const saved = useLibrary.getState().playlists[0];
+    expect(saved.name).toBe(queueName());
+    expect(saved.tracks.map((item) => item.id)).toEqual(["t1", "t2"]);
+    expect(useUI.getState().toasts.at(-1)?.message).toBe(`Saved as ${queueName()}`);
+  });
+
   it("removes an upcoming song from the queue list", async () => {
     usePlayer.getState().playQueue([track(0), track(1), track(2)], 0);
     const user = userEvent.setup();
@@ -90,6 +107,29 @@ describe("RightRail", () => {
     await user.click(removeButtons[0]);
 
     expect(usePlayer.getState().queue.map((item) => item.id)).toEqual(["t0", "t2"]);
+  });
+
+  it("moves the focused upcoming song with Alt+Arrow keys and keeps the first song in place", async () => {
+    usePlayer.getState().playQueue([track(0), track(1), track(2), track(3)], 0);
+    const moveUpcoming = vi.fn();
+    usePlayer.setState({ moveUpcoming });
+    const user = userEvent.setup();
+    render(<RightRail />);
+
+    await user.click(screen.getByRole("tab", { name: "Queue" }));
+    const queue = within(screen.getByRole("region", { name: "Queue" }));
+    const second = queue.getByRole("button", { name: /Track 2/ });
+    fireEvent.keyDown(second, { key: "ArrowDown", altKey: true });
+    expect(moveUpcoming).toHaveBeenLastCalledWith(2, 3);
+
+    fireEvent.keyDown(second, { key: "ArrowUp", altKey: true });
+    expect(moveUpcoming).toHaveBeenLastCalledWith(2, 1);
+
+    fireEvent.keyDown(queue.getByRole("button", { name: /Track 1/ }), { key: "ArrowUp", altKey: true });
+    expect(moveUpcoming).toHaveBeenCalledTimes(2);
+
+    fireEvent.keyDown(second, { key: "ArrowDown" });
+    expect(moveUpcoming).toHaveBeenCalledTimes(2);
   });
 
   it("shows recently played songs under the queue, without the playing one", async () => {

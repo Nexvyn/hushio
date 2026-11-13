@@ -10,6 +10,7 @@ vi.mock("../lib/persist", () => ({
 }));
 
 import { PlaylistPicker } from "./PlaylistPicker";
+import { FLOAT_PANEL } from "../lib/floatStyle";
 import { type LibraryTrack, type Playlist, useLibrary } from "../stores/library";
 import { useUI } from "../stores/ui";
 import type { Track } from "../types";
@@ -67,6 +68,15 @@ describe("Add to playlists picker", () => {
     expect(screen.getByText("No playlists yet")).toBeTruthy();
     expect(screen.getByRole("button", { name: "New playlist" })).toBeTruthy();
     expect((screen.getByRole("button", { name: "Add" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("uses the shared float panel and 40px rows like every other dropdown", () => {
+    const { container } = openWith([song("s1")], [playlist("a", "Mix")]);
+
+    expect(container.innerHTML).toContain(FLOAT_PANEL);
+    for (const row of container.querySelectorAll("[data-picker-item]")) {
+      expect(row.className).toContain("h-10");
+    }
   });
 
   it("separates groups with spacing, never with divider elements", () => {

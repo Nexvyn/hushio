@@ -63,6 +63,34 @@ function playbackKey(event: KeyboardEvent): boolean {
   }
 }
 
+export const SHORTCUTS: readonly { keys: string; action: string }[] = [
+  { keys: "Space", action: "Play or pause" },
+  { keys: "Left, Right", action: "Seek back or forward 5 seconds" },
+  { keys: "Shift + Left, Shift + Right", action: "Previous or next song" },
+  { keys: "Up, Down", action: "Volume up or down" },
+  { keys: "M", action: "Mute or unmute" },
+  { keys: "S", action: "Shuffle on or off" },
+  { keys: "R", action: "Change the repeat mode" },
+  { keys: "Q", action: "Show or hide the queue" },
+  { keys: "L", action: "Show or hide lyrics" },
+  { keys: "N", action: "Show or hide Now Playing" },
+  { keys: "/ or Ctrl + F", action: "Focus search" },
+  { keys: "Alt + Left, Alt + Right", action: "Go back or forward" },
+  { keys: "Alt + Up, Alt + Down", action: "Move the selected song in the queue" },
+  { keys: "Escape", action: "Close the queue, lyrics or Now Playing" },
+  { keys: "?", action: "Show this list" },
+];
+
+function openShortcutHelp() {
+  useUI.getState().openDialog({
+    title: "Keyboard shortcuts",
+    body: SHORTCUTS.map((row) => `${row.keys}: ${row.action}`).join("\n"),
+    confirmLabel: "Done",
+    cancelLabel: "Close",
+    onConfirm: () => {},
+  });
+}
+
 export function focusSearch() {
   const settings = document.getElementById("settings-filter");
   const target = settings ?? document.getElementById("global-search");
@@ -120,6 +148,12 @@ export function useKeyboardShortcuts() {
       }
 
       if (event.repeat && !isPlainArrow(event)) return;
+
+      if (event.key === "?" && !event.altKey) {
+        event.preventDefault();
+        openShortcutHelp();
+        return;
+      }
 
       if (event.code === "Slash" && !event.altKey && !event.shiftKey) {
         event.preventDefault();

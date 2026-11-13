@@ -1,6 +1,7 @@
 import { Copy01Icon, Download01Icon, PlayListAddIcon } from "@hugeicons/core-free-icons";
-import { BrowseHero, HeroControls } from "../components/BrowseHero";
+import { HeroControls } from "../components/BrowseHero";
 import { BrowseSkeleton } from "../components/BrowseSkeleton";
+import { PageHeader } from "../components/PageHeader";
 import { ErrorState } from "../components/ErrorState";
 import type { MenuItem } from "../stores/ui";
 import { TrackRow } from "../components/TrackRow";
@@ -8,7 +9,7 @@ import { getPlaylistPage } from "../lib/browse";
 import { copyLink, queueAll} from "../lib/browseActions";
 import { downloadAll } from "../lib/downloads";
 import { trackMenuItems } from "../lib/trackActions";
-import { heroCover, pageTitleSize, youtubePlaylistLink } from "../lib/browseText";
+import { heroCover, youtubePlaylistLink } from "../lib/browseText";
 import { useBrowseLoad } from "../lib/useBrowseLoad";
 import { useBrowsePlayback } from "../lib/useBrowsePlayback";
 import { useNavigation } from "../stores/navigation";
@@ -55,23 +56,34 @@ function PlaylistContent({ page, playlistId }: { page: PlaylistPage; playlistId:
   ];
 
   return (
-    <div>
-      <BrowseHero cover={heroCover(page.thumb)} topPadding="pt-[240px]">
-        <h1 className={`${pageTitleSize(page.title)} max-w-[768px] font-extrabold leading-[1.2] tracking-[-0.03em]`}>
-          {page.title}
-        </h1>
-        {page.credit && <p className="mt-2 text-[15px] font-medium text-ink-1">{page.credit}</p>}
-        <p className="mt-1.5 text-[12px] font-semibold uppercase tracking-[0.14em] text-ink-2">{page.meta}</p>
-        <HeroControls
-          onShuffle={shuffle}
-          onPlay={() => playAt(0)}
-          shuffleDisabled={tracks.length === 0}
-          playDisabled={tracks.length === 0}
-          menu={menu}
-        />
-      </BrowseHero>
+    <>
+      <PageHeader
+        ambient
+        title={page.title}
+        artwork={heroCover(page.thumb)}
+        meta={
+          <>
+            {page.credit && (
+              <>
+                <span className="font-medium text-ink-1">{page.credit}</span>
+                <span aria-hidden="true" className="mx-1.5">·</span>
+              </>
+            )}
+            <span className="tabular-nums">{page.meta}</span>
+          </>
+        }
+        actions={
+          <HeroControls
+            onShuffle={shuffle}
+            onPlay={() => playAt(0)}
+            shuffleDisabled={tracks.length === 0}
+            playDisabled={tracks.length === 0}
+            menu={menu}
+          />
+        }
+      />
 
-      <div className="px-8 pb-12 pt-2">
+      <div className="pb-12">
         {tracks.length === 0 ? (
           <p className="py-10 text-center text-[13px] text-ink-2">This playlist is empty.</p>
         ) : (
@@ -92,6 +104,6 @@ function PlaylistContent({ page, playlistId }: { page: PlaylistPage; playlistId:
           </ol>
         )}
       </div>
-    </div>
+    </>
   );
 }

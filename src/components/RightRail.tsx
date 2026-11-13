@@ -1,10 +1,15 @@
-import { Cancel01Icon, MusicNote01Icon, ThumbsDownIcon } from "@hugeicons/core-free-icons";
+import { Cancel01Icon, ListMusicIcon, MusicNote01Icon, ThumbsDownIcon } from "@hugeicons/core-free-icons";
+import { EmptyState } from "./EmptyState";
 import { type MenuSource, openMenuAtPointer, openMenuFromKey } from "./ContextMenu";
 import { useRef } from "react";
 import { Icon } from "./Icon";
 import { upgradeArtwork } from "../lib/artwork";
+import { normalizeCredit } from "../lib/credits";
 import { useRovingKeys } from "../lib/useRovingKeys";
 import { historyMenuItems, songOf, trackMenuItems } from "../lib/trackActions";
+import { TEST_SONG_ID } from "../lib/devSong";
+import { useInk } from "../lib/onArt";
+import { saveQueueAsPlaylist } from "../lib/collectionActions";
 import { useLibrary } from "../stores/library";
 import { currentTrack, usePlayer } from "../stores/player";
 import { useUI } from "../stores/ui";
@@ -15,10 +20,10 @@ const TABS = [
   { id: "queue", label: "Queue" },
 ] as const;
 
-function Cover({ thumb, className }: { thumb: string | null; className: string }) {
+function Cover({ thumb, className, tone = "text-ink-3" }: { thumb: string | null; className: string; tone?: string }) {
   const art = upgradeArtwork(thumb);
   return (
-    <div className={`grid place-items-center overflow-hidden text-ink-3 ${className}`}>
+    <div className={`grid place-items-center overflow-hidden ${tone} ${className}`}>
       {art ? <img src={art} alt="" className="h-full w-full object-cover" /> : <Icon icon={MusicNote01Icon} />}
     </div>
   );
@@ -29,7 +34,7 @@ function SongDetails() {
   if (!track) {
     return (
       <>
-        <p className="px-0.5 text-[12.5px] font-semibold text-ink-2">Nothing playing yet</p>
+        <p className="px-0.5 text-meta font-semibold text-ink-2">Nothing playing yet</p>
         <Cover thumb={null} className="mt-3 aspect-square w-full rounded-xl bg-ink-1/[0.04]" />
       </>
     );
@@ -38,7 +43,7 @@ function SongDetails() {
     <>
       <Cover thumb={track.thumb} className="aspect-square w-full rounded-xl bg-wash" />
       <p className="mt-3 truncate text-[18px] font-semibold text-ink-1">{track.title}</p>
-      <p className="truncate text-[13px] text-ink-2">{track.artist}</p>
+      <p className="truncate text-[13px] text-ink-2">{normalizeCredit(track.artist)}</p>
     </>
   );
 }
@@ -52,24 +57,36 @@ type TrackRowProps = {
   remove?: { label: string; onRemove: () => void };
   onDontPlay?: () => void;
   menu?: MenuSource;
+  at?: number;
+  move?: (delta: number) => void;
 };
 
-function TrackRow({ track, onPlay, remove, onDontPlay, menu }: TrackRowProps) {
+function TrackRow({ track, onPlay, remove, onDontPlay, menu, at, move }: TrackRowProps) {
+  const ink = useInk();
+  const iconButton = `hit-area grid h-8 w-8 shrink-0 place-items-center rounded-full motion-safe:transition-colors ${ink.secondary} ${ink.hoverText}`;
   return (
     <li
-      className="flex items-center gap-1 rounded-lg hover:bg-hover"
+      data-queue-at={at}
+      className={`flex items-center gap-1 rounded-lg ${ink.hover}`}
       onContextMenu={menu ? (event) => openMenuAtPointer(event, menu) : undefined}
-      onKeyDown={menu ? (event) => void openMenuFromKey(event, menu) : undefined}
+      onKeyDown={(event) => {
+        if (move && event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+          event.preventDefault();
+          move(event.key === "ArrowUp" ? -1 : 1);
+          return;
+        }
+        if (menu) void openMenuFromKey(event, menu);
+      }}
     >
       <button type="button" onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1.5 text-left">
-        <Cover thumb={track.thumb} className="h-10 w-10 shrink-0 rounded-[4px] bg-wash" />
+        <Cover thumb={track.thumb} tone={ink.faint} className={`h-10 w-10 shrink-0 rounded-[4px] ${ink.tint}`} />
         <span className="min-w-0">
-          <span className="block truncate text-[13px] text-ink-1">{track.title}</span>
-          <span className="block truncate text-[12px] text-ink-2">{track.artist}</span>
+          <span className={`block truncate text-[13px] ${ink.primary}`}>{track.title}</span>
+          <span className={`block truncate text-[12px] ${ink.secondary}`}>{normalizeCredit(track.artist)}</span>
         </span>
       </button>
       {onDontPlay && (
-        <button type="button" title="Don't play this" aria-label="Don't play this" onClick={onDontPlay} className={ICON_BUTTON}>
+        <button type="button" title="Don't play this" aria-label="Don't play this" onClick={onDontPlay} className={iconButton}>
           <Icon icon={ThumbsDownIcon} />
         </button>
       )}
@@ -79,7 +96,7 @@ function TrackRow({ track, onPlay, remove, onDontPlay, menu }: TrackRowProps) {
           title={remove.label}
           aria-label={remove.label}
           onClick={remove.onRemove}
-          className={`mr-1 ${ICON_BUTTON}`}
+          className={`mr-1 ${iconButton}`}
         >
           <Icon icon={Cancel01Icon} />
         </button>
@@ -91,7 +108,7 @@ function TrackRow({ track, onPlay, remove, onDontPlay, menu }: TrackRowProps) {
 function confirmClearHistory() {
   useUI.getState().openDialog({
     title: "Clear Recently played?",
-    body: "Your Replay stats are kept.",
+    body: "Your listening stats are kept.",
     confirmLabel: "Clear",
     danger: true,
     onConfirm: () => useLibrary.getState().clearHistory(),
@@ -99,6 +116,7 @@ function confirmClearHistory() {
 }
 
 export function QueuePanel() {
+  const ink = useInk();
   const queue = usePlayer((state) => state.queue);
   const index = usePlayer((state) => state.index);
   const autoplayCount = usePlayer((state) => state.autoplayCount);
@@ -109,30 +127,47 @@ export function QueuePanel() {
   const playTrack = usePlayer((state) => state.playTrack);
   const history = useLibrary((state) => state.history);
   const removeFromHistory = useLibrary((state) => state.removeFromHistory);
+  const moveUpcoming = usePlayer((state) => state.moveUpcoming);
   const current = queue[index];
   const upcoming = queue.slice(index + 1);
-  const recent = history.filter((track) => track.id !== current?.id);
+  const recent = history.filter((track) => track.id !== current?.id && track.id !== TEST_SONG_ID);
   const autoplayStart = queue.length - autoplayCount;
+
+  function moveRow(at: number, delta: number) {
+    const to = at + delta;
+    if (to <= index || to >= queue.length) return;
+    moveUpcoming(at, to);
+    setTimeout(() => document.querySelector<HTMLElement>(`[data-queue-at="${to}"] button`)?.focus(), 0);
+  }
 
   return (
     <div className="flex flex-col gap-5">
-      <section aria-labelledby="queue-heading">
-        <div className="flex items-center justify-between px-0.5">
-          <h2 id="queue-heading" className="text-[12.5px] font-semibold text-ink-2">
-            Queue
-          </h2>
-          {upcoming.length > 0 && (
-            <button
-              type="button"
-              onClick={clearUpcoming}
-              className="text-[12px] text-ink-2 motion-safe:transition-colors hover:text-ink-1"
-            >
-              Clear
-            </button>
-          )}
-        </div>
+      <section aria-label="Queue">
+        {queue.length > 0 && (
+          <div className="flex items-center justify-between px-0.5">
+            <h2 className={`text-meta font-semibold ${ink.secondary}`}>Queue</h2>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => saveQueueAsPlaylist(queue.slice(index))}
+                className={`text-[12px] ${ink.secondary} motion-safe:transition-colors ${ink.hoverText}`}
+              >
+                Save as playlist
+              </button>
+              {upcoming.length > 0 && (
+                <button
+                  type="button"
+                  onClick={clearUpcoming}
+                  className={`text-[12px] ${ink.secondary} motion-safe:transition-colors ${ink.hoverText}`}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         {upcoming.length === 0 ? (
-          <p className="mt-2 px-0.5 text-[13px] text-ink-3">Nothing queued</p>
+          <EmptyState icon={ListMusicIcon} title="Nothing queued" message="Use Play next or Add to queue on any song." />
         ) : (
           <ul className="mt-2 flex flex-col gap-0.5">
             {upcoming.map((track, offset) => {
@@ -145,6 +180,8 @@ export function QueuePanel() {
                   remove={{ label: "Remove from queue", onRemove: () => removeAt(at) }}
                   onDontPlay={at >= autoplayStart ? () => dontPlay(at) : undefined}
                   menu={() => trackMenuItems(songOf(track))}
+                  at={at}
+                  move={(delta) => moveRow(at, delta)}
                 />
               );
             })}
@@ -154,7 +191,7 @@ export function QueuePanel() {
 
       <section aria-labelledby="recent-heading">
         <div className="flex items-center justify-between px-0.5">
-          <h2 id="recent-heading" className="text-[12.5px] font-semibold text-ink-2">
+          <h2 id="recent-heading" className={`text-meta font-semibold ${ink.secondary}`}>
             Recently played
           </h2>
           {recent.length > 0 && (
@@ -162,15 +199,15 @@ export function QueuePanel() {
               type="button"
               aria-label="Clear recently played"
               onClick={confirmClearHistory}
-              className="text-[12px] text-ink-2 motion-safe:transition-colors hover:text-ink-1"
+              className={`text-[12px] ${ink.secondary} motion-safe:transition-colors ${ink.hoverText}`}
             >
               Clear
             </button>
           )}
         </div>
         {recent.length === 0 ? (
-          <p className="mt-2 px-0.5 text-[13px] text-ink-3">
-            Nothing here yet — tracks you play land in Recently played.
+          <p className={`mt-2 px-0.5 text-[13px] ${ink.faint}`}>
+            Songs you play land here.
           </p>
         ) : (
           <ul className="mt-2 flex flex-col gap-0.5">
@@ -206,8 +243,8 @@ export function RightRail({ mode = "column" }: { mode?: "column" | "sheet" }) {
       aria-label="Now playing panel"
       className={
         sheet
-          ? "fixed inset-y-3 right-3 z-30 flex w-[328px] flex-col overflow-hidden rounded-2xl bg-surface shadow-[var(--shadow-card)]"
-          : "shell-rail flex w-[328px] shrink-0 flex-col overflow-hidden rounded-[10px] bg-surface"
+          ? "fixed inset-y-3 right-3 z-30 flex w-[328px] flex-col overflow-hidden rounded-2xl bg-surface shadow-float"
+          : "shell-rail relative flex w-[328px] shrink-0 flex-col overflow-hidden rounded-[10px] bg-surface"
       }
     >
       {sheet && (
@@ -231,7 +268,7 @@ export function RightRail({ mode = "column" }: { mode?: "column" | "sheet" }) {
             aria-controls="rail-panel"
             tabIndex={panel === tab.id ? 0 : -1}
             onClick={() => setRightPanel(tab.id)}
-            className={`rounded-full px-3 py-1.5 text-[13px] font-medium motion-safe:transition-colors ${panel === tab.id ? "bg-wash text-ink-1" : "text-ink-2 hover:text-ink-1"}`}
+            className={`rounded-[8px] [corner-shape:squircle] px-3 py-1.5 text-[13px] font-medium motion-safe:transition-colors ${panel === tab.id ? "bg-wash text-ink-1" : "text-ink-2 hover:text-ink-1"}`}
           >
             {tab.label}
           </button>

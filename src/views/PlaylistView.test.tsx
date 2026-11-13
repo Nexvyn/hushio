@@ -113,6 +113,29 @@ describe("Playlist page when empty", () => {
   });
 });
 
+describe("Playlist page facts line", () => {
+  it("shows the count, length and top artist when songs have lengths", () => {
+    useLibrary.setState({
+      playlists: [playlist([song(1, 600, "Artist A"), song(2, 1200, "Artist B"), song(3, 0, "Artist B")])],
+    });
+    render(<><PlaylistView /><ContextMenu /></>);
+
+    expect(screen.getByText(`3 songs · ${fmtTotal(1800)} · Top artist:`, { exact: false })).toBeTruthy();
+    expect(screen.getByText("Artist B", { selector: "span.font-semibold" })).toBeTruthy();
+  });
+
+  it("omits the length when no song has one", () => {
+    useLibrary.setState({
+      playlists: [playlist([song(1, 0, "Artist A"), song(2, 0, "Artist B"), song(3, 0, "Artist B")])],
+    });
+    render(<><PlaylistView /><ContextMenu /></>);
+
+    expect(screen.getByText("3 songs · Top artist:", { exact: false })).toBeTruthy();
+    expect(screen.queryByText(/0 min/)).toBeNull();
+    expect(screen.getByText("Artist B", { selector: "span.font-semibold" })).toBeTruthy();
+  });
+});
+
 describe("Playlist page with songs", () => {
   beforeEach(() => {
     useLibrary.setState({
@@ -120,12 +143,10 @@ describe("Playlist page with songs", () => {
     });
   });
 
-  it("shows the count, length and top artist", () => {
+  it("shows the playlist heading", () => {
     render(<><PlaylistView /><ContextMenu /></>);
 
     expect(screen.getByRole("heading", { name: "Road trip" })).toBeTruthy();
-    expect(screen.getByText(`3 songs · ${fmtTotal(1800)} · Top artist:`, { exact: false })).toBeTruthy();
-    expect(screen.getByText("Artist B", { selector: "span.font-semibold" })).toBeTruthy();
   });
 
   it("starts playback from a clicked row and keeps the playlist as the source", () => {
