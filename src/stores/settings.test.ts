@@ -50,6 +50,7 @@ describe("defaults", () => {
     expect(initial.theme).toBe("system");
     expect(initial.reduceAnimation).toBe(false);
     expect(initial.reduceDynamicBlur).toBe(false);
+    expect(initial.haptics).toBe(true);
   });
 
   it("uses the PRD defaults for the device keys", () => {

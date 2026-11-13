@@ -27,6 +27,7 @@ import {
   Link01Icon,
   Logout01Icon,
   MaximizeScreenIcon,
+  SmartPhone01Icon,
   Menu01Icon,
   Mic01Icon,
   MusicNote01Icon,
@@ -671,6 +672,17 @@ function displayCategory(context: BuildContext): SettingsCategory {
             note: "Cuts crossfades and motion through the app.",
             toggle: flag(s, "reduceAnimation"),
           },
+          ...(context.platform === "android"
+            ? [
+                {
+                  id: "vibration-feedback",
+                  icon: SmartPhone01Icon,
+                  title: "Vibration feedback",
+                  note: "A light tick on taps, likes and song changes.",
+                  toggle: flag(s, "haptics"),
+                },
+              ]
+            : []),
           {
             id: "reduce-transparency",
             icon: DropletIcon,

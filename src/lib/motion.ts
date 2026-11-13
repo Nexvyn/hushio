@@ -97,3 +97,25 @@ export const INTRO_SETTLE_EASES: [[number, number, number, number], [number, num
   [0.33, 1, 0.68, 1],
 ];
 export const INTRO_FLIGHT_EASE: [number, number, number, number] = [0.65, 0, 0.35, 1];
+
+export const phoneSnappy: Transition = { type: "spring", stiffness: 420, damping: 36, mass: 1 };
+export const phoneSmooth: Transition = { type: "spring", stiffness: 260, damping: 30, mass: 1 };
+export const phoneBouncy: Transition = { type: "spring", stiffness: 380, damping: 22, mass: 1 };
+
+export const PHONE_MS = {
+  scrim: 160,
+  tab: 140,
+  navFade: 160,
+  artIn: 180,
+  artOut: 120,
+  text: 150,
+  icon: 160,
+} as const;
+
+export function phoneTween(ms: number): Transition {
+  return { duration: ms / 1000, ease: EASE_OUT };
+}
+
+export function phoneTransition(reduced: boolean, spring: Transition): Transition {
+  return reduced ? fade : spring;
+}

@@ -2,6 +2,8 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { SessionGate } from "./components/SessionGate";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import "@fontsource-variable/inter";
+import "@fontsource-variable/instrument-sans";
 import "./index.css";
 import { audioOutputState, listenAudioOutputChanged, platform, showMainWindow } from "./lib/bridge";
 import { pause, setBlendHooks } from "./lib/audio";

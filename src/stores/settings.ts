@@ -89,6 +89,7 @@ export type SettingsValues = {
   appFont: AppFontId;
   keepScreenAwake: boolean;
   dataSaver: boolean;
+  haptics: boolean;
 };
 
 export type SettingsState = SettingsValues & {
@@ -193,6 +194,7 @@ export const useSettings = create<SettingsState>()(
       appFont: DEFAULT_FONT,
       keepScreenAwake: false,
       dataSaver: false,
+      haptics: true,
       setCrossfadeSeconds: (value) => set({ crossfadeSeconds: clampCrossfadeSeconds(value) }),
       setPlaybackSpeed: (value) => set({ playbackSpeed: clampPlaybackSpeed(value) }),
       setEqGains: (value) => set({ eqGains: normalizeEqGains(value) }),

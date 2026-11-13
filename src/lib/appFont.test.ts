@@ -1,11 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const bridge = vi.hoisted(() => ({ platform: "windows" as "windows" | "android" | "linux" | "macos" }));
+
 vi.mock("./bridge", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./bridge")>()),
   persistWrite: vi.fn(async () => true),
   persistRead: vi.fn(async () => null),
+  get platform() {
+    return bridge.platform;
+  },
 }));
-import { APP_FONTS, applyFontVars, DEFAULT_FONT, fontStack, isAppFont } from "./fonts";
+import { APP_FONTS, applyFontVars, DEFAULT_FONT, fontStack, isAppFont, TITLE_STACK } from "./fonts";
 import { refreshHtmlClasses } from "./htmlClasses";
 import { useSettings } from "../stores/settings";
 
@@ -16,21 +21,55 @@ describe("app font", () => {
     useSettings.setState({ appFont: DEFAULT_FONT });
     root.style.removeProperty("--font-app");
     root.style.removeProperty("--font-lyric");
+    root.style.removeProperty("--font-title");
+    bridge.platform = "windows";
   });
 
   afterEach(() => {
     root.style.removeProperty("--font-app");
     root.style.removeProperty("--font-lyric");
+    root.style.removeProperty("--font-title");
+    bridge.platform = "windows";
   });
 
-  it("offers four fonts with the system font as the default", () => {
-    expect(APP_FONTS.map((font) => font.id)).toEqual(["system", "classic", "round", "mono"]);
+  it("offers five fonts with the system font as the default", () => {
+    expect(APP_FONTS.map((font) => font.id)).toEqual(["system", "hushio", "classic", "round", "mono"]);
     expect(DEFAULT_FONT).toBe("system");
   });
 
   it("knows the stack of each font and falls back to the system stack", () => {
     expect(fontStack("mono")).toContain("Cascadia Mono");
     expect(fontStack("nope")).toBe(fontStack("system"));
+  });
+
+  it("maps the system font to the Hushio stack on Android only", () => {
+    expect(fontStack("system")).toContain("Segoe UI Variable Display");
+
+    bridge.platform = "android";
+    expect(fontStack("system")).toBe(fontStack("hushio"));
+    expect(fontStack("system")).toContain("Inter Variable");
+    expect(fontStack("classic")).toContain("Georgia");
+  });
+
+  it("uses the title stack for titles on Android and for the Hushio font", () => {
+    applyFontVars(root, "system");
+    expect(root.style.getPropertyValue("--font-title")).toBe(root.style.getPropertyValue("--font-app"));
+
+    bridge.platform = "android";
+    applyFontVars(root, "system");
+    expect(root.style.getPropertyValue("--font-title")).toContain("Instrument Sans Variable");
+    expect(root.style.getPropertyValue("--font-title")).toBe(TITLE_STACK);
+
+    bridge.platform = "windows";
+    applyFontVars(root, "hushio");
+    expect(root.style.getPropertyValue("--font-title")).toBe(TITLE_STACK);
+    expect(root.style.getPropertyValue("--font-app")).toContain("Inter Variable");
+  });
+
+  it("keeps the title font equal to the app font for other desktop choices", () => {
+    applyFontVars(root, "classic");
+
+    expect(root.style.getPropertyValue("--font-title")).toBe(root.style.getPropertyValue("--font-app"));
   });
 
   it("only accepts known font ids", () => {

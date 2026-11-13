@@ -6,6 +6,7 @@ export default {
         display: [
           "var(--font-app)",
         ],
+        title: ["var(--font-title)"],
       },
       fontSize: {
         "page-title": ["32px", { lineHeight: "1.15", letterSpacing: "-0.02em", fontWeight: "700" }],
