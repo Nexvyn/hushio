@@ -274,11 +274,15 @@ export function parseSearchPage(data: unknown, includeVideos: boolean): SearchPa
     rows.push(row);
   };
 
-  if (!includeVideos) {
-    for (const card of collect(data, "musicCardShelfRenderer")) {
-      const top = topCardOf(card);
-      if (top) push(top);
+  const artistShelfRows = new Map<unknown, Credit>();
+  for (const card of collect(data, "musicCardShelfRenderer")) {
+    const top = topCardOf(card);
+    if (top?.kind === "browse" && top.item.type === "artist") {
+      for (const item of collect(card, "musicResponsiveListItemRenderer")) {
+        artistShelfRows.set(item, { id: top.item.browseId, name: top.item.title });
+      }
     }
+    if (!includeVideos && top) push(top);
   }
 
   for (const item of collect(data, "musicResponsiveListItemRenderer")) {
@@ -287,7 +291,11 @@ export function parseSearchPage(data: unknown, includeVideos: boolean): SearchPa
       push({ kind: "browse", item: browse });
       continue;
     }
-    const track = trackOf(item);
+    let track = trackOf(item);
+    const owner = artistShelfRows.get(item);
+    if (track && owner && !track.artist) {
+      track = { ...track, artist: owner.name, artistId: track.artistId ?? owner.id };
+    }
     if (track && track.isVideo === includeVideos) push({ kind: "track", track });
   }
 

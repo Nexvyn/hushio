@@ -1,11 +1,15 @@
 import type { ReactNode } from "react";
 import type { IconSvgElement } from "@hugeicons/react";
 import {
+  ArrowRight01Icon,
+  Clock01Icon,
   Copy01Icon,
   Download01Icon,
   Folder01Icon,
   FavouriteIcon,
+  FireIcon,
   HardDriveIcon,
+  HourglassIcon,
   ListMusicIcon,
   MagicWand01Icon,
   MoreHorizontalIcon,
@@ -15,7 +19,14 @@ import {
 import { ActionMenu } from "../components/ActionMenu";
 import { openMenuAtPointer } from "../components/ContextMenu";
 import { Icon } from "../components/Icon";
+import { PhoneIcon } from "../components/phone/PhoneIcon";
+import { PhoneCollage, PhoneLibraryCard, PhoneLibraryRow } from "../components/phone/PhoneLibraryRows";
+import { PhoneSectionHeader, PhoneShelfRow } from "../components/phone/PhoneShelf";
 import { CollectionHero } from "../components/CollectionHero";
+import { PageHeader } from "../components/PageHeader";
+import { PhoneHeader } from "../components/phone/PhoneHeader";
+import { PhoneProfileButton } from "../components/phone/PhoneProfileButton";
+import { PHONE_HEADER_ICON } from "../components/phone/heroButtons";
 import { SectionHeader } from "../components/SectionHeader";
 import { CoverStack, STACK_GRID } from "../components/CoverStack";
 import { EmptyState } from "../components/EmptyState";
@@ -25,14 +36,19 @@ import { distinctCovers } from "../lib/heroCovers";
 import {
   createMenuItems,
   folderMenuItems,
+  openCreatePlaylist,
   pinnedSingleMenuItems,
   playlistMenuItems,
 } from "../lib/collectionActions";
 import { plural } from "../lib/plural";
+import type { SmartId } from "../lib/smartLists";
+import { type Point } from "../lib/touchGesture";
+import { usePhone } from "../lib/usePhone";
 import { useSmartLists } from "../lib/useSmartLists";
 import { type PinnedSingles, useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
 import { useRecentItems } from "../stores/recents";
+import { type MenuItem, useUI } from "../stores/ui";
 
 type Collection = {
   key: string;
@@ -46,9 +62,13 @@ type Collection = {
 };
 
 function CollectionRow({ collection }: { collection: Collection }) {
+  const phone = usePhone();
   const cover = collection.covers[0];
   const subtitle = [collection.pinned ? "Pinned" : "", collection.subtitle].filter(Boolean).join(" · ");
   const pin = collection.pin;
+  const tile = phone
+    ? "grid size-11 shrink-0 place-items-center overflow-hidden rounded-[10px] [corner-shape:squircle] bg-wash text-ink-1"
+    : "grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-md bg-wash text-ink-1";
   return (
     <button
       type="button"
@@ -56,20 +76,57 @@ function CollectionRow({ collection }: { collection: Collection }) {
       onContextMenu={
         pin ? (event) => openMenuAtPointer(event, () => pinnedSingleMenuItems(pin, collection.pinned)) : undefined
       }
-      className="flex h-14 w-full items-center gap-3 rounded-[10px] px-2 text-left transition-colors hover:bg-wash focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+      className={
+        phone
+          ? "flex h-14 w-full items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          : "flex h-14 w-full items-center gap-3 rounded-[10px] px-2 text-left transition-colors hover:bg-wash focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+      }
     >
-      <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-md bg-wash text-ink-1">
+      <span className={tile}>
         {cover ? <img src={cover} alt="" className="h-full w-full object-cover" /> : <Icon icon={collection.fallback} />}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[14px] font-semibold text-ink-1">{collection.title}</span>
-        {subtitle && <span className="block truncate text-[12.5px] tabular-nums text-ink-2">{subtitle}</span>}
+        {phone ? (
+          <>
+            <span className="block truncate text-[15px] font-medium leading-5 text-ink-1">{collection.title}</span>
+            {subtitle && <span className="block truncate text-[13px] leading-[18px] tabular-nums text-ink-2">{subtitle}</span>}
+          </>
+        ) : (
+          <>
+            <span className="block truncate text-[14px] font-semibold text-ink-1">{collection.title}</span>
+            {subtitle && <span className="block truncate text-[12.5px] tabular-nums text-ink-2">{subtitle}</span>}
+          </>
+        )}
       </span>
+      {phone && (
+        <span aria-hidden="true" className="shrink-0 text-ink-2">
+          <Icon icon={ArrowRight01Icon} />
+        </span>
+      )}
     </button>
   );
 }
 
+const SMART_ICONS: Record<SmartId, IconSvgElement> = {
+  "most-played": FireIcon,
+  "recently-added": Clock01Icon,
+  "not-played": HourglassIcon,
+};
+
+function openMenuAt(menu: () => MenuItem[]) {
+  return (point: Point) => useUI.getState().openContextMenu(point.x, point.y, menu());
+}
+
 function Shelf({ label, children }: { label: string; children: ReactNode }) {
+  const phone = usePhone();
+  if (phone) {
+    return (
+      <section aria-label={label} className="mt-5">
+        <h2 className="mb-3 font-title text-[20px] font-bold leading-[26px] tracking-[-0.02em] text-ink-1">{label}</h2>
+        {children}
+      </section>
+    );
+  }
   return (
     <section aria-label={label} className="mt-7">
       <SectionHeader title={label} />
@@ -87,6 +144,7 @@ export function LibraryView() {
   const recents = useRecentItems((state) => state.items);
   const navigate = useNavigation((state) => state.navigate);
   const smartLists = useSmartLists();
+  const phone = usePhone();
 
   const unfiled = unfiledPlaylists(playlists);
   const saved = Object.values(downloads).filter((item) => item.status === "done");
@@ -155,27 +213,175 @@ export function LibraryView() {
     plural(folders.length, "folder", "folders"),
     plural(liked.length, "liked song", "liked songs"),
   ].join(" · ");
+  const actions = (
+    <>
+      <ActionMenu
+        items={createMenuItems()}
+        label="Create"
+        triggerText={phone ? undefined : "Create"}
+        icon={PlusSignIcon}
+        triggerClass={phone ? undefined : PILL}
+      />
+      <ActionMenu
+        items={[{ label: "Find duplicates", icon: Copy01Icon, onSelect: () => navigate({ name: "duplicates" }) }]}
+        label="More options"
+        icon={MoreHorizontalIcon}
+        triggerClass={phone ? undefined : ROUND}
+      />
+    </>
+  );
+  const grid = phone ? "grid grid-cols-1" : "-mx-2 grid grid-cols-[repeat(auto-fill,minmax(232px,1fr))] gap-1";
+
+  if (phone) {
+    const createItems = [
+      ...createMenuItems(),
+      { label: "Find duplicates", icon: Copy01Icon, onSelect: () => navigate({ name: "duplicates" }) },
+    ];
+    const unfiledSorted = pinnedFirst(unfiled, (playlist) => playlist.pinned);
+    const phoneCollections = collections.filter((collection) => collection.key !== "playlists");
+    const collectionSubtitle = (collection: Collection) => {
+      if (collection.key !== "liked") return collection.subtitle;
+      return liked.length > 0 ? plural(liked.length, "song", "songs") : "Songs you like land here";
+    };
+    return (
+      <div className="pb-16">
+        <PhoneHeader
+          title="Library"
+          actions={
+            <>
+              <ActionMenu items={createItems} label="Create" icon={PlusSignIcon} triggerClass={PHONE_HEADER_ICON} phoneIcon />
+              <PhoneProfileButton />
+            </>
+          }
+        />
+
+        <ul>
+          {phoneCollections.map((collection) => {
+            const pin = collection.pin;
+            const subtitle = [collection.pinned ? "Pinned" : "", collectionSubtitle(collection)].filter(Boolean).join(" · ");
+            const art =
+              collection.key === "liked" ? (
+                <span className="grid size-[52px] shrink-0 place-items-center rounded-[8px] bg-accent text-on-accent [corner-shape:squircle]">
+                  <PhoneIcon icon={FavouriteIcon} fill="currentColor" />
+                </span>
+              ) : (
+                <PhoneCollage
+                  covers={collection.covers}
+                  fallback={collection.fallback}
+                  sizeClass="size-[52px]"
+                  radiusClass="rounded-[8px]"
+                />
+              );
+            return (
+              <li key={collection.key}>
+                <PhoneLibraryRow
+                  title={collection.title}
+                  subtitle={subtitle}
+                  art={art}
+                  onOpen={collection.open}
+                  onLongPress={pin ? openMenuAt(() => pinnedSingleMenuItems(pin, collection.pinned)) : undefined}
+                />
+              </li>
+            );
+          })}
+        </ul>
+
+        <section aria-label="Made for you" className="mt-7">
+          <PhoneSectionHeader title="Made for you" />
+          <PhoneShelfRow>
+            {smartLists.map((list) => (
+              <PhoneLibraryCard
+                key={list.id}
+                title={list.title}
+                subtitle={list.tracks.length > 0 ? plural(list.tracks.length, "song", "songs") : "Nothing yet"}
+                covers={distinctCovers([coversOf(list.tracks)], 4)}
+                fallback={SMART_ICONS[list.id]}
+                onOpen={() => navigate({ name: "smart", param: list.id })}
+              />
+            ))}
+          </PhoneShelfRow>
+        </section>
+
+        <section aria-label="Playlists" className="mt-7">
+          <PhoneSectionHeader title="Playlists" />
+          {folders.length + unfiledSorted.length > 0 ? (
+            <ul>
+              {folders.map((folder) => {
+                const inside = playlistsIn(playlists, folder.id);
+                return (
+                  <li key={folder.id}>
+                    <PhoneLibraryRow
+                      title={folder.name}
+                      subtitle={`Folder · ${plural(inside.length, "playlist", "playlists")}`}
+                      art={
+                        <PhoneCollage
+                          covers={distinctCovers([coversOf(inside.flatMap((playlist) => playlist.tracks))], 4)}
+                          fallback={Folder01Icon}
+                          sizeClass="size-[52px]"
+                          radiusClass="rounded-[8px]"
+                        />
+                      }
+                      onOpen={() => navigate({ name: "folder", param: folder.id })}
+                      onLongPress={openMenuAt(() => folderMenuItems(folder.id))}
+                    />
+                  </li>
+                );
+              })}
+              {unfiledSorted.map((playlist) => (
+                <li key={playlist.id}>
+                  <PhoneLibraryRow
+                    title={playlist.name}
+                    subtitle={[
+                      playlist.pinned ? "Pinned" : "",
+                      `Playlist · ${plural(playlist.tracks.length, "song", "songs")}`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                    art={
+                      <PhoneCollage
+                        covers={distinctCovers([coversOf(playlist.tracks)], 4)}
+                        fallback={PlayListIcon}
+                        sizeClass="size-[52px]"
+                        radiusClass="rounded-[8px]"
+                      />
+                    }
+                    onOpen={() => navigate({ name: "playlist", param: playlist.id })}
+                    onLongPress={openMenuAt(() => playlistMenuItems(playlist))}
+                  />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <ul>
+              <li>
+                <PhoneLibraryRow
+                  title="New playlist"
+                  subtitle="Start one with songs you like"
+                  art={
+                    <PhoneCollage covers={[]} fallback={PlusSignIcon} sizeClass="size-[52px]" radiusClass="rounded-[8px]" />
+                  }
+                  onOpen={openCreatePlaylist}
+                />
+              </li>
+            </ul>
+          )}
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="pb-16">
-      <CollectionHero title="Your Library" covers={heroCovers} facts={facts}>
-        <ActionMenu
-          items={createMenuItems()}
-          label="Create"
-          triggerText="Create"
-          icon={PlusSignIcon}
-          triggerClass={PILL}
-        />
-        <ActionMenu
-          items={[{ label: "Find duplicates", icon: Copy01Icon, onSelect: () => navigate({ name: "duplicates" }) }]}
-          label="More options"
-          icon={MoreHorizontalIcon}
-          triggerClass={ROUND}
-        />
-      </CollectionHero>
+      {phone ? (
+        <PageHeader title="Library" meta={facts} actions={actions} />
+      ) : (
+        <CollectionHero title="Your Library" covers={heroCovers} facts={facts}>
+          {actions}
+        </CollectionHero>
+      )}
 
       <Shelf label="Collections">
-        <ul className="-mx-2 grid grid-cols-[repeat(auto-fill,minmax(232px,1fr))] gap-1">
+        <ul className={grid}>
           {collections.map((collection) => (
             <li key={collection.key}>
               <CollectionRow collection={collection} />
@@ -185,7 +391,7 @@ export function LibraryView() {
       </Shelf>
 
       <Shelf label="Made for you">
-        <ul className="-mx-2 grid grid-cols-[repeat(auto-fill,minmax(232px,1fr))] gap-1">
+        <ul className={grid}>
           {madeForYou.map((collection) => (
             <li key={collection.key}>
               <CollectionRow collection={collection} />

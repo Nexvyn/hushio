@@ -1,0 +1,152 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+
+const { audio, playStream, play, pause, seekTo, setVolume, setMuted } = vi.hoisted(() => ({
+  audio: new Audio(),
+  playStream: vi.fn(),
+  play: vi.fn(),
+  pause: vi.fn(),
+  seekTo: vi.fn(),
+  setVolume: vi.fn(),
+  setMuted: vi.fn(),
+}));
+
+vi.mock("../lib/usePhone", () => ({ usePhone: () => true }));
+vi.mock("../lib/audio", () => ({ audio, playStream, play, pause, seekTo, setVolume, setMuted }));
+vi.mock("../lib/persist", () => ({
+  persistStorage: () => ({
+    getItem: async () => null,
+    setItem: async () => {},
+    removeItem: async () => {},
+  }),
+}));
+
+import { LibraryView } from "./LibraryView";
+import { type LibraryTrack, useLibrary } from "../stores/library";
+import { useNavigation } from "../stores/navigation";
+import { useUI } from "../stores/ui";
+
+const song = (i: number): LibraryTrack => ({
+  id: `s${i}`,
+  title: `Song ${i}`,
+  artist: "Artist",
+  thumb: null,
+  album: null,
+  duration: 200,
+  explicit: false,
+});
+
+const initialLibrary = useLibrary.getState();
+const initialNavigation = useNavigation.getState();
+const initialUI = useUI.getState();
+
+beforeEach(() => {
+  useLibrary.setState(initialLibrary, true);
+  useNavigation.setState(initialNavigation, true);
+  useUI.setState({ ...initialUI, dialog: null }, true);
+});
+
+afterEach(cleanup);
+
+describe("Library on phone", () => {
+  it("shows a Library title with Create and the profile button, and no stats line", () => {
+    render(<LibraryView />);
+    expect(screen.getByRole("heading", { level: 1, name: "Library" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Create" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Profile and settings" })).toBeTruthy();
+    expect(screen.queryByText(/playlists · .* folders/)).toBeNull();
+  });
+
+  it("lists the collection rows without the Collections heading or a Playlists nav row", () => {
+    render(<LibraryView />);
+    expect(screen.queryByRole("region", { name: "Collections" })).toBeNull();
+    for (const name of ["Liked Songs", "Downloads", "Local Music"]) {
+      expect(screen.getByText(name, { selector: "span.truncate" }).closest("button")).toBeTruthy();
+    }
+    expect(screen.queryAllByRole("button", { name: "Playlists" })).toHaveLength(0);
+  });
+
+  it("draws the Liked Songs heart filled on its accent tile", () => {
+    render(<LibraryView />);
+    const liked = screen.getByText("Liked Songs").closest("button") as HTMLElement;
+    expect(liked.querySelector("svg")?.getAttribute("fill")).toBe("currentColor");
+  });
+
+  it("shows the liked song count and the On this device subtitle", () => {
+    useLibrary.setState({ liked: [song(1), song(2)] });
+    render(<LibraryView />);
+    const liked = within(screen.getByText("Liked Songs").closest("button") as HTMLElement);
+    expect(liked.getByText("Pinned · 2 songs")).toBeTruthy();
+    expect(screen.getByText("On this device")).toBeTruthy();
+  });
+
+  it("explains the liked row when nothing is liked yet", () => {
+    useLibrary.setState({ liked: [], pinnedSingles: { ...initialLibrary.pinnedSingles, liked: false } });
+    render(<LibraryView />);
+    expect(screen.getByText("Songs you like land here")).toBeTruthy();
+  });
+
+  it("always shows all three Made for you cards, with Nothing yet for empty lists", () => {
+    render(<LibraryView />);
+    const section = within(screen.getByRole("region", { name: "Made for you" }));
+    expect(section.getByText("Most played")).toBeTruthy();
+    expect(section.getByText("Recently added")).toBeTruthy();
+    expect(section.getByText("Not played in a while")).toBeTruthy();
+    expect(section.getAllByText("Nothing yet")).toHaveLength(3);
+  });
+
+  it("shows the song count on Made for you cards with tracks", () => {
+    useLibrary.setState({ liked: [song(1), song(2), song(3)] });
+    render(<LibraryView />);
+    const section = within(screen.getByRole("region", { name: "Made for you" }));
+    const recent = within(section.getByRole("button", { name: /Recently added/ }));
+    expect(recent.getByText("3 songs")).toBeTruthy();
+    expect(section.getByText("Not played in a while").closest("button")).toBeTruthy();
+    expect(section.getAllByText("Nothing yet")).toHaveLength(1);
+  });
+
+  it("opens a Made for you smart list", () => {
+    useLibrary.setState({ liked: [song(1)] });
+    render(<LibraryView />);
+    fireEvent.click(screen.getByRole("button", { name: /Recently added/ }));
+    expect(useNavigation.getState().view).toEqual({ name: "smart", param: "recently-added" });
+  });
+
+  it("starts a new playlist from the empty Playlists row", () => {
+    render(<LibraryView />);
+    expect(screen.getByText("Start one with songs you like")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "New playlist" }));
+    expect(useUI.getState().dialog?.title).toBe("New playlist");
+  });
+
+  it("opens Downloads from its row", () => {
+    render(<LibraryView />);
+    fireEvent.click(screen.getByText("Downloads", { selector: "span.truncate" }).closest("button") as HTMLElement);
+    expect(useNavigation.getState().view).toEqual({ name: "downloads" });
+  });
+
+  it("shows playlists under a Playlists heading with the song count", () => {
+    useLibrary.setState({
+      playlists: [
+        { id: "a", name: "Road", folderId: null, pinned: false, tracks: [] },
+      ],
+      folders: [],
+    });
+    render(<LibraryView />);
+    const section = within(screen.getByRole("region", { name: "Playlists" }));
+    expect(section.getByRole("heading", { name: "Playlists" })).toBeTruthy();
+    expect(section.getByText("Road")).toBeTruthy();
+    expect(section.getByText("Playlist · 0 songs")).toBeTruthy();
+  });
+
+  it("marks a pinned playlist with a Pinned prefix", () => {
+    useLibrary.setState({
+      playlists: [{ id: "a", name: "Road", folderId: null, pinned: true, tracks: [song(1), song(2)] }],
+      folders: [],
+    });
+    render(<LibraryView />);
+    const section = within(screen.getByRole("region", { name: "Playlists" }));
+    expect(section.getByText("Pinned · Playlist · 2 songs")).toBeTruthy();
+    expect(section.queryByText("Start one with songs you like")).toBeNull();
+  });
+});

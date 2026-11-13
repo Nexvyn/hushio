@@ -5,10 +5,10 @@ import { recogniseSong, type RecognitionMatch } from "../lib/bridge";
 import { submitSearch } from "../lib/searchActions";
 import { usePlayer } from "../stores/player";
 
-type Status = "idle" | "listening" | "found" | "empty" | "error";
+export type RecogniseStatus = "idle" | "listening" | "found" | "empty" | "error";
 
-export function RecogniseSong() {
-  const [status, setStatus] = useState<Status>("idle");
+export function useRecogniseSong() {
+  const [status, setStatus] = useState<RecogniseStatus>("idle");
   const [match, setMatch] = useState<RecognitionMatch | null>(null);
   const [message, setMessage] = useState("");
 
@@ -38,6 +38,12 @@ export function RecogniseSong() {
     if (!match) return;
     submitSearch(`${match.artist} ${match.title}`);
   };
+
+  return { status, match, message, start, play, search };
+}
+
+export function RecogniseSong() {
+  const { status, match, message, start, play, search } = useRecogniseSong();
 
   return (
     <section aria-label="Recognise a song" className="rounded-[11px] border border-separator bg-panel p-4">

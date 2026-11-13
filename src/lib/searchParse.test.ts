@@ -98,6 +98,10 @@ function songCard(title: string, videoId: string, subtitle: string[]) {
   };
 }
 
+function withContents(card: { musicCardShelfRenderer: object }, contents: unknown[]) {
+  return { musicCardShelfRenderer: { ...card.musicCardShelfRenderer, contents } };
+}
+
 function suggestion(text: string) {
   return { searchSuggestionRenderer: { suggestion: { runs: [{ text }] } } };
 }
@@ -313,6 +317,59 @@ describe("parseSearchPage", () => {
         kind: "browse",
         item: { type: "album", browseId: "MPREb_album", title: "Aashiqui 2", subtitle: "Album • Arijit Singh", thumb: ART },
       },
+    ]);
+  });
+
+  it("gives songs inside an artist card shelf the card's artist and id", () => {
+    const shelf = withContents(artistCard("Arijit Singh", "UCarijit", "Artist"), [
+      trackRow("c1", "Ram Lala", ["Song", "6:37"], { fixed: "6:37" }),
+      trackRow("c2", "Phir Se", ["Song", "5:55"]),
+      trackRow("c3", "Clip", ["Video", "3:00"], { size: WIDE }),
+    ]);
+    const data = { contents: [shelf] };
+
+    expect(parseSearchPage(data, false).rows).toEqual([
+      { kind: "browse", top: true, item: { type: "artist", browseId: "UCarijit", title: "Arijit Singh", subtitle: "Artist", thumb: ART } },
+      expect.objectContaining({ kind: "track", track: expect.objectContaining({ id: "c1", artist: "Arijit Singh", artistId: "UCarijit" }) }),
+      expect.objectContaining({ kind: "track", track: expect.objectContaining({ id: "c2", artist: "Arijit Singh", artistId: "UCarijit" }) }),
+    ]);
+    expect(parseSearchPage(data, true).rows).toMatchObject([
+      { kind: "track", track: { id: "c3", artist: "Arijit Singh", artistId: "UCarijit", isVideo: true } },
+    ]);
+  });
+
+  it("keeps the artist a row inside an artist card shelf already names", () => {
+    const shelf = withContents(artistCard("Arijit Singh", "UCarijit", "Artist"), [
+      trackRow("c4", "Duet", ["Song", "Other Band", "4:00"]),
+    ]);
+
+    const page = parseSearchPage({ contents: [shelf] }, false);
+
+    expect(page.rows).toMatchObject([
+      { kind: "browse", item: { browseId: "UCarijit" } },
+      { kind: "track", track: { id: "c4", artist: "Other Band", artistId: null } },
+    ]);
+  });
+
+  it("leaves a song row outside any card shelf without an artist", () => {
+    const shelf = withContents(artistCard("Arijit Singh", "UCarijit", "Artist"), [trackRow("c5", "Inside", ["Song", "3:00"])]);
+    const page = parseSearchPage({ contents: [shelf, trackRow("o1", "Solo", ["Song", "3:00"])] }, false);
+
+    expect(page.rows).toMatchObject([
+      { kind: "browse", item: { browseId: "UCarijit" } },
+      { kind: "track", track: { id: "c5", artist: "Arijit Singh" } },
+      { kind: "track", track: { id: "o1", artist: "", artistId: null } },
+    ]);
+  });
+
+  it("does not give a song card's artist name to its shelf rows", () => {
+    const shelf = withContents(songCard("Levitating", "top9", ["Song", "3:23"]), [trackRow("s9", "Inside", ["Song", "3:00"])]);
+
+    const page = parseSearchPage({ contents: [shelf] }, false);
+
+    expect(page.rows).toMatchObject([
+      { kind: "top", song: { id: "top9", artist: "" } },
+      { kind: "track", track: { id: "s9", artist: "" } },
     ]);
   });
 

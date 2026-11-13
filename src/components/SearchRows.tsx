@@ -1,8 +1,10 @@
+import { PhoneArt } from "./phone/PhoneArt";
 import { openMenuAtPointer, openMenuFromKey } from "./ContextMenu";
 import { browseMenuItems } from "../lib/browseActions";
 import { openBrowse } from "../lib/searchActions";
 import type { BrowseItem, BrowseType } from "../lib/searchParse";
 import { joinSubtitle } from "../lib/subtitle";
+import { usePhone } from "../lib/usePhone";
 
 export const TYPE_LABEL: Record<BrowseType, string> = {
   album: "Album",
@@ -15,10 +17,24 @@ export const TYPE_LABEL: Record<BrowseType, string> = {
 const rowClass =
   "flex h-14 min-w-0 flex-1 items-center gap-3 rounded-[10px] py-1 pl-2 pr-2 text-left transition-colors hover:bg-wash active:bg-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
-export function Artwork({ src, round = false, size = "h-10 w-10" }: { src: string | null; round?: boolean; size?: string }) {
-  const shape = round ? "rounded-full" : "rounded-md";
+export function Artwork({
+  src,
+  round = false,
+  size = "h-10 w-10",
+  radius,
+}: {
+  src: string | null;
+  round?: boolean;
+  size?: string;
+  radius?: string;
+}) {
+  const phone = usePhone();
+  if (phone) {
+    return <PhoneArt src={src} round={round} radius={radius ?? "rounded-md"} className={`block shrink-0 ${size}`} />;
+  }
+  const shape = radius ?? (round ? "rounded-full" : "rounded-md");
   if (!src) return <span aria-hidden="true" className={`${size} ${shape} shrink-0 bg-wash`} />;
-  return <img src={src} alt="" loading="lazy" className={`${size} ${shape} shrink-0 object-cover`} />;
+  return <img src={src} alt="" loading="lazy" decoding="async" className={`${size} ${shape} shrink-0 object-cover`} />;
 }
 
 export function BrowseRow({ item, query }: { item: BrowseItem; query: string }) {

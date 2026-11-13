@@ -41,12 +41,19 @@ vi.mock("../lib/persist", () => ({
 
 vi.mock("../lib/search", () => ({ cachedSearchPage, peekSearchPage, searchMore }));
 
+vi.mock("../lib/explore", () => ({
+  freshMoods: () => null,
+  loadMoods: () => new Promise(() => {}),
+  getMoodCovers: async () => [],
+}));
+
 import { SearchView } from "./SearchView";
 import type { SearchRow, SearchSong } from "../lib/searchParse";
 import { useNavigation } from "../stores/navigation";
 import { usePlayer } from "../stores/player";
 import { useRecentItems, useRecents } from "../stores/recents";
 import { useUI } from "../stores/ui";
+import { FALLBACK_MOODS } from "../lib/moods";
 
 const initialPlayer = usePlayer.getState();
 
@@ -257,24 +264,35 @@ describe("SearchView", () => {
       window.innerWidth = 400;
     }
 
-    it("shows Explore, Charts and New releases on the phone when the search is empty", () => {
+    it("shows Browse all with Charts, New releases and Explore on the phone when the search is empty", () => {
       usePhone();
       render(<SearchView />);
 
-      expect(screen.getByRole("heading", { name: "Browse" })).toBeTruthy();
-      for (const name of ["Explore", "Charts", "New releases"]) {
-        expect(screen.getByRole("button", { name }).className).toContain("h-16");
+      expect(screen.getByRole("heading", { name: "Browse all" })).toBeTruthy();
+      for (const name of ["Charts", "New releases"]) {
+        expect(screen.getByRole("button", { name }).className).toContain("h-24");
       }
+      expect(screen.getByRole("button", { name: "Explore" }).className).toContain("h-11");
     });
 
-    it("puts Browse above recent searches", () => {
+    it("puts Browse all below recent searches", () => {
       usePhone();
       useRecents.setState({ searches: ["daft punk"] });
       render(<SearchView />);
 
-      const browse = screen.getByRole("heading", { name: "Browse" });
+      const browse = screen.getByRole("heading", { name: "Browse all" });
       const recent = screen.getByRole("heading", { name: "Recent searches" });
-      expect(browse.compareDocumentPosition(recent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(recent.compareDocumentPosition(browse) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("shows placeholder tiles, not the fallback mood names, while the moods load", () => {
+      usePhone();
+      const { container } = render(<SearchView />);
+
+      for (const mood of FALLBACK_MOODS) {
+        expect(screen.queryByRole("button", { name: mood.title })).toBeNull();
+      }
+      expect(container.querySelectorAll(".bt-skeleton > div")).toHaveLength(8);
     });
 
     it.each([
@@ -295,7 +313,7 @@ describe("SearchView", () => {
     it("does not show the browse entries on desktop", () => {
       render(<SearchView />);
 
-      expect(screen.queryByRole("heading", { name: "Browse" })).toBeNull();
+      expect(screen.queryByRole("heading", { name: "Browse all" })).toBeNull();
       expect(screen.queryByRole("button", { name: "Explore" })).toBeNull();
       expect(screen.queryByRole("button", { name: "Charts" })).toBeNull();
       expect(screen.queryByRole("button", { name: "New releases" })).toBeNull();
@@ -309,7 +327,7 @@ describe("SearchView", () => {
 
       await screen.findByRole("button", { name: /^Physical/ });
 
-      expect(screen.queryByRole("heading", { name: "Browse" })).toBeNull();
+      expect(screen.queryByRole("heading", { name: "Browse all" })).toBeNull();
       expect(screen.queryByRole("button", { name: "Explore" })).toBeNull();
     });
   });
