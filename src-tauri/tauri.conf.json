@@ -26,7 +26,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: asset: http://asset.localhost localart: http://localart.localhost; media-src 'self' blob: https: http://127.0.0.1:* asset: http://asset.localhost; connect-src 'self' ipc: http://ipc.localhost https: http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; font-src 'self' data:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'",
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: asset: http://asset.localhost localart: http://localart.localhost; media-src 'self' blob: https: http://127.0.0.1:* asset: http://asset.localhost netmusic: http://netmusic.localhost; connect-src 'self' ipc: http://ipc.localhost https: http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; font-src 'self' data:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'",
       "assetProtocol": {
         "enable": true,
         "scope": ["$AUDIO/**", "$DOWNLOAD/**", "$MUSIC/**", "$APPDATA/**", "$APPCACHE/**"]
