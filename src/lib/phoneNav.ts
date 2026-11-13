@@ -1,17 +1,15 @@
 import type { View, ViewName } from "../stores/navigation";
 
-export type TabId = "home" | "search" | "library" | "downloads" | "settings";
+export type TabId = "home" | "search" | "library";
 
 export const TABS: readonly { id: TabId; label: string; view: View }[] = [
   { id: "home", label: "Home", view: { name: "home" } },
   { id: "search", label: "Search", view: { name: "search" } },
   { id: "library", label: "Library", view: { name: "library" } },
-  { id: "downloads", label: "Downloads", view: { name: "downloads" } },
-  { id: "settings", label: "Settings", view: { name: "settings" } },
 ];
 
-export const TAB_BAR_DP = 64;
-export const MINI_PLAYER_DP = 64;
+export const TAB_BAR_DP = 56;
+export const MINI_PLAYER_DP = 56;
 export const MINI_GAP_DP = 8;
 export const INSET_BOTTOM = "var(--inset-bottom, env(safe-area-inset-bottom, 0px))";
 export const INSET_TOP = "var(--inset-top, env(safe-area-inset-top, 0px))";
@@ -37,8 +35,8 @@ const TAB_OF: Record<ViewName, TabId> = {
   artist: "library",
   local: "library",
   listen: "library",
-  downloads: "downloads",
-  settings: "settings",
+  downloads: "library",
+  settings: "home",
 };
 
 export function tabFor(view: View): TabId {
@@ -50,7 +48,21 @@ export function phoneToastBottom(miniShown: boolean): string {
   return `calc(${dp}px + ${INSET_BOTTOM})`;
 }
 
-export function phoneBottomPad(miniShown: boolean): string {
-  const dp = TAB_BAR_DP + (miniShown ? MINI_PLAYER_DP + MINI_GAP_DP : 0);
+const MINI_BLOCK_DP = MINI_PLAYER_DP + 2 * MINI_GAP_DP;
+
+export function phoneBottomBlock(miniShown: boolean): string {
+  const dp = TAB_BAR_DP + (miniShown ? MINI_BLOCK_DP : 0);
   return `calc(${dp}px + ${INSET_BOTTOM})`;
+}
+
+export function phoneBottomPad(miniShown: boolean): string {
+  return `${(miniShown ? MINI_BLOCK_DP : 0) + 16}px`;
+}
+
+export function isTabRoot(view: View): boolean {
+  return TABS.some((tab) => tab.view.name === view.name);
+}
+
+export function tabRootFor(view: View): View {
+  return (TABS.find((tab) => tab.id === tabFor(view)) ?? TABS[0]).view;
 }

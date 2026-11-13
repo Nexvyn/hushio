@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { IconSvgElement } from "@hugeicons/react";
 import { PageHeader } from "./PageHeader";
 
 type CollectionHeroProps = {
@@ -7,8 +8,20 @@ type CollectionHeroProps = {
   covers: string[];
   facts: ReactNode;
   children: ReactNode;
+  icon?: IconSvgElement;
+  onBack?: () => void;
 };
 
-export function CollectionHero({ title, covers, facts, children, ambient = false }: CollectionHeroProps) {
-  return <PageHeader title={title} meta={facts} artwork={covers[0] ?? null} actions={children} ambient={ambient} />;
+export function CollectionHero({ title, covers, facts, children, ambient = false, icon, onBack }: CollectionHeroProps) {
+  return (
+    <PageHeader
+      title={title}
+      meta={facts}
+      artwork={covers[0] ?? null}
+      actions={children}
+      ambient={ambient}
+      icon={icon}
+      onBack={onBack}
+    />
+  );
 }

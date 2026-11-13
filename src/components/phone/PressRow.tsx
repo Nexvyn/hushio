@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState, type ReactNode, type PointerEvent, type MouseEvent } from "react";
-import { motion } from "motion/react";
 import { LongPress } from "../../lib/longPress";
-import { gate, quick, reducedMotion, settle } from "../../lib/motion";
+import { reducedMotion } from "../../lib/motion";
 import { PRESS_SLOP_PX, pressMoved, type Point } from "../../lib/touchGesture";
 
 type PressRowProps = {
   label: string;
   className?: string;
+  contentClassName?: string;
   onPress?: () => void;
   onLongPress?: (point: Point) => void;
   children: ReactNode;
 };
 
-export function PressRow({ label, className = "", onPress, onLongPress, children }: PressRowProps) {
+export function PressRow({ label, className = "", contentClassName = "", onPress, onLongPress, children }: PressRowProps) {
   const reduced = reducedMotion();
   const [pressed, setPressed] = useState(false);
   const origin = useRef<Point | null>(null);
@@ -64,12 +64,10 @@ export function PressRow({ label, className = "", onPress, onLongPress, children
   };
 
   return (
-    <motion.button
+    <button
       type="button"
       aria-label={label}
-      animate={{ scale: pressed ? 0.97 : 1 }}
-      transition={gate(reduced, pressed ? quick : settle)}
-      className={`flex min-h-12 w-full touch-pan-y items-center text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${className}`}
+      className={`relative flex min-h-12 w-full touch-pan-y items-center text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${className}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -77,7 +75,14 @@ export function PressRow({ label, className = "", onPress, onLongPress, children
       onPointerLeave={release}
       onClick={onClick}
     >
-      {children}
-    </motion.button>
+      <span
+        aria-hidden="true"
+        data-press-highlight
+        className={`pointer-events-none absolute inset-0 rounded-[12px] bg-wash ${
+          pressed ? "opacity-100" : `opacity-0 ${reduced ? "" : "motion-safe:transition-opacity motion-safe:duration-fade"}`
+        }`}
+      />
+      <span className={`relative flex w-full min-w-0 items-center ${contentClassName}`}>{children}</span>
+    </button>
   );
 }

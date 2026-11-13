@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("../lib/bridge", () => ({
@@ -31,11 +31,24 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("phone settings", () => {
-  it("shows the nine categories as a list first", () => {
+  it("opens as the profile page with a back arrow and a Downloads row", () => {
+    render(<SettingsView />);
+    expect(screen.getByRole("heading", { name: "Profile" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Back" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Downloads" }));
+    expect(useNavigation.getState().view).toEqual({ name: "downloads" });
+  });
+
+  it("opens Account from the profile row", () => {
+    render(<SettingsView />);
+    fireEvent.click(screen.getByRole("button", { name: /Not signed in/ }));
+    expect(useNavigation.getState().view).toEqual({ name: "settings", param: "account" });
+  });
+
+  it("lists the eight categories other than Account as flat rows", () => {
     render(<SettingsView />);
     const rows = screen.getAllByRole("button").filter((button) => button.hasAttribute("data-cat"));
     expect(rows.map((row) => row.textContent)).toEqual([
-      "Account",
       "Playback",
       "Sound",
       "Lyrics",
@@ -73,5 +86,21 @@ describe("phone settings", () => {
     expect(screen.queryByText("Reduce transparency")).toBeNull();
     expect(screen.queryByText("Hide volume bar")).toBeNull();
     expect(screen.getByText("Reduce animation")).toBeTruthy();
+  });
+});
+
+describe("phone settings groups", () => {
+  it("groups the root categories into four plain lists without containers", () => {
+    const { container } = render(<SettingsView />);
+    const groups = Array.from(container.querySelectorAll("ul")).map((list) =>
+      Array.from(list.querySelectorAll("button[data-cat]")).map((button) => button.textContent),
+    );
+    expect(groups).toEqual([
+      ["Playback", "Sound", "Lyrics"],
+      ["Display", "Library"],
+      ["Scrobbling", "Your data"],
+      ["About"],
+    ]);
+    expect(container.querySelector("[class*='border-separator']")).toBeNull();
   });
 });

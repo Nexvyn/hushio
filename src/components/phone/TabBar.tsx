@@ -1,23 +1,15 @@
-import { motion } from "motion/react";
-import {
-  Download01Icon,
-  Home01Icon,
-  LibraryIcon,
-  Search01Icon,
-  Settings02Icon,
-} from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
-import { Icon } from "../Icon";
-import { gate, reducedMotion, settle } from "../../lib/motion";
+import { Home01Icon, LibraryIcon, Search01Icon } from "@hugeicons/core-free-icons";
+import { PhoneIcon } from "./PhoneIcon";
 import { INSET_BOTTOM, TAB_BAR_DP, TABS, type TabId, tabFor } from "../../lib/phoneNav";
-import { useNavigation } from "../../stores/navigation";
+import { useNavigation, type View } from "../../stores/navigation";
+import { haptic } from "../../lib/haptics";
+import { reducedMotion } from "../../lib/motion";
 
 const ICONS: Record<TabId, IconSvgElement> = {
   home: Home01Icon,
   search: Search01Icon,
   library: LibraryIcon,
-  downloads: Download01Icon,
-  settings: Settings02Icon,
 };
 
 export function TabBar() {
@@ -25,37 +17,38 @@ export function TabBar() {
   const navigate = useNavigation((state) => state.navigate);
   const reduced = reducedMotion();
 
+  const tap = (tab: { id: TabId; view: View }) => {
+    if (tab.id === current) {
+      navigate(tab.view);
+      document.getElementById("view-scroll")?.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
+      return;
+    }
+    haptic("tick");
+    navigate(tab.view);
+  };
+
   return (
     <nav
       aria-label="Main"
-      className="relative z-20 flex shrink-0 border-t border-separator bg-base"
+      className="relative z-20 flex shrink-0 bg-base"
       style={{ height: `calc(${TAB_BAR_DP}px + ${INSET_BOTTOM})`, paddingBottom: INSET_BOTTOM }}
     >
       {TABS.map((tab) => {
         const active = tab.id === current;
-        const tone = active ? "text-ink-1" : "text-ink-2";
         return (
           <button
             key={tab.id}
             type="button"
             aria-current={active ? "page" : undefined}
-            onClick={() => navigate(tab.view)}
-            className="flex min-h-12 min-w-12 flex-1 flex-col items-center justify-center gap-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            onClick={() => tap(tab)}
+            className={`group flex min-h-12 min-w-12 flex-1 flex-col items-center justify-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+              active ? "text-accent" : "text-ink-2"
+            }`}
           >
-            <span className="relative grid h-8 w-14 place-items-center">
-              {active && (
-                <motion.span
-                  layoutId="tab-capsule"
-                  aria-hidden="true"
-                  transition={gate(reduced, settle)}
-                  className="absolute inset-0 rounded-full bg-selected"
-                />
-              )}
-              <span className={`relative grid place-items-center ${tone}`}>
-                <Icon icon={ICONS[tab.id]} />
-              </span>
+            <span className="flex flex-col items-center gap-1 motion-safe:transition-transform motion-safe:duration-fade motion-safe:ease-out motion-safe:group-active:scale-[0.96]">
+              <PhoneIcon icon={ICONS[tab.id]} />
+              <span className={`text-[12px] leading-4 ${active ? "font-semibold" : "font-medium"}`}>{tab.label}</span>
             </span>
-            <span className={`text-[11.5px] font-medium leading-[14px] ${tone}`}>{tab.label}</span>
           </button>
         );
       })}

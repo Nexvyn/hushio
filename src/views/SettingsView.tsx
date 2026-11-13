@@ -1,15 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
-import { ArrowRight01Icon, Cancel01Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { ArrowRight01Icon, Cancel01Icon, Download01Icon, Search01Icon } from "@hugeicons/core-free-icons";
 import { Icon } from "../components/Icon";
+import { PhoneIcon } from "../components/phone/PhoneIcon";
 import { SectionHeader } from "../components/SectionHeader";
-import { appVersion, platform } from "../lib/bridge";
+import { appVersion, platform, type GoogleAccount } from "../lib/bridge";
 import { shellFor, useViewportWidth } from "../lib/layoutTier";
 import { useAuth } from "../stores/auth";
 import { useDiscord } from "../stores/discord";
 import { useScrobble } from "../stores/scrobble";
 import { useSync } from "../stores/sync";
 import { useUpdates } from "../stores/updates";
-import { useNavigation } from "../stores/navigation";
+import { useNavigation, type View } from "../stores/navigation";
 import { useSettings } from "../stores/settings";
 import {
   buildCategories,
@@ -17,6 +18,8 @@ import {
   type CategoryId,
   type SettingsCategory,
 } from "./settings/categories";
+import { PhoneHeader } from "../components/phone/PhoneHeader";
+import { AccountAvatar } from "../components/phone/PhoneProfileButton";
 import { GroupView, PageHeader } from "./settings/SettingsLayout";
 import { HomeSectionsSettings } from "./settings/HomeSectionsSettings";
 import { NetworkServersSettings } from "./settings/NetworkServersSettings";
@@ -46,7 +49,7 @@ function useAppVersion() {
   return version;
 }
 
-function SearchBox({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function SearchBox({ value, onChange, phone = false }: { value: string; onChange: (value: string) => void; phone?: boolean }) {
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key !== "Escape") return;
     event.preventDefault();
@@ -67,7 +70,11 @@ function SearchBox({ value, onChange }: { value: string; onChange: (value: strin
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={onKeyDown}
-        className="h-10 w-full rounded-[12px] [corner-shape:squircle] border border-separator bg-surface pl-10 pr-10 text-base text-ink-1 md:text-body placeholder:text-ink-2 focus-visible:border-focus focus-visible:outline-none"
+        className={
+          phone
+            ? "h-11 w-full rounded-[12px] [corner-shape:squircle] bg-elevated pl-10 pr-10 text-base text-ink-1 placeholder:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            : "h-10 w-full rounded-[12px] [corner-shape:squircle] border border-separator bg-surface pl-10 pr-10 text-base text-ink-1 md:text-body placeholder:text-ink-2 focus-visible:border-focus focus-visible:outline-none"
+        }
       />
       {value && (
         <button
@@ -151,39 +158,91 @@ function CategoryNav({ categories, active, onSelect }: CategoryNavProps) {
   );
 }
 
+const PHONE_GROUPS: CategoryId[][] = [
+  ["playback", "sound", "lyrics"],
+  ["display", "library"],
+  ["scrobbling", "data"],
+  ["about"],
+];
+
+const PHONE_ROW = "flex w-full items-center gap-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+
+function backOr(fallback: View) {
+  const nav = useNavigation.getState();
+  if (nav.navPast.length > 0) nav.goBack();
+  else nav.navigate(fallback);
+}
+
 type PhoneSettingsProps = {
   categories: SettingsCategory[];
   results: SettingsCategory[];
   query: string;
   onQueryChange: (value: string) => void;
   open: SettingsCategory | undefined;
+  account: GoogleAccount;
   onOpen: (id: CategoryId) => void;
+  onDownloads: () => void;
   onBack: () => void;
 };
 
-function PhoneSettings({ categories, results, query, onQueryChange, open, onOpen, onBack }: PhoneSettingsProps) {
+function PhoneSettings({
+  categories,
+  results,
+  query,
+  onQueryChange,
+  open,
+  account,
+  onOpen,
+  onDownloads,
+  onBack,
+}: PhoneSettingsProps) {
   const searching = query.trim() !== "";
 
   if (!searching && open) {
     return (
       <div key={open.id} className="settings-pane pb-6">
-        <PageHeader title={open.label} onBack={onBack} />
-        <div className="space-y-7">
-          {open.groups.map((group, index) => (
-            <GroupView key={group.title ?? index} group={group} />
-          ))}
-        </div>
+        <PhoneHeader title={open.label} onBack={onBack} backLabel="Back to settings" />
+        {open.groups.map((group, index) => (
+          <GroupView key={group.title ?? index} group={group} phone />
+        ))}
       </div>
     );
   }
 
-  const list = searching ? results : categories;
+  const signedIn = account.mode === "google";
+  const name = signedIn ? (account.name ?? account.email ?? "Google account") : "Not signed in";
+  const groups = PHONE_GROUPS.map((ids) =>
+    ids.flatMap((id) => categories.filter((category) => category.id === id)),
+  ).filter((items) => items.length > 0);
 
   return (
     <div className="pb-6">
-      <h1 className="text-section text-ink-1">Settings</h1>
-      <div className="mt-4">
-        <SearchBox value={query} onChange={onQueryChange} />
+      <PhoneHeader title="Profile" onBack={() => backOr({ name: "home" })} backLabel="Back" />
+      <button type="button" onClick={() => onOpen("account")} className={`${PHONE_ROW} h-[72px]`}>
+        <AccountAvatar size={48} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-title text-[17px] font-semibold leading-[22px] tracking-[-0.02em] text-ink-1">{name}</span>
+          <span className="block truncate text-[13.5px] leading-[18px] text-ink-2">
+            {signedIn ? "Signed in with Google" : "Sign in to sync playlists and likes"}
+          </span>
+        </span>
+        <span aria-hidden="true" className="shrink-0 text-ink-2">
+          <Icon icon={ArrowRight01Icon} />
+        </span>
+      </button>
+      <button type="button" onClick={onDownloads} className={`${PHONE_ROW} mt-5 h-[52px]`}>
+        <span className="shrink-0 text-ink-1">
+          <PhoneIcon icon={Download01Icon} />
+        </span>
+        <span className="min-w-0 flex-1 truncate text-[16px] leading-[22px] text-ink-1">Downloads</span>
+        <span aria-hidden="true" className="shrink-0 text-ink-2">
+          <Icon icon={ArrowRight01Icon} />
+        </span>
+      </button>
+
+      <div className="mt-5">
+        <h2 className="mb-2 text-[13.5px] font-semibold leading-[18px] text-ink-2">Settings</h2>
+        <SearchBox value={query} onChange={onQueryChange} phone />
       </div>
       {searching && results.length === 0 && (
         <p className="pt-4 text-body text-ink-2">No settings match “{query.trim()}”</p>
@@ -192,34 +251,40 @@ function PhoneSettings({ categories, results, query, onQueryChange, open, onOpen
         ? results.map((category) => (
             <section key={category.id} className="mt-7 first:mt-0">
               <SectionHeader title={category.label} />
-              <div className="space-y-7">
+              <div className="space-y-5">
                 {category.groups.map((group, index) => (
-                  <GroupView key={group.title ?? index} group={group} />
+                  <GroupView key={group.title ?? index} group={group} phone />
                 ))}
               </div>
             </section>
           ))
-        : list.length > 0 && (
-            <ul className="mt-4 divide-y divide-separator">
-              {list.map((category) => (
-                <li key={category.id}>
-                  <button
-                    type="button"
-                    data-cat={category.id}
-                    onClick={() => onOpen(category.id)}
-                    className="flex min-h-[52px] w-full items-center gap-3 py-2 text-left text-body font-medium text-ink-1 motion-safe:transition-colors active:opacity-70"
-                  >
-                    <span className="shrink-0 text-ink-2">
-                      <Icon icon={category.icon} />
-                    </span>
-                    <span className="min-w-0 flex-1 truncate">{category.label}</span>
-                    <span className="shrink-0 text-ink-2">
-                      <Icon icon={ArrowRight01Icon} />
-                    </span>
-                  </button>
-                </li>
+        : (
+            <div className="mt-5 space-y-5">
+              {groups.map((items) => (
+                <ul key={items[0].id} className="flex flex-col">
+                  {items.map((category) => (
+                    <li key={category.id}>
+                      <button
+                        type="button"
+                        data-cat={category.id}
+                        onClick={() => onOpen(category.id)}
+                        className={`${PHONE_ROW} h-[52px] motion-safe:transition-opacity active:opacity-70`}
+                      >
+                        <span className="shrink-0 text-ink-1">
+                          <PhoneIcon icon={category.icon} />
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-[16px] leading-[22px] text-ink-1">
+                          {category.label}
+                        </span>
+                        <span aria-hidden="true" className="shrink-0 text-ink-2">
+                          <Icon icon={ArrowRight01Icon} />
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               ))}
-            </ul>
+            </div>
           )}
     </div>
   );
@@ -338,7 +403,9 @@ export function SettingsView() {
         query={query}
         onQueryChange={setQuery}
         open={categories.find((category) => category.id === view.param)}
+        account={account}
         onOpen={(id) => navigate({ name: "settings", param: id })}
+        onDownloads={() => navigate({ name: "downloads" })}
         onBack={backToSettingsList}
       />
     );
@@ -346,7 +413,7 @@ export function SettingsView() {
 
   return (
     <div className="flex min-h-[calc(100vh-7rem)] gap-8">
-      <aside className="flex w-[220px] shrink-0 flex-col gap-3">
+      <aside className="sticky top-0 flex w-[220px] shrink-0 flex-col gap-3 self-start">
         <SearchBox value={query} onChange={setQuery} />
         <CategoryNav categories={categories} active={active} onSelect={select} />
       </aside>

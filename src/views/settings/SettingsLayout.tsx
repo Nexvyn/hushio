@@ -1,9 +1,81 @@
+import { isValidElement, useId, type MouseEvent, type ReactNode } from "react";
 import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
+import { Button } from "../../components/Button";
 import { Icon } from "../../components/Icon";
-import { SettingRow } from "../../components/SettingRow";
+import { SettingRow, type SettingRowProps } from "../../components/SettingRow";
+import { Switch } from "../../components/Switch";
 import type { SettingsGroup } from "./categories";
 
-export function GroupView({ group }: { group: SettingsGroup }) {
+function isShortButton(control: ReactNode): boolean {
+  return isValidElement(control) && control.type === Button;
+}
+
+function PhoneSettingRow({ title, note, value, control, toggle, disabled = false, danger = false, stacked = false }: SettingRowProps) {
+  const titleId = useId();
+  const wide = stacked || (!toggle && control !== undefined && !isShortButton(control));
+  const controls = (
+    <div
+      className={
+        wide
+          ? "flex w-full items-center gap-3 [&_[role=radiogroup]]:w-full [&_[role=radio]]:flex-1"
+          : "flex h-[22px] shrink-0 items-center gap-3"
+      }
+    >
+      {value && <span className="text-[13.5px] tabular-nums text-ink-2">{value}</span>}
+      {toggle ? (
+        <Switch
+          checked={toggle.checked}
+          disabled={disabled}
+          aria-labelledby={titleId}
+          className={toggle.checked ? "!bg-accent" : undefined}
+          onCheckedChange={toggle.onChange}
+        />
+      ) : (
+        control
+      )}
+    </div>
+  );
+
+  function onRowClick(event: MouseEvent<HTMLDivElement>) {
+    if (!toggle || disabled) return;
+    if (event.target instanceof Element && event.target.closest('[role="switch"]')) return;
+    toggle.onChange(!toggle.checked);
+  }
+
+  return (
+    <div
+      onClick={onRowClick}
+      className={`flex min-h-14 py-3 ${wide ? "flex-col gap-2" : "items-start gap-4"} ${
+        toggle && !disabled ? "cursor-pointer" : ""
+      }`}
+    >
+      <div className={`min-w-0 ${wide ? "" : "flex-1"}`}>
+        <p
+          id={titleId}
+          className={`text-[16px] font-normal leading-[22px] ${danger ? "text-danger-text" : disabled ? "text-ink-2" : "text-ink-1"}`}
+        >
+          {title}
+        </p>
+        {note && <p className="mt-0.5 text-[13.5px] leading-[18px] text-ink-2">{note}</p>}
+      </div>
+      {controls}
+    </div>
+  );
+}
+
+export function GroupView({ group, phone = false }: { group: SettingsGroup; phone?: boolean }) {
+  if (phone) {
+    return (
+      <section className="mt-6 first:mt-0">
+        {group.title && <h2 className="mb-2 text-[13.5px] font-semibold leading-[18px] text-ink-2">{group.title}</h2>}
+        {group.note && <p className="mb-2 text-[13.5px] leading-[18px] text-ink-2">{group.note}</p>}
+        {group.rows.map((row) => (
+          <PhoneSettingRow key={row.id} {...row} />
+        ))}
+        {group.body && <div className="py-3">{group.body}</div>}
+      </section>
+    );
+  }
   return (
     <section>
       {group.title && <h2 className="mb-1 text-meta font-medium text-ink-2">{group.title}</h2>}

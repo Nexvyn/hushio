@@ -1,7 +1,12 @@
 import type { ReactNode } from "react";
+import type { IconSvgElement } from "@hugeicons/react";
 import { useArtworkPalette } from "../lib/artworkPalette";
 import { upgradeArtwork } from "../lib/artwork";
+import { isTabRoot, tabRootFor } from "../lib/phoneNav";
+import { usePhone } from "../lib/usePhone";
+import { useNavigation } from "../stores/navigation";
 import { AmbientBackdrop, PALETTE_ART } from "./AmbientBackdrop";
+import { PhoneHeader } from "./phone/PhoneHeader";
 
 export type PageHeaderProps = {
   title: string;
@@ -11,6 +16,8 @@ export type PageHeaderProps = {
   titleId?: string;
   titleTooltip?: string;
   ambient?: boolean;
+  icon?: IconSvgElement;
+  onBack?: () => void;
 };
 
 export function monogram(title: string): string {
@@ -32,9 +39,31 @@ function Artwork({ src, title }: { src: string | null; title: string }) {
   );
 }
 
-export function PageHeader({ title, meta, artwork, actions, titleId, titleTooltip, ambient = false }: PageHeaderProps) {
+function goBackOrTabRoot() {
+  const nav = useNavigation.getState();
+  if (nav.navPast.length > 0) nav.goBack();
+  else nav.navigate(tabRootFor(nav.view));
+}
+
+export function PageHeader({ title, meta, artwork, actions, titleId, titleTooltip, ambient = false, icon, onBack }: PageHeaderProps) {
+  const phone = usePhone();
+  const view = useNavigation((state) => state.view);
   const cover = ambient && artwork ? upgradeArtwork(artwork, PALETTE_ART) : "";
   const palette = useArtworkPalette(cover);
+  if (phone) {
+    return (
+      <PhoneHeader
+        title={title}
+        meta={meta}
+        artwork={artwork}
+        icon={icon}
+        actions={actions}
+        titleId={titleId}
+        titleTooltip={titleTooltip}
+        onBack={onBack ?? (isTabRoot(view) ? undefined : goBackOrTabRoot)}
+      />
+    );
+  }
   const header = (
     <header className="flex min-w-0 items-end gap-5">
       {artwork !== undefined && <Artwork src={artwork} title={title} />}

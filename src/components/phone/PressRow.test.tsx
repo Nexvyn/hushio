@@ -64,6 +64,17 @@ describe("PressRow", () => {
     expect(onPress).not.toHaveBeenCalled();
   });
 
+  it("shows a background highlight on press instead of scaling the row", () => {
+    render(<PressRow label="Row" onPress={() => {}}>Row</PressRow>);
+    const row = screen.getByRole("button", { name: "Row" });
+    expect(row.className).not.toContain("scale");
+    pointer("pointerDown", row, 0, 0);
+    expect(row.querySelector("[data-press-highlight]")?.className).toContain("opacity-100");
+    pointer("pointerUp", row, 0, 0);
+    expect(row.querySelector("[data-press-highlight]")?.className).toContain("opacity-0");
+    expect(row.querySelector("[data-press-highlight]")?.className).toContain("duration-fade");
+  });
+
   it("a small movement under 10 dp still presses", () => {
     const onPress = vi.fn();
     render(<PressRow label="Row" onPress={onPress}>Row</PressRow>);

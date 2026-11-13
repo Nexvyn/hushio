@@ -1,7 +1,9 @@
 import type { IconSvgElement } from "@hugeicons/react";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
+import { PhoneIcon } from "./phone/PhoneIcon";
 import { useInk } from "../lib/onArt";
+import { usePhone } from "../lib/usePhone";
 
 type EmptyStateAction = { label: string; onClick: () => void };
 
@@ -16,6 +18,42 @@ type EmptyStateProps = {
 
 export function EmptyState({ title, message, icon, action, secondaryAction, centered = false }: EmptyStateProps) {
   const ink = useInk();
+  const phone = usePhone();
+  if (phone) {
+    return (
+      <section className="animate-fade-in mx-auto flex max-w-[280px] flex-col items-center px-4 pt-8 text-center">
+        {icon && (
+          <span aria-hidden="true" className="grid place-items-center text-ink-2">
+            <PhoneIcon icon={icon} />
+          </span>
+        )}
+        <h2 className="mt-3 text-[17px] font-semibold leading-[22px] text-ink-1">{title}</h2>
+        {message && <p className="mt-1 text-[14px] leading-5 text-ink-2">{message}</p>}
+        {(action || secondaryAction) && (
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+            {action && (
+              <button
+                type="button"
+                onClick={action.onClick}
+                className="inline-flex h-11 items-center justify-center rounded-[12px] [corner-shape:squircle] bg-primary px-5 text-[15px] font-semibold text-on-primary hover:opacity-90 motion-safe:transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              >
+                {action.label}
+              </button>
+            )}
+            {secondaryAction && (
+              <button
+                type="button"
+                onClick={secondaryAction.onClick}
+                className="inline-flex h-11 items-center justify-center rounded-[12px] px-5 text-[15px] font-semibold text-ink-1 motion-safe:transition-colors hover:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              >
+                {secondaryAction.label}
+              </button>
+            )}
+          </div>
+        )}
+      </section>
+    );
+  }
   const body = (
     <>
       {icon && (
