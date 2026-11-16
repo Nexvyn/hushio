@@ -128,10 +128,13 @@ fn watcher_on_session_bus() -> bool {
     let Ok(name) = zbus::names::BusName::try_from("org.kde.StatusNotifierWatcher") else {
         return false;
     };
-    zbus::blocking::Connection::session()
-        .and_then(|connection| zbus::blocking::fdo::DBusProxy::new(&connection))
-        .and_then(|proxy| proxy.name_has_owner(name))
-        .unwrap_or(false)
+    let Ok(connection) = zbus::blocking::Connection::session() else {
+        return false;
+    };
+    let Ok(proxy) = zbus::blocking::fdo::DBusProxy::new(&connection) else {
+        return false;
+    };
+    proxy.name_has_owner(name).unwrap_or(false)
 }
 
 fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {
