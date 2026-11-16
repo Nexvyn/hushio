@@ -26,6 +26,7 @@ impl Tray {
         self.quitting.load(Ordering::SeqCst)
     }
 
+    #[cfg_attr(target_os = "macos", allow(dead_code))]
     pub fn playing(&self) -> bool {
         self.playing.load(Ordering::SeqCst)
     }

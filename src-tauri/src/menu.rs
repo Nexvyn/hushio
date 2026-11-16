@@ -253,6 +253,7 @@ fn leaves(nodes: &[Node]) -> Vec<&Node> {
     out
 }
 
+#[cfg(any(test, not(target_os = "macos")))]
 pub fn ids(nodes: &[Node]) -> Vec<&'static str> {
     leaves(nodes)
         .into_iter()
@@ -264,6 +265,7 @@ pub fn ids(nodes: &[Node]) -> Vec<&'static str> {
         .collect()
 }
 
+#[cfg(any(test, not(target_os = "macos")))]
 pub fn commands(nodes: &[Node]) -> Vec<&'static str> {
     leaves(nodes)
         .into_iter()
@@ -274,6 +276,7 @@ pub fn commands(nodes: &[Node]) -> Vec<&'static str> {
         .collect()
 }
 
+#[cfg(any(test, not(target_os = "macos")))]
 pub fn accelerators(nodes: &[Node]) -> Vec<&'static str> {
     leaves(nodes)
         .into_iter()
