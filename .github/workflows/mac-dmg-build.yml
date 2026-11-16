@@ -5,7 +5,7 @@ permissions:
   contents: read
 env:
   PNPM_VERSION: 10.34.5
-  LINUX_DEPS: build-essential curl wget file libxdo-dev libssl-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libsecret-1-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav xvfb dbus-x11 gnome-keyring
+  LINUX_DEPS: build-essential curl wget file libxdo-dev libssl-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libsecret-1-dev libasound2-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav xvfb dbus-x11 gnome-keyring
 jobs:
   build:
     strategy:
