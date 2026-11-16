@@ -896,6 +896,7 @@ pub fn run() {
         #[cfg(target_os = "macos")]
         RunEvent::Reopen {
             has_visible_windows,
+            ..
         } => {
             if !has_visible_windows {
                 macos_window::show_main(app);
