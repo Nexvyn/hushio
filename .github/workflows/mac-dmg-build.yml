@@ -16,7 +16,7 @@ jobs:
           - os: windows-latest
             bundles: ""
           - os: ubuntu-22.04
-            bundles: "--bundles appimage,deb,rpm"
+            bundles: "--bundles deb,rpm"
           - os: macos-latest
             bundles: "--bundles dmg"
     runs-on: ${{ matrix.os }}
