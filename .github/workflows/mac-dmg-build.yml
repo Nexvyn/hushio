@@ -38,6 +38,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y $LINUX_DEPS
       - run: pnpm install --frozen-lockfile
       - shell: bash
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
         run: pnpm tauri build ${{ matrix.bundles }} --config '{"bundle":{"createUpdaterArtifacts":false}}'
       - uses: actions/upload-artifact@v4.6.2
         with:
