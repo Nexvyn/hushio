@@ -196,7 +196,7 @@ fn a_service_only_counts_when_it_is_connected_and_enabled() {
     let mut stored = Stored::default();
     assert!(active(&stored).is_empty());
     stored.listenbrainz = Some(ListenbrainzAccount {
-        token: "t".to_owned(),
+        token: Some("t".to_owned()),
         username: "u".to_owned(),
     });
     stored.listenbrainz_enabled = true;
@@ -212,4 +212,111 @@ fn the_status_reports_a_service_that_is_not_set_up() {
     assert!(!status.lastfm.available);
     assert!(status.lastfm.connected == false);
     assert!(status.listenbrainz.available);
+}
+
+mod secrets_migration {
+    use super::*;
+    use crate::secrets::test_support::MemoryVault;
+
+    async fn data_file(root: &std::path::Path, state: Value) {
+        persist::write(root, OWNER, STORE, &json!({ "state": state, "version": VERSION }))
+            .await
+            .unwrap();
+    }
+
+    async fn stored_file(root: &std::path::Path) -> Value {
+        persist::read(root, OWNER, STORE).await.unwrap()
+    }
+
+    fn listenbrainz_state() -> Value {
+        json!({
+            "listenbrainz": { "token": "lb-secret", "username": "me" },
+            "listenbrainzEnabled": true,
+        })
+    }
+
+    #[tokio::test]
+    async fn a_plaintext_token_moves_to_the_key_store_and_leaves_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        data_file(dir.path(), listenbrainz_state()).await;
+        let vault = Arc::new(MemoryVault::default());
+
+        let service = Service::load(dir.path().to_path_buf(), vault.clone()).await;
+
+        assert_eq!(vault.get(LISTENBRAINZ_TOKEN).as_deref(), Some("lb-secret"));
+        let file = stored_file(dir.path()).await;
+        assert_eq!(file["state"]["listenbrainz"]["username"], "me");
+        assert!(file["state"]["listenbrainz"].get("token").is_none());
+        assert!(!file.to_string().contains("lb-secret"));
+        match service.credentials_for(Target::ListenBrainz) {
+            Some(Credentials::ListenBrainz(token)) => assert_eq!(token, "lb-secret"),
+            _ => panic!("the token should come from the key store"),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_second_load_reads_the_token_from_the_key_store() {
+        let dir = tempfile::tempdir().unwrap();
+        data_file(dir.path(), listenbrainz_state()).await;
+        let vault = Arc::new(MemoryVault::default());
+        let _first = Service::load(dir.path().to_path_buf(), vault.clone()).await;
+
+        let second = Service::load(dir.path().to_path_buf(), vault.clone()).await;
+
+        match second.credentials_for(Target::ListenBrainz) {
+            Some(Credentials::ListenBrainz(token)) => assert_eq!(token, "lb-secret"),
+            _ => panic!("the token should come from the key store after a restart"),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_refusing_key_store_keeps_the_token_in_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        data_file(dir.path(), listenbrainz_state()).await;
+        let vault = MemoryVault::refusing();
+
+        let service = Service::load(dir.path().to_path_buf(), vault.clone()).await;
+
+        assert!(vault.get(LISTENBRAINZ_TOKEN).is_none());
+        let file = stored_file(dir.path()).await;
+        assert_eq!(file["state"]["listenbrainz"]["token"], "lb-secret");
+        match service.credentials_for(Target::ListenBrainz) {
+            Some(Credentials::ListenBrainz(token)) => assert_eq!(token, "lb-secret"),
+            _ => panic!("the token should still be used when the key store refuses"),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_lastfm_session_key_moves_to_the_key_store() {
+        let dir = tempfile::tempdir().unwrap();
+        data_file(
+            dir.path(),
+            json!({
+                "lastfm": { "sessionKey": "lf-secret", "username": "me" },
+                "lastfmEnabled": true,
+            }),
+        )
+        .await;
+        let vault = Arc::new(MemoryVault::default());
+
+        let _service = Service::load(dir.path().to_path_buf(), vault.clone()).await;
+
+        assert_eq!(vault.get(LASTFM_SESSION).as_deref(), Some("lf-secret"));
+        let file = stored_file(dir.path()).await;
+        assert_eq!(file["state"]["lastfm"]["username"], "me");
+        assert!(!file.to_string().contains("lf-secret"));
+    }
+
+    #[tokio::test]
+    async fn disconnecting_removes_the_token_from_the_key_store() {
+        let dir = tempfile::tempdir().unwrap();
+        data_file(dir.path(), listenbrainz_state()).await;
+        let vault = Arc::new(MemoryVault::default());
+        let service = Service::load(dir.path().to_path_buf(), vault.clone()).await;
+
+        service.listenbrainz_disconnect().await;
+
+        assert!(vault.get(LISTENBRAINZ_TOKEN).is_none());
+        assert!(stored_file(dir.path()).await["state"]["listenbrainz"].is_null());
+    }
 }

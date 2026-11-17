@@ -436,6 +436,8 @@ fn line_from(paragraph: Paragraph, translit: &HashMap<String, String>) -> Option
     } else {
         Some(join(&roman))
     };
+    let translation: Vec<&Word> = paragraph.words.iter().filter(|w| w.role == Role::Translation).collect();
+    let translation = (!translation.is_empty()).then(|| join(&translation));
     Some(SyncedLyricLine {
         time,
         text,
@@ -443,6 +445,7 @@ fn line_from(paragraph: Paragraph, translit: &HashMap<String, String>) -> Option
         words,
         bg,
         roman: roman_text,
+        translation,
     })
 }
 
@@ -505,6 +508,7 @@ pub fn parse_karaoke(text: &str) -> Vec<SyncedLyricLine> {
                 ),
                 bg: None,
                 roman: None,
+                translation: None,
             })
         })
         .collect()
@@ -585,6 +589,7 @@ pub fn parse_lrc(text: &str) -> Vec<SyncedLyricLine> {
                 words: words.clone(),
                 bg: None,
                 roman: None,
+                translation: None,
             });
         }
     }
@@ -725,11 +730,18 @@ mod tests {
     }
 
     #[test]
-    fn ttml_translation_spans_are_skipped_and_roman_comes_from_head() {
+    fn ttml_translation_spans_are_kept_on_their_line_and_roman_comes_from_head() {
         let xml = r#"<tt><head><metadata><transliterations><transliteration><text for="L1"><span begin="1s" end="2s">annyeong</span></text></transliteration></transliterations></metadata></head><body><p begin="1s" end="2s" itunes:key="L1"><span begin="1s" end="2s">안녕</span><span ttm:role="x-translation" begin="1s" end="2s">hello</span></p></body></tt>"#;
         let lines = parse_ttml(xml);
         assert_eq!(lines[0].text, "안녕");
         assert_eq!(lines[0].roman.as_deref(), Some("annyeong"));
+        assert_eq!(lines[0].translation.as_deref(), Some("hello"));
+    }
+
+    #[test]
+    fn ttml_line_without_translation_has_none() {
+        let xml = r#"<tt><body><p begin="1s" end="2s"><span begin="1s" end="2s">plain</span></p></body></tt>"#;
+        assert!(parse_ttml(xml)[0].translation.is_none());
     }
 
     #[test]

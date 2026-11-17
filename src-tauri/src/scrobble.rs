@@ -13,11 +13,14 @@ use tauri::{AppHandle, State};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::persist;
+use crate::secrets::{forget_secret, keep_secret, resolve_secret, Vault};
 use crate::stats::{PlaybackEvent, TrackInput};
 
 const OWNER: &str = "guest";
 const STORE: &str = "scrobble";
 const VERSION: u64 = 1;
+const LASTFM_SESSION: &str = "lastfm-session";
+const LISTENBRAINZ_TOKEN: &str = "listenbrainz-token";
 const QUEUE_CAP: usize = 500;
 const BATCH: usize = 50;
 const MIN_TRACK_MS: u64 = 30_000;
@@ -53,14 +56,16 @@ struct Queued {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 struct LastfmAccount {
-    session_key: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    session_key: Option<String>,
     username: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 struct ListenbrainzAccount {
-    token: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    token: Option<String>,
     username: String,
 }
 
@@ -254,20 +259,28 @@ fn active(stored: &Stored) -> Vec<Target> {
     targets
 }
 
-fn credentials(stored: &Stored, target: Target) -> Option<Credentials> {
-    if !active(stored).contains(&target) {
-        return None;
-    }
+fn slot_of(target: Target) -> &'static str {
     match target {
-        Target::LastFm => stored
-            .lastfm
-            .as_ref()
-            .map(|account| Credentials::LastFm(account.session_key.clone())),
-        Target::ListenBrainz => stored
-            .listenbrainz
-            .as_ref()
-            .map(|account| Credentials::ListenBrainz(account.token.clone())),
+        Target::LastFm => LASTFM_SESSION,
+        Target::ListenBrainz => LISTENBRAINZ_TOKEN,
     }
+}
+
+fn migrate(stored: &mut Stored, vault: &dyn Vault) -> bool {
+    let mut moved = false;
+    if let Some(account) = stored.lastfm.as_mut() {
+        if let Some(secret) = account.session_key.take() {
+            account.session_key = keep_secret(vault, LASTFM_SESSION, &secret);
+            moved |= account.session_key.is_none();
+        }
+    }
+    if let Some(account) = stored.listenbrainz.as_mut() {
+        if let Some(secret) = account.token.take() {
+            account.token = keep_secret(vault, LISTENBRAINZ_TOKEN, &secret);
+            moved |= account.token.is_none();
+        }
+    }
+    moved
 }
 
 fn cap_queue(queue: &mut Vec<Queued>) {
@@ -302,6 +315,7 @@ pub struct Service {
     http: reqwest::Client,
     inner: Mutex<Inner>,
     save_lock: tokio::sync::Mutex<()>,
+    vault: Arc<dyn Vault>,
 }
 
 fn client() -> reqwest::Client {
@@ -313,27 +327,51 @@ fn client() -> reqwest::Client {
 }
 
 impl Service {
-    pub async fn load(root: PathBuf) -> Self {
-        let stored = persist::read(&root, OWNER, STORE)
+    pub async fn load(root: PathBuf, vault: Arc<dyn Vault>) -> Self {
+        let mut stored = persist::read(&root, OWNER, STORE)
             .await
             .and_then(|value| {
                 serde_json::from_value::<Stored>(value.get("state").cloned().unwrap_or(Value::Null)).ok()
             })
             .unwrap_or_default();
-        Self {
+        let moved = migrate(&mut stored, vault.as_ref());
+        let service = Self {
             root,
             http: client(),
             inner: Mutex::new(Inner { stored, play: None }),
             save_lock: tokio::sync::Mutex::new(()),
+            vault,
+        };
+        if moved {
+            service.save().await;
         }
+        service
     }
 
     fn lock(&self) -> MutexGuard<'_, Inner> {
         self.inner.lock().unwrap_or_else(|poison| poison.into_inner())
     }
 
+    fn secret(&self, target: Target) -> Option<String> {
+        let kept = {
+            let inner = self.lock();
+            match target {
+                Target::LastFm => inner.stored.lastfm.as_ref().and_then(|account| account.session_key.clone()),
+                Target::ListenBrainz => inner.stored.listenbrainz.as_ref().and_then(|account| account.token.clone()),
+            }
+        };
+        resolve_secret(self.vault.as_ref(), slot_of(target), kept.as_deref())
+    }
+
     fn credentials_for(&self, target: Target) -> Option<Credentials> {
-        credentials(&self.lock().stored, target)
+        if !active(&self.lock().stored).contains(&target) {
+            return None;
+        }
+        let secret = self.secret(target)?;
+        Some(match target {
+            Target::LastFm => Credentials::LastFm(secret),
+            Target::ListenBrainz => Credentials::ListenBrainz(secret),
+        })
     }
 
     async fn save(&self) {
@@ -505,6 +543,8 @@ impl Service {
             }
         }
         inner.stored.queue.retain(|item| item.target != target);
+        drop(inner);
+        forget_secret(self.vault.as_ref(), slot_of(target));
     }
 
     pub async fn listenbrainz_connect(&self, token: &str) -> Result<ScrobbleStatus, String> {
@@ -522,9 +562,10 @@ impl Service {
             }
             Err(error) => return Err(error.user_message("ListenBrainz")),
         };
+        let kept = keep_secret(self.vault.as_ref(), LISTENBRAINZ_TOKEN, &token);
         {
             let mut inner = self.lock();
-            inner.stored.listenbrainz = Some(ListenbrainzAccount { token, username });
+            inner.stored.listenbrainz = Some(ListenbrainzAccount { token: kept, username });
             inner.stored.listenbrainz_enabled = true;
         }
         self.save().await;
@@ -558,9 +599,10 @@ impl Service {
             .ok_or_else(|| "Start Last.fm sign-in first.".to_owned())?;
         match lastfm::get_session(&self.http, &token).await {
             Ok((session_key, username)) => {
+                let kept = keep_secret(self.vault.as_ref(), LASTFM_SESSION, &session_key);
                 {
                     let mut inner = self.lock();
-                    inner.stored.lastfm = Some(LastfmAccount { session_key, username });
+                    inner.stored.lastfm = Some(LastfmAccount { session_key: kept, username });
                     inner.stored.lastfm_pending_token = None;
                     inner.stored.lastfm_enabled = true;
                 }
@@ -610,8 +652,9 @@ impl Service {
     }
 
     pub fn erase(&self) {
-        let mut inner = self.lock();
-        *inner = Inner::default();
+        *self.lock() = Inner::default();
+        forget_secret(self.vault.as_ref(), LASTFM_SESSION);
+        forget_secret(self.vault.as_ref(), LISTENBRAINZ_TOKEN);
     }
 }
 

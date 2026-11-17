@@ -195,7 +195,7 @@ async fn play<R: Upstream>(
     let identity = format!(
         "{}:{}",
         itag(&url).unwrap_or("?"),
-        header_text(&upstream, header::CONTENT_LENGTH).unwrap_or("?")
+        rendition_length(&upstream).unwrap_or("?")
     );
     let mismatch = range.is_some_and(|range| !range.starts_with("bytes=0-"))
         && state
@@ -319,6 +319,17 @@ fn itag(url: &str) -> Option<&str> {
 
 fn header_text(response: &reqwest::Response, name: header::HeaderName) -> Option<&str> {
     response.headers().get(name)?.to_str().ok()
+}
+
+fn rendition_length(response: &reqwest::Response) -> Option<&str> {
+    if response.status() == StatusCode::PARTIAL_CONTENT {
+        header_text(response, header::CONTENT_RANGE)
+            .and_then(|range| range.rsplit_once('/'))
+            .map(|(_, total)| total)
+            .filter(|total| !total.is_empty() && total.bytes().all(|b| b.is_ascii_digit()))
+    } else {
+        header_text(response, header::CONTENT_LENGTH)
+    }
 }
 
 fn status_only(status: StatusCode) -> Response {
@@ -499,6 +510,19 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn sequential_seek_ranges_keep_the_same_rendition_identity() {
+        let upstream = spawn_upstream().await;
+        let proxy = start_proxy(Fixed::new(&format!("{upstream}?itag=251"))).await;
+        let client = client();
+        let url = format!("http://{proxy}/?id=abc");
+        for (range, length) in [("bytes=0-99", 100), ("bytes=500-", 500), ("bytes=200-299", 100)] {
+            let response = client.get(&url).header(header::RANGE, range).send().await.unwrap();
+            assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+            assert_eq!(response.bytes().await.unwrap().len(), length);
+        }
+    }
+
+    #[tokio::test]
     async fn range_past_the_end_is_passed_through_as_416() {
         let upstream = spawn_upstream().await;
         let proxy = start_proxy(Fixed::new(&format!("{upstream}?itag=251"))).await;
@@ -646,7 +670,7 @@ mod tests {
 
         let restart = play(&state, "abc", key, Some("bytes=0-9"), None).await;
         assert_eq!(restart.status(), StatusCode::PARTIAL_CONTENT);
-        assert_eq!(state.served.lock().unwrap().get(key), Some("140:10"));
+        assert_eq!(state.served.lock().unwrap().get(key), Some("140:1000"));
     }
 
     #[tokio::test]

@@ -60,10 +60,18 @@ pub fn merge_library(local: &Value, remote: &Value) -> Value {
     let folders = merge_members(&items(&local_state, "folders"), &items(&remote_state, "folders"), "folders", None, &tombs);
     let folder_ids: HashSet<String> = folders.iter().filter_map(id_of).collect();
     let playlists = merge_playlists(&local_state, &remote_state, &folder_ids, &tombs);
+    let saved_albums = merge_members(
+        &items(&local_state, "savedAlbums"),
+        &items(&remote_state, "savedAlbums"),
+        "savedAlbums",
+        None,
+        &tombs,
+    );
 
     state.insert("liked".into(), Value::Array(liked));
     state.insert("history".into(), Value::Array(history));
     state.insert("followedArtists".into(), Value::Array(followed));
+    state.insert("savedAlbums".into(), Value::Array(saved_albums));
     state.insert("folders".into(), Value::Array(folders));
     state.insert("playlists".into(), Value::Array(playlists));
     state.insert("pinnedSingles".into(), union_object(&local_state, &remote_state, "pinnedSingles"));
@@ -251,6 +259,9 @@ fn merge_playlists(local: &Map<String, Value>, remote: &Map<String, Value>, fold
         let local_record = local_playlists.iter().find(|p| id_of(p).as_deref() == Some(&id));
         let remote_record = remote_playlists.iter().find(|p| id_of(p).as_deref() == Some(&id));
         let mut record = local_record.or(remote_record).and_then(Value::as_object).cloned().unwrap_or_default();
+        if local_record.is_none() {
+            record.remove("coverPath");
+        }
         let tracks = merge_members(&playlist_tracks(local_record), &playlist_tracks(remote_record), "tracks", Some(&id), tombs);
         record.insert("tracks".into(), Value::Array(tracks));
         let ordered = field_u64(local_record, "orderedAt").max(field_u64(remote_record, "orderedAt"));
@@ -275,7 +286,7 @@ fn playlist_tracks(playlist: Option<&Value>) -> Vec<Value> {
 
 fn live_keys(state: &Map<String, Value>) -> HashSet<String> {
     let mut keys = HashSet::new();
-    for group in ["liked", "history", "followedArtists", "folders", "playlists"] {
+    for group in ["liked", "history", "followedArtists", "savedAlbums", "folders", "playlists"] {
         for item in items(state, group) {
             if let Some(id) = id_of(&item) {
                 keys.insert(ds::key(group, &id, None));
@@ -428,6 +439,20 @@ mod tests {
         let once = merge_library(&a, &b);
         assert_eq!(merge_library(&once, &b), once);
         assert_eq!(merge_library(&once, &a), once);
+    }
+
+    #[test]
+    fn saved_albums_from_both_devices_are_kept() {
+        let a = file(json!({"savedAlbums": [{"id": "MPRE1", "title": "One", "artist": "x", "savedAt": 1}]}), 7);
+        let b = file(json!({"savedAlbums": [{"id": "MPRE2", "title": "Two", "artist": "y", "savedAt": 2}]}), 7);
+        assert_eq!(list(&merge_library(&a, &b), "savedAlbums"), vec!["MPRE1", "MPRE2"]);
+    }
+
+    #[test]
+    fn a_remote_only_playlist_drops_its_local_cover_path() {
+        let remote = file(json!({"playlists": [{"id": "p1", "coverPath": "C:\\other\\p1.png", "tracks": []}]}), 7);
+        let merged = merge_library(&file(json!({}), 7), &remote);
+        assert!(merged["state"]["playlists"][0].get("coverPath").is_none());
     }
 
     #[test]

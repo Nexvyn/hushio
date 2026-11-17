@@ -77,7 +77,7 @@ pub trait SecretStore: Send + Sync {
 
 pub struct KeyringStore;
 
-pub struct KeyringSlot(pub &'static str);
+pub struct KeyringSlot(pub String);
 
 #[cfg(desktop)]
 fn keyring_entry(account: &str) -> StoreResult<keyring::Entry> {
@@ -87,22 +87,22 @@ fn keyring_entry(account: &str) -> StoreResult<keyring::Entry> {
 #[cfg(not(desktop))]
 impl SecretStore for KeyringSlot {
     fn read(&self) -> StoreResult<Option<String>> {
-        crate::android::secret_read(self.0)
+        crate::android::secret_read(&self.0)
     }
 
     fn write(&self, value: &str) -> StoreResult<()> {
-        crate::android::secret_write(self.0, value)
+        crate::android::secret_write(&self.0, value)
     }
 
     fn clear(&self) -> StoreResult<()> {
-        crate::android::secret_clear(self.0)
+        crate::android::secret_clear(&self.0)
     }
 }
 
 #[cfg(desktop)]
 impl SecretStore for KeyringSlot {
     fn read(&self) -> StoreResult<Option<String>> {
-        match keyring_entry(self.0)?.get_password() {
+        match keyring_entry(&self.0)?.get_password() {
             Ok(value) => Ok(Some(value)),
             Err(keyring::Error::NoEntry) => Ok(None),
             Err(error) => Err(error.to_string()),
@@ -110,13 +110,13 @@ impl SecretStore for KeyringSlot {
     }
 
     fn write(&self, value: &str) -> StoreResult<()> {
-        keyring_entry(self.0)?
+        keyring_entry(&self.0)?
             .set_password(value)
             .map_err(|error| error.to_string())
     }
 
     fn clear(&self) -> StoreResult<()> {
-        match keyring_entry(self.0)?.delete_credential() {
+        match keyring_entry(&self.0)?.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
             Err(error) => Err(error.to_string()),
         }
@@ -125,19 +125,19 @@ impl SecretStore for KeyringSlot {
 
 impl SecretStore for KeyringStore {
     fn read(&self) -> StoreResult<Option<String>> {
-        KeyringSlot(KEYRING_ACCOUNT).read()
+        KeyringSlot(KEYRING_ACCOUNT.to_owned()).read()
     }
 
     fn write(&self, value: &str) -> StoreResult<()> {
-        KeyringSlot(KEYRING_ACCOUNT).write(value)
+        KeyringSlot(KEYRING_ACCOUNT.to_owned()).write(value)
     }
 
     fn clear(&self) -> StoreResult<()> {
-        KeyringSlot(KEYRING_ACCOUNT).clear()
+        KeyringSlot(KEYRING_ACCOUNT.to_owned()).clear()
     }
 }
 
-type RedirectFuture<'a> = Pin<Box<dyn Future<Output = StoreResult<String>> + Send + 'a>>;
+pub(crate) type RedirectFuture<'a> = Pin<Box<dyn Future<Output = StoreResult<String>> + Send + 'a>>;
 
 pub trait Browser: Send + Sync {
     fn open(&self, url: &str) -> StoreResult<()>;
@@ -321,9 +321,9 @@ struct Reply {
     body: String,
 }
 
-struct Callback {
-    code: String,
-    stream: Option<TcpStream>,
+pub(crate) struct Callback {
+    pub(crate) code: String,
+    pub(crate) stream: Option<TcpStream>,
 }
 
 struct PendingGuard<'a> {
@@ -735,30 +735,30 @@ impl GoogleAuth {
     }
 }
 
-fn random_verifier() -> String {
+pub(crate) fn random_verifier() -> String {
     let mut rng = rand::thread_rng();
     (0..VERIFIER_LEN)
         .map(|_| VERIFIER_CHARS[rng.gen_range(0..VERIFIER_CHARS.len())] as char)
         .collect()
 }
 
-fn random_state() -> String {
+pub(crate) fn random_state() -> String {
     let mut bytes = [0u8; STATE_BYTES];
     rand::thread_rng().fill_bytes(&mut bytes);
     URL_SAFE_NO_PAD.encode(bytes)
 }
 
-fn code_challenge(verifier: &str) -> String {
+pub(crate) fn code_challenge(verifier: &str) -> String {
     URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
 }
 
-async fn bind_loopback() -> std::io::Result<(TcpListener, u16)> {
+pub(crate) async fn bind_loopback() -> std::io::Result<(TcpListener, u16)> {
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let port = listener.local_addr()?.port();
     Ok((listener, port))
 }
 
-fn redirect_uri(port: u16) -> String {
+pub(crate) fn redirect_uri(port: u16) -> String {
     format!("http://127.0.0.1:{port}{CALLBACK_PATH}")
 }
 
@@ -827,7 +827,7 @@ pub(crate) fn error_code(body: &str) -> Option<String> {
     value.get("error")?.as_str().map(str::to_owned)
 }
 
-async fn wait_for_redirect(
+pub(crate) async fn wait_for_redirect(
     listener: Option<&TcpListener>,
     browser: &dyn Browser,
     state: &str,
@@ -917,7 +917,7 @@ async fn request_target(stream: &mut TcpStream) -> Option<String> {
     (parts.next()? == "GET").then(|| parts.next().map(str::to_owned))?
 }
 
-async fn respond(stream: &mut TcpStream, status: &str, text: &str) {
+pub(crate) async fn respond(stream: &mut TcpStream, status: &str, text: &str) {
     let page = format!(
         "<!doctype html><html><head><meta charset=\"utf-8\"><title>{APP_NAME}</title></head><body><p>{text}</p></body></html>"
     );
@@ -1685,7 +1685,7 @@ mod tests {
     #[cfg(target_os = "macos")]
     impl Drop for KeychainAccount {
         fn drop(&mut self) {
-            let _ = KeyringSlot(self.0).clear();
+            let _ = KeyringSlot(self.0.to_owned()).clear();
         }
     }
 
@@ -1695,7 +1695,7 @@ mod tests {
         let account: &'static str =
             Box::leak(format!("test-{}", uuid::Uuid::new_v4()).into_boxed_str());
         let _cleanup = KeychainAccount(account);
-        let slot = KeyringSlot(account);
+        let slot = KeyringSlot(account.to_owned());
 
         assert_eq!(slot.read().unwrap(), None);
         slot.write("first").unwrap();

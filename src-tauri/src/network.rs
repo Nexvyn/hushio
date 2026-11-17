@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::persist;
+use crate::secrets::{forget_secret, keep_secret, resolve_secret, Vault};
 
 pub mod smb;
 pub mod webdav;
@@ -49,7 +50,7 @@ pub struct Server {
     pub path: String,
     #[serde(default)]
     pub username: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub password: String,
 }
 
@@ -132,23 +133,51 @@ pub(crate) fn title_from_name(name: &str) -> (String, String) {
     }
 }
 
+fn share_key(id: &str) -> String {
+    format!("network-share:{id}")
+}
+
 pub struct Service {
     root: PathBuf,
     servers: Mutex<Stored>,
+    vault: Arc<dyn Vault>,
 }
 
 impl Service {
-    pub async fn load(root: PathBuf) -> Self {
-        let stored = persist::read(&root, OWNER, STORE)
+    pub async fn load(root: PathBuf, vault: Arc<dyn Vault>) -> Self {
+        let mut stored = persist::read(&root, OWNER, STORE)
             .await
             .and_then(|value| {
                 serde_json::from_value::<Stored>(value.get("state").cloned().unwrap_or(Value::Null)).ok()
             })
             .unwrap_or_default();
-        Self {
+        let mut moved = false;
+        for server in &mut stored.servers {
+            if server.password.is_empty() {
+                continue;
+            }
+            server.password = keep_secret(vault.as_ref(), &share_key(&server.id), &server.password).unwrap_or_default();
+            moved |= server.password.is_empty();
+        }
+        let service = Self {
             root,
             servers: Mutex::new(stored),
+            vault,
+        };
+        if moved {
+            let servers = service.lock().servers.clone();
+            if let Err(error) = service.write(&servers).await {
+                tracing::warn!("network servers not rewritten after moving passwords: {error}");
+            }
         }
+        service
+    }
+
+    fn connectable(&self, id: &str) -> Result<Server, String> {
+        let mut server = self.server(id).ok_or_else(|| "That server is gone.".to_owned())?;
+        server.password = resolve_secret(self.vault.as_ref(), &share_key(id), Some(server.password.as_str()))
+            .unwrap_or_default();
+        Ok(server)
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Stored> {
@@ -186,18 +215,19 @@ impl Service {
         }
         let servers = {
             let mut stored = self.lock();
+            let is_new = !stored.servers.iter().any(|existing| existing.id == server.id);
+            if is_new && stored.servers.len() >= MAX_SERVERS {
+                return Err("That's too many servers. Remove one first.".to_owned());
+            }
+            server.password = keep_secret(self.vault.as_ref(), &share_key(&server.id), &server.password)
+                .unwrap_or_default();
             match stored
                 .servers
                 .iter_mut()
                 .find(|existing| existing.id == server.id)
             {
                 Some(existing) => *existing = server,
-                None => {
-                    if stored.servers.len() >= MAX_SERVERS {
-                        return Err("That's too many servers. Remove one first.".to_owned());
-                    }
-                    stored.servers.push(server);
-                }
+                None => stored.servers.push(server),
             }
             stored.servers.clone()
         };
@@ -212,6 +242,7 @@ impl Service {
             stored.servers.clone()
         };
         self.write(&servers).await?;
+        forget_secret(self.vault.as_ref(), &share_key(id));
         Ok(servers.iter().map(Server::summary).collect())
     }
 
@@ -222,14 +253,14 @@ impl Service {
     }
 
     pub fn erase(&self) {
-        let mut stored = self.lock();
-        stored.servers.clear();
+        let servers = std::mem::take(&mut self.lock().servers);
+        for server in servers {
+            forget_secret(self.vault.as_ref(), &share_key(&server.id));
+        }
     }
 
     pub async fn list_tracks(&self, id: &str, path: &str) -> Result<Vec<NetworkTrack>, String> {
-        let server = self
-            .server(id)
-            .ok_or_else(|| "That server is gone.".to_owned())?;
+        let server = self.connectable(id)?;
         let http = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
@@ -253,9 +284,7 @@ impl Service {
         from: u64,
         to: Option<u64>,
     ) -> Result<Vec<u8>, String> {
-        let server = self
-            .server(id)
-            .ok_or_else(|| "That server is gone.".to_owned())?;
+        let server = self.connectable(id)?;
         match server.kind {
             ServerKind::WebDav => {
                 let http = reqwest::Client::builder()
@@ -530,5 +559,71 @@ mod tests {
         assert_eq!(track_content_type("/dav/Song.wav"), "audio/wav");
         assert_eq!(track_content_type("/dav/Song.wma"), "application/octet-stream");
         assert_eq!(track_content_type("/dav/readme"), "application/octet-stream");
+    }
+}
+
+#[cfg(test)]
+mod secret_tests {
+    use super::*;
+    use crate::secrets::test_support::MemoryVault;
+
+    fn saved_with_password() -> Value {
+        json!({
+            "state": {
+                "servers": [{
+                    "id": "s1",
+                    "kind": "webDav",
+                    "name": "Box",
+                    "url": "https://box.example/dav",
+                    "username": "me",
+                    "password": "hunter2"
+                }]
+            },
+            "version": VERSION
+        })
+    }
+
+    async fn write_servers(root: &std::path::Path) {
+        persist::write(root, OWNER, STORE, &saved_with_password()).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_plaintext_password_moves_to_the_key_store_and_leaves_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        write_servers(dir.path()).await;
+        let vault = Arc::new(MemoryVault::default());
+
+        let service = Service::load(dir.path().to_path_buf(), vault.clone()).await;
+
+        assert_eq!(vault.get("network-share:s1").as_deref(), Some("hunter2"));
+        let file = persist::read(dir.path(), OWNER, STORE).await.unwrap();
+        assert!(!file.to_string().contains("hunter2"));
+        assert_eq!(service.connectable("s1").unwrap().password, "hunter2");
+    }
+
+    #[tokio::test]
+    async fn a_refusing_key_store_keeps_the_password_in_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        write_servers(dir.path()).await;
+        let vault = MemoryVault::refusing();
+
+        let service = Service::load(dir.path().to_path_buf(), vault.clone()).await;
+
+        assert!(vault.get("network-share:s1").is_none());
+        let file = persist::read(dir.path(), OWNER, STORE).await.unwrap();
+        assert_eq!(file["state"]["servers"][0]["password"], "hunter2");
+        assert_eq!(service.connectable("s1").unwrap().password, "hunter2");
+    }
+
+    #[tokio::test]
+    async fn removing_a_server_removes_its_password_from_the_key_store() {
+        let dir = tempfile::tempdir().unwrap();
+        write_servers(dir.path()).await;
+        let vault = Arc::new(MemoryVault::default());
+        let service = Service::load(dir.path().to_path_buf(), vault.clone()).await;
+
+        service.remove("s1").await.unwrap();
+
+        assert!(vault.get("network-share:s1").is_none());
     }
 }

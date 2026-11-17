@@ -90,6 +90,7 @@ fn rich_sync_lines(text: &str) -> Vec<SyncedLyricLine> {
             words: Some(words),
             bg: None,
             roman: None,
+            translation: None,
         });
     }
     lines.sort_by(|a, b| a.time.total_cmp(&b.time));
@@ -350,6 +351,7 @@ fn lyrics_plus_lines(lines: Vec<LyricsPlusLine>) -> Vec<SyncedLyricLine> {
                 words: has_words.then_some(words),
                 bg: None,
                 roman: None,
+                translation: None,
             }
         })
         .collect()
@@ -530,6 +532,7 @@ pub async fn youtube_captions(inner: &Inner, query: &Query) -> Option<LyricsResu
                     words: None,
                     bg: None,
                     roman: None,
+                    translation: None,
                 })
             })
             .collect();

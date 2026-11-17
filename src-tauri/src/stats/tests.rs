@@ -38,6 +38,29 @@ fn bucket(month: &str) -> MonthBucket {
     empty_bucket(month)
 }
 
+fn journal_entry(id: &str, at: u64) -> JournalEntry {
+    JournalEntry {
+        track: JournalTrack { id: id.into(), title: id.into(), artist: "Artist".into(), thumb: None },
+        at,
+        heard: 60,
+    }
+}
+
+#[test]
+fn removing_journal_keys_drops_only_the_exact_plays() {
+    let mut entries = vec![journal_entry("a", 1), journal_entry("a", 2), journal_entry("b", 1)];
+    let keys = [JournalKey { at: 1, id: "a".into() }, JournalKey { at: 9, id: "b".into() }];
+    assert_eq!(remove_journal_entries(&mut entries, &keys), 1);
+    assert_eq!(entries, vec![journal_entry("a", 2), journal_entry("b", 1)]);
+}
+
+#[test]
+fn removing_unknown_journal_keys_changes_nothing() {
+    let mut entries = vec![journal_entry("a", 1)];
+    assert_eq!(remove_journal_entries(&mut entries, &[JournalKey { at: 2, id: "a".into() }]), 0);
+    assert_eq!(entries.len(), 1);
+}
+
 #[test]
 fn threshold_is_half_the_length_between_the_floor_and_the_ceiling() {
     assert_eq!(threshold_ms(Some(200.0)), 100_000);

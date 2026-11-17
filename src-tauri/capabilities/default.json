@@ -12,6 +12,7 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-internal-toggle-maximize",
     "core:window:allow-close",
+    "core:webview:allow-set-webview-zoom",
     "opener:default",
     "store:default",
     "process:allow-restart",
@@ -29,7 +30,13 @@
         { "url": "https://api.piped.private.coffee/*" },
         { "url": "https://open.spotify.com/*" },
         { "url": "https://spotify.link/*" },
-        { "url": "https://api-partner.spotify.com/*" }
+        { "url": "https://api-partner.spotify.com/*" },
+        { "url": "https://api.spotify.com/*" },
+        { "url": "https://music.apple.com/*" },
+        { "url": "https://amp-api.music.apple.com/*" },
+        { "url": "https://api.tidal.com/*" },
+        { "url": "https://vivimusicanvas.mkmdevilmi.workers.dev/*" },
+        { "url": "https://*/*" }
       ]
     }
   ]

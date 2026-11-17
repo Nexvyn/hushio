@@ -3,11 +3,13 @@ mod crash;
 mod disconnect;
 mod android;
 mod audio_output;
+mod cache;
 mod cache_limit;
 mod discord;
 mod downloads;
 mod google_auth;
 mod launch;
+mod spotify_auth;
 mod linux_portal;
 mod linux_session;
 mod local_library;
@@ -18,9 +20,9 @@ mod media_controls;
 mod menu;
 mod network;
 mod persist;
-mod recognition;
 mod reveal;
 mod scrobble;
+mod secrets;
 mod stats;
 mod stream;
 mod sync_queue;
@@ -36,6 +38,7 @@ mod yt_data_api;
 mod yt_innertube_auth;
 #[cfg(desktop)]
 mod pip;
+mod playlist_cover;
 #[cfg(mobile)]
 mod mobile;
 #[cfg(mobile)]
@@ -52,7 +55,6 @@ use tracing_subscriber::registry::LookupSpan;
 
 const APP_NAME: &str = "Hushio";
 const APP_SLUG: &str = "hushio";
-const IMAGE_CACHE_BYTES: u64 = 64 * 1024 * 1024;
 const DATA_DIR_ENV: &str = "HUSHIO_DATA_DIR";
 #[cfg(desktop)]
 const ALLOW_MULTI_ENV: &str = "HUSHIO_ALLOW_MULTI";
@@ -551,6 +553,31 @@ async fn google_sign_out(
     Ok(google.sign_out().await)
 }
 
+#[tauri::command]
+fn spotify_status(spotify: State<'_, Arc<spotify_auth::SpotifyAuth>>) -> spotify_auth::SpotifyAccount {
+    spotify.account()
+}
+
+#[tauri::command]
+async fn spotify_sign_in(
+    app: AppHandle,
+    spotify: State<'_, Arc<spotify_auth::SpotifyAuth>>,
+) -> Result<spotify_auth::SpotifyAccount, String> {
+    spotify
+        .sign_in(&spotify_auth::SpotifyBrowser(app.clone()))
+        .await
+}
+
+#[tauri::command]
+fn spotify_sign_out(spotify: State<'_, Arc<spotify_auth::SpotifyAuth>>) -> spotify_auth::SpotifyAccount {
+    spotify.sign_out()
+}
+
+#[tauri::command]
+async fn spotify_access_token(spotify: State<'_, Arc<spotify_auth::SpotifyAuth>>) -> Result<String, String> {
+    spotify.access_token().await
+}
+
 async fn keep_google_session(app: AppHandle, google: Arc<google_auth::GoogleAuth>) {
     loop {
         match google.resume().await {
@@ -667,10 +694,12 @@ pub fn run() {
             } else {
                 app.path().download_dir()?.join(APP_NAME)
             };
+            let stored_settings = tauri::async_runtime::block_on(persist::read(&root, "guest", "settings"));
+            cache::set_limit_mb(cache::limit_mb_from_settings(stored_settings.as_ref()));
             if cfg!(target_os = "android") {
                 let images = app.path().app_cache_dir()?.join("images");
                 tauri::async_runtime::spawn_blocking(move || {
-                    if let Err(error) = cache_limit::trim_dir(&images, IMAGE_CACHE_BYTES) {
+                    if let Err(error) = cache_limit::trim_dir(&images, cache::limit_bytes()) {
                         tracing::warn!(%error, "image cache not trimmed");
                     }
                 });
@@ -683,6 +712,7 @@ pub fn run() {
             ));
             folders.approve_library(tauri::async_runtime::block_on(local_library::stored_folder_paths(&root)));
             reveal::allow_picked(app.handle(), &folders)?;
+            reveal::allow_asset(app.handle(), &root.join(playlist_cover::COVER_DIR))?;
             app.manage(folders);
             let local = tauri::async_runtime::block_on(local_library::Service::load(root.clone()));
             app.manage(local);
@@ -732,20 +762,22 @@ pub fn run() {
             let stats = Arc::new(tauri::async_runtime::block_on(stats::Service::load(stats_root)));
             tauri::async_runtime::spawn(stats.clone().run_flush());
             app.manage(stats);
+            let vault = secrets::keystore();
             let scrobbles = Arc::new(tauri::async_runtime::block_on(scrobble::Service::load(
                 scrobble_root,
+                vault.clone(),
             )));
             tauri::async_runtime::spawn(scrobbles.clone().run_retry());
             app.manage(scrobbles);
             let network = Arc::new(tauri::async_runtime::block_on(network::Service::load(
                 network_root,
+                vault,
             )));
             app.manage(network);
             crash::set_crash_root(crash_root.clone());
             let crashes = Arc::new(tauri::async_runtime::block_on(crash::Service::load(crash_root.clone())));
             tauri::async_runtime::block_on(crashes.absorb_crash_file(&crash_root));
             app.manage(crashes);
-            app.manage(Arc::new(recognition::Service::new().map_err(|error| error.to_string())?));
             let discord = Arc::new(tauri::async_runtime::block_on(discord::Service::load(discord_root)));
             app.manage(discord);
             let google = Arc::new(google_auth::GoogleAuth::new(
@@ -753,9 +785,13 @@ pub fn run() {
                 Arc::new(google_auth::KeyringStore),
             ));
             app.manage(google.clone());
-            let tv = Arc::new(yt_innertube_auth::Innertube::new(
+            app.manage(Arc::new(spotify_auth::SpotifyAuth::new(
+                spotify_auth::OAuthConfig::production(),
+                Arc::new(google_auth::KeyringSlot(spotify_auth::TOKEN_SLOT.to_owned())),
+            )));
+            let tv =Arc::new(yt_innertube_auth::Innertube::new(
                 yt_innertube_auth::TvConfig::production(),
-                Arc::new(google_auth::KeyringSlot(yt_innertube_auth::TV_TOKEN_SLOT)),
+                Arc::new(google_auth::KeyringSlot(yt_innertube_auth::TV_TOKEN_SLOT.to_owned())),
             ));
             app.manage(tv.clone());
             let engine = tauri::async_runtime::block_on(sync_queue::Engine::load(
@@ -800,6 +836,8 @@ pub fn run() {
             reveal::path_exists,
             reveal::reveal_path,
             reveal::open_folder,
+            playlist_cover::playlist_cover_pick,
+            playlist_cover::playlist_cover_remove,
             local_library_get,
             local_library_add_folders,
             local_library_scan,
@@ -813,12 +851,20 @@ pub fn run() {
             playback_event,
             replay_summary,
             replay_journal,
+            replay_journal_remove,
+            cache::cache_size,
+            cache::cache_clear,
+            cache::cache_set_limit,
             replay_export,
             replay_import,
             google_account_get,
             google_sign_in,
             google_sign_in_cancel,
             google_sign_out,
+            spotify_status,
+            spotify_sign_in,
+            spotify_sign_out,
+            spotify_access_token,
             yt_sync_status,
             yt_sync_now,
             yt_enqueue,
@@ -845,7 +891,6 @@ pub fn run() {
             network::network_server_remove,
             network::network_tracks,
             network::network_track_bytes,
-            recognition::recognise_song,
             crash::crash_logs,
             crash::crash_logs_clear,
             discord::discord_status,
@@ -927,6 +972,14 @@ fn replay_summary(stats: State<'_, Arc<stats::Service>>, period: String) -> serd
 #[tauri::command]
 fn replay_journal(stats: State<'_, Arc<stats::Service>>) -> Vec<stats::JournalEntry> {
     stats.journal()
+}
+
+#[tauri::command]
+async fn replay_journal_remove(
+    stats: State<'_, Arc<stats::Service>>,
+    keys: Vec<stats::JournalKey>,
+) -> Result<usize, String> {
+    stats.journal_remove(&keys).await
 }
 
 #[tauri::command]

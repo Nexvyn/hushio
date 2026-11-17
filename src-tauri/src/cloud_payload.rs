@@ -118,6 +118,9 @@ fn strip_library(state: &mut Map<String, Value>) {
     if let Some(playlists) = state.get_mut("playlists").and_then(Value::as_array_mut) {
         playlists.retain(|playlist| playlist.get("remote").is_none_or(Value::is_null));
         for playlist in playlists.iter_mut() {
+            if let Some(object) = playlist.as_object_mut() {
+                object.remove("coverPath");
+            }
             if let Some(tracks) = playlist.get_mut("tracks") {
                 strip_local_paths(tracks);
             }
@@ -382,6 +385,14 @@ mod tests {
         assert_eq!(playlists.len(), 1);
         assert_eq!(playlists[0]["id"], json!("local"));
         assert!(playlists[0]["tracks"][0].get("localPath").is_none());
+    }
+
+    #[test]
+    fn library_upload_drops_playlist_cover_paths() {
+        let file = json!({"state": {"playlists": [{"id": "local", "coverPath": "C:\\data\\playlist-covers\\local.1.png", "tracks": []}]}, "version": 7});
+        let payload = for_upload("library", &file);
+        assert!(payload["state"]["playlists"][0].get("coverPath").is_none());
+        assert_eq!(payload["state"]["playlists"][0]["id"], json!("local"));
     }
 
     #[test]

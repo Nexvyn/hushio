@@ -102,6 +102,18 @@ pub struct JournalEntry {
     pub heard: u64,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct JournalKey {
+    pub at: u64,
+    pub id: String,
+}
+
+pub fn remove_journal_entries(entries: &mut Vec<JournalEntry>, keys: &[JournalKey]) -> usize {
+    let before = entries.len();
+    entries.retain(|entry| !keys.iter().any(|key| key.at == entry.at && key.id == entry.track.id));
+    before - entries.len()
+}
+
 #[derive(Default)]
 struct Rules {
     ms: HashMap<String, u64>,
@@ -519,6 +531,19 @@ impl Service {
 
     pub fn journal(&self) -> Vec<JournalEntry> {
         self.lock().journal.clone()
+    }
+
+    pub async fn journal_remove(&self, keys: &[JournalKey]) -> Result<usize, String> {
+        let removed = {
+            let mut state = self.lock();
+            let removed = remove_journal_entries(&mut state.journal, keys);
+            if removed > 0 {
+                state.dirty = true;
+            }
+            removed
+        };
+        self.write_pending().await?;
+        Ok(removed)
     }
 
     pub async fn import(&self, buckets: &[Value]) -> Result<(), String> {

@@ -89,6 +89,8 @@ pub struct SyncedLyricLine {
     pub bg: Option<LyricBg>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub roman: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub translation: Option<String>,
 }
 
 #[cfg(test)]
@@ -101,6 +103,7 @@ impl SyncedLyricLine {
             words: None,
             bg: None,
             roman: None,
+            translation: None,
         }
     }
 }
