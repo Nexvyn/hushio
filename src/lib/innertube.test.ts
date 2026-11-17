@@ -50,7 +50,7 @@ describe("innertube session", () => {
       fetch: expect.any(Function),
     });
     expect(create.mock.calls[1][0]).toEqual({
-      retrieve_player: true,
+      retrieve_player: false,
       enable_session_cache: false,
       visitor_data: "visitor-1",
       po_token: "po-token-1",
@@ -58,6 +58,20 @@ describe("innertube session", () => {
       lang: "en",
       fetch: expect.any(Function),
     });
+  });
+
+  it("creates a shared search session without playback setup", async () => {
+    const [first, second] = await Promise.all([lib.getSearchSession(market), lib.getSearchSession(market)]);
+    expect(first).toBe(second);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create.mock.calls[0][0].retrieve_player).toBe(false);
+    expect(getPoToken).not.toHaveBeenCalled();
+  });
+
+  it("retries search initialization after a failure", async () => {
+    create.mockRejectedValueOnce(new Error("offline"));
+    await expect(lib.getSearchSession(market)).rejects.toThrow("offline");
+    await expect(lib.getSearchSession(market)).resolves.toMatchObject({ context: { gl: "US" } });
   });
 
   it("returns the session context with the minted PO token", async () => {
@@ -77,7 +91,7 @@ describe("innertube session", () => {
     const { context } = await lib.getSession(market);
 
     expect(context.visitorData).toBe("");
-    expect(create.mock.calls[1][0].visitor_data).toBe("");
+    expect(create).toHaveBeenCalledTimes(1);
     expect(getPoToken).not.toHaveBeenCalled();
     expect(context.poToken).toBeNull();
   });
@@ -88,10 +102,48 @@ describe("innertube session", () => {
     const { context } = await lib.getSession(market);
 
     expect(context.poToken).toBeNull();
-    expect(create.mock.calls[1][0].po_token).toBeUndefined();
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create.mock.calls[0][0].po_token).toBeUndefined();
     expect(console.warn).toHaveBeenCalledWith(
       "[hushio] PO token minting failed, continuing without: botguard down",
     );
+  });
+
+  it("reuses the bootstrap client when no PO token is available", async () => {
+    getPoToken.mockRejectedValueOnce(new Error("botguard down"));
+
+    const { innertube } = await lib.getSession(market);
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(innertube).toMatchObject({ session: { context: { client: { visitorData: "visitor-1" } } } });
+  });
+
+  it("does not mint again when the session is rebuilt right after a mint failure", async () => {
+    getPoToken.mockRejectedValueOnce(new Error("botguard down"));
+
+    await lib.getSession(market);
+    await lib.resetSession(market);
+
+    expect(getPoToken).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops waiting for a slow PO token after 1500 ms and continues without it", async () => {
+    vi.useFakeTimers();
+    try {
+      getPoToken.mockReturnValue(new Promise(() => {}));
+
+      const pending = lib.getSession(market);
+      await vi.advanceTimersByTimeAsync(1500);
+      const { context } = await pending;
+
+      expect(context.poToken).toBeNull();
+      expect(create).toHaveBeenCalledTimes(1);
+      expect(create.mock.calls[0][0].retrieve_player).toBe(false);
+      expect(console.warn).toHaveBeenCalledWith("[hushio] PO token not ready after 1500 ms, continuing without");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("memoizes one session across calls", async () => {

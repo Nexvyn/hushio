@@ -1,6 +1,10 @@
+import { onMemoryTrim } from "./memoryTrim";
 import { ytFetch as fetch } from "./ytFetch";
 import type { Innertube } from "youtubei.js";
 import { getSession, MARKET, resetSession } from "./innertube";
+import { isJioSaavnId, resolveJioSaavnStream } from "./jiosaavn";
+import { firstSuccess } from "./firstSuccess";
+import { traceMark } from "./streamTrace";
 
 type InnerTubeClient = NonNullable<NonNullable<Parameters<Innertube["getBasicInfo"]>[1]>["client"]>;
 export const MEDIA_USER_AGENT =
@@ -11,9 +15,12 @@ const PIPED_BASES = [
   "https://pipedapi.adminforge.de",
   "https://api.piped.private.coffee",
 ];
-const PROBE_TIMEOUT_MS = 10_000;
+const PROBE_TIMEOUT_MS = 6_000;
+const PROBE_BYTES = 4096;
+const CLIENT_STAGGER_MS = 600;
 const PIPED_TIMEOUT_MS = 12_000;
-const CACHE_LIMIT = 500;
+const CACHE_LIMIT = 50;
+const BAD_CLIENT_MS = 10 * 60 * 1000;
 const DEFAULT_TTL_MS = 10 * 60 * 1000;
 const MAX_TTL_MS = 6 * 60 * 60 * 1000;
 const EXPIRY_MARGIN_MS = 5 * 60 * 1000;
@@ -26,6 +33,9 @@ export type ResolvedStream = {
   lufs: number | null;
   itag?: number;
   clen?: number;
+  kbps?: number;
+  sampleRate?: number;
+  channels?: number;
 };
 
 type Pin = { itag: number; clen?: number };
@@ -43,6 +53,8 @@ type AudioFormat = {
   is_original?: boolean;
   loudness_db?: number;
   track_absolute_loudness_lkfs?: number;
+  audio_sample_rate?: number | string;
+  audio_channels?: number;
   signature_cipher?: string;
   cipher?: string;
   decipher?(player?: unknown): Promise<string>;
@@ -56,14 +68,19 @@ export type StreamingData = {
   adaptive_formats: AudioFormat[];
 };
 
-type ResolveOptions = { maxKbps?: number; mp4Only: boolean; pin?: Pin };
+type ResolveOptions = { maxKbps?: number; mp4Only: boolean; pin?: Pin; trustKnown: boolean; exclude?: InnerTubeClient };
 
-type CacheEntry = { value: ResolvedStream; expiresAt: number };
+type Resolved = { stream: ResolvedStream; verified: boolean; client?: InnerTubeClient };
+
+type CacheEntry = { value: ResolvedStream; client?: InnerTubeClient; expiresAt: number };
 
 type PipedStream = { url?: string; mimeType?: string; bitrate?: number };
 
 const resolveCache = new Map<string, CacheEntry>();
+onMemoryTrim(() => resolveCache.clear());
 const inFlight = new Map<string, Promise<ResolvedStream>>();
+const verifiedClients = new Set<InnerTubeClient>();
+const badUntil = new Map<InnerTubeClient, number>();
 let preferredClientIdx = 0;
 
 function describeError(error: unknown): string {
@@ -80,6 +97,11 @@ function positive(value: number | undefined): number | undefined {
 
 function audioScore(format: AudioFormat): number {
   return (AUDIO_RANK[format.itag] ?? 0) * 1e9 + (format.bitrate ?? 0);
+}
+
+function optionalPositive(value: unknown): number | undefined {
+  const parsed = typeof value === "string" ? Number(value) : value;
+  return isFiniteNumber(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function kbps(format: AudioFormat): number {
@@ -152,35 +174,57 @@ export async function pickAudio(
     }
   }
 
-  const preferred = candidates[0];
-  if (!preferred) return null;
-  const url = await formatUrl(preferred, player);
-  if (!url) return null;
-  return {
-    url,
-    mime: preferred.mime_type ?? "audio/mp4",
-    lufs: formatLufs(preferred),
-    itag: positive(preferred.itag),
-    clen: positive(preferred.content_length),
-  };
+  for (const preferred of candidates) {
+    const url = await formatUrl(preferred, player);
+    if (!url) continue;
+    return {
+      url,
+      mime: preferred.mime_type ?? "audio/mp4",
+      lufs: formatLufs(preferred),
+      itag: positive(preferred.itag),
+      clen: positive(preferred.content_length),
+      kbps: positive(Math.round(kbps(preferred))),
+      sampleRate: optionalPositive(preferred.audio_sample_rate),
+      channels: optionalPositive(preferred.audio_channels),
+    };
+  }
+  return null;
 }
 
-export async function probeUrl(url: string): Promise<boolean> {
+export async function probeUrl(url: string, cancel?: AbortSignal): Promise<boolean> {
+  const controller = new AbortController();
+  const stop = () => controller.abort();
+  const timeout = AbortSignal.timeout(PROBE_TIMEOUT_MS);
+  timeout.addEventListener("abort", stop);
+  cancel?.addEventListener("abort", stop);
+  if (cancel?.aborted) stop();
   try {
     const response = await fetch(url, {
-      headers: { "User-Agent": MEDIA_USER_AGENT, Range: "bytes=0-" },
-      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+      headers: { "User-Agent": MEDIA_USER_AGENT, Range: `bytes=0-${PROBE_BYTES - 1}` },
+      signal: controller.signal,
     });
     if (response.status !== 206 && response.status !== 200) {
       await response.body?.cancel();
+      console.warn(`[hushio] stream probe rejected: HTTP ${response.status}`);
       return false;
     }
     const reader = response.body?.getReader();
-    if (!reader) return false;
+    if (!reader) {
+      console.warn("[hushio] stream probe rejected: no body");
+      return false;
+    }
     const { value } = await reader.read();
     await reader.cancel();
-    return (value?.byteLength ?? 0) > 0;
-  } catch {
+    if ((value?.byteLength ?? 0) > 0) return true;
+    console.warn("[hushio] stream probe rejected: empty body");
+    return false;
+  } catch (error) {
+    const reason = timeout.aborted
+      ? `timed out after ${PROBE_TIMEOUT_MS} ms`
+      : cancel?.aborted
+        ? "cancelled"
+        : describeError(error);
+    console.warn(`[hushio] stream probe failed: ${reason}`);
     return false;
   }
 }
@@ -203,7 +247,13 @@ export async function resolveViaPiped(videoId: string): Promise<ResolvedStream> 
         .filter(hasUrl)
         .sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0));
       const pick = streams.find((stream) => /mp4|aac/i.test(stream.mimeType ?? "")) ?? streams[0];
-      if (pick && (await probeUrl(pick.url))) return { url: pick.url, mime: "audio/mp4", lufs: null };
+      if (pick && (await probeUrl(pick.url)))
+        return {
+          url: pick.url,
+          mime: pick.mimeType ?? "audio/mp4",
+          lufs: null,
+          kbps: positive(Math.round((pick.bitrate ?? 0) / 1000)),
+        };
     } catch (error) {
       console.warn(`[hushio] Piped mirror ${base} failed: ${describeError(error)}`);
     }
@@ -219,15 +269,17 @@ function describeStreams(status: string | undefined, streaming: StreamingData | 
   return `playability=${status ?? "?"} audio=${audio.length} plainUrl=${plainUrl} sig=${sig} hls=${hls}`;
 }
 
-async function resolveWithClient(
+async function attemptClient(
   innertube: Innertube,
   poToken: string | null,
   client: InnerTubeClient,
   videoId: string,
   options: ResolveOptions,
-): Promise<ResolvedStream> {
+  cancel: AbortSignal,
+): Promise<Resolved & { client: InnerTubeClient }> {
   const info = await innertube.getBasicInfo(videoId, { client, po_token: poToken ?? undefined });
   console.info(`[hushio] stream ${client}: ${describeStreams(info.playability_status?.status, info.streaming_data)}`);
+  traceMark(`client ${client} info`);
   const picked = await pickAudio(
     info.streaming_data,
     innertube.session.player,
@@ -236,11 +288,35 @@ async function resolveWithClient(
     options.pin,
   );
   if (!picked) throw new Error(`no audio format for client ${client}`);
-  if (!(await probeUrl(picked.url))) throw new Error(`stream rejected for client ${client}`);
-  return picked;
+  if (options.trustKnown && verifiedClients.has(client)) return { stream: picked, verified: false, client };
+  if (!(await probeUrl(picked.url, cancel))) {
+    traceMark(`client ${client} probe failed`);
+    throw new Error(`stream rejected for client ${client}`);
+  }
+  traceMark(`client ${client} probe ok`);
+  verifiedClients.add(client);
+  return { stream: picked, verified: true, client };
 }
 
-async function resolveUncached(videoId: string, options: ResolveOptions): Promise<ResolvedStream> {
+function clientAt(offset: number): InnerTubeClient {
+  return CLIENTS[(preferredClientIdx + offset) % CLIENTS.length];
+}
+
+function clientOrder(exclude: InnerTubeClient | undefined): InnerTubeClient[] {
+  const now = Date.now();
+  const rotated = CLIENTS.map((_, offset) => clientAt(offset)).filter((client) => client !== exclude);
+  const isBad = (client: InnerTubeClient) => (badUntil.get(client) ?? 0) > now;
+  return [...rotated.filter((client) => !isBad(client)), ...rotated.filter(isBad)];
+}
+
+function markBad(client: InnerTubeClient): void {
+  badUntil.set(client, Date.now() + BAD_CLIENT_MS);
+  verifiedClients.delete(client);
+  preferredClientIdx = (CLIENTS.indexOf(client) + 1) % CLIENTS.length;
+}
+
+async function resolveUncached(videoId: string, options: ResolveOptions): Promise<Resolved> {
+  if (isJioSaavnId(videoId)) return { stream: await resolveJioSaavnStream(videoId, options.maxKbps), verified: true };
   let lastError: unknown;
   for (let round = 0; round < 2; round++) {
     if (round === 1) {
@@ -250,19 +326,22 @@ async function resolveUncached(videoId: string, options: ResolveOptions): Promis
       await resetSession(MARKET);
     }
     const { innertube, context } = await getSession(MARKET);
-    for (let i = 0; i < CLIENTS.length; i++) {
-      const idx = (preferredClientIdx + i) % CLIENTS.length;
-      try {
-        const resolved = await resolveWithClient(innertube, context.poToken, CLIENTS[idx], videoId, options);
-        preferredClientIdx = idx;
-        return resolved;
-      } catch (error) {
-        lastError = error;
-      }
+    const order = clientOrder(options.exclude);
+    try {
+      const winner = await firstSuccess(
+        order.length,
+        (index, cancel) => attemptClient(innertube, context.poToken, order[index], videoId, options, cancel),
+        CLIENT_STAGGER_MS,
+      );
+      preferredClientIdx = CLIENTS.indexOf(winner.client);
+      badUntil.delete(winner.client);
+      return winner;
+    } catch (error) {
+      lastError = error;
     }
   }
   try {
-    return await resolveViaPiped(videoId);
+    return { stream: await resolveViaPiped(videoId), verified: true };
   } catch (pipedError) {
     console.warn(`[hushio] Piped fallback failed: ${describeError(pipedError)}`);
     throw lastError instanceof Error ? lastError : new Error("Could not resolve a playable audio stream");
@@ -280,6 +359,10 @@ function evictOldest(): void {
   }
 }
 
+function evictIfSame(key: string, url: string): void {
+  if (resolveCache.get(key)?.value.url === url) resolveCache.delete(key);
+}
+
 export function resolveStream(
   videoId: string,
   refresh = false,
@@ -288,18 +371,36 @@ export function resolveStream(
 ): Promise<ResolvedStream> {
   const key = cacheKey(videoId, maxKbps, mp4Only);
   const cached = resolveCache.get(key);
-  if (!refresh && cached && Date.now() < cached.expiresAt) return Promise.resolve(cached.value);
+  if (!refresh && cached && Date.now() < cached.expiresAt) {
+    traceMark("cache hit", videoId);
+    return Promise.resolve(cached.value);
+  }
   const shared = inFlight.get(key);
   if (!refresh && shared) return shared;
 
+  traceMark("resolve start", videoId);
   const previous = cached?.value;
   const pin = previous?.itag !== undefined ? { itag: previous.itag, clen: previous.clen } : undefined;
-  const attempt: Promise<ResolvedStream> = resolveUncached(videoId, { maxKbps, mp4Only, pin })
-    .then((value) => {
+  const stale = refresh ? cached?.client : undefined;
+  if (stale) markBad(stale);
+  const attempt: Promise<ResolvedStream> = resolveUncached(videoId, {
+    maxKbps,
+    mp4Only,
+    pin,
+    trustKnown: !refresh,
+    exclude: stale,
+  })
+    .then(({ stream: value, verified, client }) => {
       const ts = Date.now();
       resolveCache.delete(key);
-      resolveCache.set(key, { value, expiresAt: ts + streamTtlMs(value.url, ts) });
+      resolveCache.set(key, { value, client, expiresAt: ts + streamTtlMs(value.url, ts) });
       evictOldest();
+      if (!verified) {
+        void probeUrl(value.url).then((ok) => {
+          if (!ok) evictIfSame(key, value.url);
+        });
+      }
+      traceMark("resolved", videoId);
       return value;
     })
     .finally(() => {
@@ -307,4 +408,20 @@ export function resolveStream(
     });
   inFlight.set(key, attempt);
   return attempt;
+}
+
+export function prefetchStream(videoId: string, maxKbps?: number): Promise<void> {
+  return resolveStream(videoId, false, maxKbps).then(
+    () => undefined,
+    () => undefined,
+  );
+}
+
+export function warmStreamSession(): Promise<void> {
+  return getSession(MARKET).then(
+    () => undefined,
+    (error: unknown) => {
+      console.warn(`[hushio] session warm-up failed: ${describeError(error)}`);
+    },
+  );
 }

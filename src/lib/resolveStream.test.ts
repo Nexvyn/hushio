@@ -63,6 +63,13 @@ function clientsCalled(): string[] {
   return getBasicInfo.mock.calls.map(([, options]) => (options as { client: string }).client);
 }
 
+function onlyClientsSucceed(...clients: string[]) {
+  getBasicInfo.mockImplementation(async (_id: string, options: { client: string }) => {
+    if (!clients.includes(options.client)) throw new Error(`${options.client} down`);
+    return info([fmt({ itag: 251 })]);
+  });
+}
+
 describe("resolveStream", () => {
   let lib: ResolveStream;
   let timeouts: AbortController[];
@@ -104,6 +111,7 @@ describe("resolveStream", () => {
       lufs: null,
       itag: 140,
       clen: 1000,
+      kbps: 130,
     });
   });
 
@@ -114,9 +122,52 @@ describe("resolveStream", () => {
     await lib.resolveStream("abcdefgh");
     getBasicInfo.mockClear();
 
-    await lib.resolveStream("abcdefgh", true);
+    await lib.resolveStream("ijklmnop");
 
     expect(clientsCalled()[0]).toBe("IOS");
+  });
+
+  it("refresh skips the client that produced the stale stream and tries the rest", async () => {
+    onlyClientsSucceed("IOS");
+    await lib.resolveStream("abcdefgh");
+    getBasicInfo.mockClear();
+    onlyClientsSucceed("ANDROID_VR", "WEB");
+
+    await lib.resolveStream("abcdefgh", true);
+
+    expect(clientsCalled()).not.toContain("IOS");
+    expect(clientsCalled()[0]).toBe("ANDROID_VR");
+  });
+
+  describe("client that failed a refresh", () => {
+    async function staleIosRefresh() {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-11-01T12:00:00Z"));
+      onlyClientsSucceed("IOS");
+      await lib.resolveStream("abcdefgh");
+      onlyClientsSucceed("VISIONOS");
+      await lib.resolveStream("abcdefgh", true);
+      getBasicInfo.mockClear();
+    }
+
+    it("stays out of later songs while its ten minutes last", async () => {
+      await staleIosRefresh();
+      onlyClientsSucceed("ANDROID_VR", "IOS");
+
+      await lib.resolveStream("ijklmnop");
+
+      expect(clientsCalled()).toEqual(["VISIONOS", "ANDROID_VR"]);
+    });
+
+    it("is tried again once ten minutes have passed", async () => {
+      await staleIosRefresh();
+      vi.setSystemTime(Date.now() + 10 * 60 * 1000);
+      onlyClientsSucceed("ANDROID_VR", "IOS");
+
+      await lib.resolveStream("ijklmnop");
+
+      expect(clientsCalled()).toEqual(["VISIONOS", "IOS"]);
+    });
   });
 
   it("skips a stream whose probe is rejected and tries the next client", async () => {
@@ -152,7 +203,7 @@ describe("resolveStream", () => {
 
     expect(getBasicInfo).toHaveBeenCalledTimes(14);
     expect(resetSession).toHaveBeenCalledTimes(1);
-    expect(result).toEqual({ url: `${GOOGLEVIDEO}?piped=1`, mime: "audio/mp4", lufs: null });
+    expect(result).toEqual({ url: `${GOOGLEVIDEO}?piped=1`, mime: "audio/mp4", lufs: null, kbps: 128 });
   });
 
   it("rethrows the last client error when Piped also fails", async () => {
@@ -319,11 +370,22 @@ describe("resolveStream", () => {
     timeouts[0].abort();
 
     await expect(pending).resolves.toMatchObject({ url: `${GOOGLEVIDEO}?fast=1`, itag: 251 });
-    expect(AbortSignal.timeout).toHaveBeenCalledWith(10_000);
+    expect(AbortSignal.timeout).toHaveBeenCalledWith(6_000);
   });
 });
 
 describe("pickAudio", () => {
+  it("tries a lower audio format when the preferred format cannot be deciphered", async () => {
+    const { pickAudio } = await import("./resolveStream");
+    const picked = await pickAudio({
+      formats: [],
+      adaptive_formats: [
+        fmt({ itag: 251, url: undefined, decipher: async () => { throw new Error("unavailable"); } }),
+        fmt({ itag: 140, mime_type: "audio/mp4" }),
+      ],
+    }, PLAYER, undefined, false);
+    expect(picked?.itag).toBe(140);
+  });
   let lib: ResolveStream;
   const streaming = (adaptive: Fmt[], formats: Fmt[] = []) => ({ adaptive_formats: adaptive, formats });
 
@@ -537,6 +599,7 @@ describe("probeUrl", () => {
     vi.resetModules();
     lib = await import("./resolveStream");
     pluginFetch.mockReset();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -551,7 +614,7 @@ describe("probeUrl", () => {
     await expect(lib.probeUrl(GOOGLEVIDEO)).resolves.toBe(true);
   });
 
-  it("sends an open range request with a 10 second timeout", async () => {
+  it("sends a 4 KiB range request with a 6 second timeout", async () => {
     const timeout = vi.spyOn(AbortSignal, "timeout");
     pluginFetch.mockResolvedValueOnce(probeOk());
 
@@ -559,29 +622,33 @@ describe("probeUrl", () => {
 
     expect(pluginFetch).toHaveBeenCalledWith(
       GOOGLEVIDEO,
-      expect.objectContaining({ headers: expect.objectContaining({ Range: "bytes=0-" }) }),
+      expect.objectContaining({ headers: expect.objectContaining({ Range: "bytes=0-4095" }) }),
     );
-    expect(timeout).toHaveBeenCalledWith(10_000);
+    expect(timeout).toHaveBeenCalledWith(6_000);
   });
 
-  it("rejects other status codes", async () => {
+  it("rejects other status codes and logs the status", async () => {
     pluginFetch.mockResolvedValueOnce(new Response(null, { status: 403 }));
     pluginFetch.mockResolvedValueOnce(new Response(null, { status: 503 }));
 
     await expect(lib.probeUrl(GOOGLEVIDEO)).resolves.toBe(false);
     await expect(lib.probeUrl(GOOGLEVIDEO)).resolves.toBe(false);
+    expect(console.warn).toHaveBeenCalledWith("[hushio] stream probe rejected: HTTP 403");
+    expect(console.warn).toHaveBeenCalledWith("[hushio] stream probe rejected: HTTP 503");
   });
 
-  it("rejects an empty body", async () => {
+  it("rejects an empty body and logs it", async () => {
     pluginFetch.mockResolvedValueOnce(new Response(new Uint8Array(0), { status: 206 }));
 
     await expect(lib.probeUrl(GOOGLEVIDEO)).resolves.toBe(false);
+    expect(console.warn).toHaveBeenCalledWith("[hushio] stream probe rejected: empty body");
   });
 
-  it("rejects when the request throws", async () => {
+  it("rejects when the request throws and logs the message", async () => {
     pluginFetch.mockRejectedValueOnce(new Error("network"));
 
     await expect(lib.probeUrl(GOOGLEVIDEO)).resolves.toBe(false);
+    expect(console.warn).toHaveBeenCalledWith("[hushio] stream probe failed: network");
   });
 
   it("rejects when the request is aborted by the timeout", async () => {
@@ -598,6 +665,7 @@ describe("probeUrl", () => {
     controller.abort();
 
     await expect(probe).resolves.toBe(false);
+    expect(console.warn).toHaveBeenCalledWith("[hushio] stream probe failed: timed out after 6000 ms");
   });
 });
 
@@ -673,7 +741,7 @@ describe("resolveViaPiped", () => {
       `${PIPED_ADMINFORGE}/streams/abcdefgh`,
       `${GOOGLEVIDEO}?ok=1`,
     ]);
-    expect(result).toEqual({ url: `${GOOGLEVIDEO}?ok=1`, mime: "audio/mp4", lufs: null });
+    expect(result).toEqual({ url: `${GOOGLEVIDEO}?ok=1`, mime: "audio/mp4", lufs: null, kbps: 128 });
   });
 
   it("prefers the highest mp4 or AAC stream over a higher-bitrate Opus stream", async () => {
@@ -738,5 +806,103 @@ describe("resolveViaPiped", () => {
     await expect(lib.resolveViaPiped("abcdefgh")).rejects.toThrow("No Piped mirror had a playable stream");
     expect(pluginFetch).toHaveBeenCalledTimes(3);
     expect(pluginFetch.mock.calls.map(([url]) => url)).toContain(`${PIPED_PRIVATE}/streams/abcdefgh`);
+  });
+});
+
+describe("parallel client race and prefetch", () => {
+  let lib: ResolveStream;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    lib = await import("./resolveStream");
+    pluginFetch.mockReset();
+    pluginFetch.mockImplementation(async () => probeOk());
+    getBasicInfo.mockReset();
+    const session = { innertube: { getBasicInfo, session: { player: PLAYER } }, context: { poToken: "po-1" } };
+    getSession.mockReset();
+    getSession.mockResolvedValue(session);
+    resetSession.mockReset();
+    resetSession.mockResolvedValue(session);
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("starts a second client after 600 ms when the first one is still pending", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    getBasicInfo
+      .mockImplementationOnce(() => new Promise(() => {}))
+      .mockResolvedValue(info([fmt({ itag: 251 })]));
+
+    const pending = lib.resolveStream("cccccccc");
+    await vi.advanceTimersByTimeAsync(599);
+    expect(clientsCalled()).toEqual(["VISIONOS"]);
+    await vi.advanceTimersByTimeAsync(1);
+
+    await expect(pending).resolves.toMatchObject({ itag: 251 });
+    expect(clientsCalled()).toEqual(["VISIONOS", "IOS"]);
+  });
+
+  it("does not wait for the background probe of a client already verified this session", async () => {
+    getBasicInfo.mockResolvedValue(info([fmt({ itag: 251 })]));
+    await lib.resolveStream("aaaaaaaa");
+    pluginFetch.mockImplementation(() => new Promise(() => {}));
+
+    const result = await lib.resolveStream("bbbbbbbb");
+
+    expect(result.itag).toBe(251);
+    expect(getBasicInfo).toHaveBeenCalledTimes(2);
+  });
+
+  it("drops a trusted stream whose background probe fails so the next tap resolves again", async () => {
+    getBasicInfo.mockResolvedValue(info([fmt({ itag: 251 })]));
+    await lib.resolveStream("aaaaaaaa");
+    pluginFetch.mockImplementation(async () => new Response(null, { status: 403 }));
+    await lib.resolveStream("bbbbbbbb");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    getBasicInfo.mockClear();
+
+    await lib.resolveStream("bbbbbbbb");
+
+    expect(getBasicInfo).toHaveBeenCalledTimes(1);
+  });
+
+  it("forces a full probe on refresh even for a verified client", async () => {
+    getBasicInfo.mockResolvedValue(info([fmt({ itag: 251 })]));
+    await lib.resolveStream("aaaaaaaa");
+    pluginFetch.mockClear();
+
+    await lib.resolveStream("aaaaaaaa", true);
+
+    expect(pluginFetch).toHaveBeenCalledWith(GOOGLEVIDEO + "?itag=251", expect.anything());
+  });
+
+  it("shares an in-flight prefetch with the tap that follows it", async () => {
+    getBasicInfo.mockResolvedValue(info([fmt({ itag: 251 })]));
+
+    void lib.prefetchStream("abcdefgh");
+    const played = await lib.resolveStream("abcdefgh");
+
+    expect(played.itag).toBe(251);
+    expect(getBasicInfo).toHaveBeenCalledTimes(1);
+  });
+
+  it("aborts a losing probe when the cancel signal fires", async () => {
+    const cancel = new AbortController();
+    pluginFetch.mockImplementationOnce(
+      (_url: string, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+        }),
+    );
+
+    const probe = lib.probeUrl(GOOGLEVIDEO, cancel.signal);
+    cancel.abort();
+
+    await expect(probe).resolves.toBe(false);
   });
 });

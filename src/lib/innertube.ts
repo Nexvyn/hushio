@@ -21,14 +21,36 @@ export type InnertubeSession = {
 
 let session: Promise<InnertubeSession> | null = null;
 
+const PO_TOKEN_RETRY_MS = 60_000;
+let poTokenFailedAt = 0;
+
 async function mintPoToken(visitorData: string): Promise<string | null> {
   if (!visitorData) return null;
+  if (Date.now() - poTokenFailedAt < PO_TOKEN_RETRY_MS) return null;
   try {
     return await getPoToken(visitorData);
   } catch (error) {
+    poTokenFailedAt = Date.now();
     const reason = error instanceof Error ? error.message : String(error);
     console.warn(`[hushio] PO token minting failed, continuing without: ${reason}`);
     return null;
+  }
+}
+
+const PO_TOKEN_WAIT_MS = 1500;
+
+async function mintPoTokenWithin(visitorData: string, waitMs: number): Promise<string | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<null>((resolve) => {
+    timer = setTimeout(() => {
+      console.warn(`[hushio] PO token not ready after ${waitMs} ms, continuing without`);
+      resolve(null);
+    }, waitMs);
+  });
+  try {
+    return await Promise.race([mintPoToken(visitorData), late]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -41,18 +63,45 @@ async function createSession({ location, lang }: Market): Promise<InnertubeSessi
     fetch,
   });
   const visitorData = bootstrap.session.context.client.visitorData ?? "";
-  const poToken = await mintPoToken(visitorData);
-  const innertube = await Innertube.create({
-    retrieve_player: true,
-    enable_session_cache: false,
-    visitor_data: visitorData,
-    po_token: poToken ?? undefined,
-    location,
-    lang,
-    fetch,
-  });
+  const poToken = await mintPoTokenWithin(visitorData, PO_TOKEN_WAIT_MS);
+  const innertube =
+    poToken === null
+      ? bootstrap
+      : await Innertube.create({
+          retrieve_player: false,
+          enable_session_cache: false,
+          visitor_data: visitorData,
+          po_token: poToken,
+          location,
+          lang,
+          fetch,
+        });
   console.info(`[hushio] innertube session: gl=${location} hl=${lang}`);
   return { innertube, context: { visitorData, poToken, gl: location, hl: lang } };
+}
+
+// Search does not need a playback token or a downloaded player script.
+let searchSession: Promise<InnertubeSession> | null = null;
+export function getSearchSession(market: Market): Promise<InnertubeSession> {
+  searchSession ??= Innertube.create({
+    retrieve_player: false,
+    enable_session_cache: false,
+    location: market.location,
+    lang: market.lang,
+    fetch,
+  }).then((innertube) => ({
+    innertube,
+    context: {
+      visitorData: innertube.session.context.client.visitorData ?? "",
+      poToken: null,
+      gl: market.location,
+      hl: market.lang,
+    },
+  })).catch((error: unknown) => {
+    searchSession = null;
+    throw error;
+  });
+  return searchSession;
 }
 
 export function getSession(market: Market): Promise<InnertubeSession> {
@@ -65,6 +114,7 @@ export function getSession(market: Market): Promise<InnertubeSession> {
 
 export function resetSession(market: Market): Promise<InnertubeSession> {
   session = null;
+  searchSession = null;
   invalidatePoToken();
   return getSession(market);
 }
@@ -95,7 +145,6 @@ export type Json = Record<string, unknown>;
 const MUSIC_VIDEO_TYPES: Record<string, VideoType> = {
   MUSIC_VIDEO_TYPE_ATV: "song",
   MUSIC_VIDEO_TYPE_UGC: "upload",
-  MUSIC_VIDEO_TYPE_PODCAST_EPISODE: "episode",
 };
 const DURATION = /^\d+(?::\d{2}){1,2}$/;
 const BULLET = "•";

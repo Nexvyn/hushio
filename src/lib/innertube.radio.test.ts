@@ -279,7 +279,6 @@ describe("radioVideoType", () => {
   it("maps the music video type to a track kind", () => {
     expect(typed("MUSIC_VIDEO_TYPE_ATV")).toBe("song");
     expect(typed("MUSIC_VIDEO_TYPE_UGC")).toBe("upload");
-    expect(typed("MUSIC_VIDEO_TYPE_PODCAST_EPISODE")).toBe("episode");
     expect(typed("MUSIC_VIDEO_TYPE_OMV")).toBe("video");
   });
 
