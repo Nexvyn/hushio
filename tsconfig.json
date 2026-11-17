@@ -20,6 +20,5 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "vite.config.ts"],
-  "exclude": ["src/views/settings/AppIconPicker.tsx"]
+  "include": ["src", "vite.config.ts"]
 }

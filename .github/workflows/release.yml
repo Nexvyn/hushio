@@ -418,6 +418,7 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           HUSHIO_GOOGLE_CLIENT_ID: ${{ secrets.HUSHIO_GOOGLE_CLIENT_ID }}
+          HUSHIO_SPOTIFY_CLIENT_ID: ${{ secrets.HUSHIO_SPOTIFY_CLIENT_ID }}
         run: |
           set -euo pipefail
           pnpm tauri android build --apk --split-per-abi --target aarch64 armv7 x86_64

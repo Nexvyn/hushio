@@ -1,5 +1,6 @@
 import { animate, type AnimationPlaybackControls } from "motion/react";
 import { useEffect, useRef, useState } from "react";
+import { AppLogo } from "./AppLogo";
 import { introDone, platform } from "../lib/bridge";
 import { introFinished, introPlan, markIntroFinished, waitUntil } from "../lib/intro";
 import {
@@ -101,7 +102,7 @@ export function LaunchIntro({ ready }: { ready: boolean }) {
         ];
         breath = animate(
           tile,
-          { opacity: [1, 0.4, 1] },
+          { y: [0, -2, 0] },
           { duration: T.breathDuration, delay: T.breathDelay, ease: EASE_IN_OUT, repeat: Infinity },
         );
         await Promise.all([
@@ -166,14 +167,12 @@ export function LaunchIntro({ ready }: { ready: boolean }) {
             <div
               ref={tileRef}
               aria-hidden="true"
-              className="grid h-24 w-24 place-items-center rounded-3xl text-[40px] font-semibold"
+              className="grid h-24 w-24 place-items-center"
               style={{
-                background: "linear-gradient(var(--intro-tile-from), var(--intro-tile-to))",
-                color: "var(--intro-ink)",
                 opacity: 0,
               }}
             >
-              H
+              <AppLogo size={96} launch />
             </div>
           </div>
           <span
