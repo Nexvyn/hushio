@@ -28,6 +28,26 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/hushio_widget_info" />
         </receiver>
+        <receiver
+            android:name=".HushioWidgetSquareProvider"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/hushio_widget_square_info" />
+        </receiver>
+        <receiver
+            android:name=".HushioWidgetControlsProvider"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/hushio_widget_controls_info" />
+        </receiver>
         <activity
             android:name=".AuthRedirectActivity"
             android:exported="true"
@@ -38,6 +58,12 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="${googleRedirectScheme}" android:path="/oauth2redirect" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="hushio-spotify" android:path="/callback" />
             </intent-filter>
         </activity>
         <meta-data

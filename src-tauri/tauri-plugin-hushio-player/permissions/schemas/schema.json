@@ -631,6 +631,18 @@
           "markdownDescription": "Denies the player_set_speed command without any pre-configured scope."
         },
         {
+          "description": "Enables the player_set_system_bars command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-player-set-system-bars",
+          "markdownDescription": "Enables the player_set_system_bars command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the player_set_system_bars command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-player-set-system-bars",
+          "markdownDescription": "Denies the player_set_system_bars command without any pre-configured scope."
+        },
+        {
           "description": "Enables the player_set_url command without any pre-configured scope.",
           "type": "string",
           "const": "allow-player-set-url",
@@ -703,10 +715,10 @@
           "markdownDescription": "Denies the removeListener command without any pre-configured scope."
         },
         {
-          "description": "Playback commands, queue sync and events for the Android player\n#### This default permission set includes:\n\n- `allow-player-set-queue`\n- `allow-player-append`\n- `allow-player-insert-next`\n- `allow-player-remove-at`\n- `allow-player-move`\n- `allow-player-play`\n- `allow-player-pause`\n- `allow-player-toggle`\n- `allow-player-next`\n- `allow-player-previous`\n- `allow-player-seek`\n- `allow-player-set-speed`\n- `allow-player-set-volume`\n- `allow-player-set-repeat`\n- `allow-player-set-shuffle`\n- `allow-player-set-skip-silence`\n- `allow-player-set-eq`\n- `allow-player-set-sleep-timer`\n- `allow-player-set-url`\n- `allow-player-set-like`\n- `allow-player-get-state`\n- `allow-player-get-insets`\n- `allow-player-exit`\n- `allow-player-haptic-tick`\n- `allow-player-keep-awake`\n- `allow-player-take-launch`\n- `allow-cast-open`\n- `allow-cast-load`\n- `allow-cast-play-pause`\n- `allow-cast-seek`\n- `allow-cast-status`\n- `allow-cast-stop`\n- `allow-registerListener`\n- `allow-removeListener`",
+          "description": "Playback commands, queue sync and events for the Android player\n#### This default permission set includes:\n\n- `allow-player-set-queue`\n- `allow-player-append`\n- `allow-player-insert-next`\n- `allow-player-remove-at`\n- `allow-player-move`\n- `allow-player-play`\n- `allow-player-pause`\n- `allow-player-toggle`\n- `allow-player-next`\n- `allow-player-previous`\n- `allow-player-seek`\n- `allow-player-set-speed`\n- `allow-player-set-volume`\n- `allow-player-set-repeat`\n- `allow-player-set-shuffle`\n- `allow-player-set-skip-silence`\n- `allow-player-set-eq`\n- `allow-player-set-sleep-timer`\n- `allow-player-set-url`\n- `allow-player-set-like`\n- `allow-player-get-state`\n- `allow-player-get-insets`\n- `allow-player-exit`\n- `allow-player-haptic-tick`\n- `allow-player-keep-awake`\n- `allow-player-set-system-bars`\n- `allow-player-take-launch`\n- `allow-cast-open`\n- `allow-cast-load`\n- `allow-cast-play-pause`\n- `allow-cast-seek`\n- `allow-cast-status`\n- `allow-cast-stop`\n- `allow-registerListener`\n- `allow-removeListener`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Playback commands, queue sync and events for the Android player\n#### This default permission set includes:\n\n- `allow-player-set-queue`\n- `allow-player-append`\n- `allow-player-insert-next`\n- `allow-player-remove-at`\n- `allow-player-move`\n- `allow-player-play`\n- `allow-player-pause`\n- `allow-player-toggle`\n- `allow-player-next`\n- `allow-player-previous`\n- `allow-player-seek`\n- `allow-player-set-speed`\n- `allow-player-set-volume`\n- `allow-player-set-repeat`\n- `allow-player-set-shuffle`\n- `allow-player-set-skip-silence`\n- `allow-player-set-eq`\n- `allow-player-set-sleep-timer`\n- `allow-player-set-url`\n- `allow-player-set-like`\n- `allow-player-get-state`\n- `allow-player-get-insets`\n- `allow-player-exit`\n- `allow-player-haptic-tick`\n- `allow-player-keep-awake`\n- `allow-player-take-launch`\n- `allow-cast-open`\n- `allow-cast-load`\n- `allow-cast-play-pause`\n- `allow-cast-seek`\n- `allow-cast-status`\n- `allow-cast-stop`\n- `allow-registerListener`\n- `allow-removeListener`"
+          "markdownDescription": "Playback commands, queue sync and events for the Android player\n#### This default permission set includes:\n\n- `allow-player-set-queue`\n- `allow-player-append`\n- `allow-player-insert-next`\n- `allow-player-remove-at`\n- `allow-player-move`\n- `allow-player-play`\n- `allow-player-pause`\n- `allow-player-toggle`\n- `allow-player-next`\n- `allow-player-previous`\n- `allow-player-seek`\n- `allow-player-set-speed`\n- `allow-player-set-volume`\n- `allow-player-set-repeat`\n- `allow-player-set-shuffle`\n- `allow-player-set-skip-silence`\n- `allow-player-set-eq`\n- `allow-player-set-sleep-timer`\n- `allow-player-set-url`\n- `allow-player-set-like`\n- `allow-player-get-state`\n- `allow-player-get-insets`\n- `allow-player-exit`\n- `allow-player-haptic-tick`\n- `allow-player-keep-awake`\n- `allow-player-set-system-bars`\n- `allow-player-take-launch`\n- `allow-cast-open`\n- `allow-cast-load`\n- `allow-cast-play-pause`\n- `allow-cast-seek`\n- `allow-cast-status`\n- `allow-cast-stop`\n- `allow-registerListener`\n- `allow-removeListener`"
         }
       ]
     }

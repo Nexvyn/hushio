@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="hushio_widget_surface">#FFFFFFFF</color>
+    <color name="hushio_widget_text">#FF1D1D1F</color>
+    <color name="hushio_widget_muted">#FF68686D</color>
+    <color name="hushio_widget_icon">#FF1D1D1F</color>
+    <color name="hushio_widget_on_accent">#FFFFFFFF</color>
+    <color name="hushio_widget_accent">#FFD54120</color>
+    <color name="hushio_widget_cover_tint">#1FD54120</color>
+</resources>

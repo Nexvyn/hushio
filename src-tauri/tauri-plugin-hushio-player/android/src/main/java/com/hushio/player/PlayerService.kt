@@ -16,8 +16,10 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import androidx.media3.datasource.DataSourceBitmapLoader
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -26,6 +28,7 @@ import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.session.CacheBitmapLoader
 import androidx.media3.session.CommandButton
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
@@ -41,6 +44,7 @@ import java.util.concurrent.ConcurrentHashMap
 class PlayerService : MediaLibraryService() {
 
     private lateinit var player: ExoPlayer
+    private lateinit var controls: ActionPlayer
     private lateinit var session: MediaLibrarySession
     private lateinit var audioManager: AudioManager
 
@@ -117,6 +121,10 @@ class PlayerService : MediaLibraryService() {
         }
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_FOCUS_LOSS) {
+                if (!playWhenReady) resumeAfterUrl = false
+                PlayerEvents.emit("player-focus", mapOf("state" to if (playWhenReady) "gained" else "lost"))
+            }
             emitState()
             if (playWhenReady) return
             when (reason) {
@@ -126,8 +134,6 @@ class PlayerService : MediaLibraryService() {
                 }
                 Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_BECOMING_NOISY ->
                     PlayerEvents.emit("player-route", mapOf("reason" to "becoming_noisy"))
-                Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_FOCUS_LOSS ->
-                    PlayerEvents.emit("player-focus", mapOf("state" to "lost"))
             }
         }
 
@@ -162,6 +168,40 @@ class PlayerService : MediaLibraryService() {
                 player.pause()
                 PlayerEvents.emit("player-route", mapOf("reason" to "device_removed"))
             }
+        }
+    }
+
+    private class ActionPlayer(
+        player: Player,
+        private val emit: (String) -> Unit,
+    ) : ForwardingPlayer(player) {
+
+        override fun getAvailableCommands(): Player.Commands =
+            super.getAvailableCommands().buildUpon().addAll(*ACTION_COMMANDS).build()
+
+        override fun isCommandAvailable(command: Int): Boolean =
+            command in ACTION_COMMANDS || super.isCommandAvailable(command)
+
+        override fun play() {
+            emit("play")
+            super.play()
+        }
+
+        override fun setPlayWhenReady(playWhenReady: Boolean) {
+            if (playWhenReady) emit("play")
+            super.setPlayWhenReady(playWhenReady)
+        }
+
+        override fun seekToNext() = emit("next")
+
+        override fun seekToNextMediaItem() = emit("next")
+
+        override fun seekToPrevious() = previousOrRestart()
+
+        override fun seekToPreviousMediaItem() = previousOrRestart()
+
+        private fun previousOrRestart() {
+            if (currentPosition > RESTART_AFTER_MS) seekTo(0) else emit("previous")
         }
     }
 
@@ -202,10 +242,7 @@ class PlayerService : MediaLibraryService() {
             if (event.keyCode !in PLAY_PAUSE_KEYS) return false
             handler.removeCallbacks(gestureTimeout)
             when (buttonGestures.press(SystemClock.uptimeMillis())) {
-                MediaButtonGestures.Gesture.DOUBLE -> {
-                    player.seekToNext()
-                    PlayerEvents.emit("player-action", mapOf("action" to "next"))
-                }
+                MediaButtonGestures.Gesture.DOUBLE -> controls.seekToNext()
                 MediaButtonGestures.Gesture.SINGLE, null ->
                     handler.postDelayed(gestureTimeout, MediaButtonGestures.WINDOW_MS)
             }
@@ -300,14 +337,33 @@ class PlayerService : MediaLibraryService() {
                 ),
             )
             .build()
-        session = MediaLibrarySession.Builder(this, player, libraryCallback)
+        controls = ActionPlayer(player) { action -> PlayerEvents.emit("player-action", mapOf("action" to action)) }
+        session = MediaLibrarySession.Builder(this, controls, libraryCallback)
             .setId(SESSION_ID)
+            .setBitmapLoader(artworkBitmapLoader())
             .build()
+        addSession(session)
         session.setMediaButtonPreferences(buttons())
         player.addListener(playerListener)
         audioManager.registerAudioDeviceCallback(audioDeviceCallback, handler)
         current = this
     }
+
+    private fun artworkBitmapLoader(): CacheBitmapLoader = CacheBitmapLoader(
+        DataSourceBitmapLoader.Builder(this)
+            .setDataSourceFactory(
+                DefaultDataSource.Factory(
+                    this,
+                    DefaultHttpDataSource.Factory()
+                        .setUserAgent(ARTWORK_USER_AGENT)
+                        .setConnectTimeoutMs(ARTWORK_TIMEOUT_MS)
+                        .setReadTimeoutMs(ARTWORK_TIMEOUT_MS)
+                        .setAllowCrossProtocolRedirects(true),
+                ),
+            )
+            .setMaximumOutputDimension(ARTWORK_MAX_DIMENSION_PX)
+            .build(),
+    )
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession = session
 
@@ -318,6 +374,7 @@ class PlayerService : MediaLibraryService() {
         handler.removeCallbacksAndMessages(null)
         audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
         equalizer?.release()
+        removeSession(session)
         session.release()
         player.release()
         super.onDestroy()
@@ -598,7 +655,7 @@ class PlayerService : MediaLibraryService() {
 
     private fun publishWidget() {
         val item = queue.currentItem()
-        HushioWidgetProvider.publish(this, item?.title, item?.artist, player.isPlaying)
+        HushioWidgetProvider.publish(this, item?.title, item?.artist, player.isPlaying, item?.artworkUrl)
     }
 
     private fun tickSleep() {
@@ -719,6 +776,16 @@ class PlayerService : MediaLibraryService() {
         private const val SLEEP_TICK_MS = 250L
         private const val STATE_TICK_MS = 1_000L
         private const val RESTART_AFTER_MS = 3_000L
+        private const val ARTWORK_TIMEOUT_MS = 15_000
+        private const val ARTWORK_MAX_DIMENSION_PX = 512
+        private const val ARTWORK_USER_AGENT =
+            "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+        private val ACTION_COMMANDS = intArrayOf(
+            Player.COMMAND_SEEK_TO_NEXT,
+            Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
+            Player.COMMAND_SEEK_TO_PREVIOUS,
+            Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+        )
         private const val VOLUME_RESTORE_MS = 500L
         private val LIKE_COMMAND = SessionCommand(LIKE_ACTION, Bundle.EMPTY)
         private val PLAY_PAUSE_KEYS = setOf(

@@ -20,4 +20,10 @@ class RedirectUriTest {
         assertFalse(RedirectUri.isOurs("$scheme:/callback?code=x", scheme))
         assertFalse(RedirectUri.isOurs("$scheme:/oauth2redirect?code=x", ""))
     }
+
+    @Test
+    fun acceptsTheSpotifyCallbackOnlyForItsOwnScheme() {
+        assertTrue(RedirectUri.isOurs("hushio-spotify:/callback?code=x&state=y", "hushio-spotify"))
+        assertFalse(RedirectUri.isOurs("hushio-spotify:/oauth2redirect?code=x", "hushio-spotify"))
+    }
 }

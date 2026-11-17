@@ -1,6 +1,7 @@
 package com.hushio.player
 
 import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
@@ -10,6 +11,7 @@ import android.view.WindowManager
 import android.webkit.WebView
 import androidx.core.graphics.Insets
 import androidx.core.view.OnApplyWindowInsetsListener
+import androidx.core.view.WindowCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import app.tauri.annotation.Command
@@ -22,13 +24,18 @@ import org.json.JSONObject
 class PlayerPlugin(private val activity: Activity) : Plugin(activity) {
     private var webView: WebView? = null
     @Volatile private var insets = InsetsCss.Sides(0f, 0f, 0f, 0f)
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun load(webView: WebView) {
         this.webView = webView
+        if (activity.resources.configuration.smallestScreenWidthDp < 600) {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
         PlayerEvents.sink = { name, payload -> trigger(name, toJs(payload)) }
         PlayerService.start(activity)
         watchInsets(webView)
         watchMotionSetting(webView)
+        HighRefresh.apply(activity)
     }
 
     @Command
@@ -40,6 +47,18 @@ class PlayerPlugin(private val activity: Activity) : Plugin(activity) {
     @Command
     fun playerHapticTick(invoke: Invoke) {
         activity.runOnUiThread { webView?.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS) }
+        invoke.resolve()
+    }
+
+    @Command
+    fun playerSetSystemBars(invoke: Invoke) {
+        val dark = invoke.getArgs().optBoolean("dark", false)
+        activity.runOnUiThread {
+            WindowCompat.getInsetsController(activity.window, activity.window.decorView).apply {
+                isAppearanceLightStatusBars = !dark
+                isAppearanceLightNavigationBars = !dark
+            }
+        }
         invoke.resolve()
     }
 
@@ -207,17 +226,24 @@ class PlayerPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     private fun withPlayer(invoke: Invoke, block: (PlayerService) -> Unit) {
-        activity.runOnUiThread {
-            val player = PlayerService.current
-            if (player == null) {
+        activity.runOnUiThread { awaitPlayer(invoke, 0, block) }
+    }
+
+    private fun awaitPlayer(invoke: Invoke, attempt: Int, block: (PlayerService) -> Unit) {
+        val player = PlayerService.current
+        if (player == null) {
+            if (attempt == 0) PlayerService.start(activity)
+            if (attempt >= PLAYER_WAIT_ATTEMPTS) {
                 invoke.reject("player_not_ready")
-                return@runOnUiThread
+                return
             }
-            try {
-                block(player)
-            } catch (error: Exception) {
-                invoke.reject(error.message ?: "player_failed", error)
-            }
+            mainHandler.postDelayed({ awaitPlayer(invoke, attempt + 1, block) }, PLAYER_WAIT_STEP_MS)
+            return
+        }
+        try {
+            block(player)
+        } catch (error: Exception) {
+            invoke.reject(error.message ?: "player_failed", error)
         }
     }
 
@@ -259,8 +285,8 @@ class PlayerPlugin(private val activity: Activity) : Plugin(activity) {
     private fun pushMotionSetting(view: WebView) {
         val scale = Settings.Global.getFloat(activity.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
         val value = if (ReduceMotion.isOn(scale)) "reduce" else "none"
-        val script = "document.documentElement.dataset.systemMotion='$value';" +
-            "window.dispatchEvent(new Event('hushio-system-motion'))"
+        val script = "if(document.documentElement){document.documentElement.dataset.systemMotion='$value';" +
+            "window.dispatchEvent(new Event('hushio-system-motion'))}"
         view.post { view.evaluateJavascript(script, null) }
     }
 
@@ -299,10 +325,12 @@ class PlayerPlugin(private val activity: Activity) : Plugin(activity) {
 
     private companion object {
         val BARS_AND_CUTOUT = WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+        const val PLAYER_WAIT_ATTEMPTS = 60
+        const val PLAYER_WAIT_STEP_MS = 50L
     }
 
     @Command
-    fun castOpen(invoke: Invoke) = CastBridge.run(activity, invoke) { CastBridge.showDevices(activity) }
+    fun castOpen(invoke: Invoke) = CastBridge.run(activity, invoke) { context -> CastBridge.showDevices(activity, context) }
 
     @Command
     fun castLoad(invoke: Invoke) {
@@ -316,6 +344,7 @@ class PlayerPlugin(private val activity: Activity) : Plugin(activity) {
             CastBridge.load(
                 CastBridge.connectedClient(context),
                 url,
+                args.optString("contentType").ifBlank { "audio/mp4" },
                 args.optString("title"),
                 args.optString("artist"),
                 args.optString("artworkUrl").takeIf { it.isNotBlank() },

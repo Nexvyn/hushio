@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="hushio_player_widget_description">Now playing</string>
+    <string name="hushio_player_widget_square_description">Now playing, square</string>
+    <string name="hushio_player_widget_controls_description">Now playing with controls</string>
     <string name="hushio_player_widget_play">Play</string>
     <string name="hushio_player_widget_pause">Pause</string>
     <string name="hushio_player_widget_open">Open Hushio</string>
+    <string name="hushio_player_widget_previous">Previous</string>
+    <string name="hushio_player_widget_next">Next</string>
+    <string name="hushio_widget_preview_title">Song title</string>
+    <string name="hushio_widget_preview_artist">Artist name</string>
 </resources>
