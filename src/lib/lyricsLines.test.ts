@@ -3,6 +3,7 @@ import type { SyncedLyricLine } from "./bridge";
 import {
   activeLineIndex,
   depthStyle,
+  lyricFalloff,
   isSectionLabel,
   resolveWordSpans,
   sweepWindow,
@@ -134,6 +135,19 @@ describe("wordPercent", () => {
   it("treats a zero-length word as done once its start has passed", () => {
     expect(wordPercent(2, { start: 2, end: 2 })).toBe(100);
     expect(wordPercent(1.9, { start: 2, end: 2 })).toBe(0);
+  });
+});
+
+describe("lyricFalloff", () => {
+  it("keeps the playing line at full opacity with no blur", () => {
+    expect(lyricFalloff(0)).toEqual({ opacity: 1, blurPx: 0 });
+  });
+
+  it("steps opacity and blur by distance, then holds at four lines", () => {
+    expect(lyricFalloff(1)).toEqual({ opacity: 0.8, blurPx: 1 });
+    expect(lyricFalloff(-2)).toEqual({ opacity: 0.7, blurPx: 1 });
+    expect(lyricFalloff(3)).toEqual({ opacity: 0.58, blurPx: 1.7 });
+    expect(lyricFalloff(9)).toEqual({ opacity: 0.46, blurPx: 2.4 });
   });
 });
 

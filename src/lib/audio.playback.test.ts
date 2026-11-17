@@ -87,6 +87,8 @@ beforeEach(async () => {
   settings = await import("../stores/settings");
   settings.useSettings.setState({
     loudnessLevel: "off",
+    streamingQuality: "lossless",
+    mobileStreamingQuality: "lossless",
     skipSilence: false,
     smartFade: false,
     crossfadeSeconds: 0,

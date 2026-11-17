@@ -78,7 +78,7 @@ beforeEach(() => {
   streamProxyPort.mockResolvedValue(4321);
   registerStreamUrl.mockResolvedValue(undefined);
   useUI.setState({ toasts: [], pendingToasts: [] });
-  useSettings.setState({ loudnessLevel: "off" });
+  useSettings.setState({ loudnessLevel: "off", streamingQuality: "lossless", mobileStreamingQuality: "lossless" });
   setMediaTimes(Number.NaN, 0);
 });
 
@@ -146,6 +146,12 @@ describe("playStream", () => {
     expect(registerStreamUrl).toHaveBeenCalledWith(TEST_SONG_ID, STREAM_URL);
     expect(activeDeck().src).toBe(`http://127.0.0.1:4321/?id=${TEST_SONG_ID}`);
     expect(playSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes the Wi-Fi quality cap to resolveStream", async () => {
+    useSettings.setState({ streamingQuality: "high" });
+    await playStream(TEST_SONG_ID, TEST_SONG_TITLE);
+    expect(resolveStream).toHaveBeenCalledWith(TEST_SONG_ID, false, 256);
   });
 
   it("does not register or play when the song cannot be resolved", async () => {

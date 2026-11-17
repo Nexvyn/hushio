@@ -1,12 +1,10 @@
 export const EQ_BANDS_HZ = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000] as const;
 export const EQ_BAND_LABELS = ["32", "64", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"] as const;
 export const EQ_RANGE = 12;
-export const EQ_H = 160;
-export const EQ_THUMB = 16;
-export const EQ_BAND_HIT = 40;
-export const EQ_RULES = [12, 6, 0, -6, -12] as const;
+const EQ_H = 160;
+const EQ_THUMB = 16;
 export const EQ_PRESET_LIMIT = 20;
-export const EQ_PRESET_NAME_LIMIT = 40;
+const EQ_PRESET_NAME_LIMIT = 40;
 
 export const EQ_PRESETS: Readonly<Record<string, readonly number[]>> = {
   Flat: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],

@@ -1,4 +1,5 @@
 import type { Track } from "../types";
+import { queuedEnd } from "./queueInsert";
 
 export type RepeatMode = "off" | "all" | "one";
 
@@ -59,7 +60,8 @@ export function orderFrom(queue: readonly Track[], index: number): string[] {
 }
 
 export function shuffleUpcoming(queue: readonly Track[], index: number): Track[] {
-  return [...queue.slice(0, index + 1), ...seededShuffle(queue.slice(index + 1), randomSeed())];
+  const end = queuedEnd(queue, index);
+  return [...queue.slice(0, end), ...seededShuffle(queue.slice(end), randomSeed())];
 }
 
 export function inYourOrder(queue: readonly Track[], index: number, order: readonly string[]): Track[] {

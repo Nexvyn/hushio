@@ -105,6 +105,7 @@ export function parseTtml(xml: string): SyncedLyricLine[] {
     const words: SyncedLyricWord[] = [];
     const background: SyncedLyricWord[] = [];
     let romanText = "";
+    let translationText = "";
     for (const span of paragraph[2].matchAll(/<span\b([^>]*)>([\s\S]*?)<\/span>/g)) {
       const role = attribute(span[1], "ttm:role");
       const text = plainSpanText(span[2]);
@@ -112,7 +113,11 @@ export function parseTtml(xml: string): SyncedLyricLine[] {
         romanText += (romanText ? " " : "") + text;
         continue;
       }
-      if (role === "x-translation" || text === "") continue;
+      if (role === "x-translation") {
+        if (text !== "") translationText += (translationText ? " " : "") + text;
+        continue;
+      }
+      if (text === "") continue;
       const start = parseClock(attribute(span[1], "begin") ?? "");
       const end = parseClock(attribute(span[1], "end") ?? "");
       if (start === null || end === null) continue;
@@ -129,6 +134,7 @@ export function parseTtml(xml: string): SyncedLyricLine[] {
     if (timed !== "" && words.length > 0) line.words = words;
     if (timed !== "" && background.length > 0) line.bg = { text: backgroundText, words: background };
     if (romanText !== "") line.roman = romanText;
+    if (translationText !== "") line.translation = translationText;
     lines.push(line);
   }
   return lines.sort((a, b) => a.time - b.time);

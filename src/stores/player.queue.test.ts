@@ -32,7 +32,7 @@ describe("duplicate queue entries", () => {
     usePlayer.getState().playQueue([song("a"), song("b")], 0);
     const added = usePlayer.getState().addToQueue([song("a"), song("c")]);
     expect(added).toBe(1);
-    expect(usePlayer.getState().queue.map((track) => track.id)).toEqual(["a", "b", "c"]);
+    expect(usePlayer.getState().queue.map((track) => track.id)).toEqual(["a", "c", "b"]);
   });
 
   it("leaves out a song that is already in the queue when the setting is on", () => {
@@ -40,7 +40,7 @@ describe("duplicate queue entries", () => {
     usePlayer.getState().playQueue([song("a"), song("b")], 0);
     const added = usePlayer.getState().addToQueue([song("a"), song("b"), song("c")]);
     expect(added).toBe(1);
-    expect(usePlayer.getState().queue.map((track) => track.id)).toEqual(["a", "b", "c"]);
+    expect(usePlayer.getState().queue.map((track) => track.id)).toEqual(["a", "c", "b"]);
   });
 
   it("still takes the first of two copies of the same song", () => {

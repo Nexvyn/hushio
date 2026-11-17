@@ -13,7 +13,12 @@ import { isLocalId, isNetworkId, networkTrackUrl } from "./localLibrary";
 import { analysable, Leveling, Lru } from "./loudness";
 import { headTrimTarget, TRIM_MIN_S, tailReached } from "./playbackEdges";
 import { resolveStream } from "./resolveStream";
-import { DATA_SAVER_KBPS } from "./streamingQuality";
+import { traceMark } from "./streamTrace";
+import { addonStreamFor, addonsEnabled } from "./addons/resolve";
+import { isJioSaavnId } from "./jiosaavn";
+import { fileDetails, streamDetails, type StreamDetails } from "./streamStats";
+import { useNowStream } from "../stores/nowStream";
+import { currentStreamBitrate } from "./streamingQuality";
 import {
   androidDuration,
   androidPause,
@@ -27,8 +32,9 @@ import {
   androidSetVolume,
   startAndroidEngine,
 } from "./androidEngine";
-import { ANDROID } from "./androidPlayback";
+import { ANDROID, type PlayMeta } from "./androidPlayback";
 import { clampCrossfadeSeconds, useSettings, type SettingsValues } from "../stores/settings";
+import { playFailedMessage } from "./playFailed";
 import { useUI } from "../stores/ui";
 
 export { TEST_SONG_ID, TEST_SONG_TITLE } from "./devSong";
@@ -56,7 +62,7 @@ const FADE_TICK_MS = 25;
 const LEVEL_TICK_MS = 25;
 const SILENCE_POLL_MS = 500;
 const LATE_WAKE_S = 0.03;
-const ANALYSIS_LIMIT = 400;
+const ANALYSIS_LIMIT = 100;
 const DECK_EVENTS = ["play", "pause", "playing", "waiting", "timeupdate", "durationchange", "ended"] as const;
 
 export type EqSettings = { enabled: boolean; gains: readonly number[]; autoHeadroom: boolean };
@@ -70,7 +76,7 @@ export type BlendHooks = {
 
 type Song = { id: string; title: string };
 type StreamInfo = { reloadAt: number | null };
-type Source = { src: string; analysis: string; lufs: number | null; stream?: StreamInfo };
+type Source = { src: string; analysis: string; lufs: number | null; stream?: StreamInfo; details: StreamDetails };
 type Stall = { mark: number; timer: ReturnType<typeof setTimeout> };
 type Graph = { ctx: AudioContext; bands: BiquadFilterNode[]; preGain: GainNode };
 type Armed = {
@@ -118,6 +124,7 @@ let eqPeakDb = 0;
 const deckIds: (string | undefined)[] = [undefined, undefined];
 const deckSources: (string | undefined)[] = [undefined, undefined];
 const deckStreams: (StreamInfo | undefined)[] = [undefined, undefined];
+const deckDetails: (StreamDetails | undefined)[] = [undefined, undefined];
 const leveling = new Leveling(() => useSettings.getState().loudnessLevel);
 const analyses = new Lru<TrackAnalysis>(ANALYSIS_LIMIT);
 const analysing = new Set<string>();
@@ -409,18 +416,18 @@ async function savedSource(id: string): Promise<Source | null> {
   const path = downloadedPath(id);
   if (!path) return null;
   const exists = await pathExists(path).catch(() => false);
-  return exists ? { src: fileSrc(path), analysis: path, lufs: null } : null;
+  return exists ? { src: fileSrc(path), analysis: path, lufs: null, details: fileDetails(path, "Download") } : null;
 }
 
 async function localSource(id: string): Promise<Source> {
   const path = await localLibraryTrackPath(id);
   if (!path) throw new Error(`Local file is not in the library: ${id}`);
-  return { src: fileSrc(path), analysis: path, lufs: null };
+  return { src: fileSrc(path), analysis: path, lufs: null, details: fileDetails(path, "Local file") };
 }
 
 function networkSource(id: string): Source {
   const url = networkTrackUrl(id);
-  return { src: url, analysis: url, lufs: null };
+  return { src: url, analysis: url, lufs: null, details: fileDetails(url, "Network folder") };
 }
 
 async function sourceFor(id: string, refresh: boolean): Promise<Source> {
@@ -430,15 +437,23 @@ async function sourceFor(id: string, refresh: boolean): Promise<Source> {
 }
 
 async function streamSource(id: string, refresh: boolean): Promise<Source> {
-  const ceiling = useSettings.getState().dataSaver ? DATA_SAVER_KBPS : undefined;
-  const stream =
-    ceiling === undefined
-      ? await resolveStream(id, refresh)
-      : await resolveStream(id, refresh, ceiling);
-  const port = await streamProxyPort();
+  const maxKbps = currentStreamBitrate();
+  const addon = addonsEnabled(maxKbps === undefined) ? await addonStreamFor(id) : null;
+  const resolving = addon?.stream
+    ? Promise.resolve(addon.stream)
+    : maxKbps === undefined
+      ? resolveStream(id, refresh)
+      : resolveStream(id, refresh, maxKbps);
+  const [stream, port] = await Promise.all([resolving, streamProxyPort()]);
   await registerStreamUrl(id, stream.url);
   const url = `http://127.0.0.1:${port}/?id=${encodeURIComponent(id)}`;
-  return { src: url, analysis: url, lufs: stream.lufs, stream: { reloadAt: reloadAtOf(stream.url) } };
+  return {
+    src: url,
+    analysis: url,
+    lufs: stream.lufs,
+    stream: { reloadAt: reloadAtOf(stream.url) },
+    details: streamDetails(stream, addon?.label ?? (isJioSaavnId(id) ? "JioSaavn" : "Stream")),
+  };
 }
 
 function reloadAtOf(url: string): number | null {
@@ -452,6 +467,8 @@ async function loadStream(id: string, refresh: boolean, seq: number): Promise<vo
   deckIds[mainIndex] = id;
   deckSources[mainIndex] = source.analysis;
   deckStreams[mainIndex] = source.stream;
+  deckDetails[mainIndex] = source.details;
+  useNowStream.getState().publish(id, source.details);
   activeDeck().src = source.src;
   applySpeed();
   if (source.lufs !== null) noteLoudness(id, source.lufs);
@@ -493,6 +510,7 @@ async function startPlayback(seq: number): Promise<void> {
   disarmStall();
   armStall();
   try {
+    traceMark("player start");
     await activeDeck().play();
   } catch (error) {
     if (isAbort(error)) return;
@@ -523,7 +541,7 @@ async function onFailure(seq: number): Promise<void> {
   pausedAt = Date.now();
   disarmStall();
   activeDeck().pause();
-  useUI.getState().toast(`Couldn't play "${current.title}"`, "error");
+  useUI.getState().toast(playFailedMessage(current.title), "error");
 }
 
 function isStale(pausedFor: number): boolean {
@@ -546,8 +564,9 @@ async function reloadMain(current: Song): Promise<void> {
   await startPlayback(seq);
 }
 
-export async function playStream(id: string, title: string, fromSeconds = 0): Promise<void> {
-  if (ANDROID) return androidPlayStream(id, title);
+export async function playStream(id: string, title: string, fromSeconds = 0, meta: PlayMeta = {}): Promise<void> {
+  traceMark("tap", id);
+  if (ANDROID) return androidPlayStream(id, title, fromSeconds, meta);
   abortBlend();
   disarmSilence();
   disarmStall();
@@ -668,6 +687,7 @@ function arm(fromId: string, next: BlendTarget, fadeMs: number, remainingMs: num
           deckIds[standby] = next.id;
           deckSources[standby] = source.analysis;
           deckStreams[standby] = source.stream;
+          deckDetails[standby] = source.details;
           applySpeed();
           if (source.lufs !== null) noteLoudness(next.id, source.lufs);
         }
@@ -749,6 +769,7 @@ function completeBlend(ended: boolean): void {
   const incoming = standbyDeck();
   mainIndex = 1 - mainIndex;
   song = { id: target.id, title: target.title };
+  useNowStream.getState().publish(target.id, deckDetails[mainIndex] ?? null);
   retryCount = 0;
   retriedAt = Number.NEGATIVE_INFINITY;
   disarmStall();

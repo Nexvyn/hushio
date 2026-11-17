@@ -1,14 +1,14 @@
 import type { SyncedLyricLine, SyncedLyricWord } from "./bridge";
 
-export const LOOKAHEAD_S = 0.35;
+const LOOKAHEAD_S = 0.35;
 export const SEEK_LEAD_IN_S = 0.15;
-export const FALLBACK_LINE_S = 4;
-export const FALLBACK_MIN_S = 3;
-export const LAST_WORD_FLOOR_S = 1;
-export const WORD_START_TOLERANCE_S = 0.25;
-export const WORD_END_TOLERANCE_S = 0.5;
-export const MIN_WORD_S = 0.04;
-export const DEPTH_DISTANCE_CAP = 4;
+const FALLBACK_LINE_S = 4;
+const FALLBACK_MIN_S = 3;
+const LAST_WORD_FLOOR_S = 1;
+const WORD_START_TOLERANCE_S = 0.25;
+const WORD_END_TOLERANCE_S = 0.5;
+const MIN_WORD_S = 0.04;
+const DEPTH_DISTANCE_CAP = 4;
 
 const DEPTH_OPACITY = [1, 0.5, 0.3, 0.18, 0.1];
 const DEPTH_BLUR_PX = [0, 1.2, 2.2, 3.2, 4];
@@ -86,6 +86,14 @@ export function wordPercent(position: number, span: WordSpan): number {
   const progress =
     length <= 0 ? (position >= span.start ? 1 : 0) : Math.min(1, Math.max(0, (position - span.start) / length));
   return Math.round(progress * 100);
+}
+
+const FALLOFF_OPACITY = [1, 0.8, 0.7, 0.58, 0.46] as const;
+const FALLOFF_BLUR_PX = [0, 1, 1, 1.7, 2.4] as const;
+
+export function lyricFalloff(distance: number): { opacity: number; blurPx: number } {
+  const step = Math.min(Math.abs(distance), FALLOFF_OPACITY.length - 1);
+  return { opacity: FALLOFF_OPACITY[step], blurPx: FALLOFF_BLUR_PX[step] };
 }
 
 export function depthStyle(distance: number, past: boolean, blur: boolean): DepthStyle {

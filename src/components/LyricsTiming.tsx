@@ -1,4 +1,4 @@
-import { Add01Icon, Remove01Icon } from "@hugeicons/core-free-icons";
+import { Plus, Minus } from "@phosphor-icons/react";
 import { Icon } from "./Icon";
 import { describeLyricsShift, LYRICS_NUDGE_STEP, useLyricsNudge } from "../stores/lyricsNudge";
 
@@ -16,7 +16,7 @@ export function LyricsTiming({ trackId, className = "" }: { trackId: string; cla
     <div
       role="group"
       aria-label="Lyrics timing for this song"
-      className={`flex h-9 items-center gap-0.5 rounded-full bg-black/40 px-1 text-[12px] text-ink-1/80 motion-safe:transition-opacity ${visibility} ${className}`}
+      className={`flex h-9 items-center gap-0.5 rounded-full bg-black/40 px-1 text-meta text-ink-1/80 motion-safe:transition-opacity ${visibility} ${className}`}
     >
       <button
         type="button"
@@ -25,7 +25,7 @@ export function LyricsTiming({ trackId, className = "" }: { trackId: string; cla
         onClick={() => adjust(trackId, -LYRICS_NUDGE_STEP)}
         className={STEP_BUTTON}
       >
-        <Icon icon={Remove01Icon} />
+        <Icon icon={Minus} />
       </button>
       <button
         type="button"
@@ -43,7 +43,7 @@ export function LyricsTiming({ trackId, className = "" }: { trackId: string; cla
         onClick={() => adjust(trackId, LYRICS_NUDGE_STEP)}
         className={STEP_BUTTON}
       >
-        <Icon icon={Add01Icon} />
+        <Icon icon={Plus} />
       </button>
     </div>
   );

@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent, type MutableRefObject } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type KeyboardEvent, type MutableRefObject } from "react";
 import { getPlaybackPosition } from "../lib/audio";
 import type { LyricsResult, SyncedLyricLine, SyncedLyricWord } from "../lib/bridge";
 import {
   activeLineIndex,
   depthStyle,
   isSectionLabel,
+  lyricFalloff,
   resolveWordSpans,
   SEEK_LEAD_IN_S,
   sweepWindow,
@@ -13,7 +14,7 @@ import {
   type WordSpan,
 } from "../lib/lyricsLines";
 import { LYRICS_LOADING_LINES, pickLyricsLine } from "../lib/lyricsPhrases";
-import { reducedMotion } from "../lib/motion";
+import { LYRIC_EASE, reducedMotion } from "../lib/motion";
 import { romanize } from "../lib/romanize";
 import { usePhone } from "../lib/usePhone";
 import { usePlayer } from "../stores/player";
@@ -24,9 +25,10 @@ const ART_ANCHOR = 0.4;
 const GLIDE_MS = 600;
 const LOADING_DELAY_MS = 300;
 const GLIDE_CANCEL_SCREENS = 1.5;
-const DEPTH_TRANSITION = "opacity var(--dur-quick) var(--ease-out), filter var(--dur-quick) var(--ease-out)";
+const DEPTH_TRANSITION = "opacity var(--dur-quick) var(--ease-out)";
 const LINE_BLUR_PX = [0, 0, 1.5, 3];
-const ART_TRANSITION = "opacity var(--dur-quick) var(--ease-out), color var(--dur-quick) var(--ease-out), transform var(--dur-quick) var(--ease-out), filter var(--dur-quick) var(--ease-out)";
+const DESKTOP_BLUR_MAX_PX = 2;
+const ART_TRANSITION = "opacity var(--dur-quick) var(--ease-out), color var(--dur-quick) var(--ease-out), transform var(--dur-quick) var(--ease-out)";
 const BROWSE_IDLE_MS = 3000;
 const BROWSE_DRAG_PX = 6;
 const CLICK_MOVE_PX = 5;
@@ -42,10 +44,13 @@ const ART_ACTIVE_CLASS = "text-[calc(30px*var(--lyric-scale))] leading-[1.28] tr
 const SUB_CLASS = "font-display text-[calc(22px*var(--lyric-scale))] leading-[1.3] font-bold";
 const ART_SUB_CLASS = "text-[calc(22px*var(--lyric-scale))] leading-[1.3] font-medium [font-family:var(--font-lyric)] font-synthesis-none";
 const PHONE_ANCHOR = 0.34;
-const PHONE_ACTIVE_CLASS = "text-[22px] leading-[30px] font-bold";
-const PHONE_LINE_CLASS = "text-[18px] leading-[26px] font-medium";
-const PHONE_SUB_CLASS = "text-[15px] leading-[22px] font-medium";
-const PHONE_IDLE_OPACITY = 0.7;
+const PHONE_LINE_CLASS = "text-section font-semibold";
+const PHONE_ACTIVE_CLASS = "text-[28px] leading-[36px] tracking-[-0.01em] font-semibold";
+const PHONE_SUB_CLASS = "text-body leading-[22px] font-medium";
+const TRANSLATION_CLASS = "text-body font-medium";
+const BROWSING_OPACITY = 0.8;
+const WORD_LIFT = "translateY(-2px)";
+const RTL_SCRIPT = /[֐-ࣿיִ-﷿ﹰ-﻿]/;
 
 type Glide = { frame: number; from: number; to: number; start: number };
 type GlideRef = MutableRefObject<Glide | null>;
@@ -57,6 +62,7 @@ type SyncedLyricsProps = {
   offset?: number;
   trackKey?: string;
   onArt?: boolean;
+  translate?: boolean;
 };
 
 function stopGlide(glideRef: GlideRef) {
@@ -98,7 +104,7 @@ function LoadingLine({ phrase, onArt }: { phrase: string; onArt: boolean }) {
   return (
     <div className="flex justify-center py-12">
       {visible && (
-        <p className={`font-display text-[28px] tracking-[-0.02em] ${onArt ? "font-semibold text-art/[0.55]" : "font-extrabold text-ink-1/55"}`}>
+        <p className={`font-display text-section tracking-[-0.02em] ${onArt ? "font-semibold text-art/[0.55]" : "font-extrabold text-ink-1/55"}`}>
           {phrase}
         </p>
       )}
@@ -113,6 +119,7 @@ function WordLine({
   still,
   onArt,
   lineClass,
+  lineStyle,
 }: {
   words: Words;
   spans: WordSpan[];
@@ -120,6 +127,7 @@ function WordLine({
   still: boolean;
   onArt: boolean;
   lineClass: string;
+  lineStyle?: CSSProperties;
 }) {
   const playing = usePlayer((state) => state.playing);
   const [, redraw] = useReducer((count: number) => (count + 1) % 1000000, 0);
@@ -140,7 +148,7 @@ function WordLine({
   }, [playing, offset, still]);
 
   return (
-    <span className={lineClass}>
+    <span className={lineClass} style={lineStyle}>
       {words.map((word: SyncedLyricWord, index) => {
         const percent = wordPercent(position.current, spans[index] ?? { start: word.start, end: word.end });
         return (
@@ -154,6 +162,13 @@ function WordLine({
                 WebkitBackgroundClip: "text",
                 backgroundClip: "text",
                 WebkitTextFillColor: "transparent",
+                ...(still
+                  ? {}
+                  : {
+                      display: "inline-block",
+                      transform: percent > 0 && percent < 100 ? WORD_LIFT : undefined,
+                      transition: `transform var(--dur-lyric) ${LYRIC_EASE}`,
+                    }),
               }}
             >
               {word.text}
@@ -187,15 +202,16 @@ function GapDots({ opacity, onArt }: { opacity: number; onArt: boolean }) {
 
 function SourceCredit({ source, onArt }: { source: string; onArt: boolean }) {
   if (!source) return null;
-  return <p className={`pt-4 text-[12px] font-medium ${onArt ? "text-art/[0.55]" : "text-ink-2"}`}>Lyrics from {source}</p>;
+  return <p className={`pt-4 text-meta font-medium ${onArt ? "text-art/[0.55]" : "text-ink-2"}`}>Lyrics from {source}</p>;
 }
 
 function EmptyText({ onArt }: { onArt: boolean }) {
   return <p className={`py-16 text-center text-base ${onArt ? "text-art/[0.55]" : "text-ink-2"}`}>No lyrics available for this track.</p>;
 }
 
-export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = false }: SyncedLyricsProps) {
+export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = false, translate = false }: SyncedLyricsProps) {
   const position = usePlayer((state) => state.position);
+  const playing = usePlayer((state) => state.playing);
   const seek = usePlayer((state) => state.seek);
   const syncedOn = useSettings((state) => state.syncedLyrics);
   const blurOn = useSettings((state) => state.blurUnfocusedLyrics);
@@ -309,8 +325,8 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
 
   if (!syncedOn || !lines) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto no-scrollbar">
-        <pre className={`whitespace-pre-wrap py-2 font-sans text-[15px] leading-7 ${onArt ? "text-art/[0.55]" : "text-ink-2"}`}>{staticText}</pre>
+      <div data-lyrics-scroll="" className="flex min-h-0 flex-1 flex-col overflow-y-auto no-scrollbar">
+        <pre className={`whitespace-pre-wrap py-2 font-sans text-body leading-7 ${onArt ? "text-art/[0.55]" : "text-ink-2"}`}>{staticText}</pre>
         <SourceCredit source={source} onArt={onArt} />
       </div>
     );
@@ -330,11 +346,24 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
 
   const renderLine = (line: SyncedLyricLine, index: number) => {
     const focus = !browsing;
-    const distance = Math.abs(index - activeIndex);
-    const depth = depthStyle(index - activeIndex, index < activeIndex, false);
+    const anchorIndex = activeIndex < 0 && (phone || !onArt) ? 0 : activeIndex;
+    const distance = Math.abs(index - anchorIndex);
+    const depth = depthStyle(index - anchorIndex, index < anchorIndex, false);
     const active = index === activeIndex;
-    const opacity = phone ? (active || onArt ? 1 : PHONE_IDLE_OPACITY) : focus && !onArt ? depth.opacity : 1;
-    const motionStyle = still ? { transition: "none" } : { transition: onArt ? ART_TRANSITION : DEPTH_TRANSITION };
+    const current = index === anchorIndex;
+    const fall = lyricFalloff(index - anchorIndex);
+    const opacity = phone ? (browsing ? BROWSING_OPACITY : fall.opacity) : 1;
+    const phoneMotion = still
+      ? { transition: "none" }
+      : {
+          transition: `opacity var(--dur-lyric) ${LYRIC_EASE}, transform var(--dur-lyric) ${LYRIC_EASE}, filter var(--dur-lyric) ${LYRIC_EASE}`,
+          transitionDelay: `calc(var(--dur-lyric) * ${Math.min(distance, 3) * 0.06})`,
+        };
+    const motionStyle = phone
+      ? phoneMotion
+      : still
+        ? { transition: "none" }
+        : { transition: onArt ? ART_TRANSITION : DEPTH_TRANSITION };
     if (line.gap) {
       return (
         <div key={index} style={{ ...motionStyle, opacity }}>
@@ -344,28 +373,33 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
     }
     if (isSectionLabel(line.text)) {
       return (
-        <h3 key={index} className={`pt-2 text-[15px] ${onArt ? "font-medium text-art/[0.45]" : "font-semibold text-ink-2"}`}>
+        <h3 key={index} className={`pt-2 text-body ${onArt ? "font-medium text-art/[0.45]" : "font-semibold text-ink-2"}`}>
           {line.text.trim().slice(1, -1)}
         </h3>
       );
     }
 
     const artBlur = focus && !still && !reduceBlur && distance > 2 ? 1 : 0;
-    const blurPx = phone ? 0 : onArt ? artBlur : focus && blurLines ? LINE_BLUR_PX[Math.min(distance, LINE_BLUR_PX.length - 1)] : 0;
-    const filters = [blurPx > 0 ? `blur(${blurPx}px)` : "", !onArt && active && focus && blurLines ? GLOW : ""].filter(Boolean).join(" ");
+    const phoneBlur = !still && !reduceBlur && focus && playing ? fall.blurPx : 0;
+    const deskBlur = focus && blurLines && playing && distance <= 3 ? Math.min(LINE_BLUR_PX[distance], DESKTOP_BLUR_MAX_PX) : 0;
+    const blurPx = phone ? phoneBlur : onArt ? artBlur : deskBlur;
+    const filters = [blurPx > 0 ? `blur(${blurPx}px)` : "", !onArt && current && focus && blurLines ? GLOW : ""].filter(Boolean).join(" ");
     const roman = romanOn ? (line.roman ?? romanize(line.text)) : null;
     const words = line.words ?? [];
     const wordSynced = active && words.length > 0;
     const [spanStart, spanEnd] = wordSynced ? sweepWindow(lines, index) : [0, 0];
-    const ink = onArt
-      ? active ? "text-art" : phone ? "text-art/[0.55]" : "text-art/[0.45]"
-      : phone ? (active ? "text-ink-1" : "text-ink-2") : "text-ink-1";
+    const ink = phone
+      ? onArt ? "text-art" : active ? "text-ink-1" : "text-ink-2"
+      : onArt ? (active ? "text-art" : "text-art/[0.45]") : current ? "text-ink-1" : distance <= 2 ? "text-ink-2" : "text-ink-3";
     const subInk = onArt ? "text-art/[0.45]" : "text-ink-2";
     const subClass = phone ? PHONE_SUB_CLASS : onArt ? ART_SUB_CLASS : SUB_CLASS;
+    const phoneEnlarged = phone && active && focus;
     const lineClass = phone
-      ? (active ? PHONE_ACTIVE_CLASS : PHONE_LINE_CLASS)
+      ? phoneEnlarged ? PHONE_ACTIVE_CLASS : PHONE_LINE_CLASS
       : onArt ? (active ? ART_ACTIVE_CLASS : ART_LINE_CLASS) : LINE_CLASS;
-
+    const lineStyle: CSSProperties | undefined = phone && !still ? { transition: `font-size var(--dur-lyric) ${LYRIC_EASE}` } : undefined;
+    const rtl = RTL_SCRIPT.test(line.text);
+    const translation = translate ? line.translation : undefined;
     return (
       <button
         key={index}
@@ -378,31 +412,40 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
           endBrowsing();
           seek(Math.max(0, line.time + offset - SEEK_LEAD_IN_S));
         }}
-        className={`block w-full origin-left text-left ${ink} ${FOCUS_RING}`}
+        dir="auto"
+        className={`group block w-full text-start ${ink} ${FOCUS_RING}`}
         style={{
           ...motionStyle,
           opacity,
           filter: filters || undefined,
-          transform: phone ? undefined : onArt ? (active && focus && !still ? "scale(1.06)" : undefined) : focus ? depth.transform : undefined,
-          transformOrigin: "left center",
+          transform: phone
+            ? undefined
+            : onArt ? (active && focus && !still ? "scale(1.06)" : undefined) : focus ? depth.transform : undefined,
+          maxWidth: phone ? "100%" : undefined,
+          overflowWrap: phone ? "anywhere" : undefined,
+          transformOrigin: rtl ? "right center" : "left center",
         }}
       >
-        {wordSynced ? (
-          <WordLine
-            words={words}
-            spans={resolveWordSpans(words, spanStart, spanEnd)}
-            offset={offset}
-            still={still}
-            onArt={onArt}
-            lineClass={lineClass}
-          />
-        ) : (
-          <span className={lineClass}>
-            {line.text}
-          </span>
-        )}
-        {line.bg && <span className={`mt-1 block opacity-70 ${subClass}`}>{line.bg.text}</span>}
-        {roman && <span className={`mt-1 block ${subInk} ${subClass}`}>{roman}</span>}
+        <span className={phone && !still ? "block motion-safe:transition-transform motion-safe:duration-fade motion-safe:group-active:scale-[0.96]" : "block"}>
+          {wordSynced ? (
+            <WordLine
+              words={words}
+              spans={resolveWordSpans(words, spanStart, spanEnd)}
+              offset={offset}
+              still={still}
+              onArt={onArt}
+              lineClass={lineClass}
+              lineStyle={lineStyle}
+            />
+          ) : (
+            <span className={lineClass} style={lineStyle}>
+              {line.text}
+            </span>
+          )}
+          {line.bg && <span className={`mt-1 block opacity-70 ${subClass}`}>{line.bg.text}</span>}
+          {roman && <span className={`mt-1 block ${subInk} ${subClass}`}>{roman}</span>}
+          {translation && <span className={`mt-1 block ${subInk} ${TRANSLATION_CLASS}`}>{translation}</span>}
+        </span>
       </button>
     );
   };
@@ -411,6 +454,7 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
     <div className="relative -mx-6 flex min-h-0 flex-1" style={{ maskImage: EDGE_MASK, WebkitMaskImage: EDGE_MASK }}>
       <div
         ref={scrollerRef}
+        data-lyrics-scroll=""
         className="no-scrollbar absolute inset-0 touch-pan-y overflow-x-hidden overflow-y-auto px-6"
         style={{ maskImage: fadeMask, WebkitMaskImage: fadeMask }}
         onWheel={markBrowsing}

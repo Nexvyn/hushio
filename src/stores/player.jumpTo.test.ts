@@ -39,7 +39,7 @@ describe("player jumpTo", () => {
     expect(state.position).toBe(0);
     expect(state.playing).toBe(true);
     expect(currentTrack(state)?.id).toBe("c");
-    expect(playStream).toHaveBeenLastCalledWith("c", "Song c");
+    expect(playStream).toHaveBeenLastCalledWith("c", "Song c", 0, expect.any(Object));
   });
 
   it("ignores targets outside the queue", () => {

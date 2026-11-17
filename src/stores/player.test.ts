@@ -50,13 +50,24 @@ beforeEach(() => {
 });
 
 describe("playQueue and starting playback", () => {
+  it("ignores a stale stream failure after selecting another song", async () => {
+    let fail!: (reason: Error) => void;
+    playStream.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }));
+    state().playQueue(list(3), 0);
+    state().playTrack(track(2));
+    fail(new Error('old request failed'));
+    await Promise.resolve();
+    expect(currentId()).toBe('t2');
+    expect(state().playing).toBe(true);
+    expect(useUI.getState().toasts).toHaveLength(0);
+  });
   it("starts the chosen song and loads it into the engine", () => {
     state().playQueue(list(3), 1, "album-1");
 
     expect(state().index).toBe(1);
     expect(state().playing).toBe(true);
     expect(state().playingFrom).toBe("album-1");
-    expect(playStream).toHaveBeenLastCalledWith("t1", "Track 1");
+    expect(playStream).toHaveBeenLastCalledWith("t1", "Track 1", 0, expect.any(Object));
     expect(state().played.map((item) => item.id)).toEqual(["t1"]);
     expect(useLibrary.getState().history[0]?.id).toBe("t1");
   });
@@ -135,7 +146,7 @@ describe("50 song queue", () => {
     state().playQueue(list(50), 49);
     state().next(true);
     expect(state().index).toBe(0);
-    expect(playStream).toHaveBeenLastCalledWith("t0", "Track 0");
+    expect(playStream).toHaveBeenLastCalledWith("t0", "Track 0", 0, expect.any(Object));
   });
 
   it("previous from the first song goes to the last song", () => {
@@ -179,7 +190,7 @@ describe("next and previous edge cases", () => {
     expect(state().index).toBe(1);
     expect(state().position).toBe(0);
     expect(seekTo).not.toHaveBeenCalledWith(0);
-    expect(playStream).toHaveBeenLastCalledWith("t1", "Track 1");
+    expect(playStream).toHaveBeenLastCalledWith("t1", "Track 1", 0, expect.any(Object));
   });
 
   it("goes back at 3 seconds or less", () => {
@@ -240,7 +251,7 @@ describe("repeat", () => {
 
     expect(state().index).toBe(0);
     expect(state().playing).toBe(true);
-    expect(playStream).toHaveBeenLastCalledWith("t0", "Track 0");
+    expect(playStream).toHaveBeenLastCalledWith("t0", "Track 0", 0, expect.any(Object));
   });
 
   it("repeat all with shuffle reshuffles the queue and keeps every song", () => {
@@ -282,12 +293,12 @@ describe("playing a track", () => {
 });
 
 describe("adding and removing", () => {
-  it("adds to the end without duplicating upcoming songs", () => {
+  it("adds after the playing song without duplicating upcoming songs", () => {
     state().playQueue(list(3), 0);
     const added = state().addToQueue([track(1), track(5), track(5)]);
 
     expect(added).toBe(1);
-    expect(queueIds()).toEqual(["t0", "t1", "t2", "t5"]);
+    expect(queueIds()).toEqual(["t0", "t5", "t1", "t2"]);
   });
 
   it("puts a play-next song right after the current song", () => {
@@ -333,7 +344,7 @@ describe("adding and removing", () => {
     state().removeAt(1);
 
     expect(currentId()).toBe("t2");
-    expect(playStream).toHaveBeenLastCalledWith("t2", "Track 2");
+    expect(playStream).toHaveBeenLastCalledWith("t2", "Track 2", 0, expect.any(Object));
   });
 
   it("stops and clears when the last remaining song is removed", () => {
@@ -380,7 +391,7 @@ describe("shuffle", () => {
     state().addToQueue([track(9)]);
     state().toggleShuffle();
 
-    expect(queueIds()).toEqual(["t0", "t1", "t2", "t9"]);
+    expect(queueIds()).toEqual(["t0", "t9", "t1", "t2"]);
   });
 });
 
@@ -401,7 +412,7 @@ describe("transport", () => {
     playStream.mockClear();
     state().toggle();
 
-    expect(playStream).toHaveBeenCalledWith("fresh", "Fresh");
+    expect(playStream).toHaveBeenCalledWith("fresh", "Fresh", 0, expect.any(Object));
   });
 
   it("clamps the volume and unmutes", () => {
@@ -490,7 +501,7 @@ describe("queue edits and shuffle passes", () => {
     state().removeAt(2);
 
     expect(state().index).toBe(1);
-    expect(playStream).toHaveBeenLastCalledWith("t1", "Track 1");
+    expect(playStream).toHaveBeenLastCalledWith("t1", "Track 1", 0, expect.any(Object));
   });
 
   it("moves to the next song without playing when the current song is removed while paused", () => {

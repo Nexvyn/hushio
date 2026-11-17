@@ -96,7 +96,7 @@ describe("AutoPlay at the end of the queue", () => {
     getRadio.mockResolvedValueOnce(radioPage([1, 2]));
     state().next();
 
-    await vi.waitFor(() => expect(playStream).toHaveBeenLastCalledWith(vid(1), "Song 1"));
+    await vi.waitFor(() => expect(playStream).toHaveBeenLastCalledWith(vid(1), "Song 1", 0, expect.any(Object)));
     expect(queueIds().slice(0, 3)).toEqual([seed.id, vid(1), vid(2)]);
     expect(state().index).toBe(1);
     expect(state().awaitingAutoplay).toBe(false);
@@ -177,7 +177,7 @@ describe("startRadio", () => {
     expect(state().index).toBe(0);
     expect(state().playingFrom).toBeNull();
     expect(state().playing).toBe(true);
-    expect(playStream).toHaveBeenLastCalledWith(seed.id, "Seed");
+    expect(playStream).toHaveBeenLastCalledWith(seed.id, "Seed", 0, expect.any(Object));
   });
 
   it("leaves the queue alone and toasts an error when radio is empty", async () => {

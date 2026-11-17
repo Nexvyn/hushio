@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist, type PersistStorage } from "zustand/middleware";
+import { persist, type PersistStorage, type StorageValue } from "zustand/middleware";
 import {
   type BlendEnd,
   type BlendTarget,
@@ -13,6 +13,9 @@ import {
 } from "../lib/audio";
 import { pauseListen, resumeListen, setListenDuration, startListen, stopListen, tick } from "../lib/listening";
 import { prefetchLyrics } from "../lib/lyrics";
+import { prefetchAhead } from "../lib/prefetch";
+import { thumbArtwork } from "../lib/artwork";
+import type { PlayMeta } from "../lib/androidPlayback";
 import { persistStorage } from "../lib/persist";
 import {
   AUTOPLAY_EMPTY_MESSAGE,
@@ -26,6 +29,13 @@ import {
   RETRY_AFTER_MS,
 } from "../lib/autoplay";
 import { moveItem } from "../lib/dragReorder";
+import { queuedEnd } from "../lib/queueInsert";
+import {
+  hasRecommendationAhead,
+  SMART_RETRY_MS,
+  withoutUpcomingRecommendations,
+  withRecommendation,
+} from "../lib/smartShuffle";
 import {
   advance,
   hash32,
@@ -41,6 +51,7 @@ import type { Track } from "../types";
 import { useLibrary } from "./library";
 import { useSettings } from "./settings";
 import { useSleepTimer } from "./sleepTimer";
+import { playFailedMessage } from "../lib/playFailed";
 import { useUI } from "./ui";
 
 export type { RepeatMode };
@@ -50,7 +61,22 @@ const HISTORY_KEEP = 100;
 const ARTIST_MIX_SIZE = 30;
 const DEFAULT_VOLUME = 0.8;
 const RESTART_AFTER_S = 3;
+const END_SLACK_S = 1;
 const NEXT_REPEAT: Record<RepeatMode, RepeatMode> = { off: "all", all: "one", one: "off" };
+
+function plainTrack(track: Track): Track {
+  return track.queued === undefined ? track : { ...track, queued: undefined };
+}
+
+function userQueued(track: Track): Track {
+  return { ...plainTrack(track), queued: true };
+}
+
+export function resumeFrom(position: number, duration: number): number {
+  if (!Number.isFinite(position)) return 0;
+  if (duration > 0 && position >= duration - END_SLACK_S) return 0;
+  return Math.max(0, position);
+}
 
 type PlayerValues = {
   queue: Track[];
@@ -62,6 +88,7 @@ type PlayerValues = {
   volume: number;
   muted: boolean;
   shuffle: boolean;
+  smartShuffle: boolean;
   repeat: RepeatMode;
   unshuffled: string[] | null;
   playingFrom: string | null;
@@ -82,6 +109,7 @@ type PlayerPersisted = Pick<
   | "volume"
   | "muted"
   | "shuffle"
+  | "smartShuffle"
   | "repeat"
   | "unshuffled"
   | "playingFrom"
@@ -94,7 +122,7 @@ export type PlayerState = PlayerValues & {
   startRadio: (track: Track) => Promise<void>;
   playArtistMix: (artistId: string, topSongs: Track[]) => void;
   jumpTo: (index: number) => void;
-  addToQueue: (tracks: Track[], playNext?: boolean) => number;
+  addToQueue: (tracks: Track[], playNext?: boolean, at?: number) => number;
   removeAt: (index: number) => void;
   moveUpcoming: (from: number, to: number) => void;
   dontPlay: (index: number) => void;
@@ -107,26 +135,41 @@ export type PlayerState = PlayerValues & {
   setVolume: (value: number) => void;
   toggleMute: () => void;
   toggleShuffle: () => void;
+  cycleShuffle: () => void;
   cycleRepeat: () => void;
   handleEnded: () => void;
 };
 
 let loadedId: string | null = null;
+let loadGeneration = 0;
 let resumePosition = 0;
 let restoredOnLaunch = false;
 
+function playMetaFor(track: Track): PlayMeta {
+  const artwork = thumbArtwork(track.thumb, 544);
+  return {
+    artist: track.artist,
+    artworkUrl: /^https?:\/\//.test(artwork) ? artwork : undefined,
+    durationMs: Math.round((track.duration ?? 0) * 1000),
+  };
+}
+
 function load(track: Track, fromSeconds = 0) {
+  const generation = ++loadGeneration;
   loadedId = track.id;
   usePlayer.setState({ duration: 0 });
   prefetchLyrics(track);
-  const started =
-    fromSeconds > 0
-      ? playStream(track.id, track.title, fromSeconds)
-      : playStream(track.id, track.title);
+  const started = playStream(track.id, track.title, fromSeconds, playMetaFor(track));
   started.catch(() => {
+    if (generation !== loadGeneration || usePlayer.getState().queue[usePlayer.getState().index]?.id !== track.id) return;
     usePlayer.setState({ playing: false, buffering: false });
-    useUI.getState().toast(`Couldn't play "${track.title}"`, "error");
+    useUI.getState().toast(playFailedMessage(track.title), "error");
   });
+  started.then(() => {
+    if (generation !== loadGeneration) return;
+    const { queue, index } = usePlayer.getState();
+    prefetchAhead(queue.slice(index + 1).map((item) => item.id));
+  }, () => undefined);
 }
 
 let refilling = false;
@@ -202,7 +245,40 @@ function exclusionsNow(state: PlayerValues): Exclusions {
   return { ...exclusions, excludeIds: new Set([...exclusions.excludeIds, ...libraryIds]) };
 }
 
+let smartPicking = false;
+let smartFailedAt = Number.NEGATIVE_INFINITY;
+
+function refillSmart() {
+  const state = usePlayer.getState();
+  const current = state.queue[state.index];
+  if (smartPicking || !state.shuffle || !state.smartShuffle || !current || !isRadioSeed(current.id)) return;
+  if (hasRecommendationAhead(state.queue, state.index) || Date.now() - smartFailedAt < SMART_RETRY_MS) return;
+  smartPicking = true;
+  const context = state.contextId;
+  void fetchSuggestions([current.id], exclusionsNow(state), 1).then(
+    (picks) => settleSmart(context, picks),
+    (error: unknown) => {
+      console.warn(`[hushio] Smart shuffle pick failed: ${describeError(error)}`);
+      smartPicking = false;
+      smartFailedAt = Date.now();
+    },
+  );
+}
+
+function settleSmart(context: number, picks: Track[]) {
+  smartPicking = false;
+  const state = usePlayer.getState();
+  if (state.contextId !== context || !state.shuffle || !state.smartShuffle) return;
+  const pick = picks[0];
+  if (!pick) {
+    smartFailedAt = Date.now();
+    return;
+  }
+  usePlayer.setState({ queue: withRecommendation(state.queue, state.index, pick) });
+}
+
 function refillIfNeeded() {
+  refillSmart();
   const state = usePlayer.getState();
   if (refilling || !wantsMore(state)) return;
   refilling = true;
@@ -240,14 +316,57 @@ function startCurrent() {
 
 const saved = persistStorage<PlayerPersisted>("player");
 let lastSaved = "";
+const POSITION_WRITE_MS = 3000;
+let lastState: PlayerPersisted | null = null;
+let lastWriteAt = 0;
+let pending: { name: string; value: StorageValue<PlayerPersisted> } | null = null;
+let pendingTimer: ReturnType<typeof setTimeout> | null = null;
+
+function onlyPositionChanged(next: PlayerPersisted, previous: PlayerPersisted): boolean {
+  return (Object.keys(next) as (keyof PlayerPersisted)[]).every(
+    (key) => key === "position" || key === "duration" || next[key] === previous[key],
+  );
+}
+
+function cancelPendingWrite() {
+  if (pendingTimer !== null) clearTimeout(pendingTimer);
+  pendingTimer = null;
+  pending = null;
+}
+
+function writeNow(name: string, value: StorageValue<PlayerPersisted>) {
+  lastState = value.state;
+  lastWriteAt = Date.now();
+  const json = JSON.stringify(value);
+  if (json === lastSaved) return;
+  lastSaved = json;
+  return saved.setItem(name, value);
+}
+
+function flushPendingWrite() {
+  const next = pending;
+  cancelPendingWrite();
+  if (next) writeNow(next.name, next.value);
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", flushPendingWrite);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flushPendingWrite();
+  });
+}
 
 const storage: PersistStorage<PlayerPersisted> = {
   getItem: saved.getItem,
   setItem: (name, value) => {
-    const json = JSON.stringify(value);
-    if (json === lastSaved) return;
-    lastSaved = json;
-    return saved.setItem(name, value);
+    const since = Date.now() - lastWriteAt;
+    if (lastState && since < POSITION_WRITE_MS && onlyPositionChanged(value.state, lastState)) {
+      pending = { name, value };
+      if (pendingTimer === null) pendingTimer = setTimeout(flushPendingWrite, POSITION_WRITE_MS - since);
+      return;
+    }
+    cancelPendingWrite();
+    return writeNow(name, value);
   },
   removeItem: saved.removeItem,
 };
@@ -264,6 +383,7 @@ export const usePlayer = create<PlayerState>()(
       volume: DEFAULT_VOLUME,
       muted: false,
       shuffle: false,
+      smartShuffle: false,
       repeat: "off",
       unshuffled: null,
       playingFrom: null,
@@ -279,9 +399,10 @@ export const usePlayer = create<PlayerState>()(
         resumePosition = 0;
         const start = Math.min(Math.max(startIndex, 0), tracks.length - 1);
         const { shuffle, contextId } = get();
+        const plain = tracks.map(plainTrack);
         const queue = shuffle
-          ? [tracks[start], ...seededShuffle([...tracks.slice(0, start), ...tracks.slice(start + 1)], randomSeed())]
-          : [...tracks];
+          ? [plain[start], ...seededShuffle([...plain.slice(0, start), ...plain.slice(start + 1)], randomSeed())]
+          : plain;
         set({
           queue,
           index: shuffle ? 0 : start,
@@ -293,7 +414,8 @@ export const usePlayer = create<PlayerState>()(
         startCurrent();
       },
 
-      playTrack: (track) => {
+      playTrack: (incoming) => {
+        const track = plainTrack(incoming);
         const { queue, index, shuffle, unshuffled, contextId } = get();
         const at = queue.findIndex((item, i) => i >= index && item.id === track.id);
         if (at >= 0) {
@@ -338,17 +460,18 @@ export const usePlayer = create<PlayerState>()(
         startCurrent();
       },
 
-      addToQueue: (tracks, playNext = false) => {
+      addToQueue: (tracks, playNext = false, at) => {
         const unique = tracks.filter((track, i) => tracks.findIndex((item) => item.id === track.id) === i);
         if (unique.length === 0) return 0;
         const { queue, index, shuffle, unshuffled } = get();
 
         if (queue.length === 0) {
+          const first = unique.map(userQueued);
           set({
-            queue: unique,
+            queue: first,
             index: 0,
             playing: false,
-            unshuffled: shuffle ? unique.map((track) => track.id) : null,
+            unshuffled: shuffle ? first.map((track) => track.id) : null,
           });
           return unique.length;
         }
@@ -361,19 +484,14 @@ export const usePlayer = create<PlayerState>()(
         );
         if (add.length === 0) return 0;
         const ids = add.map((track) => track.id);
+        const end = queuedEnd(queue, index);
+        const position = playNext ? index + 1 : at === undefined ? end : Math.min(Math.max(at, index + 1), end);
 
-        if (playNext) {
-          set({
-            queue: [...queue.slice(0, index + 1), ...add, ...queue.slice(index + 1)],
-            unshuffled:
-              shuffle && unshuffled ? insertIds(unshuffled, ids, queue[index]?.id) : unshuffled,
-          });
-        } else {
-          set({
-            queue: [...queue, ...add],
-            unshuffled: shuffle && unshuffled ? insertIds(unshuffled, ids, undefined) : unshuffled,
-          });
-        }
+        set({
+          queue: [...queue.slice(0, position), ...add.map(userQueued), ...queue.slice(position)],
+          unshuffled:
+            shuffle && unshuffled ? insertIds(unshuffled, ids, queue[position - 1]?.id) : unshuffled,
+        });
         return add.length;
       },
 
@@ -381,7 +499,10 @@ export const usePlayer = create<PlayerState>()(
         const { queue, index } = get();
         const count = queue.length;
         if (from <= index || to <= index || from >= count || to >= count || from === to) return;
-        set({ queue: moveItem(queue, from, to) });
+        const next = moveItem(queue, from, to);
+        const landsQueued = to - 1 === index || next[to - 1].queued === true;
+        next[to] = landsQueued ? userQueued(next[to]) : plainTrack(next[to]);
+        set({ queue: next });
       },
 
       removeAt: (target) => {
@@ -477,7 +598,13 @@ export const usePlayer = create<PlayerState>()(
           return;
         }
         if (loadedId === track.id) {
-          set({ playing: true });
+          const atEnd = resumeFrom(get().position, get().duration) === 0 && get().position > 0;
+          if (atEnd) {
+            seekTo(0);
+            set({ playing: true, position: 0 });
+          } else {
+            set({ playing: true });
+          }
           void playAudio();
           return;
         }
@@ -508,10 +635,32 @@ export const usePlayer = create<PlayerState>()(
       toggleShuffle: () => {
         const { queue, index, shuffle, unshuffled } = get();
         if (shuffle) {
-          set({ shuffle: false, unshuffled: null, queue: inYourOrder(queue, index, unshuffled ?? []) });
+          const plain = withoutUpcomingRecommendations(queue, index);
+          const ordered = inYourOrder(plain, index, unshuffled ?? []);
+          const upcoming = ordered.slice(index + 1);
+          set({
+            shuffle: false,
+            smartShuffle: false,
+            unshuffled: null,
+            queue: [
+              ...ordered.slice(0, index + 1),
+              ...upcoming.filter((track) => track.queued),
+              ...upcoming.filter((track) => !track.queued),
+            ],
+          });
           return;
         }
-        set({ shuffle: true, unshuffled: orderFrom(queue, index), queue: shuffleUpcoming(queue, index) });
+        set({ shuffle: true, smartShuffle: false, unshuffled: orderFrom(queue, index), queue: shuffleUpcoming(queue, index) });
+      },
+
+      cycleShuffle: () => {
+        const { shuffle, smartShuffle } = get();
+        if (!shuffle || smartShuffle) {
+          get().toggleShuffle();
+          return;
+        }
+        set({ smartShuffle: true });
+        refillSmart();
       },
 
       cycleRepeat: () => set((state) => ({ repeat: NEXT_REPEAT[state.repeat] })),
@@ -533,6 +682,13 @@ export const usePlayer = create<PlayerState>()(
     }),
     {
       name: "player",
+      version: 3,
+      migrate: (persisted, version) => {
+        let state = persisted as PlayerPersisted;
+        if (version < 2) state = { ...state, smartShuffle: false };
+        if (version < 3) state = { ...state, queue: state.queue.map(plainTrack) };
+        return state;
+      },
       storage,
       partialize: (state): PlayerPersisted => ({
         queue: state.queue,
@@ -542,6 +698,7 @@ export const usePlayer = create<PlayerState>()(
         volume: state.volume,
         muted: state.muted,
         shuffle: state.shuffle,
+        smartShuffle: state.smartShuffle,
         repeat: state.repeat,
         unshuffled: state.unshuffled,
         playingFrom: state.playingFrom,
@@ -551,7 +708,7 @@ export const usePlayer = create<PlayerState>()(
         if (!state) return;
         setAudioVolume(state.volume);
         setMuted(state.muted);
-        resumePosition = state.position;
+        resumePosition = resumeFrom(state.position, state.duration);
         restoredOnLaunch = true;
       },    },
   ),
@@ -561,7 +718,7 @@ export function currentTrack(state: PlayerState): Track | null {
   return state.queue[state.index] ?? null;
 }
 
-export function resumeSavedQueue(): void {
+function resumeSavedQueue(): void {
   if (!restoredOnLaunch) return;
   restoredOnLaunch = false;
   if (!useSettings.getState().restoreQueueOnRestart) {
@@ -571,7 +728,7 @@ export function resumeSavedQueue(): void {
   }
   const { queue, index } = usePlayer.getState();
   if (queue.length === 0) return;
-  usePlayer.setState({ index: Math.min(Math.max(index, 0), queue.length - 1) });
+  usePlayer.setState({ index: Math.min(Math.max(index, 0), queue.length - 1), position: resumePosition });
 }
 
 export function resumeQueueAfterHydration(): void {

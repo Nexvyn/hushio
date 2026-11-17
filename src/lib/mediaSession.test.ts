@@ -294,7 +294,7 @@ describe("startMediaSession action handlers", () => {
     expect(state().index).toBe(1);
     expect(state().playing).toBe(true);
     expect(pause).not.toHaveBeenCalled();
-    expect(playStream).toHaveBeenLastCalledWith("t1", "Track 1");
+    expect(playStream).toHaveBeenLastCalledWith("t1", "Track 1", 0, expect.any(Object));
   });
 
   it("goes to the previous track at once and cancels a pending press", () => {
@@ -306,7 +306,7 @@ describe("startMediaSession action handlers", () => {
     vi.advanceTimersByTime(MEDIA_KEY_DOUBLE_TAP_MS * 2);
 
     expect(state().index).toBe(0);
-    expect(playStream).toHaveBeenLastCalledWith("t0", "Track 0");
+    expect(playStream).toHaveBeenLastCalledWith("t0", "Track 0", 0, expect.any(Object));
   });
 
   it("treats two play or pause presses as next", () => {

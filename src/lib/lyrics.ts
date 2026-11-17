@@ -1,12 +1,17 @@
+import { onMemoryTrim } from "./memoryTrim";
 import { lyricsGet, type LyricsResult } from "./bridge";
 import { useSettings } from "../stores/settings";
 import type { Track } from "../types";
 
-export const LYRICS_CACHE_LIMIT = 24;
+export const LYRICS_CACHE_LIMIT = 20;
 export const LYRICS_RETRY_MS = 30_000;
 
 const cache = new Map<string, Promise<LyricsResult | null>>();
 const retryAfter = new Map<string, number>();
+onMemoryTrim(() => {
+  cache.clear();
+  retryAfter.clear();
+});
 
 function hasText(result: LyricsResult | null): result is LyricsResult {
   return result !== null && ((result.synced?.length ?? 0) > 0 || (result.plain?.trim().length ?? 0) > 0);

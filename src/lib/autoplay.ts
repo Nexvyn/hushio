@@ -14,7 +14,6 @@ const PER_ARTIST = 2;
 const SEED_ARTIST_CAP = 3;
 const MIN_SONG_S = 60;
 const MAX_SONG_S = 900;
-const SONGS_BEFORE_VIDEOS = 3;
 const VERSION_WORDS = /remix|cover|live|acoustic|instrumental|unplugged|karaoke|slowed|reverb|sped|lo-?fi|version/i;
 const BRACKETED = /[([【「][^)\]】」]*[)\]】」]/g;
 const NON_WORD = /[^\p{L}\p{M}\p{N}]+/gu;
@@ -72,8 +71,6 @@ export function pickSuggestions(candidates: readonly RadioItem[], options: PickO
       !outsideSongLength(candidate.duration),
   );
   const songs = eligible.filter((candidate) => candidate.videoType !== "video" && candidate.videoType !== "upload");
-  const videos = eligible.filter((candidate) => candidate.videoType === "video");
-  const uploads = eligible.filter((candidate) => candidate.videoType === "upload");
 
   const picked: RadioItem[] = [];
   const pickedIds = new Set<string>();
@@ -98,8 +95,6 @@ export function pickSuggestions(candidates: readonly RadioItem[], options: PickO
   };
 
   take(songs);
-  if (picked.length < SONGS_BEFORE_VIDEOS) take(videos);
-  if (picked.length === 0) take(uploads);
 
   return picked.map(({ id, title, artist, thumb }) => ({ id, title, artist, thumb }));
 }

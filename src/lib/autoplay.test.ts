@@ -156,19 +156,19 @@ describe("pickSuggestions", () => {
     expect(pickSuggestions(candidates, options({ limit: 2 }))).toHaveLength(2);
   });
 
-  it("prefers songs, adds videos only while fewer than three songs were picked", () => {
+  it("keeps AutoPlay on song recordings even when fewer than three are available", () => {
     const songs = [item(1), item(2)];
     const videos = [item(3, { videoType: "video" }), item(4, { videoType: "video" })];
-    expect(ids(pickSuggestions([...videos, ...songs], options()))).toEqual([vid(1), vid(2), vid(3), vid(4)]);
+    expect(ids(pickSuggestions([...videos, ...songs], options()))).toEqual([vid(1), vid(2)]);
 
     const enough = [item(1), item(2), item(3)];
     expect(ids(pickSuggestions([...videos, ...enough], options()))).toEqual([vid(1), vid(2), vid(3)]);
   });
 
-  it("uses uploads only when nothing else qualifies", () => {
+  it("never silently falls back to video or upload audio", () => {
     const upload = item(5, { videoType: "upload" });
-    expect(ids(pickSuggestions([upload, item(6, { videoType: "video" })], options()))).toEqual([vid(6)]);
-    expect(ids(pickSuggestions([upload], options()))).toEqual([vid(5)]);
+    expect(ids(pickSuggestions([upload, item(6, { videoType: "video" })], options()))).toEqual([]);
+    expect(ids(pickSuggestions([upload], options()))).toEqual([]);
   });
 });
 

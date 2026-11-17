@@ -110,9 +110,23 @@ describe("parseTtml", () => {
       { start: 1.5, end: 2, text: "world" },
     ]);
     expect(first.roman).toBe("heh-lo wurld");
+    expect(first.translation).toBe("Bonjour");
     expect(first.bg).toBeUndefined();
+    expect(lines[1].translation).toBeUndefined();
 
     expect(lines[2].bg).toEqual({ text: "(echo)", words: [{ start: 5.5, end: 6, text: "(echo)" }] });
+  });
+
+  it("keeps a translation on the line it belongs to, even when the source words are untimed", () => {
+    const xml = `<tt xmlns:ttm="http://www.w3.org/ns/ttml#metadata"><body><div>
+      <p begin="00:00:02.000" end="00:00:04.000">
+        <span>Gracias a todos</span>
+        <span ttm:role="x-translation">Thanks to everyone</span>
+      </p>
+    </div></body></tt>`;
+    expect(parseTtml(xml)).toEqual([
+      { time: 2, end: 4, text: "Gracias a todos", translation: "Thanks to everyone" },
+    ]);
   });
 
   it("keeps an untimed paragraph as one line without words", () => {
