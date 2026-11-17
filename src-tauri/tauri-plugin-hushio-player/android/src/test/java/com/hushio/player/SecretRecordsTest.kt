@@ -17,6 +17,18 @@ class SecretRecordsTest {
     }
 
     @Test
+    fun scrobbleAndNetworkKeysAreAccepted() {
+        assertTrue(SecretRecords.isKey("spotify-refresh-token"))
+        assertTrue(SecretRecords.isKey("lastfm-session"))
+        assertTrue(SecretRecords.isKey("listenbrainz-token"))
+        assertTrue(SecretRecords.isKey("network-share:0a1b2c3d4e5f6071"))
+        assertFalse(SecretRecords.isKey("network-share:"))
+        assertFalse(SecretRecords.isKey("network-share:a=b"))
+        assertFalse(SecretRecords.isKey("network-share:a\nb"))
+        assertFalse(SecretRecords.isKey("lastfm-session2"))
+    }
+
+    @Test
     fun roundTripKeepsBase64Padding() {
         val records = mapOf("google-refresh-token" to "YWJj/+ZA==", "youtube-tv-token" to "eHl6")
         assertEquals(records, SecretRecords.parse(SecretRecords.serialize(records)))

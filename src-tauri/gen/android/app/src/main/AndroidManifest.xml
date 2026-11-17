@@ -69,7 +69,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:mimeType="audio/aac" />
+                <data android:mimeType="audio/mpeg" />
                 <data android:pathPattern=".*\\.mp3" />
                 <data android:pathPattern=".*\\.m4a" />
                 <data android:pathPattern=".*\\.aac" />
@@ -86,7 +86,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:mimeType="audio/mpeg" />
+                <data android:mimeType="audio/aac" />
                 <data android:pathPattern=".*\\.mp3" />
                 <data android:pathPattern=".*\\.m4a" />
                 <data android:pathPattern=".*\\.aac" />

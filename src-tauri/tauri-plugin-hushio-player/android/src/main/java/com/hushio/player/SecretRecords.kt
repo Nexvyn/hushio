@@ -1,10 +1,23 @@
 package com.hushio.player
 
 object SecretRecords {
-    val KEYS = setOf("google-refresh-token", "youtube-tv-token")
+    val KEYS = setOf(
+        "google-refresh-token",
+        "spotify-refresh-token",
+        "youtube-tv-token",
+        "lastfm-session",
+        "listenbrainz-token",
+    )
     private const val SEPARATOR = '='
+    private const val SHARE_PREFIX = "network-share:"
 
-    fun isKey(key: String): Boolean = key in KEYS
+    fun isKey(key: String): Boolean = key in KEYS || isShareKey(key)
+
+    private fun isShareKey(key: String): Boolean {
+        if (!key.startsWith(SHARE_PREFIX)) return false
+        val id = key.substring(SHARE_PREFIX.length)
+        return id.isNotEmpty() && id.all { it.isLetterOrDigit() || it == '-' || it == '_' }
+    }
 
     fun parse(text: String): Map<String, String> {
         val records = LinkedHashMap<String, String>()
