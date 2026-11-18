@@ -144,6 +144,54 @@ describe("LyricsCenter", () => {
     expect(usePlayer.getState().position).toBeCloseTo(2 + 1.5 - 0.15, 5);
   });
 
+  it("shows the translate toggle only when the lines have translations, and shows them on press", async () => {
+    lyricsGet.mockResolvedValue({
+      synced: [
+        { time: 1, text: "Alpha", translation: "Alfa" },
+        { time: 2, text: "Beta" },
+      ],
+      plain: null,
+      source: "S",
+      wordSynced: false,
+    });
+    render(<LyricsCenter />);
+    await waitFor(() => expect(document.querySelectorAll("button[data-line]")).toHaveLength(2));
+    expect(screen.queryByText("Alfa")).toBeNull();
+
+    const toggle = screen.getByRole("button", { name: "Show translations" });
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("Alfa")).toBeTruthy();
+  });
+
+  it("hides the translate toggle when no line has a translation", async () => {
+    lyricsGet.mockResolvedValue({ synced: [{ time: 1, text: "Alpha" }], plain: null, source: "S", wordSynced: false });
+    render(<LyricsCenter />);
+    await waitFor(() => expect(document.querySelectorAll("button[data-line]")).toHaveLength(1));
+    expect(screen.queryByRole("button", { name: "Show translations" })).toBeNull();
+  });
+
+  it("draws the active line in ink-1 and the nearby line in ink-2", async () => {
+    usePlayer.setState({ position: 1.5 });
+    lyricsGet.mockResolvedValue({
+      synced: [
+        { time: 1, text: "Alpha" },
+        { time: 2, text: "Beta" },
+      ],
+      plain: null,
+      source: "S",
+      wordSynced: false,
+    });
+    render(<LyricsCenter />);
+    await waitFor(() => expect(document.querySelectorAll("button[data-line]")).toHaveLength(2));
+    const [first, second] = Array.from(document.querySelectorAll<HTMLButtonElement>("button[data-line]"));
+    expect(first.className).toContain("text-ink-1");
+    expect(first.className).not.toContain("text-ink-3");
+    expect(second.className).toContain("text-ink-2");
+    expect(second.className).not.toContain("text-ink-1");
+  });
+
   it("does not look up the same track again on a second open", async () => {
     vi.spyOn(Date, "now").mockReturnValue(0);
     expect(await requestLyrics(track)).toBeNull();

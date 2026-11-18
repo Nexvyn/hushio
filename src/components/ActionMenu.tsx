@@ -1,6 +1,5 @@
 import { useId } from "react";
-import type { IconSvgElement } from "@hugeicons/react";
-import { MoreHorizontalIcon } from "@hugeicons/core-free-icons";
+import { DotsThree, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { Icon } from "./Icon";
 import { PhoneIcon } from "./phone/PhoneIcon";
 import { type MenuSource, resolveMenu } from "./ContextMenu";
@@ -10,7 +9,7 @@ type ActionMenuProps = {
   items: MenuSource;
   label: string;
   triggerClass?: string;
-  icon?: IconSvgElement;
+  icon?: PhosphorIcon;
   triggerText?: string;
   disabled?: boolean;
   placement?: "up" | "down";
@@ -18,13 +17,13 @@ type ActionMenuProps = {
 };
 
 const TRIGGER =
-  "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-2 hover:bg-hover hover:text-ink-1 motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+  "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-2 hover:bg-hover hover:text-ink-1 motion-safe:transition-[color,background-color,transform] motion-safe:duration-press motion-safe:active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
 export function ActionMenu({
   items,
   label,
   triggerClass = TRIGGER,
-  icon = MoreHorizontalIcon,
+  icon = DotsThree,
   triggerText,
   disabled = false,
   placement = "down",

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import type { GoogleAccount, Platform } from "../lib/bridge";
@@ -241,47 +241,43 @@ describe("TopBar squircle controls", () => {
     cleanup();
   });
 
-  it("gives the nav, home, search, theme and profile controls 40px squircle shapes", () => {
+  it("gives the nav, home, search, theme and profile controls 36px squircle shapes", () => {
     render(<TopBar />);
 
-    for (const name of ["Back", "Forward", "Home"]) {
+    const home = screen.getByRole("button", { name: "Home" });
+    expect(home.className).toContain("h-9 w-9");
+    expect(home.className).toContain("rounded-full");
+    for (const name of ["Back", "Forward"]) {
       const button = screen.getByRole("button", { name });
-      expect(button.className).toContain("h-10");
-      expect(button.className).toContain("w-10");
+      expect(button.className).toContain("h-9");
+      expect(button.className).toContain("w-9");
       expect(button.className).toContain("rounded-[12px]");
       expect(button.className).toContain("[corner-shape:squircle]");
     }
-    const explore = screen.getByRole("button", { name: "Explore" });
-    expect(input().parentElement?.contains(explore)).toBe(true);
-    expect(screen.getByRole("button", { name: "Back" }).parentElement?.contains(explore)).toBe(false);
-    expect(explore.className).toContain("h-10");
-    expect(explore.className).toContain("w-10");
-    expect(explore.className).toContain("absolute");
-    expect(explore.className).toContain("[corner-shape:squircle]");
     expect(screen.getByRole("button", { name: /^Switch to .* theme$/ }).className).toContain("[corner-shape:squircle]");
     for (const button of [screen.getByRole("button", { name: /^Switch to .* theme$/ }), screen.getByRole("button", { name: /^Profile menu/ })]) {
       expect(button.className).toContain("lifted-hover");
       expect(button.className).not.toContain("lifted-fill");
       expect(button.className).not.toContain("lifted-edge");
-      expect(button.className).toContain("h-10");
-      expect(button.className).toContain("w-10");
+      expect(button.className).toContain("h-9");
+      expect(button.className).toContain("w-9");
     }
     const profile = screen.getByRole("button", { name: /^Profile menu/ });
-    expect(profile.className).toContain("h-10");
-    expect(profile.className).toContain("w-10");
+    expect(profile.className).toContain("h-9");
+    expect(profile.className).toContain("w-9");
     expect(profile.className).toContain("rounded-[12px]");
     expect(profile.className).toContain("[corner-shape:squircle]");
     expect(profile.className).toContain("overflow-hidden");
     expect(profile.className).toContain("focus-visible:ring-focus");
   });
 
-  it("gives the search field a 40px squircle instead of a pill", () => {
+  it("gives the search field a 36px filled wash with a 10px radius", () => {
     render(<TopBar />);
 
     const field = input();
-    expect(field.className).toContain("h-10");
-    expect(field.className).toContain("rounded-[12px]");
-    expect(field.className).toContain("[corner-shape:squircle]");
+    expect(field.className).toContain("h-9");
+    expect(field.className).toContain("rounded-field");
+    expect(field.className).toContain("bg-wash");
     expect(field.className).not.toContain("rounded-full");
   });
 
@@ -299,15 +295,14 @@ describe("TopBar squircle controls", () => {
 describe("TopBar dark surfaces and centring", () => {
   afterEach(cleanup);
 
-  it("gives the field a lifted fill, a hairline edge and a readable placeholder", () => {
+  it("gives the field a filled wash, no edge and a muted placeholder", () => {
     render(<TopBar />);
 
     const field = input();
-    expect(field.className).toContain("lifted-fill");
-    expect(field.className).toContain("lifted-edge");
-    expect(field.className).toContain("lifted-field");
-    expect(field.className).toContain("placeholder:text-ink-1/60");
-    expect(field.className).not.toContain("bg-wash");
+    expect(field.className).toContain("bg-wash");
+    expect(field.className).toContain("placeholder:text-ink-3");
+    expect(field.className).not.toContain("lifted-edge");
+    expect(field.className).not.toContain("border");
   });
 
   it("gives only the Home button the lifted field fill, and the theme button none", () => {
@@ -325,7 +320,7 @@ describe("TopBar dark surfaces and centring", () => {
   it("centres icon buttons with place-items-center", () => {
     render(<TopBar />);
 
-    for (const name of ["Back", "Forward", "Home", "Explore", "Switch to", "Profile menu"]) {
+    for (const name of ["Back", "Forward", "Home", "Switch to", "Profile menu"]) {
       const button = screen.getByRole("button", { name: new RegExp(`^${name}`) });
       expect(button.className).toContain("place-items-center");
     }
@@ -373,7 +368,7 @@ describe("TopBar goo dropdown", () => {
 
     expect(listbox.className).toContain("top-0");
     expect(listbox.className).not.toContain("top-full");
-    expect(listbox.querySelector("[data-goo-panel]")?.className).toContain("top-10");
+    expect(listbox.querySelector("[data-goo-layer] .top-10")).not.toBeNull();
   });
 
   it("keeps the field above the goo layer so its text stays sharp", async () => {
@@ -391,13 +386,13 @@ describe("TopBar goo dropdown", () => {
 describe("TopBar height", () => {
   afterEach(cleanup);
 
-  it("is 56 px tall and no 68 px top bar is left in the source", () => {
+  it("is 52 px tall and the top bar keeps no older height", () => {
     render(<TopBar />);
 
-    expect(screen.getByRole("banner").className).toContain("h-14");
+    expect(screen.getByRole("banner").className).toContain("h-[52px]");
     const stale = Object.entries(appSources)
-      .filter(([path]) => !path.includes(".test."))
-      .filter(([, source]) => /\b68\s?px\b|h-\[68px\]/.test(source))
+      .filter(([path]) => path.endsWith("TopBar.tsx"))
+      .filter(([, source]) => /\bh-16\b|h-\[68px\]|h-\[56px\]/.test(source))
       .map(([path]) => path);
     expect(stale).toEqual([]);
   });
@@ -435,7 +430,6 @@ describe("TopBar layout", () => {
 
     expect(input().className).toContain("pr-[4.25rem]");
     expect(screen.getByRole("button", { name: "Clear search" }).className).toContain("right-[44px]");
-    expect(screen.getByRole("button", { name: "Explore" }).className).toContain("right-0");
   });
 
   it("styles the suggestion dropdown as a scrollbar-free float under the field", async () => {
@@ -486,7 +480,7 @@ describe("TopBar layout", () => {
     expect(screen.queryByRole("button", { name: "Clear search" })).toBeNull();
   });
 
-  it("returns home when the search results page is cleared", async () => {
+  it("keeps the search page open when the query is cleared", async () => {
     const user = userEvent.setup();
     useNavigation.setState({ view: { name: "search" }, navPast: [], navFuture: [] });
     useUI.setState({ searchQuery: "dua" });
@@ -494,7 +488,7 @@ describe("TopBar layout", () => {
 
     await user.click(screen.getByRole("button", { name: "Clear search" }));
 
-    expect(useNavigation.getState().view.name).toBe("home");
+    expect(useNavigation.getState().view.name).toBe("search");
   });
 
   it("marks the home button as the current page on home", () => {
@@ -648,22 +642,6 @@ describe("TopBar streak", () => {
   });
 });
 
-describe("TopBar Explore button", () => {
-  afterEach(cleanup);
-
-  it("shows the active Explore page as a subtle tint with no border or outline", () => {
-    useNavigation.setState({ view: { name: "explore" } });
-    render(<TopBar />);
-
-    const explore = screen.getByRole("button", { name: "Explore" });
-    const classes = explore.className.split(/s+/).filter((token) => !token.includes(":"));
-
-    expect(explore.getAttribute("aria-current")).toBe("page");
-    expect(explore.className).toContain("lifted-tint");
-    expect(classes.some((token) => token.startsWith("border") || token.startsWith("outline") || token.startsWith("ring"))).toBe(false);
-  });
-});
-
 describe("TopBar avatar attached menu", () => {
   const initialAuth = useAuth.getState();
 
@@ -703,5 +681,25 @@ describe("TopBar avatar attached menu", () => {
 
     await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
     expect(avatar().getAttribute("data-open")).toBeNull();
+  });
+});
+
+describe("TopBar search field on navigation", () => {
+  afterEach(cleanup);
+
+  it("clears the query when the user leaves the search view", () => {
+    useNavigation.setState({ view: { name: "search" }, navPast: [], navFuture: [] });
+    useUI.setState({ searchQuery: "ku" });
+    render(<TopBar />);
+    act(() => useNavigation.setState({ view: { name: "home" } }));
+    expect(useUI.getState().searchQuery).toBe("");
+  });
+
+  it("keeps the query while the search view stays open", () => {
+    useNavigation.setState({ view: { name: "search" }, navPast: [], navFuture: [] });
+    useUI.setState({ searchQuery: "ku" });
+    render(<TopBar />);
+    act(() => useUI.setState({ searchQuery: "ku" }));
+    expect(useUI.getState().searchQuery).toBe("ku");
   });
 });

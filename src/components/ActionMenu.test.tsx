@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { PlayIcon } from "@hugeicons/core-free-icons";
+import { Play } from "@phosphor-icons/react";
 import { ActionMenu } from "./ActionMenu";
 import { ContextMenu } from "./ContextMenu";
 import { useUI } from "../stores/ui";
@@ -22,9 +22,9 @@ function renderMenu() {
       <ActionMenu
         label="More options"
         items={[
-          { label: "Play now", icon: PlayIcon, onSelect },
-          { label: "Locked", icon: PlayIcon, disabled: true, onSelect: vi.fn() },
-          { label: "Remove", icon: PlayIcon, onSelect: vi.fn(), separatorBefore: true },
+          { label: "Play now", icon: Play, onSelect },
+          { label: "Locked", icon: Play, disabled: true, onSelect: vi.fn() },
+          { label: "Remove", icon: Play, onSelect: vi.fn(), separatorBefore: true },
         ]}
       />
       <ContextMenu />

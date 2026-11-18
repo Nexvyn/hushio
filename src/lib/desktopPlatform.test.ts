@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { Platform } from "./bridge";
-import { hasCaptionButtons, usesNativeMediaControls } from "./desktopPlatform";
+import { deviceNoun, hasCaptionButtons, usesNativeMediaControls } from "./desktopPlatform";
+
+describe("device noun", () => {
+  it("says phone on Android and computer on desktop", () => {
+    expect(deviceNoun("android")).toBe("phone");
+    const desktops: Platform[] = ["windows", "linux", "macos"];
+    expect(desktops.map(deviceNoun)).toEqual(["computer", "computer", "computer"]);
+  });
+});
 
 describe("caption buttons", () => {
   it("draws them on Windows and Linux, where the window has no system frame", () => {

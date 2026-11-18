@@ -1,9 +1,11 @@
 import { GooFilter } from "./components/Goo";
 import { useEffect, useLayoutEffect } from "react";
+import { AnimatePresence, motion, useTransform } from "motion/react";
 import { EdgeFades } from "./components/EdgeFades";
+import { SongInfoSheet } from "./components/SongInfoSheet";
 import { ContextMenu } from "./components/ContextMenu";
-import { CommentsDialog } from "./components/CommentsDialog";
 import { Dialog } from "./components/Dialog";
+import { PlaylistEditDialog } from "./components/PlaylistEditDialog";
 import { EraseDialog } from "./components/EraseDialog";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LyricsCenter } from "./components/LyricsCenter";
@@ -21,13 +23,18 @@ import { TopBar } from "./components/TopBar";
 import { platform, watchFullScreen } from "./lib/bridge";
 import { listenForDownloadProgress } from "./lib/downloads";
 import { startLaunchActions } from "./lib/launch";
-import { railFor, shellFor, sidebarFor, useViewportWidth } from "./lib/layoutTier";
+import { railFor, shellFor, sidebarFor, useShortSide, useViewportWidth } from "./lib/layoutTier";
 import { startWindowGlass } from "./lib/windowGlass";
+import { nowPlayingRoll } from "./lib/nowPlayingRoll";
+import { rollStyles } from "./lib/rollUp";
+import { useScrimMounted } from "./lib/useScrimMounted";
+import { reducedMotion } from "./lib/motion";
 import { startUpdates } from "./stores/updates";
 import { useKeyboardShortcuts, useSwipeNavigation } from "./lib/shortcuts";
 import { useMenuCommands } from "./lib/menuWiring";
 import { startTraySync } from "./lib/traySync";
 import { startYtSync } from "./stores/sync";
+import { currentTrack, usePlayer } from "./stores/player";
 import { useNavigation } from "./stores/navigation";
 import { useUI } from "./stores/ui";
 import { CurrentView } from "./views/CurrentView";
@@ -41,8 +48,18 @@ export default function App() {
   const clearPendingScroll = useNavigation((state) => state.clearPendingScroll);
   const setOsFullscreen = useUI((state) => state.setOsFullscreen);
   const lyricsCenter = useUI((state) => state.lyricsCenter);
+  const hasTrack = usePlayer((state) => currentTrack(state) !== null);
+  const railSheetOpen = useUI((state) => state.railSheetOpen);
+  const railColumnOpen = useUI((state) => state.railColumnOpen);
   const width = useViewportWidth();
+  const shortSide = useShortSide();
   const android = platform === "android";
+
+  const reducedRoll = reducedMotion();
+  const roll = useTransform(nowPlayingRoll, (p) => rollStyles(p, window.innerHeight, reducedRoll));
+  const rollClip = useTransform(roll, (r) => r.page);
+  const rollShade = useTransform(roll, (r) => r.shade);
+  const scrimOn = useScrimMounted(rollShade);
 
   useKeyboardShortcuts();
   useSwipeNavigation();
@@ -92,50 +109,56 @@ export default function App() {
     clearPendingScroll();
   }, [pendingScroll, clearPendingScroll]);
 
-  if (android && shellFor(width) === "phone") return <PhoneShell />;
+  if (android && shellFor(shortSide) === "phone") return <PhoneShell />;
 
   return (
     <div
       spellCheck={false}
-      className="flex h-screen select-none flex-col overflow-hidden bg-surface text-ink-1"
+      className="app-shell flex h-screen select-none flex-col overflow-hidden bg-base text-ink-1"
     >
       <GooFilter />
-      <TopBar />
+      <motion.div className="relative flex min-h-0 flex-1 flex-col" style={{ clipPath: rollClip }}>
+        <TopBar />
 
-      <div className="flex min-h-0 flex-1 gap-2 px-2 pb-2">
-        <Sidebar mode={sidebarFor(width)} />
+        <div className="flex min-h-0 flex-1 gap-2 overflow-hidden px-2 pb-2">
+          <Sidebar mode={sidebarFor(width)} />
 
-        <main className="relative min-w-0 flex-1 overflow-hidden rounded-[10px] bg-surface">
-          <EdgeFades id="view-scroll" className="no-scrollbar h-full">
-            <ViewTransition
-              routeKey={`${viewReloadNonce}:${view.name}:${view.name === "settings" ? "" : (view.param ?? "")}`}
-              className="px-10 pb-6 pt-5"
-            >
-              <ErrorBoundary
-                scope="view"
-                resetKey={`${viewReloadNonce}:${view.name}`}
+          <main className="app-main relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-[8px] bg-surface">
+            <EdgeFades id="view-scroll" className="no-scrollbar h-full overflow-x-hidden">
+              <ViewTransition
+                routeKey={`${viewReloadNonce}:${view.name}:${view.name === "settings" ? "" : (view.param ?? "")}`}
+                className="app-view-content px-6 pb-8 pt-4"
               >
-                <CurrentView view={view} />
-              </ErrorBoundary>
-            </ViewTransition>
-          </EdgeFades>
-          {lyricsCenter && <LyricsCenter />}
-          <SwipeArrow />
-        </main>
+                <ErrorBoundary
+                  scope="view"
+                  resetKey={`${viewReloadNonce}:${view.name}`}
+                >
+                  <CurrentView view={view} />
+                </ErrorBoundary>
+              </ViewTransition>
+            </EdgeFades>
+            <AnimatePresence>{lyricsCenter && <LyricsCenter key="lyrics" />}</AnimatePresence>
+            <SwipeArrow />
+          </main>
 
-        <RightRail mode={railFor(width)} />
-      </div>
+          {railFor(width) === "sheet"
+            ? <AnimatePresence>{railSheetOpen && <RightRail key="rail-sheet" mode="sheet" />}</AnimatePresence>
+            : <AnimatePresence>{hasTrack && railColumnOpen && <RightRail key="rail-column" mode="column" />}</AnimatePresence>}
+        </div>
 
+        {scrimOn && <motion.div aria-hidden="true" className="pointer-events-none absolute inset-0 z-50 bg-base/40" style={{ opacity: rollShade }} />}
+        <PlayerBar />
+      </motion.div>
       <AmbientSync />
-      <PlayerBar />
       <NowPlaying />
       <Toasts />
       <FileDrop />
       <Dialog />
+      <PlaylistEditDialog />
       <EraseDialog />
       <PlaylistPicker />
       <ContextMenu />
-      <CommentsDialog />
+      <SongInfoSheet />
     </div>
   );
 }

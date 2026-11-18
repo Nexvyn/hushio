@@ -1,10 +1,11 @@
+import { useState } from "react";
 import { motion } from "motion/react";
-import { Cancel01Icon } from "@hugeicons/core-free-icons";
+import { Translate, X } from "@phosphor-icons/react";
 import { Icon } from "./Icon";
 import { LyricsChoice } from "./LyricsChoice";
 import { LyricsTiming } from "./LyricsTiming";
 import { SyncedLyrics } from "./SyncedLyrics";
-import { reducedMotion, swap } from "../lib/motion";
+import { nowPlayingEnter, nowPlayingExit, reducedMotion } from "../lib/motion";
 import { useLyricsOffset, useLyricsTimingKeys } from "../lib/lyricsOffset";
 import { useTrackLyrics } from "../lib/useTrackLyrics";
 import { currentTrack, usePlayer } from "../stores/player";
@@ -18,15 +19,19 @@ export function LyricsCenter() {
   const offset = useLyricsOffset(trackId);
   const { lyrics, loading, reload } = useTrackLyrics(track, duration);
   useLyricsTimingKeys(trackId);
+  const [translate, setTranslate] = useState(false);
+  const hasTranslation = Boolean(lyrics?.synced?.some((line) => line.translation));
 
   const reduced = reducedMotion();
 
   return (
     <motion.section
       aria-label="Lyrics"
-      initial={reduced ? false : { opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={swap}
+      initial={reduced ? false : { opacity: 0, scale: 0.97, y: 12 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.97, y: 12, transition: nowPlayingExit }}
+      transition={nowPlayingEnter}
+      style={{ transformOrigin: "0% 100%" }}
       className="group absolute inset-0 z-10 flex flex-col overflow-hidden rounded-2xl bg-surface"
     >
       <button
@@ -36,13 +41,30 @@ export function LyricsCenter() {
         onClick={closeLyrics}
         className="hit-area absolute right-4 top-4 z-10 grid h-9 w-9 place-items-center rounded-full bg-black/40 text-ink-1 hover:bg-black/60 motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
       >
-        <Icon icon={Cancel01Icon} />
+        <Icon icon={X} />
       </button>
-      {track && <LyricsTiming trackId={track.id} className="absolute right-16 top-4 z-10" />}
+      {track && (
+        <div className="absolute right-16 top-4 z-10 flex items-center gap-2">
+          {hasTranslation && (
+            <button
+              type="button"
+              aria-label="Show translations"
+              aria-pressed={translate}
+              title="Show translations"
+              onClick={() => setTranslate((value) => !value)}
+              className={`hit-area grid h-9 w-9 place-items-center rounded-full motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+                translate ? "bg-ink-1 text-base" : "bg-black/40 text-ink-1 hover:bg-black/60"
+              }`}
+            >
+              <Icon icon={Translate} />
+            </button>
+          )}
+          <LyricsTiming trackId={track.id} />
+        </div>
+      )}
       {track && (
         <LyricsChoice
           track={track}
-          duration={duration}
           overridden={Boolean(lyrics?.custom)}
           onChanged={reload}
           className="absolute left-10 top-4 z-10"
@@ -56,9 +78,10 @@ export function LyricsCenter() {
             loading={loading}
             offset={offset}
             trackKey={track.id}
+            translate={translate}
           />
         ) : (
-          <p className="m-auto text-[15px] text-ink-2">Play something to sing along.</p>
+          <p className="m-auto text-body text-ink-2">Play something to sing along.</p>
         )}
       </div>
     </motion.section>

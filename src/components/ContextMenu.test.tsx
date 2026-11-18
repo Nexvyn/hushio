@@ -151,6 +151,13 @@ describe("ContextMenu rows", () => {
     expect(document.querySelectorAll('[role="separator"], .h-px, .h-2').length).toBe(0);
   });
 
+  it("leaves 8px above the first row of a new group instead of a line", async () => {
+    openAt(10, 10);
+
+    expect(screen.getByRole("menuitem", { name: "Delete" }).className).toContain("mt-2");
+    expect(screen.getByRole("menuitem", { name: "Play now" }).className).not.toContain("mt-2");
+  });
+
   it("uses the shared float panel and 40px rows, like the search suggestions", async () => {
     openAt(10, 10);
 
@@ -347,7 +354,7 @@ describe("ContextMenu attached (goo) mode", () => {
     const menu = await screen.findByRole("menu");
     const layer = menu.querySelector<HTMLElement>("[data-goo-layer]");
     expect(layer?.style.filter).toContain("url(#goo)");
-    expect(menu.querySelector("[data-goo-panel]")?.className).toContain("top-10");
+    expect(layer?.querySelector(".top-10")).not.toBeNull();
     expect(screen.getByRole("menuitem", { name: "Play now" }).closest("[data-goo-layer]")).toBeNull();
   });
 

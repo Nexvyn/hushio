@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 vi.mock("../lib/persist", () => ({
   persistStorage: () => ({
@@ -12,6 +12,7 @@ vi.mock("../lib/persist", () => ({
 import { Sidebar } from "./Sidebar";
 import { DEFAULT_PINS, type Playlist, useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
+import { useSettings } from "../stores/settings";
 import { useUI } from "../stores/ui";
 
 const initialLibrary = useLibrary.getState();
@@ -51,36 +52,39 @@ describe("Your Library sidebar", () => {
     ]);
   });
 
-  it("has no Replay row and keeps Import as the last row", () => {
+  it("keeps Import as the last row and shows no discover links above the library", () => {
     useLibrary.setState({ playlists: [playlist("a")] });
     const { container } = render(<Sidebar />);
 
-    expect(rowKeys(container)).not.toContain("single:replay");
     expect(rowKeys(container).at(-1)).toBe("single:spotify");
-    expect(screen.queryByRole("button", { name: /Replay/ })).toBeNull();
+    for (const name of ["Charts", "New releases", "Daylist", "Replay"]) {
+      expect(screen.queryByRole("button", { name: new RegExp(name) })).toBeNull();
+    }
+    expect(screen.queryByRole("navigation", { name: "Browse" })).toBeNull();
   });
 
-  it("gives every row the same padding, 40px art box and pin column, and matches the header inset", () => {
+  it("gives every row a 52px height and a 44px art box, with 4px between rows", () => {
     useLibrary.setState({ playlists: [playlist("a", true)] });
     const { container } = render(<Sidebar />);
 
-    const header = container.querySelector("aside > div");
-    const nav = container.querySelector("nav");
-    expect(header?.className).toContain("h-12");
-    expect(header?.className).toContain("px-5");
-    expect(nav?.className).toContain("px-2");
     const create = screen.getByRole("button", { name: "Create" });
     expect(create.className).toContain("h-8 w-8");
-    expect(header?.querySelector("button span")?.className).toContain("w-10");
     const rows = Array.from(container.querySelectorAll<HTMLElement>("[data-row-key]"));
     expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) {
-      expect(row.className).toContain("h-14 px-3");
-      expect(row.firstElementChild?.className).toContain("h-10 w-10 shrink-0");
+      expect(row.className).toContain("h-[52px]");
+      expect(row.firstElementChild?.className).toContain("h-11 w-11 shrink-0");
       expect(row.querySelector("span.flex-col")?.className).toContain("justify-center");
-      expect(row.querySelector("span[aria-hidden='true']")?.className).toContain("h-8 w-8 shrink-0");
     }
-    expect(container.querySelector("ul")?.className).toContain("space-y-1");
+    expect(container.querySelector("[aria-label='Library'] ul")?.className).toContain("space-y-1");
+  });
+
+  it("shows a pin mark only on pinned rows", () => {
+    useLibrary.setState({ playlists: [playlist("a", true), playlist("b")] });
+    render(<Sidebar />);
+
+    expect(screen.getByRole("button", { name: /Mix a/ }).querySelector("span[aria-hidden='true']")).not.toBeNull();
+    expect(screen.getByRole("button", { name: /Mix b/ }).querySelector("span[aria-hidden='true']")).toBeNull();
   });
 
   it("moves an unpinned row down with Alt+ArrowDown, keeps focus on it, and saves the order", () => {
@@ -129,7 +133,7 @@ describe("Your Library sidebar", () => {
     useLibrary.setState({ liked: [{ id: "s1", title: "S", artist: "A", thumb: null, album: null, duration: 1, explicit: false }] });
     render(<Sidebar />);
 
-    expect(screen.getByText("Playlist · 1 song")).toBeTruthy();
+    expect(screen.getByText("1 song")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Liked Songs/ }));
     expect(useNavigation.getState().view).toEqual({ name: "library", param: "liked" });
   });
@@ -187,36 +191,67 @@ describe("Your Library drag and drop", () => {
   });
 });
 
-describe("Your Library sidebar discover links", () => {
+describe("Your Library sidebar rail", () => {
   beforeEach(() => {
     useNavigation.setState(initialNavigation, true);
   });
 
   afterEach(cleanup);
 
-  it("opens Charts and New releases from the sidebar", () => {
-    render(<Sidebar />);
-
-    fireEvent.click(screen.getByRole("button", { name: /Charts/ }));
-    expect(useNavigation.getState().view).toEqual({ name: "charts" });
-
-    fireEvent.click(screen.getByRole("button", { name: /New releases/ }));
-    expect(useNavigation.getState().view).toEqual({ name: "newreleases" });
-  });
-
-  it("marks the open discover page as current", () => {
-    useNavigation.setState({ view: { name: "charts" } });
-    render(<Sidebar />);
-
-    expect(screen.getByRole("button", { name: /Charts/ }).getAttribute("aria-current")).toBe("page");
-    expect(screen.getByRole("button", { name: /New releases/ }).getAttribute("aria-current")).toBeNull();
-  });
-
-  it("labels the icon-only rail buttons", () => {
+  it("labels the icon-only rail buttons without any discover links", () => {
     render(<Sidebar mode="rail" />);
 
-    expect(screen.getByRole("button", { name: "Charts" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "New releases" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Your Library" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Liked Songs" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Charts" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Replay" })).toBeNull();
+  });
+});
+
+describe("Your Library sidebar header layout", () => {
+  beforeEach(() => {
+    useLibrary.setState({ ...initialLibrary, pinnedSingles: DEFAULT_PINS, libraryOrder: undefined, playlists: [], folders: [] }, true);
+    useNavigation.setState(initialNavigation, true);
+  });
+
+  afterEach(cleanup);
+
+  it("puts the title and create/collapse buttons on the first row", () => {
+    render(<Sidebar />);
+
+    const title = screen.getByRole("button", { name: "Your Library" });
+    const row = title.parentElement as HTMLElement;
+    expect(row.className).toContain("pl-4");
+    expect(row.contains(screen.getByRole("button", { name: "Create" }))).toBe(true);
+    expect(row.contains(screen.getByRole("button", { name: "Collapse your library" }))).toBe(true);
+  });
+
+  it("keeps the sort and view controls with the search button and no filter chips", () => {
+    render(<Sidebar />);
+
+    expect(screen.queryByRole("group", { name: "Filter library" })).toBeNull();
+    const sort = screen.getByRole("button", { name: /Sort library/ });
+    const controlRow = sort.parentElement?.parentElement as HTMLElement;
+    expect(controlRow.contains(screen.getByRole("button", { name: "Search your library" }))).toBe(true);
+    expect(controlRow.contains(screen.getByRole("button", { name: "Library view" }))).toBe(true);
+  });
+
+  it("shows the current sort as a text button labelled with that sort", () => {
+    render(<Sidebar />);
+
+    const sort = screen.getByRole("button", { name: "Sort library, Recents" });
+    expect(sort.textContent).toBe("Recents");
+  });
+
+  it("fills the remaining height with the library list and keeps 8px under its last row", () => {
+    render(<Sidebar />);
+
+    const library = screen.getByRole("navigation", { name: "Library" });
+    expect(library.className).toContain("min-h-0");
+    expect(library.className).toContain("flex-1");
+    expect(library.className).toContain("overflow-y-auto");
+    expect(library.className).not.toContain("pb-2");
+    expect(library.querySelector("ul")?.className).toContain("pb-2");
   });
 });
 
@@ -240,5 +275,115 @@ describe("Your Library sidebar settings", () => {
 
     expect(screen.queryByRole("button", { name: "Settings" })).toBeNull();
     expect(screen.queryByTitle("Settings")).toBeNull();
+  });
+});
+
+describe("Your Library sidebar panels", () => {
+  beforeEach(() => {
+    useLibrary.setState({ ...initialLibrary, pinnedSingles: DEFAULT_PINS, libraryOrder: undefined, playlists: [], folders: [] }, true);
+  });
+
+  it("shows an empty playlist as Playlist without a song count", () => {
+    useLibrary.setState({ playlists: [playlist("a")] });
+    render(<Sidebar />);
+
+    expect(screen.getAllByText("Playlist").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Playlist · 0 songs/)).toBeNull();
+  });
+
+  it("lists every library row without filter chips", () => {
+    useLibrary.setState({ playlists: [playlist("a")] });
+    const { container } = render(<Sidebar />);
+
+    expect(rowKeys(container)).toContain("playlist:a");
+    expect(screen.queryByRole("button", { name: "Artists" })).toBeNull();
+  });
+});
+
+describe("Your Library sidebar minimal layout", () => {
+  beforeEach(() => {
+    useLibrary.setState({ ...initialLibrary, pinnedSingles: DEFAULT_PINS, libraryOrder: undefined, playlists: [], folders: [] }, true);
+    useNavigation.setState(initialNavigation, true);
+    useUI.setState({ contextMenu: null });
+  });
+
+  afterEach(cleanup);
+
+  it("has no Home or Search rows and no Sorted by line in the sidebar", () => {
+    render(<Sidebar />);
+
+    expect(screen.queryByRole("button", { name: "Home" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Search" })).toBeNull();
+    expect(screen.queryByText("Sorted by")).toBeNull();
+    expect(screen.queryByPlaceholderText("Search in Your Library")).toBeNull();
+  });
+
+  it("shows the search icon and expands it into a field that Escape collapses", () => {
+    render(<Sidebar />);
+
+    expect(screen.queryByRole("searchbox")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Search your library" }));
+    const field = screen.getByRole("searchbox", { name: "Search your library" });
+
+    fireEvent.change(field, { target: { value: "Mix" } });
+    fireEvent.keyDown(field, { key: "Escape" });
+    expect(screen.queryByRole("searchbox")).toBeNull();
+  });
+
+  it("keeps a typed search open on blur and closes an empty one", () => {
+    render(<Sidebar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Search your library" }));
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "Mix" } });
+    fireEvent.blur(screen.getByRole("searchbox"));
+    expect(screen.getByRole("searchbox")).toBeTruthy();
+
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "" } });
+    fireEvent.blur(screen.getByRole("searchbox"));
+    expect(screen.queryByRole("searchbox")).toBeNull();
+  });
+
+  it("lists the sorts in the sort menu with the current one checked", () => {
+    render(<Sidebar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Sort library, Recents" }));
+    const items = useUI.getState().contextMenu?.items ?? [];
+    expect(items.map((item) => item.label)).toEqual([
+      "Sort by",
+      "Recents",
+      "Recently added",
+      "Alphabetical",
+      "Creator",
+      "Custom order",
+    ]);
+    expect(items.find((item) => item.label === "Recents")?.checked).toBe(true);
+  });
+
+  it("renders the Your Library title and the collapse control without the old icon", () => {
+    render(<Sidebar />);
+
+    expect(screen.getByRole("button", { name: "Your Library" }).textContent).toBe("Your Library");
+    expect(screen.getByRole("button", { name: "Collapse your library" }).className).toContain("h-8 w-8");
+  });
+});
+
+describe("Your Library sidebar views", () => {
+  beforeEach(() => {
+    useLibrary.setState({ ...initialLibrary, pinnedSingles: DEFAULT_PINS, libraryOrder: undefined, playlists: [], folders: [], savedAlbums: [], downloads: {} }, true);
+    useSettings.setState({ sidebarLayout: "list" });
+    useUI.setState({ contextMenu: null });
+  });
+
+  it("switches the library rows to a cover grid and back through the view menu", async () => {
+    useLibrary.setState({ playlists: [playlist("a")] });
+    const { container } = render(<Sidebar />);
+    const list = () => container.querySelector("nav[aria-label='Library'] ul") as HTMLElement;
+
+    expect(list().className).not.toContain("grid-cols");
+    fireEvent.click(screen.getByRole("button", { name: "Library view" }));
+    const grid = useUI.getState().contextMenu?.items.find((item) => item.label === "Grid");
+    act(() => grid?.onSelect?.());
+    expect(useSettings.getState().sidebarLayout).toBe("grid");
+    await waitFor(() => expect(list().className).toContain("grid-cols"));
   });
 });

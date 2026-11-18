@@ -1,28 +1,28 @@
-import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { normalizeCredit } from "../lib/credits";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowDown01Icon, Cancel01Icon, CastIcon,FavouriteIcon, MusicNote01Icon, Search01Icon, VolumeHighIcon, VolumeLowIcon, VolumeOffIcon } from "@hugeicons/core-free-icons";
+import { CaretDown, X, Screencast, Heart, MusicNote, MagnifyingGlass, SpeakerHigh, SpeakerLow, SpeakerX } from "@phosphor-icons/react";
 import { Icon } from "./Icon";
 import { CaptionButtons } from "./CaptionButtons";
-import { Groove } from "./Groove";
+import { PlaybackTimeline } from "./PlaybackTimeline";
 import { PlaybackButtons, TransportButton } from "./PlaybackControls";
 import { AddToPlaylist } from "./PlayerBar";
 import { QueuePanel } from "./RightRail";
-import { LyricsChoice } from "./LyricsChoice";
 import { SyncedLyrics } from "./SyncedLyrics";
-import { VinylRack } from "./VinylRack";
-import { CENTRE_FRACTION as RACK_CENTRE_FRACTION, CENTRE_MAX as RACK_CENTRE_MAX } from "../lib/vinylRack";
-import { UpNext } from "./UpNext";
+import { NowPlayingArtwork } from "./NowPlayingArtwork";
+import { StatsPanel } from "./StatsPanel";
 import { upgradeArtwork } from "../lib/artwork";
 import { platform, setFullScreen } from "../lib/bridge";
 import { castFromNowPlaying } from "../lib/cast";
 import { submitSearch } from "../lib/searchActions";
 import { OnArtContext } from "../lib/onArt";
 import { hasCaptionButtons } from "../lib/desktopPlatform";
-import { canvasClipFor } from "../lib/canvas";
-import { visibleLyricLines } from "../lib/lyricsLines";
+import { CanvasVideo } from "./CanvasVideo";
+import { useCanvasClip } from "./useCanvasClip";
 import { useLyricsOffset, useLyricsTimingKeys } from "../lib/lyricsOffset";
-import { reducedMotion } from "../lib/motion";
+import { DURATION_MS, EASE_OUT, fade, instant, reducedMotion, swap } from "../lib/motion";
+import { nowPlayingRoll } from "../lib/nowPlayingRoll";
+import { ROLL_STRIP_PX, rollStyles } from "../lib/rollUp";
+import { animate, motion, useTransform, type AnimationPlaybackControls } from "motion/react";
 import { useArtworkPalette } from "../lib/artworkPalette";
 import { setKeepAwake } from "../lib/wakeLock";
 import { AmbientBackdrop, paletteCoverFor } from "./AmbientBackdrop";
@@ -36,7 +36,8 @@ import { topBarLeadingInset } from "../lib/windowChrome";
 
 const IDLE_MS = 3000;
 const ESC_HINT_MS = 3000;
-const EXIT_MS = 210;
+const EXIT_MS = DURATION_MS.roll;
+const CAPTION_RESERVE_PX = 144;
 const ART_TARGET = 1200;
 const MODES = [
   { id: "lyrics", label: "Lyrics" },
@@ -59,7 +60,7 @@ function TopSearch() {
   return (
     <div className="relative flex w-[260px] max-w-full items-center">
       <span className="pointer-events-none absolute left-3 text-art/[0.72]">
-        <Icon icon={Search01Icon} />
+        <Icon icon={MagnifyingGlass} />
       </span>
       <input
         ref={inputRef}
@@ -76,7 +77,7 @@ function TopSearch() {
           submitSearch(searchQuery);
           useUI.getState().closeNowPlaying();
         }}
-        className={`h-10 w-full rounded-[12px] [corner-shape:squircle] bg-art/[0.18] pl-10 text-[14px] text-art placeholder:text-art/[0.72] focus-visible:outline-none focus-visible:bg-art/[0.24] ${searchQuery ? "pr-11" : "pr-4"}`}
+        className={`h-10 w-full rounded-[12px] [corner-shape:squircle] bg-art/[0.18] pl-10 text-body text-art placeholder:text-art/[0.72] focus-visible:outline-none focus-visible:bg-art/[0.24] ${searchQuery ? "pr-11" : "pr-4"}`}
       />
       {searchQuery && (
         <button
@@ -90,7 +91,7 @@ function TopSearch() {
           }}
           className="absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-[9px] [corner-shape:squircle] text-art/[0.72] motion-safe:transition-colors hover:bg-art/[0.12] hover:text-art focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
         >
-          <Icon icon={Cancel01Icon} />
+          <Icon icon={X} />
         </button>
       )}
     </div>
@@ -110,9 +111,15 @@ function useIdleChrome(active: boolean): boolean {
       timer = window.setTimeout(() => setIdle(true), IDLE_MS);
     };
     window.addEventListener("pointermove", wake);
+    window.addEventListener("pointerdown", wake);
+    window.addEventListener("keydown", wake);
+    window.addEventListener("focusin", wake);
     return () => {
       window.clearTimeout(timer);
       window.removeEventListener("pointermove", wake);
+      window.removeEventListener("pointerdown", wake);
+      window.removeEventListener("keydown", wake);
+      window.removeEventListener("focusin", wake);
     };
   }, [active]);
 
@@ -122,8 +129,31 @@ function useIdleChrome(active: boolean): boolean {
 const FOCUS_RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 const VOLUME_KEY_STEP: Record<string, number> = { ArrowUp: 0.05, ArrowRight: 0.05, ArrowDown: -0.05, ArrowLeft: -0.05 };
 
+function runRoll(target: 0 | 1, controls: { current: AnimationPlaybackControls | null }) {
+  if (reducedMotion()) {
+    nowPlayingRoll.set(target);
+    return;
+  }
+  controls.current?.stop();
+  controls.current = animate(nowPlayingRoll, target, { duration: DURATION_MS.roll / 1000, ease: EASE_OUT });
+}
+
+function RollStrip() {
+  return (
+    <button
+      type="button"
+      aria-label="Hide Now Playing"
+      title="Hide Now Playing"
+      onClick={() => useUI.getState().closeNowPlaying()}
+      className={`fixed left-0 top-0 z-[101] ${FOCUS_RING}`}
+      style={{ height: ROLL_STRIP_PX, right: hasCaptionButtons(platform) ? CAPTION_RESERVE_PX : 0 }}
+    />
+  );
+}
+
 export function NowPlaying() {
   const open = useUI((state) => state.nowPlayingOpen);
+  const rollControls = useRef<AnimationPlaybackControls | null>(null);
   const keepAwake = useSettings((state) => state.keepScreenAwake);
   const [mounted, setMounted] = useState(false);
   const [exiting, setExiting] = useState(false);
@@ -144,6 +174,7 @@ export function NowPlaying() {
       hintTimer.current = window.setTimeout(() => setHintVisible(false), ESC_HINT_MS);
       enteredFullscreen.current = !useUI.getState().osFullscreen;
       void changeFullscreen(true);
+      runRoll(1, rollControls);
       return;
     }
     if (!wasOpen.current) return;
@@ -154,6 +185,7 @@ export function NowPlaying() {
       enteredFullscreen.current = false;
       void changeFullscreen(false);
     }
+    runRoll(0, rollControls);
     if (reducedMotion()) {
       setMounted(false);
       return;
@@ -189,7 +221,12 @@ export function NowPlaying() {
   }, [open, keepAwake]);
 
   if (!mounted) return null;
-  return <NowPlayingView exiting={exiting} hintVisible={hintVisible} />;
+  return (
+    <>
+      {open && !reducedMotion() && <RollStrip />}
+      <NowPlayingView exiting={exiting} hintVisible={hintVisible} />
+    </>
+  );
 }
 
 function MarqueeTitle({ text }: { text: string }) {
@@ -211,7 +248,7 @@ function MarqueeTitle({ text }: { text: string }) {
       onPointerLeave={stop}
       onFocus={start}
       onBlur={stop}
-      className="animate-fade-in min-w-0 overflow-hidden whitespace-nowrap rounded-md text-[28px] font-semibold tracking-[-0.02em] text-art focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus [font-family:var(--font-lyric)] font-synthesis-none"
+      className="animate-fade-in min-w-0 overflow-hidden whitespace-nowrap rounded-md text-section font-semibold tracking-[-0.02em] text-art focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus [font-family:var(--font-lyric)] font-synthesis-none"
     >
       <span
         ref={labelRef}
@@ -228,15 +265,20 @@ function MarqueeTitle({ text }: { text: string }) {
 }
 
 function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisible: boolean }) {
+  const panelRef = useRef<HTMLElement>(null);
+  const reduced = reducedMotion();
   const track = usePlayer(currentTrack);
   const duration = usePlayer((state) => state.duration);
   const position = usePlayer((state) => state.position);
   const seek = usePlayer((state) => state.seek);
   const playing = usePlayer((state) => state.playing);
+  const buffering = usePlayer((state) => state.buffering);
   const lyricsCenter = useUI((state) => state.lyricsCenter);
   const toggleNowPlaying = useUI((state) => state.toggleNowPlaying);
   const menuOpen = useUI((state) => Boolean(state.contextMenu || state.dialog || state.playlistPicker));
-  const animatedCanvas = useSettings((state) => state.animatedCanvas);
+  const animatedCovers = useSettings((state) => state.animatedCovers);
+  const dataSaver = useSettings((state) => state.dataSaver);
+  const statsForNerds = useSettings((state) => state.statsForNerds);
   const liked = useLibrary((state) => track !== null && state.liked.some((item) => item.id === track.id));
   const volume = usePlayer((state) => state.volume);
   const muted = usePlayer((state) => state.muted);
@@ -248,19 +290,35 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
   const [mode, setMode] = useState<Mode>("lyrics");
   const trackId = track?.id ?? null;
   const offset = useLyricsOffset(trackId);
-  const { lyrics, loading, reload } = useTrackLyrics(track, duration);
+  const { lyrics, loading } = useTrackLyrics(track, duration);
   const synced = lyrics?.synced ?? null;
-  const lines = useMemo(() => (synced ? visibleLyricLines(synced) : []), [synced]);
   const hasLyrics = Boolean(synced?.length || lyrics?.plain?.trim());
   useLyricsTimingKeys(trackId, !lyricsCenter);
   const idle = useIdleChrome(playing && !menuOpen && !exiting);
+  useEffect(() => {
+    const previous = document.activeElement;
+    panelRef.current?.querySelector<HTMLElement>("button:not([disabled])")?.focus({ preventScroll: true });
+    return () => { if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true }); };
+  }, []);
+  const trapFocus = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key !== "Tab" || menuOpen || exiting) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    const controls = Array.from(panel.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), [tabindex="0"]'));
+    const first = controls[0], last = controls.at(-1);
+    if (event.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) { event.preventDefault(); last?.focus(); }
+    else if (!event.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) { event.preventDefault(); first?.focus(); }
+  };
+
+  const roll = useTransform(nowPlayingRoll, (p) => rollStyles(p, window.innerHeight, reduced));
+  const rollClip = useTransform(roll, (r) => r.sheet);
+  const rollY = useTransform(nowPlayingRoll, (p) => (reduced ? 0 : Math.max(0, 1 - p) * window.innerHeight));
 
   const artwork = upgradeArtwork(track?.thumb, ART_TARGET);
   const cover = artwork || upgradeArtwork(peekArtistMeta(track?.artist ?? "")?.thumb, ART_TARGET);
   const paletteSrc = paletteCoverFor(track);
   const ambient = useArtworkPalette(paletteSrc);
-  const clip = trackId ? canvasClipFor(trackId) : null;
-  const showClip = animatedCanvas && clip !== null && !reducedMotion();
+  const clipUrl = useCanvasClip(track, animatedCovers && !dataSaver);
 
   const chrome = idle
     ? "pointer-events-none opacity-0 focus-within:pointer-events-auto focus-within:opacity-100"
@@ -269,10 +327,18 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
 
   return (
     <OnArtContext.Provider value>
-    <section
+    <motion.section
+      ref={panelRef}
+      role="dialog"
+      aria-modal="true"
       aria-label="Now Playing"
+      onKeyDown={trapFocus}
       data-idle={idle}
-      className={`fixed inset-0 z-[100] flex flex-col overflow-hidden ${exiting ? "opacity-0 motion-safe:transition-opacity motion-safe:duration-fade" : "animate-fade-in"} ${idle ? "cursor-none" : ""}`}
+      initial={reduced ? { opacity: 0 } : false}
+      animate={{ opacity: 1 }}
+      transition={fade}
+      style={{ y: rollY, clipPath: rollClip, paddingTop: reduced ? 0 : ROLL_STRIP_PX }}
+      className={`fixed inset-0 z-[100] flex flex-col overflow-hidden ${idle ? "cursor-none" : ""}`}
     >
       <AmbientBackdrop primary={ambient.primary} src={paletteSrc} className="absolute inset-0" />
       <p
@@ -280,9 +346,9 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
         aria-live="polite"
         className={`pointer-events-none absolute bottom-6 left-1/2 z-30 -translate-x-1/2 motion-safe:transition-[opacity,transform] motion-safe:duration-swap ${hintVisible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"}`}
       >
-        <span className="flex items-center gap-3 rounded-lg border border-separator bg-panel px-4 py-3 text-[14.5px] text-ink-1">
+        <span className="flex items-center gap-3 rounded-lg border border-separator bg-panel px-4 py-3 text-body text-ink-1">
           To exit full screen, press
-          <kbd className="grid h-7 min-w-[36px] place-items-center rounded-[5px] border border-ink-2 px-2 text-[13px] text-ink-1">
+          <kbd className="grid h-7 min-w-[36px] place-items-center rounded-[5px] border border-ink-2 px-2 text-meta text-ink-1">
             Esc
           </kbd>
         </span>
@@ -302,7 +368,7 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
               onClick={toggleNowPlaying}
               className="-ml-1 grid h-10 w-10 place-items-center rounded-[12px] [corner-shape:squircle] text-art/[0.55] hover:bg-art/[0.12] hover:text-art motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             >
-              <Icon icon={ArrowDown01Icon} />
+              <Icon icon={CaretDown} />
             </button>
           </div>
           <div data-tauri-drag-region className="flex items-center justify-center">
@@ -314,7 +380,7 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
                     type="button"
                     aria-pressed={mode === item.id}
                     onClick={() => setMode(item.id)}
-                    className={`hit-area h-8 w-24 rounded-[8px] [corner-shape:squircle] text-center text-[13px] font-semibold motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${mode === item.id ? "bg-art text-base" : "text-art/[0.72] hover:bg-art/[0.12] hover:text-art"}`}
+                    className={`hit-area h-8 w-24 rounded-[8px] [corner-shape:squircle] text-center text-meta font-semibold motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${mode === item.id ? "bg-art text-base" : "text-art/[0.72] hover:bg-art/[0.12] hover:text-art"}`}
                   >
                     {item.label}
                   </button>
@@ -330,33 +396,37 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
           </div>
         </header>
 
-        <div className="relative z-10 flex min-h-0 flex-1 flex-col gap-8 px-8 pb-4 lg:flex-row lg:justify-center lg:gap-12 lg:px-14 xl:gap-20">
-          <div className="flex min-h-0 min-w-0 flex-col items-center justify-center lg:w-[clamp(420px,34vw,640px)] lg:flex-none">
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col gap-8 px-8 pb-4 min-[900px]:flex-row min-[900px]:justify-center lg:gap-12 lg:px-14 xl:gap-20">
+          <div className="now-playing-main-column flex min-h-0 min-w-0 flex-col items-center justify-center min-[900px]:w-[clamp(320px,36vw,480px)] min-[900px]:flex-none">
             {track ? (
               <div className="flex w-full max-w-full flex-col">
-                <VinylRack cover={cover} overlay={showClip && clip ? <CoverClip key={clip.url} url={clip.url} playing={playing} /> : null} />
-                <div className="mx-auto flex w-full min-w-0 flex-col" style={{ width: `min(${RACK_CENTRE_MAX}px, ${RACK_CENTRE_FRACTION * 100}%)` }}>
+                <NowPlayingArtwork src={cover} trackId={track.id} overlay={clipUrl ? <CanvasVideo key={clipUrl} src={clipUrl} playing={playing} className="absolute inset-0 h-full w-full object-cover" /> : null} />
+                <div className="now-playing-controls mx-auto flex min-w-0 flex-col">
                   <div className="mt-6 min-w-0 text-center">
-                    <MarqueeTitle key={`title-${track.id}`} text={track.title} />
-                    <p key={`artist-${track.id}`} className="animate-fade-in mt-1 truncate text-[16px] text-art/[0.72]">{normalizeCredit(track.artist)}</p>
+                    <motion.div key={`title-${track.id}`} initial={reduced ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={reduced ? instant : swap}>
+                      <MarqueeTitle text={track.title} />
+                    </motion.div>
+                    <motion.p key={`artist-${track.id}`} initial={reduced ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={reduced ? instant : { ...swap, delay: 0.03 }} className="mt-1 truncate text-body text-art/[0.72]">{normalizeCredit(track.artist)}</motion.p>
+                    <p role="status" className="mt-1 min-h-4 text-meta text-art/[0.6]">{buffering ? "Buffering audio…" : ""}</p>
                   </div>
                   <div className={`mt-5 w-full ${chrome} ${chromeMotion}`}>
-                    <Groove seed={track.id} position={position} duration={duration} onSeek={seek} lyrics={lines} playing={playing} onArt />
+                    <PlaybackTimeline trackId={track.id} position={position} duration={duration} onSeek={seek} onArt />
                   </div>
                   <div role="group" aria-label="Transport" className={`mt-4 flex w-full items-center justify-between ${chrome} ${chromeMotion}`}>
                     <div className="-ml-[10px] flex shrink-0 items-center">
                       <TransportButton
                         label={liked ? "Remove from Library" : "Add to Library"}
-                        icon={FavouriteIcon}
+                        icon={Heart}
                         active={liked}
                         dot={false}
                         filled={liked}
                         pressed={liked}
+                        motionKind="like"
                         onArt
                         onClick={() => toggleLike(track)}
                       />
                       {platform === "android" && (
-                        <TransportButton label="Cast" icon={CastIcon} onArt onClick={() => void castFromNowPlaying()} />
+                        <TransportButton label="Cast" icon={Screencast} onArt onClick={() => void castFromNowPlaying()} />
                       )}
                     </div>
                     <PlaybackButtons onArt />
@@ -371,7 +441,7 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
                       onClick={toggleMute}
                       className={`hit-area -ml-[10px] grid h-10 w-10 shrink-0 place-items-center rounded-full text-art/[0.72] hover:text-art ${FOCUS_RING}`}
                     >
-                      <HugeiconsIcon icon={silent ? VolumeOffIcon : VolumeLowIcon} size={20} strokeWidth={1.5} />
+                      <Icon icon={silent ? SpeakerX : SpeakerLow} />
                     </button>
                     <input
                       type="range"
@@ -396,18 +466,23 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
                       onClick={() => setVolume(1)}
                       className={`hit-area -mr-[10px] grid h-10 w-10 shrink-0 place-items-center rounded-full text-art/[0.72] hover:text-art ${FOCUS_RING}`}
                     >
-                      <HugeiconsIcon icon={VolumeHighIcon} size={20} strokeWidth={1.5} />
+                      <Icon icon={SpeakerHigh} />
                     </button>
                   </div>
+                  {statsForNerds && (
+                    <div className={`mt-6 w-full ${chrome} ${chromeMotion}`}>
+                      <StatsPanel trackId={track.id} onArt />
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
               <div className="flex flex-col items-center text-center">
                 <div className="mb-5 grid h-16 w-16 place-items-center rounded-[10px] border border-art/[0.18] text-art/[0.55]">
-                  <Icon icon={MusicNote01Icon} />
+                  <Icon icon={MusicNote} />
                 </div>
                 <p className="text-sm text-art">Nothing playing yet</p>
-                <p className="mt-1 text-[13px] text-art/[0.55]">Play something and it will show up here.</p>
+                <p className="mt-1 text-meta text-art/[0.55]">Play something and it will show up here.</p>
               </div>
             )}
           </div>
@@ -422,12 +497,9 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
                 track && (
                   <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden pt-2">
                     <div className="flex flex-wrap items-center gap-3">
-                      <p className="text-[13px] text-art/[0.55]">No lyrics for this song</p>
-                      <LyricsChoice track={track} duration={duration} overridden={false} onChanged={reload} />
+                      <p className="text-meta text-art/[0.55]">No lyrics for this song</p>
                     </div>
-                    <div className="min-h-0 flex-1 overflow-hidden">
-                      <UpNext />
-                    </div>
+                    <p className="max-w-sm text-body leading-6 text-art/[0.6]">Switch to Queue to see what's playing next.</p>
                   </div>
                 )
               )}
@@ -435,20 +507,8 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
           </div>
         </div>
       </div>
-    </section>
+    </motion.section>
     </OnArtContext.Provider>
   );
 }
 
-function CoverClip({ url, playing }: { url: string; playing: boolean }) {
-  const ref = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    const video = ref.current;
-    if (!video) return;
-    if (playing) void video.play().catch(() => undefined);
-    else video.pause();
-  }, [playing, url]);
-
-  return <video ref={ref} src={url} muted playsInline loop className="absolute inset-0 h-full w-full object-cover" />;
-}

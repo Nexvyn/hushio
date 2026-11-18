@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { ListPlusIcon } from "@hugeicons/core-free-icons";
+import { ListPlus } from "@phosphor-icons/react";
 
 const { lyricsGet, setFullScreen, platformState, watchWindowMaximized } = vi.hoisted(() => ({
   lyricsGet: vi.fn(),
@@ -66,7 +66,7 @@ function openView() {
 }
 
 function region() {
-  return screen.queryByRole("region", { name: "Now Playing" });
+  return screen.queryByRole("dialog", { name: "Now Playing" });
 }
 
 describe("NowPlaying", () => {
@@ -81,7 +81,7 @@ describe("NowPlaying", () => {
     setFullScreen.mockResolvedValue(undefined);
     useLyricsNudge.setState({ nudges: {} });
     useLibrary.setState({ liked: [] });
-    useSettings.setState({ lyricsOffset: 0, animatedCanvas: false, fullBleedArtwork: true });
+    useSettings.setState({ lyricsOffset: 0, animatedCovers: false, fullBleedArtwork: true });
     useUI.setState({ nowPlayingOpen: false, lyricsCenter: false, osFullscreen: false, contextMenu: null, dialog: null, playlistPicker: null });
     setTrack(track);
   });
@@ -96,6 +96,15 @@ describe("NowPlaying", () => {
     render(<NowPlaying />);
     expect(region()).toBeNull();
     expect(setFullScreen).not.toHaveBeenCalled();
+  });
+
+  it("keeps the close control below the roll strip", () => {
+    render(<NowPlaying />);
+    openView();
+    const close = screen.getByRole("button", { name: "Close Now Playing" });
+    expect(region()?.contains(close)).toBe(true);
+    expect(region()?.style.paddingTop).toBe("84px");
+    expect(screen.getByRole("button", { name: "Hide Now Playing" })).toBeTruthy();
   });
 
   it("opens with the track, the Esc hint and a request for full screen", () => {
@@ -143,7 +152,7 @@ describe("NowPlaying", () => {
     expect(container.querySelector("video")).toBeNull();
 
     act(() => {
-      useSettings.setState({ animatedCanvas: true });
+      useSettings.setState({ animatedCovers: true });
     });
     expect(container.querySelector("video")?.getAttribute("src")).toBe("blob:clip");
     expect(canvasClipFor(track.id)).toEqual({ url: "blob:clip" });
@@ -263,8 +272,9 @@ describe("NowPlaying", () => {
     render(<NowPlaying />);
     openView();
     const add = within(screen.getByRole("group", { name: "Transport" })).getByRole("button", { name: "Add to playlist" });
-    const path = add.querySelector("svg path");
-    expect(path?.getAttribute("d")).toBe(ListPlusIcon[0][1].d);
+    const svg = add.querySelector("svg");
+    const reference = render(<ListPlus size={20} />).container.querySelector("svg");
+    expect(svg?.innerHTML).toBe(reference?.innerHTML);
   });
 
   it("gives the Lyrics and Queue tabs the same width, height and radius", () => {
@@ -324,6 +334,7 @@ describe("NowPlaying", () => {
   });
 
   it("renders the ambient backdrop behind a transparent root", () => {
+    useSettings.setState({ movingBackground: false });
     render(<NowPlaying />);
     openView();
     const section = region();
@@ -331,6 +342,15 @@ describe("NowPlaying", () => {
     expect(backdrop).not.toBeNull();
     expect(section?.firstElementChild).toBe(backdrop);
     expect(section?.className).not.toContain("bg-surface");
+  });
+
+  it("shows a flat cover-colour backdrop even when the old moving setting is on", () => {
+    useSettings.setState({ movingBackground: true });
+    render(<NowPlaying />);
+    openView();
+    const section = region();
+    expect(section?.querySelector("canvas")).toBeNull();
+    expect(section?.querySelector("[data-ambient-backdrop]")).not.toBeNull();
   });
 
   it("renders no bottom player strip in Now Playing", () => {
@@ -436,7 +456,7 @@ describe("NowPlaying", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Blue Song" }).className).toContain("text-art");
   });
 
-  it("shows Up Next in place of an empty lyrics column", async () => {
+  it("keeps unavailable lyrics distinct from the queue", async () => {
     usePlayer.setState({
       queue: [track, { id: "np-next", title: "Next Song", artist: "Other", thumb: null }],
       index: 0,
@@ -444,8 +464,10 @@ describe("NowPlaying", () => {
     render(<NowPlaying />);
     openView();
     expect(await screen.findByText("No lyrics for this song")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Up Next" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Play Next Song" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Up Next" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Queue" }));
+    expect(screen.getByRole("heading", { name: "Queue" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Next Song/ })).toBeTruthy();
   });
 
   it("fits the artwork in a square with object-cover", () => {
@@ -453,9 +475,9 @@ describe("NowPlaying", () => {
     setTrack(track);
     render(<NowPlaying />);
     openView();
-    const image = region()?.querySelector(".aspect-square img");
+    const image = region()?.querySelector(".now-playing-artwork img");
     expect(image?.className).toContain("object-cover");
-    expect(image?.parentElement?.className).toContain("aspect-square");
+    expect(image?.closest(".now-playing-artwork")).toBeTruthy();
   });
 
   it("keeps the transport row to exactly seven buttons and no volume slider", () => {
@@ -549,7 +571,7 @@ describe("NowPlaying", () => {
     expect(title.getAttribute("title")).toBe("Blue Song");
     expect(title.firstElementChild?.className).toContain("truncate");
     expect(title.tabIndex).toBe(0);
-    expect(screen.getByText("The Band").className).toContain("text-[16px]");
+    expect(screen.getByText("The Band").className).toContain("text-body");
     expect(screen.getByText("The Band").className).toContain("text-art/[0.72]");
   });
 

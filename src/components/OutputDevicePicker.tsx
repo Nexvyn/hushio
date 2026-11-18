@@ -1,25 +1,20 @@
 import { useEffect, useState } from "react";
-import { ArrowDown01Icon } from "@hugeicons/core-free-icons";
+import { CaretDown } from "@phosphor-icons/react";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
-import { deviceChoices, listOutputDevices, type OutputDevice, readOutputDevices } from "../lib/outputDevices";
+import { deviceChoices, listOutputDevices, type OutputChoice, type OutputDevice, readOutputDevices } from "../lib/outputDevices";
 import { useSettings } from "../stores/settings";
 import { useUI, type MenuItem } from "../stores/ui";
 
-function choiceMenu(devices: readonly OutputDevice[], sink: string, pin: (deviceId: string) => void): MenuItem[] {
-  const choices = deviceChoices(devices);
-  const active = choices.find((choice) => !choice.isDefault && choice.activeDefault)?.label;
-  return choices.map((choice) => ({
-    label: choice.label,
-    note: choice.isDefault ? active : undefined,
-    checked: choice.isDefault ? sink === "" : choice.deviceId === sink,
-    onSelect: () => pin(choice.deviceId),
-  }));
+export function isChoiceChecked(choice: OutputChoice, sink: string): boolean {
+  return choice.isDefault ? sink === "" : choice.deviceId === sink;
 }
 
-export function OutputDevicePicker() {
-  const sink = useSettings((state) => state.audioSinkId);
-  const setAudioSinkId = useSettings((state) => state.setAudioSinkId);
+export function activeDefaultLabel(choices: readonly OutputChoice[]): string | undefined {
+  return choices.find((choice) => !choice.isDefault && choice.activeDefault)?.label;
+}
+
+export function useOutputDevices() {
   const [devices, setDevices] = useState<OutputDevice[]>([]);
 
   useEffect(() => {
@@ -39,6 +34,25 @@ export function OutputDevicePicker() {
     };
   }, []);
 
+  return { devices, setDevices };
+}
+
+function choiceMenu(devices: readonly OutputDevice[], sink: string, pin: (deviceId: string) => void): MenuItem[] {
+  const choices = deviceChoices(devices);
+  const active = activeDefaultLabel(choices);
+  return choices.map((choice) => ({
+    label: choice.label,
+    note: choice.isDefault ? active : undefined,
+    checked: isChoiceChecked(choice, sink),
+    onSelect: () => pin(choice.deviceId),
+  }));
+}
+
+export function OutputDevicePicker() {
+  const sink = useSettings((state) => state.audioSinkId);
+  const setAudioSinkId = useSettings((state) => state.setAudioSinkId);
+  const { devices, setDevices } = useOutputDevices();
+
   const pinned = sink === "" ? undefined : devices.find((device) => device.deviceId === sink);
   const label = pinned?.label ?? "System default";
 
@@ -56,7 +70,7 @@ export function OutputDevicePicker() {
   return (
     <Button aria-haspopup="menu" onClick={(event) => open(event.currentTarget.getBoundingClientRect())} className="gap-1.5">
       {label}
-      <Icon icon={ArrowDown01Icon} />
+      <Icon icon={CaretDown} />
     </Button>
   );
 }

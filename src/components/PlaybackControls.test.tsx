@@ -40,7 +40,7 @@ describe("PlaybackControls", () => {
     render(<PlaybackControls />);
     expect(screen.getByRole("group", { name: "Playback" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Enable Shuffle" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Shuffle off" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Enable repeat" })).toBeTruthy();
     expect((screen.getByRole("button", { name: "Previous" }) as HTMLButtonElement).disabled).toBe(false);
   });
@@ -51,14 +51,16 @@ describe("PlaybackControls", () => {
     expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
   });
 
-  it("shows shuffle as pressed with an accent dot and toggles it", () => {
+  it("shows shuffle as pressed with an accent dot and cycles to smart shuffle and off", () => {
     usePlayer.setState({ shuffle: true });
     const { container } = render(<PlaybackControls />);
-    const shuffle = screen.getByRole("button", { name: "Disable Shuffle" });
+    const shuffle = screen.getByRole("button", { name: "Shuffle on" });
     expect(shuffle.getAttribute("aria-pressed")).toBe("true");
     expect(shuffle.querySelector("span.bg-accent")).not.toBeNull();
     expect(container.querySelectorAll("span.bg-accent")).toHaveLength(1);
     fireEvent.click(shuffle);
+    expect(usePlayer.getState().smartShuffle).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Smart shuffle on" }));
     expect(usePlayer.getState().shuffle).toBe(false);
   });
 

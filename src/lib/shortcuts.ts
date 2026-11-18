@@ -1,8 +1,11 @@
 import { useEffect, useRef } from "react";
-import { naturalScrollDirection, setFullScreen } from "./bridge";
+import { naturalScrollDirection, platform, setFullScreen } from "./bridge";
 import { createSwipeNav, scrollsSideways, SWIPE_LIFT_MS, type SwipeDir, type SwipeUpdate } from "./swipe";
+import { openCreateFolder, openCreatePlaylist } from "./collectionActions";
+import { applyZoom, nextZoom } from "./zoom";
 import { useNavigation } from "../stores/navigation";
 import { usePlayer } from "../stores/player";
+import { useSettings } from "../stores/settings";
 import { useUI } from "../stores/ui";
 import { swipeArrow } from "../components/SwipeArrow";
 
@@ -63,7 +66,9 @@ function playbackKey(event: KeyboardEvent): boolean {
   }
 }
 
-export const SHORTCUTS: readonly { keys: string; action: string }[] = [
+const MOD = platform === "macos" ? "Cmd" : "Ctrl";
+
+const SHORTCUTS: readonly { keys: string; action: string }[] = [
   { keys: "Space", action: "Play or pause" },
   { keys: "Left, Right", action: "Seek back or forward 5 seconds" },
   { keys: "Shift + Left, Shift + Right", action: "Previous or next song" },
@@ -74,7 +79,12 @@ export const SHORTCUTS: readonly { keys: string; action: string }[] = [
   { keys: "Q", action: "Show or hide the queue" },
   { keys: "L", action: "Show or hide lyrics" },
   { keys: "N", action: "Show or hide Now Playing" },
-  { keys: "/ or Ctrl + F", action: "Focus search" },
+  { keys: `/ or ${MOD} + F, K, L`, action: "Focus search" },
+  { keys: `${MOD} + N`, action: "New playlist" },
+  { keys: `${MOD} + Shift + N`, action: "New folder" },
+  { keys: `${MOD} + ,`, action: "Open settings" },
+  { keys: `${MOD} + = or -`, action: "Zoom in or out" },
+  { keys: `${MOD} + 0`, action: "Reset zoom" },
   { keys: "Alt + Left, Alt + Right", action: "Go back or forward" },
   { keys: "Alt + Up, Alt + Down", action: "Move the selected song in the queue" },
   { keys: "Escape", action: "Close the queue, lyrics or Now Playing" },
@@ -89,6 +99,52 @@ function openShortcutHelp() {
     cancelLabel: "Close",
     onConfirm: () => {},
   });
+}
+
+export type ComboAction = "search" | "newPlaylist" | "newFolder" | "settings" | "zoomIn" | "zoomOut" | "zoomReset";
+
+export function comboAction(event: Pick<KeyboardEvent, "key" | "code" | "shiftKey">): ComboAction | null {
+  const letter = event.key.toLowerCase();
+  if (letter === "f" || letter === "k" || letter === "l") return "search";
+  if (letter === "n") return event.shiftKey ? "newFolder" : "newPlaylist";
+  if (event.key === "," || event.code === "Comma") return "settings";
+  if (event.key === "+" || event.key === "=" || event.code === "Equal" || event.code === "NumpadAdd") return "zoomIn";
+  if (event.key === "-" || event.code === "Minus" || event.code === "NumpadSubtract") return "zoomOut";
+  if (event.key === "0" || event.code === "Digit0" || event.code === "Numpad0") return "zoomReset";
+  return null;
+}
+
+function stepZoom(direction: 1 | -1 | 0) {
+  if (platform === "android") return;
+  const next = nextZoom(useSettings.getState().zoom, direction);
+  useSettings.getState().setValue("zoom", next);
+  void applyZoom(next);
+}
+
+function runCombo(action: ComboAction) {
+  switch (action) {
+    case "newPlaylist":
+      openCreatePlaylist();
+      return;
+    case "newFolder":
+      openCreateFolder();
+      return;
+    case "settings":
+      useNavigation.getState().navigate({ name: "settings" });
+      return;
+    case "zoomIn":
+      stepZoom(1);
+      return;
+    case "zoomOut":
+      stepZoom(-1);
+      return;
+    case "zoomReset":
+      stepZoom(0);
+      return;
+    case "search":
+      focusSearch();
+      return;
+  }
 }
 
 export function focusSearch() {
@@ -112,17 +168,26 @@ function isPlainArrow(event: KeyboardEvent) {
 
 export function useKeyboardShortcuts() {
   useEffect(() => {
+    if (platform === "android") return;
+    if (useSettings.persist.hasHydrated()) {
+      void applyZoom(useSettings.getState().zoom);
+      return;
+    }
+    return useSettings.persist.onFinishHydration(() => void applyZoom(useSettings.getState().zoom));
+  }, []);
+
+  useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       const ui = useUI.getState();
       const nav = useNavigation.getState();
       const layered = Boolean(ui.dialog || ui.contextMenu || ui.playlistPicker);
 
       if (event.ctrlKey || event.metaKey) {
-        if (event.key.toLowerCase() === "f") {
-          if (layered) return;
-          event.preventDefault();
-          focusSearch();
-        }
+        const action = comboAction(event);
+        if (!action || layered) return;
+        if (action !== "search" && isTyping(event.target)) return;
+        event.preventDefault();
+        runCombo(action);
         return;
       }
 

@@ -1,8 +1,9 @@
-import { useId, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { AnimatePresence } from "motion/react";
-import { ArrowLeft01Icon, ArrowRight01Icon, Cancel01Icon, Compass01Icon, Home01Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { CaretLeft, CaretRight, X, House, MagnifyingGlass } from "@phosphor-icons/react";
 import { CaptionButtons } from "./CaptionButtons";
 import { Icon } from "./Icon";
+import { AppLogo } from "./AppLogo";
 import { ProfileButton } from "./ProfileButton";
 import { SearchSuggestions, optionId, useTypeAhead } from "./SearchSuggestions";
 import { ThemeButton } from "./ThemeButton";
@@ -16,15 +17,15 @@ import { useNavigation } from "../stores/navigation";
 import { useUI } from "../stores/ui";
 
 const squircleButton =
-  "hit-area grid h-10 w-10 shrink-0 place-items-center rounded-[12px] [corner-shape:squircle] text-ink-2 motion-safe:transition-colors lifted-hover hover:text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-[var(--disabled-opacity)]";
+  "hit-area grid h-9 w-9 shrink-0 place-items-center rounded-[12px] [corner-shape:squircle] text-ink-2 motion-safe:transition-colors lifted-hover hover:text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-[var(--disabled-opacity)]";
 
 const liftedButton =
-  "hit-area grid h-10 w-10 shrink-0 place-items-center rounded-[12px] [corner-shape:squircle] border lifted-edge outline-none text-ink-2 motion-safe:transition-colors hover:text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+  "hit-area grid h-9 w-9 shrink-0 place-items-center rounded-full border lifted-edge outline-none text-ink-2 motion-safe:transition-colors hover:text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
 const liftedFill = "lifted-fill";
 
 const fieldInput =
-  "lifted-field lifted-fill lifted-edge relative z-[60] h-10 w-full rounded-[12px] [corner-shape:squircle] border pl-11 text-[14px] text-ink-1 placeholder:text-ink-1/60 motion-safe:transition-colors";
+  "relative z-[60] h-9 w-full rounded-field bg-wash pl-11 text-body text-ink-1 placeholder:text-ink-3 outline-none focus-visible:ring-2 focus-visible:ring-focus data-[open=true]:bg-transparent motion-safe:transition-colors";
 
 export function TopBar() {
   const view = useNavigation((state) => state.view);
@@ -40,6 +41,12 @@ export function TopBar() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [focused, setFocused] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const viewName = view.name;
+  const previousView = useRef(viewName);
+  useEffect(() => {
+    if (previousView.current === "search" && viewName !== "search") setSearchQuery("");
+    previousView.current = viewName;
+  }, [viewName, setSearchQuery]);
   const rows = useTypeAhead(searchQuery, focused);
   const open = focused && rows.length > 0;
 
@@ -62,7 +69,6 @@ export function TopBar() {
   const clearSearch = () => {
     setSearchQuery("");
     setActiveIndex(-1);
-    if (view.name === "search") navigate({ name: "home" });
     inputRef.current?.focus();
   };
 
@@ -87,10 +93,13 @@ export function TopBar() {
   return (
     <header
       data-tauri-drag-region
-      className="grid h-14 shrink-0 grid-cols-[22rem_minmax(0,1fr)_22rem] items-center gap-3 pl-3 pr-4"
+        className="app-toolbar grid h-[52px] shrink-0 bg-base grid-cols-[auto_minmax(0,1fr)_auto] xl:grid-cols-[minmax(0,1fr)_minmax(300px,520px)_minmax(0,1fr)] items-center gap-3 py-1.5 pl-3 pr-4"
       style={{ paddingLeft: topBarLeadingInset(platform) }}
     >
       <div data-tauri-drag-region className="flex items-center gap-1 justify-self-start">
+        <span className="mr-2 flex items-center">
+          <AppLogo size={28} introTarget />
+        </span>
         <button
           type="button"
           aria-label="Back"
@@ -99,7 +108,7 @@ export function TopBar() {
           onClick={goBack}
           className={squircleButton}
         >
-          <Icon icon={ArrowLeft01Icon} />
+          <Icon icon={CaretLeft} />
         </button>
         <button
           type="button"
@@ -109,26 +118,25 @@ export function TopBar() {
           onClick={goForward}
           className={squircleButton}
         >
-          <Icon icon={ArrowRight01Icon} />
+          <Icon icon={CaretRight} />
         </button>
       </div>
 
       <div data-tauri-drag-region data-testid="topbar-centre" className="flex min-w-0 items-center justify-center gap-2">
         <button
           type="button"
-          data-intro-target
           aria-label="Home"
           title="Home"
           aria-current={view.name === "home" ? "page" : undefined}
           onClick={() => navigate({ name: "home" })}
           className={`${liftedButton} ${view.name === "home" ? "lifted-tint text-ink-1" : liftedFill}`}
         >
-          <Icon icon={Home01Icon} />
+          <Icon icon={House} />
         </button>
 
         <div className="relative min-w-0 w-full max-w-[474px]">
           <span className="pointer-events-none absolute left-3.5 top-1/2 z-[60] -translate-y-1/2 text-ink-2">
-            <Icon icon={Search01Icon} />
+            <Icon icon={MagnifyingGlass} />
           </span>
           <input
             ref={inputRef}
@@ -166,19 +174,9 @@ export function TopBar() {
               onClick={clearSearch}
               className="hit-area absolute right-[44px] top-1/2 z-[60] grid h-7 w-7 -translate-y-1/2 place-items-center rounded-[9px] [corner-shape:squircle] text-ink-2 motion-safe:transition-colors hover:bg-hover hover:text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             >
-              <Icon icon={Cancel01Icon} />
+              <Icon icon={X} />
             </button>
           )}
-          <button
-            type="button"
-            aria-label="Explore"
-            title="Explore"
-            aria-current={view.name === "explore" ? "page" : undefined}
-            onClick={() => navigate({ name: "explore" })}
-            className={`hit-area absolute right-0 top-1/2 z-[60] grid h-10 w-10 -translate-y-1/2 place-items-center rounded-[12px] [corner-shape:squircle] motion-safe:transition-colors lifted-hover hover:text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${view.name === "explore" ? "lifted-tint text-ink-1" : "text-ink-2"}`}
-          >
-            <Icon icon={Compass01Icon} />
-          </button>
           <AnimatePresence>
             {open && (
               <SearchSuggestions

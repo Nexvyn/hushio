@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const { audio, playStream, play, pause, seekTo, setVolume, setMuted } = vi.hoisted(() => ({
@@ -42,53 +42,117 @@ import type { Track } from "../types";
 const track = (i: number): Track => ({ id: `t${i}`, title: `Track ${i}`, artist: `Artist ${i}`, thumb: null });
 const initialPlayer = usePlayer.getState();
 const initialUI = useUI.getState();
+const initialLibrary = useLibrary.getState();
+
+function renderQueue() {
+  useUI.setState({ rightPanel: "queue" });
+  render(<RightRail />);
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
   playStream.mockResolvedValue(undefined);
   usePlayer.setState(initialPlayer, true);
   useUI.setState(initialUI, true);
+  useLibrary.setState(initialLibrary, true);
 });
 
 afterEach(cleanup);
 
 describe("RightRail", () => {
-  it("shows the song details tab with nothing playing", () => {
+  it("shows the nothing-playing state on the now-playing view", () => {
     render(<RightRail />);
 
-    expect(screen.getByRole("tab", { name: "Song details", selected: true })).toBeTruthy();
-    expect(screen.getByText("Nothing playing yet")).toBeTruthy();
+    expect(screen.getByText("Play something and it shows up here.")).toBeTruthy();
+    expect(screen.getByText("Now playing")).toBeTruthy();
   });
 
-  it("shows the playing song in the details tab", () => {
+  it("shows the cover and title, then the queue with every upcoming song", () => {
+    usePlayer.getState().playQueue([track(0), track(1), track(2), track(3)], 1, "__liked__");
+    render(<RightRail />);
+
+    const rail = screen.getByLabelText("Now playing panel");
+    const title = within(rail).getByText("Track 1");
+    const heading = within(rail).getByRole("heading", { name: "Next from: Liked Songs" });
+    const queue = within(screen.getByRole("region", { name: "Queue" }));
+    expect(title.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(queue.getByRole("button", { name: /Track 2/ })).toBeTruthy();
+    expect(queue.getByRole("button", { name: /Track 3/ })).toBeTruthy();
+    expect(queue.queryByText("Track 1")).toBeNull();
+    expect(within(rail).getByRole("button", { name: "Clear queue" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "About the artist" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Next in queue" })).toBeNull();
+  });
+
+  it("titles the header with the playlist or liked songs the playing song comes from", () => {
+    usePlayer.getState().playQueue([track(0), track(1)], 0, "__liked__");
+    render(<RightRail />);
+
+    expect(screen.getByText("Liked Songs")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Track options" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Close panel" })).toBeTruthy();
+  });
+
+  it("titles the header Now playing instead of repeating the track title when no context is set", () => {
     usePlayer.getState().playQueue([track(0), track(1)], 1);
     render(<RightRail />);
 
-    expect(screen.getByText("Track 1")).toBeTruthy();
-    expect(screen.getByText("Artist 1")).toBeTruthy();
+    const header = screen.getByRole("button", { name: "Track options" }).closest("header") as HTMLElement;
+    expect(within(header).getByText("Now playing")).toBeTruthy();
+    expect(within(header).queryByText("Track 1")).toBeNull();
+    expect(screen.queryByText("Playing from")).toBeNull();
+  });
+
+  it("opens the track menu with Add to queue and Download", async () => {
+    usePlayer.getState().playQueue([track(0), track(1)], 0);
+    const user = userEvent.setup();
+    render(<RightRail />);
+
+    await user.click(screen.getByRole("button", { name: "Track options" }));
+    const labels = useUI.getState().contextMenu?.items.map((item) => item.label) ?? [];
+    expect(labels).toContain("Add to queue");
+    expect(labels).toContain("Download");
+  });
+
+  it("closes the rail from the close button", async () => {
+    usePlayer.getState().playQueue([track(0), track(1)], 0);
+    const user = userEvent.setup();
+    render(<RightRail />);
+
+    await user.click(screen.getByRole("button", { name: "Close panel" }));
+    expect(useUI.getState().railColumnOpen).toBe(false);
+  });
+
+  it("switches between the queue and recently played tabs", async () => {
+    usePlayer.getState().playQueue([track(0), track(1), track(2)], 0);
+    const user = userEvent.setup();
+    renderQueue();
+
+    expect(screen.getByRole("region", { name: "Queue" })).toBeTruthy();
+    await user.click(screen.getByRole("tab", { name: "Recently played" }));
+    expect(screen.queryByRole("region", { name: "Queue" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Recently played" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Recently played" }).getAttribute("aria-selected")).toBe("true");
   });
 
   it("lists the upcoming songs and plays one when its row is clicked", async () => {
     usePlayer.getState().playQueue([track(0), track(1), track(2), track(3)], 0);
     const user = userEvent.setup();
-    render(<RightRail />);
+    renderQueue();
 
-    await user.click(screen.getByRole("tab", { name: "Queue" }));
-    const queue = screen.getByRole("tabpanel");
+    const queue = screen.getByRole("region", { name: "Queue" });
     expect(within(queue).queryByText("Track 0")).toBeNull();
 
     await user.click(within(queue).getByRole("button", { name: /Track 2/ }));
     expect(usePlayer.getState().index).toBe(2);
-    expect(useUI.getState().rightPanel).toBe("queue");
   });
 
   it("saves the playing song and the rest of the queue as a playlist", async () => {
     useLibrary.setState({ playlists: [] });
     usePlayer.getState().playQueue([track(0), track(1), track(2)], 1);
     const user = userEvent.setup();
-    render(<RightRail />);
+    renderQueue();
 
-    await user.click(screen.getByRole("tab", { name: "Queue" }));
     await user.click(screen.getByRole("button", { name: "Save as playlist" }));
 
     const saved = useLibrary.getState().playlists[0];
@@ -100,23 +164,20 @@ describe("RightRail", () => {
   it("removes an upcoming song from the queue list", async () => {
     usePlayer.getState().playQueue([track(0), track(1), track(2)], 0);
     const user = userEvent.setup();
-    render(<RightRail />);
+    renderQueue();
 
-    await user.click(screen.getByRole("tab", { name: "Queue" }));
     const removeButtons = screen.getAllByRole("button", { name: "Remove from queue" });
     await user.click(removeButtons[0]);
 
-    expect(usePlayer.getState().queue.map((item) => item.id)).toEqual(["t0", "t2"]);
+    await waitFor(() => expect(usePlayer.getState().queue.map((item) => item.id)).toEqual(["t0", "t2"]));
   });
 
   it("moves the focused upcoming song with Alt+Arrow keys and keeps the first song in place", async () => {
     usePlayer.getState().playQueue([track(0), track(1), track(2), track(3)], 0);
     const moveUpcoming = vi.fn();
     usePlayer.setState({ moveUpcoming });
-    const user = userEvent.setup();
-    render(<RightRail />);
+    renderQueue();
 
-    await user.click(screen.getByRole("tab", { name: "Queue" }));
     const queue = within(screen.getByRole("region", { name: "Queue" }));
     const second = queue.getByRole("button", { name: /Track 2/ });
     fireEvent.keyDown(second, { key: "ArrowDown", altKey: true });
@@ -132,13 +193,13 @@ describe("RightRail", () => {
     expect(moveUpcoming).toHaveBeenCalledTimes(2);
   });
 
-  it("shows recently played songs under the queue, without the playing one", async () => {
+  it("shows recently played songs on their tab, without the playing one", async () => {
     const player = usePlayer.getState();
     player.playQueue([track(0), track(1)], 0);
     player.jumpTo(1);
-    render(<RightRail />);
+    renderQueue();
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Recently played" }));
 
-    await userEvent.setup().click(screen.getByRole("tab", { name: "Queue" }));
     const recent = screen.getByRole("heading", { name: "Recently played" }).closest("section");
     expect(within(recent as HTMLElement).getByRole("button", { name: /Track 0/ })).toBeTruthy();
     expect(within(recent as HTMLElement).queryByRole("button", { name: /Track 1/ })).toBeNull();

@@ -14,7 +14,7 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { reducedMotion } from "../lib/motion";
 import { type Box, pickerMotion } from "../lib/pickerLayout";
-import { ArrowRight01Icon, CheckIcon } from "@hugeicons/core-free-icons";
+import { CaretRight, Check } from "@phosphor-icons/react";
 import { Icon } from "./Icon";
 import { FLOAT_PANEL, FLOAT_ROW } from "../lib/floatStyle";
 import { GOO_SHAPE, GOO_LAYER_STYLE, gooVariants } from "./Goo";
@@ -202,10 +202,12 @@ const MenuPanel = forwardRef<HTMLDivElement, PanelProps>(function MenuPanel(
       className={`${attached ? ATTACHED_PANEL : submenu ? SUB_PANEL : PANEL}${above ? " is-above" : ""}${flipped ? " is-flipped" : ""}`}
     >
       {attached && (
-        <div aria-hidden="true" data-goo-layer="" className="pointer-events-none absolute inset-0" style={GOO_LAYER_STYLE}>
-          <div className="absolute right-0 top-0 h-10 w-10 rounded-[12px] [corner-shape:squircle] bg-elevated" />
-          <motion.div variants={goo.stretch} data-goo-panel="" className={`${GOO_SHAPE} bottom-0 top-10 origin-top`} />
-        </div>
+        <motion.div variants={goo.stretch} data-goo-panel="" aria-hidden="true" className="pointer-events-none absolute inset-0 origin-top">
+          <div data-goo-layer="" className="absolute inset-0" style={GOO_LAYER_STYLE}>
+            <div className="absolute right-0 top-0 h-10 w-10 rounded-[12px] [corner-shape:squircle] bg-elevated" />
+            <div className={`${GOO_SHAPE} bottom-0 top-10`} />
+          </div>
+        </motion.div>
       )}
       <span ref={lightRef} aria-hidden="true" className="menu-light" />
       {subject && (
@@ -219,7 +221,7 @@ const MenuPanel = forwardRef<HTMLDivElement, PanelProps>(function MenuPanel(
               />
             )}
             {subject.thumb ? (
-              <img
+              <img loading="lazy" decoding="async"
                 alt=""
                 src={subject.thumb}
                 className={`relative h-10 w-10 shrink-0 object-cover ${subject.round ? "rounded-full" : "rounded-lg"}`}
@@ -228,8 +230,8 @@ const MenuPanel = forwardRef<HTMLDivElement, PanelProps>(function MenuPanel(
               <span className={`relative h-10 w-10 shrink-0 bg-wash ${subject.round ? "rounded-full" : "rounded-lg"}`} />
             )}
             <span className="relative min-w-0">
-              <span className="block truncate text-[14px] font-bold text-ink-1">{subject.title}</span>
-              {subject.subtitle && <span className="mt-px block truncate text-[12.5px] text-ink-2">{subject.subtitle}</span>}
+              <span className="block truncate text-body font-bold text-ink-1">{subject.title}</span>
+              {subject.subtitle && <span className="mt-px block truncate text-meta text-ink-2">{subject.subtitle}</span>}
             </span>
           </div>
         </>
@@ -237,7 +239,7 @@ const MenuPanel = forwardRef<HTMLDivElement, PanelProps>(function MenuPanel(
       {rows.map((item, index) => (
         <Fragment key={`${index}:${item.label}`}>
           {item.header ? (
-            <div role="presentation" className="px-3 pb-1 pt-2 text-[12px] font-medium text-ink-2">
+            <div role="presentation" className="px-3 pb-1 pt-2 text-meta font-medium text-ink-2">
               {item.label}
             </div>
           ) : (
@@ -261,7 +263,7 @@ const MenuPanel = forwardRef<HTMLDivElement, PanelProps>(function MenuPanel(
                 if (byKeys.current) shine(event.currentTarget);
               }}
               onClick={(event) => onRowActivate(index, event.currentTarget)}
-              className={ROW}
+              className={item.separatorBefore ? `${ROW} mt-2` : ROW}
             >
               {item.icon &&
                 (item.note ? (
@@ -273,11 +275,11 @@ const MenuPanel = forwardRef<HTMLDivElement, PanelProps>(function MenuPanel(
                 ))}
               <span className="min-w-0 flex-1">
                 <span className="block truncate">{item.label}</span>
-                {item.note && <span className="block truncate text-[12px] text-ink-2">{item.note}</span>}
+                {item.note && <span className="block truncate text-meta text-ink-2">{item.note}</span>}
               </span>
-              {item.trailing && <span className="min-w-0 max-w-[60%] truncate text-[12.5px] text-ink-2">{item.trailing}</span>}
-              {item.checked === true && <Icon icon={CheckIcon} />}
-              {item.children && <Icon icon={ArrowRight01Icon} />}
+              {item.trailing && <span className="min-w-0 max-w-[60%] truncate text-meta text-ink-2">{item.trailing}</span>}
+              {item.checked === true && <Icon icon={Check} />}
+              {item.children && <Icon icon={CaretRight} />}
             </button>
           )}
         </Fragment>

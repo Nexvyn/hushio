@@ -130,9 +130,11 @@ describe("playback keys", () => {
 
   it("Q, L and N open the queue, lyrics and Now Playing", () => {
     press("KeyQ");
+    expect(useUI.getState().railColumnOpen).toBe(true);
     expect(useUI.getState().rightPanel).toBe("queue");
 
     press("KeyQ");
+    expect(useUI.getState().railColumnOpen).toBe(true);
     expect(useUI.getState().rightPanel).toBe("details");
 
     press("KeyL");

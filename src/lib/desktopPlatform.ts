@@ -7,3 +7,7 @@ export function hasCaptionButtons(platform: Platform): boolean {
 export function usesNativeMediaControls(platform: Platform): boolean {
   return platform === "windows" || platform === "linux" || platform === "macos";
 }
+
+export function deviceNoun(platform: Platform): "phone" | "computer" {
+  return platform === "android" ? "phone" : "computer";
+}

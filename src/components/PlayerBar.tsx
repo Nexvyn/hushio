@@ -1,31 +1,23 @@
 import { useEffect, useId, useMemo, useState } from "react";
+import { motion } from "motion/react";
+import { instant, reducedMotion, swap } from "../lib/motion";
+import { useImageReveal } from "./useImageReveal";
 import { normalizeCredit } from "../lib/credits";
-import {
-  CheckmarkCircle02Icon,
-  Download01Icon,
-  FullScreenIcon,
-  Mic01Icon,
-  MoonIcon,
-  ListPlusIcon,
-  MusicNote01Icon,
-  Queue01Icon,
-  VolumeHighIcon,
-  VolumeOffIcon,
-} from "@hugeicons/core-free-icons";
+import { CornersOut, Microphone, Moon, ListPlus, MusicNote, Queue, SpeakerHigh, SpeakerX } from "@phosphor-icons/react";
 import { Icon } from "./Icon";
+import { railFor, useViewportWidth } from "../lib/layoutTier";
 import { Groove } from "./Groove";
+import { OutputDeviceButton } from "./OutputDeviceButton";
 import { LikeButton } from "./LikeButton";
 import { PlaybackControls, TransportButton } from "./PlaybackControls";
 import { PipButton } from "../pip/PipButton";
 import { setFullScreen } from "../lib/bridge";
-import { upgradeArtwork } from "../lib/artwork";
-import { cancelDownload, isDownloadable, revealDownload, startDownload } from "../lib/downloads";
+import { thumbArtwork } from "../lib/artwork";
 import { sleepMenuItems, sleepStatus } from "../lib/sleepActions";
 import { formatSleepLeft } from "../lib/sleepTimer";
 import { visibleLyricLines } from "../lib/lyricsLines";
 import { playerAddMenuItems, songOf } from "../lib/trackActions";
 import { useTrackLyrics } from "../lib/useTrackLyrics";
-import { useLibrary } from "../stores/library";
 import { currentTrack, usePlayer } from "../stores/player";
 import { useSettings } from "../stores/settings";
 import { useSleepTimer } from "../stores/sleepTimer";
@@ -71,12 +63,12 @@ function SleepTimer() {
           const header: MenuItem = { label: status ?? "Sleep timer", header: true };
           ui.openContextMenu(rect.left, rect.top, [header, ...sleepMenuItems()], { owner, above: true });
         }}
-        className={`relative hit-area grid h-9 w-9 shrink-0 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${status ? "text-ink-1" : "text-ink-2 hover:text-ink-1"}`}
+        className={`bt-press relative hit-area grid h-9 w-9 shrink-0 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${status ? "text-ink-1" : "text-ink-2 hover:text-ink-1"}`}
       >
-        <Icon icon={MoonIcon} />
+        <Icon icon={Moon} />
         {status && <span aria-hidden="true" className="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-accent" />}
       </button>
-      {left && <span className="-ml-0.5 mr-1 text-[11px] tabular-nums text-ink-2">{left}</span>}
+      {left && <span className="-ml-0.5 mr-1 text-caption tabular-nums text-ink-2">{left}</span>}
     </span>
   );
 }
@@ -105,81 +97,45 @@ export function AddToPlaylist({ track, onArt = false }: { track: Track | null; o
         const rect = event.currentTarget.getBoundingClientRect();
         ui.openContextMenu(rect.left, rect.top, playerAddMenuItems(songOf(track)), { owner, above: true });
       }}
-      className={`hit-area grid ${onArt ? "h-10 w-10 text-art/[0.72] hover:text-art" : "h-9 w-9 text-ink-2 hover:text-ink-1"} shrink-0 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-[var(--disabled-opacity)]`}
+      className={`bt-press hit-area grid ${onArt ? "h-10 w-10 text-art/[0.72] hover:text-art" : "h-9 w-9 text-ink-2 hover:text-ink-1"} shrink-0 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-[var(--disabled-opacity)]`}
     >
-      <Icon icon={ListPlusIcon} />
-    </button>
-  );
-}
-
-const RING_MASK = "radial-gradient(farthest-side, transparent calc(100% - 2px), currentColor calc(100% - 2px))";
-
-function DownloadButton({ track }: { track: Track | null }) {
-  const item = useLibrary((state) => (track ? state.downloads[track.id] : undefined));
-  if (track && !isDownloadable(track.id)) return null;
-  const busy = item?.status === "queued" || item?.status === "downloading";
-  const path = item?.status === "done" ? item.path : null;
-  const percent = Math.round((item?.progress ?? 0) * 100);
-  const label = busy ? `Downloading, ${percent}%` : path ? "Downloaded" : "Download";
-  const onClick = () => {
-    if (!track) return;
-    if (busy) void cancelDownload(track.id);
-    else if (path) revealDownload(path);
-    else void startDownload(track);
-  };
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      disabled={track === null}
-      onClick={onClick}
-      className={`hit-area grid h-9 w-9 shrink-0 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-[var(--disabled-opacity)] ${path ? "text-accent" : busy ? "text-ink-1" : "text-ink-2 hover:text-ink-1"}`}
-    >
-      {busy ? (
-        <span
-          aria-hidden="true"
-          className="relative block h-5 w-5 rounded-full bg-ink-1/20 text-accent"
-          style={{ WebkitMask: RING_MASK, mask: RING_MASK }}
-        >
-          <span
-            className="absolute inset-0 rounded-full"
-            style={{ background: `conic-gradient(currentColor ${Math.round((item?.progress ?? 0) * 360)}deg, transparent 0)` }}
-          />
-        </span>
-      ) : (
-        <Icon icon={path ? CheckmarkCircle02Icon : Download01Icon} />
-      )}
+      <Icon icon={ListPlus} />
     </button>
   );
 }
 
 function NowPlaying({ track }: { track: Track | null }) {
   const toggleNowPlaying = useUI((state) => state.toggleNowPlaying);
-  const art = upgradeArtwork(track?.thumb);
+  const art = thumbArtwork(track?.thumb, 56);
+  const reveal = useImageReveal(art);
+  const reduced = reducedMotion();
   return (
-    <div className="flex min-w-0 items-center">
+    <motion.div
+      key={track?.id ?? "none"}
+      initial={reduced ? false : { opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={reduced ? instant : swap}
+      className="flex min-w-0 items-center"
+    >
       <button
         type="button"
         title="Now playing view"
         aria-label="Now playing view"
         onClick={toggleNowPlaying}
-        className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-[4px] bg-wash text-ink-2"
+        className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-[4px] bg-wash text-ink-2"
       >
-        {art ? <img src={art} alt="" className="h-full w-full object-cover" /> : <Icon icon={MusicNote01Icon} />}
+        {art ? <img loading="lazy" decoding="async" src={art} alt="" onLoad={reveal.onLoad} className={`h-full w-full object-cover ${reveal.className}`} /> : <Icon icon={MusicNote} />}
       </button>
       <div className="ml-2.5 min-w-0">
-        <p className="truncate text-[14px] leading-[19px] text-ink-1">{track?.title ?? "Nothing playing"}</p>
-        <p className="truncate text-[12px] leading-[17px] text-ink-2">
+        <p className="truncate text-body leading-[19px] text-ink-1">{track?.title ?? "Nothing playing"}</p>
+        <p className="truncate text-meta leading-[17px] text-ink-2">
           {track ? normalizeCredit(track.artist) : "Search for something to play"}
         </p>
       </div>
-      <div className="ml-2 flex shrink-0 items-center gap-1">
+      <div className="ml-2 flex shrink-0 items-center">
         <LikeButton track={track} className="hit-area h-9 w-9" />
-        <AddToPlaylist track={track} />
-        <DownloadButton track={track} />
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -216,7 +172,7 @@ function VolumeControl() {
       <TransportButton
         label={muted ? "Unmute" : "Mute"}
         hint="M"
-        icon={silent ? VolumeOffIcon : VolumeHighIcon}
+        icon={silent ? SpeakerX : SpeakerHigh}
         onClick={toggleMute}
       />
       <input
@@ -238,7 +194,7 @@ function FullScreenButton() {
   return (
     <TransportButton
       label="Full screen"
-      icon={FullScreenIcon}
+      icon={CornersOut}
       pressed={osFullscreen}
       onClick={() => void setFullScreen(!osFullscreen)}
     />
@@ -246,9 +202,11 @@ function FullScreenButton() {
 }
 
 export function PlayerBar({ trackInfo = true, transport = true, surface = "bar" }: { trackInfo?: boolean; transport?: boolean; surface?: "bar" | "none" }) {
-  const surfaceClass = surface === "bar" ? "bg-surface" : "";
+  const surfaceClass = surface === "bar" ? "bg-base" : "";
   const track = usePlayer(currentTrack);
-  const rightPanel = useUI((state) => state.rightPanel);
+  const railSheet = railFor(useViewportWidth()) === "sheet";
+  const railOpen = useUI((state) => (railSheet ? state.railSheetOpen : state.railColumnOpen));
+  const queueShowing = useUI((state) => railOpen && state.rightPanel === "queue");
   const toggleQueue = useUI((state) => state.toggleQueue);
   const lyricsCenter = useUI((state) => state.lyricsCenter);
   const toggleLyrics = useUI((state) => state.toggleLyrics);
@@ -260,7 +218,7 @@ export function PlayerBar({ trackInfo = true, transport = true, surface = "bar" 
       <TransportButton
         label="Lyrics"
         hint="L"
-        icon={Mic01Icon}
+        icon={Microphone}
         active={lyricsCenter}
         pressed={lyricsCenter}
         onClick={toggleLyrics}
@@ -268,11 +226,13 @@ export function PlayerBar({ trackInfo = true, transport = true, surface = "bar" 
       <TransportButton
         label="Queue"
         hint="Q"
-        icon={Queue01Icon}
-        active={rightPanel === "queue"}
-        pressed={rightPanel === "queue"}
-        onClick={toggleQueue}
+        icon={Queue}
+        active={queueShowing}
+        pressed={queueShowing}
+        flyTarget="queue"
+        onClick={() => toggleQueue(railSheet)}
       />
+      <OutputDeviceButton />
       {!hideVolumeBar && <VolumeControl />}
       <PipButton />
       <FullScreenButton />
@@ -288,7 +248,7 @@ export function PlayerBar({ trackInfo = true, transport = true, surface = "bar" 
   }
 
   return (
-    <footer aria-label="Player" className={`relative h-[84px] shrink-0 px-4 py-3 ${surfaceClass}`}>
+    <footer aria-label="Player" className={`app-player-bar relative h-[68px] shrink-0 px-4 py-1.5 ${surfaceClass}`}>
       <div className="grid h-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] items-center gap-4">
         {trackInfo ? <NowPlaying track={track} /> : <div aria-hidden="true" />}
         <div className="flex w-full min-w-0 flex-col justify-center gap-1">

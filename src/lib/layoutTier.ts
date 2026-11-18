@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from "react";
 
-export const TABLET_MIN_DP = 840;
-export const SIDEBAR_FULL_MIN_DP = 1100;
-export const WIDE_MIN_DP = 1200;
+const TABLET_MIN_DP = 840;
+const SIDEBAR_FULL_MIN_DP = 1100;
+const WIDE_MIN_DP = 1200;
 
 export type ShellMode = "phone" | "tablet";
 export type SidebarMode = "full" | "rail";
@@ -31,4 +31,12 @@ function readWidth(): number {
 
 export function useViewportWidth(): number {
   return useSyncExternalStore(subscribe, readWidth, () => 0);
+}
+
+function readShortSide(): number {
+  return Math.min(window.innerWidth, window.innerHeight);
+}
+
+export function useShortSide(): number {
+  return useSyncExternalStore(subscribe, readShortSide, () => 0);
 }
