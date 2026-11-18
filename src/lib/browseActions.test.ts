@@ -107,6 +107,7 @@ describe("browse album and playlist menu (PRD 32.10.1 J)", () => {
       "Play next",
       "Add to queue",
       "Download all",
+      "Save to Your Library",
       "Copy link",
     ]);
     expect(itemNamed(items, "Download all").disabled).toBeFalsy();
@@ -143,7 +144,4 @@ describe("browse album and playlist menu (PRD 32.10.1 J)", () => {
     );
   });
 
-  it("has no menu for kinds that cannot be browsed", () => {
-    expect(browseMenuItems(item("podcast", "MPSPP"))).toEqual([]);
-  });
 });

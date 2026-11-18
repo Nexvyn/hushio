@@ -104,3 +104,26 @@ describe("browse ids", () => {
     expect(NEW_RELEASES_BROWSE_ID).toBe("FEmusic_new_releases");
   });
 });
+
+describe("new releases shelves", () => {
+  it("reads albums from carousel shelves and skips mix playlists", () => {
+    const shelf = parseNewReleases({
+      contents: [
+        {
+          musicCarouselShelfRenderer: {
+            contents: [
+              albumRow("VLRDCLAK5uy_mix", "New Release Mix", "YouTube Music", "2026"),
+              albumRow("MPREb5", "Single", "Echo", "2026"),
+            ],
+          },
+        },
+        {
+          musicCarouselShelfRenderer: {
+            contents: [albumRow("MPREb5", "Single", "Echo", "2026"), albumRow("MPREb6", "Album", "Echo", "2026")],
+          },
+        },
+      ],
+    });
+    expect(shelf.albums.map((album) => album.id)).toEqual(["MPREb5", "MPREb6"]);
+  });
+});

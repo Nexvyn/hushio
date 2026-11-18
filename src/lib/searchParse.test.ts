@@ -112,6 +112,29 @@ function trackId(row: SearchRow | SuggestionRow | undefined): string | undefined
 }
 
 describe("parseSearchPage", () => {
+  it("keeps songs with wide or missing artwork dimensions", () => {
+    const missing = trackRow("missing", "Missing", ["Song", "Band"]);
+    Object.assign(missing.musicResponsiveListItemRenderer, { thumbnail: {} });
+    const rows = parseSearchPage({ contents: [missing, trackRow("wide", "Wide", ["Song", "Band"], { size: WIDE })] }, false).rows;
+    expect(rows.map(trackId)).toEqual(["missing", "wide"]);
+    expect(rows.every((row) => row.kind === "track" && !row.track.isVideo)).toBe(true);
+  });
+
+  it("uses the endpoint music type ahead of artwork shape", () => {
+    const row = trackRow("audio", "Audio", ["Band"], { size: WIDE });
+    Object.assign(row.musicResponsiveListItemRenderer, {
+      navigationEndpoint: { watchEndpoint: { videoId: "audio", watchEndpointMusicSupportedConfigs: { watchEndpointMusicConfig: { musicVideoType: "MUSIC_VIDEO_TYPE_ATV" } } } },
+    });
+    expect(parseSearchPage({ contents: [row] }, false).rows.map(trackId)).toEqual(["audio"]);
+  });
+
+  it("keeps songs and videos in All and groups videos separately", () => {
+    const data = { contents: [trackRow("s", "Song", ["Song", "Band"]), trackRow("v", "Video", ["Video", "Band"], { size: WIDE })] };
+    const rows = parseSearchPage(data, "all").rows;
+    expect(rows.map(trackId)).toEqual(["s", "v"]);
+    expect(searchSections(rows, "all").map((section) => section.title)).toEqual(["Songs", "Videos"]);
+  });
+
   it("reads song rows with artist, duration, artwork and the continuation token", () => {
     const data = {
       contents: [
@@ -269,18 +292,6 @@ describe("parseSearchPage", () => {
     expect(types).toEqual(["album", "playlist", "artist", "other"]);
   });
 
-  it("drops podcast show rows while podcasts are disabled", () => {
-    const data = {
-      contents: [
-        browseRow("MPSPshow", "Show", "MUSIC_PAGE_TYPE_PODCAST_SHOW_DETAIL_PAGE", "Podcast"),
-        browseRow("MPREa", "Album A", "MUSIC_PAGE_TYPE_ALBUM", "Album • 2020"),
-      ],
-    };
-
-    const types = parseSearchPage(data, false).rows.map((row) => (row.kind === "browse" ? row.item.type : null));
-
-    expect(types).toEqual(["album"]);
-  });
 
   it("keeps the first row for a repeated video or browse id", () => {
     const data = {
@@ -461,13 +472,12 @@ describe("topResult and searchSections", () => {
     expect(topResult(rows, "songs")).toEqual({ song: null, browse: null, rest: rows });
   });
 
-  it("groups the All results into songs, artists, albums, playlists, podcasts and more", () => {
+  it("groups the All results into songs, artists, albums, playlists and more", () => {
     const rows: SearchRow[] = [
       { kind: "track", track: song("s") },
       artist("UC1"),
       { kind: "browse", item: { type: "album", browseId: "MPRE", title: "Al", subtitle: "", thumb: null } },
       { kind: "browse", item: { type: "playlist", browseId: "PL", title: "Pl", subtitle: "", thumb: null } },
-      { kind: "browse", item: { type: "podcast", browseId: "MPSP", title: "Po", subtitle: "", thumb: null } },
       { kind: "browse", item: { type: "other", browseId: "X", title: "Ot", subtitle: "", thumb: null } },
     ];
 
@@ -476,7 +486,6 @@ describe("topResult and searchSections", () => {
       "Artists",
       "Albums",
       "Playlists",
-      "Podcasts",
       "More",
     ]);
   });

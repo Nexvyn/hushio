@@ -4,6 +4,7 @@ import {
   at,
   collect,
   getSession,
+  getSearchSession,
   isRecord,
   radioVideoType,
   text,
@@ -30,7 +31,9 @@ export type HomeItem =
   | { kind: "artist"; id: string; name: string; thumb: string | null }
   | { kind: "playlist"; id: string; title: string; subtitle: string; thumb: string | null };
 
-export type HomeShelf = { title: string; items: HomeItem[] };
+export type ShelfMore = { browseId: string; params?: string };
+export type HomeShelf = { title: string; items: HomeItem[]; more?: ShelfMore };
+export type HomePage = { shelves: HomeShelf[]; continuation: string | null };
 
 type Card = { renderer: Json; title: string; subtitle: string };
 
@@ -104,11 +107,26 @@ export function parseHomeShelves(data: unknown): HomeShelf[] {
   return shelves;
 }
 
-function continuationOf(data: unknown): string | null {
+export function homeContinuationOf(data: unknown): string | null {
+  for (const section of [...collect(data, "sectionListRenderer"), ...collect(data, "sectionListContinuation")]) {
+    const next = asArray(section.continuations).map(value => at(value, "nextContinuationData", "continuation"))
+      .find((value): value is string => typeof value === "string");
+    if (next) return next;
+  }
   const token = collect(data, "nextContinuationData")
     .map((next) => at(next, "continuation"))
     .find((value): value is string => typeof value === "string");
-  return token ?? null;
+  if (token) return token;
+  const command = collect(data, "continuationCommand").find(value => typeof value.token === "string");
+  return command && typeof command.token === "string" ? command.token : null;
+}
+
+export async function fetchHomePage(market: Market, continuation?: string): Promise<HomePage> {
+  const { innertube } = await getSearchSession(market);
+  const response = await withRetry(() => innertube.actions.execute("/browse", {
+    ...(continuation ? { continuation } : { browseId: "FEmusic_home" }), client: "YTMUSIC",
+  }));
+  return { shelves: parseHomeShelves(response.data), continuation: homeContinuationOf(response.data) };
 }
 
 export async function fetchHomeShelves(market: Market): Promise<HomeShelf[]> {
@@ -117,12 +135,12 @@ export async function fetchHomeShelves(market: Market): Promise<HomeShelf[]> {
     innertube.actions.execute("/browse", { browseId: "FEmusic_home", client: "YTMUSIC" }),
   );
   const shelves = parseHomeShelves(first.data);
-  let token = continuationOf(first.data);
+  let token = homeContinuationOf(first.data);
   for (let page = 1; token && page < HOME_PAGES; page++) {
     const next = await innertube.actions.execute("/browse", { continuation: token, client: "YTMUSIC" }).catch(() => null);
     if (!next) break;
     shelves.push(...parseHomeShelves(next.data));
-    token = continuationOf(next.data);
+    token = homeContinuationOf(next.data);
   }
   return shelves.slice(0, HOME_SHELF_MAX);
 }
@@ -144,19 +162,21 @@ function warmSession(market: Market): void {
   });
 }
 
-export async function refreshHome(): Promise<HomeShelf[]> {
+export async function refreshHome(force = false): Promise<HomeShelf[]> {
   await waitForCacheHydration();
-  const { location } = marketValue();
+  const region = marketValue();
+  const { location } = region;
   const cache = useHomeCache.getState();
-  const cachedForMarket = cache.market === location;
-  if (cachedForMarket && cache.fetchedAt !== null && Date.now() - cache.fetchedAt < HOME_TTL_MS) {
+  const cachedForMarket = cache.market === location && cache.language === region.lang;
+  if (!force && cachedForMarket && cache.fetchedAt !== null && Date.now() - cache.fetchedAt < HOME_TTL_MS) {
     warmSession(marketValue());
     return cache.shelves;
   }
   try {
-    const shelves = await fetchHomeShelves(marketValue());
-    useHomeCache.getState().save(location, shelves);
-    return shelves;
+    const page = await fetchHomePage(region);
+    const current = marketValue();
+    if (current.location === region.location && current.lang === region.lang) useHomeCache.getState().save(location, page.shelves, page.continuation, region.lang);
+    return page.shelves;
   } catch (error) {
     if (cachedForMarket && cache.shelves.length > 0) return cache.shelves;
     throw error;

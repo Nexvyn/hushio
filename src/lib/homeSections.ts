@@ -17,14 +17,6 @@ export const HOME_SECTION_KEYS = [
   "market",
 ] as const;
 
-export type HomeSectionKey = (typeof HOME_SECTION_KEYS)[number];
-
-const KNOWN = new Set<string>(HOME_SECTION_KEYS);
-
-export function isHomeSectionKey(value: string): value is HomeSectionKey {
-  return KNOWN.has(value);
-}
-
 export function orderHomeSections(
   sections: FeedSection[],
   order: string[],

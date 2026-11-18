@@ -1,4 +1,4 @@
-import { Cancel01Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { X, MagnifyingGlass } from "@phosphor-icons/react";
 import { APP_NAME } from "./app";
 import type { BrowseItem, SuggestionRow } from "./searchParse";
 import { useNavigation, type View } from "../stores/navigation";
@@ -9,10 +9,10 @@ import type { Track } from "../types";
 
 export function recentSearchMenuItems(query: string): MenuItem[] {
   return [
-    { label: `Search "${query}"`, icon: Search01Icon, onSelect: () => submitSearch(query) },
+    { label: `Search "${query}"`, icon: MagnifyingGlass, onSelect: () => submitSearch(query) },
     {
       label: "Remove from recent searches",
-      icon: Cancel01Icon,
+      icon: X,
       separatorBefore: true,
       onSelect: () => {
         useRecents.getState().removeSearch(query);
@@ -28,6 +28,7 @@ export function recentSearchMenuItems(query: string): MenuItem[] {
 export function submitSearch(text: string): void {
   const query = text.trim();
   if (!query) return;
+  useNavigation.getState().submitSearch(query);
   useUI.getState().setSearchQuery(query);
   useRecents.getState().pushSearch(query);
   useNavigation.getState().navigate({ name: "search" });
@@ -62,8 +63,6 @@ function browseView(item: BrowseItem): View | null {
       return { name: "album", param: item.browseId };
     case "playlist":
       return { name: "ytplaylist", param: item.browseId };
-    case "podcast":
-      return { name: "podcast", param: item.browseId };
     case "other":
       return null;
   }

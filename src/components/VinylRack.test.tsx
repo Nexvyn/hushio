@@ -114,7 +114,7 @@ describe("VinylRack", () => {
     render(<VinylRack cover="" />);
     fireEvent.click(screen.getByRole("button", { name: "Play previous: Song b" }));
     expect(usePlayer.getState().index).toBe(1);
-    expect(playStream).toHaveBeenLastCalledWith("b", "Song b");
+    expect(playStream).toHaveBeenLastCalledWith("b", "Song b", 0, expect.any(Object));
   });
 
   it("jumps straight to the outer previous track", () => {
@@ -123,7 +123,7 @@ describe("VinylRack", () => {
     render(<VinylRack cover="" />);
     fireEvent.click(screen.getByRole("button", { name: "Play previous: Song a" }));
     expect(usePlayer.getState().index).toBe(0);
-    expect(playStream).toHaveBeenLastCalledWith("a", "Song a");
+    expect(playStream).toHaveBeenLastCalledWith("a", "Song a", 0, expect.any(Object));
   });
 });
 

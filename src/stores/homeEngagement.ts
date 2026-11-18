@@ -19,6 +19,8 @@ export const useHomeEngagement = create<HomeEngagementState>()(
     }),
     {
       name: "home-engagement",
+      version: 1,
+      migrate: (persisted) => persisted as Engagement,
       storage: persistStorage<Engagement>("home-engagement"),
       partialize: ({ taps, hiddenTracks, hiddenArtists }) => ({ taps, hiddenTracks, hiddenArtists }),
     },

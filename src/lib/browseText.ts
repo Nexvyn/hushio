@@ -2,8 +2,8 @@ import { upgradeArtwork } from "./artwork";
 import { fmtTotal } from "./format";
 import { plural } from "./plural";
 
-export const PAGE_TITLE_SIZE = ["text-[34px]", "text-[28px]", "text-[24px]"] as const;
-export const ARTIST_TITLE_SIZE = ["text-[40px]", "text-[32px]", "text-[26px]"] as const;
+const PAGE_TITLE_SIZE = ["text-[34px]", "text-[28px]", "text-[24px]"] as const;
+const ARTIST_TITLE_SIZE = ["text-[40px]", "text-[32px]", "text-[26px]"] as const;
 
 const BRACKET_SUFFIX = /\s*[([][^)\]]*[)\]]\s*$/;
 const FROM_SOURCE = /\(from\s+"?([^")]+?)"?\)\s*$/i;

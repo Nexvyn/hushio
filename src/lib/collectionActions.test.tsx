@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 vi.mock("../lib/persist", () => ({
   persistStorage: () => ({
@@ -53,7 +53,7 @@ function openDialog(open: () => void) {
 }
 
 describe("create playlist dialog", () => {
-  it("creates the playlist with the typed name and opens it", () => {
+  it("creates the playlist with the typed name and opens it", async () => {
     openDialog(openCreatePlaylist);
     const input = screen.getByPlaceholderText("Playlist name") as HTMLInputElement;
     expect(input.value).toBe("My Playlist #1");
@@ -64,7 +64,7 @@ describe("create playlist dialog", () => {
     const created = useLibrary.getState().playlists;
     expect(created.map((item) => item.name)).toEqual(["Road trip"]);
     expect(useNavigation.getState().view).toEqual({ name: "playlist", param: created[0].id });
-    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("uses the suggested name when the field is blank", () => {
@@ -169,12 +169,12 @@ describe("playlist export menu", () => {
     useUI.setState({ toasts: [] });
   });
 
-  it("offers both export formats and the song list copy between Rename and Delete playlist", () => {
+  it("offers both export formats and the song list copy between Edit details and Delete playlist", () => {
     const labels = playlistHeaderItems(exportable)
       .filter((item) => !item.subject)
       .map((item) => item.label);
     expect(labels).toEqual([
-      "Rename",
+      "Edit details",
       "Export as M3U8",
       "Export as JSON",
       "Copy song list",

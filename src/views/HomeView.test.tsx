@@ -29,6 +29,8 @@ vi.mock("../lib/persist", () => ({
   }),
 }));
 
+vi.mock("../lib/useHomeFeed", () => ({ useHomeFeed: () => [] }));
+
 vi.mock("../lib/market", () => ({
   marketValue: () => ({ location: "US", lang: "en" }),
 }));
@@ -63,17 +65,19 @@ describe("HomeView", () => {
     refreshHome.mockResolvedValue([]);
     usePlayer.setState(initialPlayer, true);
     useUI.setState({ toasts: [], pendingToasts: [], searchQuery: "" });
-    useHomeCache.setState({ market: null, shelves: [], fetchedAt: null });
+    useHomeCache.setState({ market: null, language: "en", shelves: [], fetchedAt: null, continuation: null });
     useRecentItems.setState({ items: [] });
     useNavigation.setState({ view: { name: "home" }, navPast: [], navFuture: [] });
   });
 
   afterEach(cleanup);
 
-  it("shows a Home title and no dev test song button", () => {
+  it("starts with the filter chips, with no Home title or refresh button", () => {
     render(<HomeView />);
 
-    expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { level: 1, name: "Home" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Refresh Home" })).toBeNull();
+    expect(screen.getByRole("group", { name: "Filter Home" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Play test song" })).toBeNull();
   });
 
@@ -103,7 +107,7 @@ describe("HomeView", () => {
 
     await user.click(screen.getByRole("button", { name: /Shelf song/ }));
 
-    expect(playStream).toHaveBeenCalledWith("shelf-1", "Shelf song");
+    expect(playStream).toHaveBeenCalledWith("shelf-1", "Shelf song", 0, expect.any(Object));
   });
 
   it("opens an album or artist card on its page", async () => {
@@ -130,10 +134,10 @@ describe("HomeView", () => {
     const user = userEvent.setup();
     render(<HomeView />);
 
-    expect(screen.queryByRole("button", { name: /Old album/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /Old album/ })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: /Recent song/ }));
 
-    expect(playStream).toHaveBeenCalledWith("recent-1", "Recent song");
+    expect(playStream).toHaveBeenCalledWith("recent-1", "Recent song", 0, expect.any(Object));
   });
 
   it("shows no mood chips under the Home title", () => {

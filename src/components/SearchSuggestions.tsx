@@ -1,6 +1,6 @@
 import { useEffect, useState, type MouseEvent } from "react";
 import { motion } from "motion/react";
-import { ArrowUpLeft01Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { ArrowUpLeft, MagnifyingGlass } from "@phosphor-icons/react";
 import { Artwork, TYPE_LABEL } from "./SearchRows";
 import { Icon } from "./Icon";
 import { FLOAT_ROW } from "../lib/floatStyle";
@@ -96,10 +96,12 @@ export function SearchSuggestions({
       exit="exit"
       className="no-scrollbar pointer-events-none absolute left-0 right-0 top-0 z-50"
     >
-      <div aria-hidden="true" data-goo-layer="" className="pointer-events-none absolute inset-0" style={GOO_LAYER_STYLE}>
-        <div className={`${GOO_SHAPE} top-0 h-10`} />
-        <motion.div variants={stretch} data-goo-panel="" className={`${GOO_SHAPE} bottom-0 top-10 origin-top`} />
-      </div>
+      <motion.div variants={stretch} data-goo-panel="" aria-hidden="true" className="pointer-events-none absolute inset-0 origin-top">
+        <div data-goo-layer="" className="absolute inset-0" style={GOO_LAYER_STYLE}>
+          <div className={`${GOO_SHAPE} top-0 h-10`} />
+          <div className={`${GOO_SHAPE} bottom-0 top-10`} />
+        </div>
+      </motion.div>
       <motion.div variants={reveal} className="pointer-events-none relative pt-10">
       <div className="pointer-events-auto relative p-2">
       <div
@@ -111,9 +113,9 @@ export function SearchSuggestions({
         className={`${rowClass(activeIndex === 0)} w-full`}
       >
         <span className="text-ink-2">
-          <Icon icon={Search01Icon} />
+          <Icon icon={MagnifyingGlass} />
         </span>
-        <span className="min-w-0 truncate text-[14px] font-medium text-ink-1">{`Search “${typed}”`}</span>
+        <span className="min-w-0 truncate text-body font-medium text-ink-1">{`Search “${typed}”`}</span>
       </div>
       {rows.map((row, index) => {
         const active = activeIndex === index + 1;
@@ -129,9 +131,9 @@ export function SearchSuggestions({
                 className={rowClass(active)}
               >
                 <span className="text-ink-2">
-                  <Icon icon={Search01Icon} />
+                  <Icon icon={MagnifyingGlass} />
                 </span>
-                <span className="min-w-0 truncate text-[14px] text-ink-1">{row.text}</span>
+                <span className="min-w-0 truncate text-body text-ink-1">{row.text}</span>
               </div>
               <button
                 type="button"
@@ -143,7 +145,7 @@ export function SearchSuggestions({
                 onClick={() => onFill(row.text)}
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-ink-2 transition-colors hover:bg-wash hover:text-ink-1 active:bg-pressed"
               >
-                <Icon icon={ArrowUpLeft01Icon} />
+                <Icon icon={ArrowUpLeft} />
               </button>
             </div>
           );
@@ -160,8 +162,8 @@ export function SearchSuggestions({
           >
             <Artwork src={richThumb(row)} round={row.kind === "browse" && row.item.type === "artist"} size="h-9 w-9" />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[14px] font-semibold text-ink-1">{richTitle(row)}</span>
-              <span className="block truncate text-[12px] leading-tight text-ink-2">{richSubtitle(row)}</span>
+              <span className="block truncate text-body font-semibold text-ink-1">{richTitle(row)}</span>
+              <span className="block truncate text-meta leading-tight text-ink-2">{richSubtitle(row)}</span>
             </span>
           </div>
         );

@@ -1,6 +1,8 @@
+import { SkeletonFade } from "../components/SkeletonSwap";
 import { useEffect, useState } from "react";
 import { PageHeader } from "../components/PageHeader";
-import { Cover, focusRing } from "../components/HomeShelves";
+import { focusRing } from "../components/HomeShelves";
+import { CoverArt, CoverCardLabel, coverCardClass } from "../components/CoverCard";
 import { ErrorState } from "../components/ErrorState";
 import { EmptyState } from "../components/EmptyState";
 import { PhoneArt } from "../components/phone/PhoneArt";
@@ -29,8 +31,8 @@ function ReleaseCard({ album }: { album: ChartAlbum }) {
       >
         <PhoneArt src={thumbArtwork(album.thumb, GRID_ART) || null} radius="rounded-[10px]" />
         <span className="mt-2 block min-w-0">
-          <span className="block truncate text-[14px] leading-[18px] font-medium text-ink-1">{album.title}</span>
-          <span className="block truncate text-[13px] leading-[17px] text-ink-2">{subtitle}</span>
+          <span className="block truncate text-body leading-[18px] font-medium text-ink-1">{album.title}</span>
+          <span className="block truncate text-meta leading-[17px] text-ink-2">{subtitle}</span>
         </span>
       </button>
     );
@@ -39,13 +41,10 @@ function ReleaseCard({ album }: { album: ChartAlbum }) {
     <button
       type="button"
       onClick={() => navigate({ name: "album", param: album.id })}
-      className={`rounded-[11px] p-1 text-left motion-safe:transition-colors hover:bg-wash active:bg-pressed ${focusRing}`}
+      className={`${coverCardClass} ${focusRing}`}
     >
-      <Cover src={album.thumb} />
-      <span className="mt-2 block min-w-0 px-0.5">
-        <span className="block truncate text-[13px] font-medium text-ink-1">{album.title}</span>
-        <span className="block truncate text-[12px] text-ink-2">{subtitle}</span>
-      </span>
+      <CoverArt src={album.thumb} />
+      <CoverCardLabel title={album.title} subtitle={subtitle} />
     </button>
   );
 }
@@ -78,13 +77,13 @@ export function NewReleasesView() {
   return (
     <div>
       <PageHeader title="New releases" meta="Fresh albums and singles" />
-      {status === "loading" && albums.length === 0 && (
+      <SkeletonFade show={status === "loading" && albums.length === 0}>
         <div role="status" aria-label="Loading New releases" className={`mt-6 ${grid}`}>
           {[0, 1, 2, 3, 4, 5, 6, 7].map((index) => (
             <div key={index} className="aspect-square rounded-[11px] bg-wash" />
           ))}
         </div>
-      )}
+      </SkeletonFade>
       {status === "failed" && albums.length === 0 && (
         <div className="mt-6">
           <ErrorState
@@ -100,7 +99,7 @@ export function NewReleasesView() {
         </div>
       )}
       {albums.length > 0 && (
-        <div className={`mt-5 ${grid}`}>
+        <div className={`mt-5 ${grid} bt-stagger`}>
           {albums.map((album) => (
             <ReleaseCard key={album.id} album={album} />
           ))}

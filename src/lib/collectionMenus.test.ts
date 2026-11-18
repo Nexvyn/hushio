@@ -82,11 +82,11 @@ describe("empty sidebar area menu (PRD 32.10.1 N)", () => {
 });
 
 describe("playlist header menu (PRD 32.10.1 C)", () => {
-  it("offers Rename, the two exports and a danger Delete playlist, with a subject showing the song count", () => {
+  it("offers Edit details, the two exports and a danger Delete playlist, with a subject showing the song count", () => {
     const items = playlistHeaderItems(playlist({ tracks: [track, { ...track, id: "t2" }] }));
 
     expect(labelsOf(items)).toEqual([
-      "Rename",
+      "Edit details",
       "Export as M3U8",
       "Export as JSON",
       "Copy song list",

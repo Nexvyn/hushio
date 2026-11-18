@@ -1,6 +1,5 @@
 import type { Track } from "../types";
 import { upgradeArtwork } from "./artwork";
-import { PODCASTS_ENABLED } from "./features";
 import { asArray, at, collect, isRecord, parseDuration, text, type Json } from "./innertube";
 
 export type SearchFilter = "all" | "songs" | "videos" | "albums" | "artists" | "playlists";
@@ -23,7 +22,7 @@ export type SearchSong = Track & {
   isVideo: boolean;
 };
 
-export type BrowseType = "artist" | "album" | "playlist" | "podcast" | "other";
+export type BrowseType = "artist" | "album" | "playlist" | "other";
 
 export type BrowseItem = {
   type: BrowseType;
@@ -58,8 +57,6 @@ const TYPE_WORDS = new Set([
   "ep",
   "artist",
   "playlist",
-  "podcast",
-  "episode",
 ]);
 const TALLY = /[\d.,]+\s*[KMB]?\s+(plays|views|likes|songs|tracks|subscribers|hours?|minutes?|seconds?)\b.*/i;
 const DURATION = /^\d+(?::\d{2}){1,2}$/;
@@ -72,14 +69,12 @@ const BROWSE_TYPES: Record<string, BrowseType> = {
   MUSIC_PAGE_TYPE_USER_CHANNEL: "artist",
   MUSIC_PAGE_TYPE_ALBUM: "album",
   MUSIC_PAGE_TYPE_PLAYLIST: "playlist",
-  MUSIC_PAGE_TYPE_PODCAST_SHOW_DETAIL_PAGE: "podcast",
 };
 
 const BROWSE_SECTIONS: [string, BrowseType][] = [
   ["Artists", "artist"],
   ["Albums", "album"],
   ["Playlists", "playlist"],
-  ["Podcasts", "podcast"],
   ["More", "other"],
 ];
 
@@ -113,7 +108,7 @@ function thumbOf(node: unknown): { url: string | null; square: boolean } {
   const ratio = typeof width === "number" && typeof height === "number" && height > 0 ? width / height : null;
   return {
     url: typeof url === "string" ? upgradeArtwork(url) || null : null,
-    square: ratio !== null && ratio >= SQUARE_MIN && ratio <= SQUARE_MAX,
+    square: ratio === null || (ratio >= SQUARE_MIN && ratio <= SQUARE_MAX),
   };
 }
 
@@ -156,7 +151,6 @@ function browseOf(row: Json): BrowseItem | null {
   const browseId = at(endpoint, "browseId");
   if (typeof browseId !== "string") return null;
   const type = browseTypeOf(browseId, pageTypeOf(endpoint));
-  if (type === "podcast" && !PODCASTS_ENABLED) return null;
   return {
     type,
     browseId,
@@ -183,12 +177,15 @@ function trackOf(row: Json): SearchSong | null {
   const durationText = [segments.at(-1) ?? "", ...fixed, overlay, length].find((value) => DURATION.test(value));
   const first = segments[0]?.toLowerCase();
   const rowType = first !== undefined && TYPE_WORDS.has(first) ? first : null;
-  if (rowType === "episode" && !PODCASTS_ENABLED) return null;
   const artistSegment = segments.find(
     (segment) => segment !== durationText && !TYPE_WORDS.has(segment.toLowerCase()) && !TALLY.test(segment),
   );
   const found = credits(columns);
   const thumb = thumbOf(row);
+  const musicType = at(watch, "watchEndpointMusicSupportedConfigs", "watchEndpointMusicConfig", "musicVideoType");
+  const isVideo = musicType === "MUSIC_VIDEO_TYPE_ATV" ? false
+    : musicType === "MUSIC_VIDEO_TYPE_OMV" || musicType === "MUSIC_VIDEO_TYPE_UGC" ? true
+    : rowType === "video" || (rowType !== "song" && !thumb.square);
 
   return {
     id: videoId,
@@ -200,18 +197,18 @@ function trackOf(row: Json): SearchSong | null {
     thumb: thumb.url,
     duration: durationText ? parseDuration(durationText) : 0,
     explicit: hasValue(row, "MUSIC_EXPLICIT_BADGE"),
-    isVideo: rowType === "video" || !thumb.square,
+    isVideo,
   };
 }
 
-function topCardOf(card: Json): SearchRow | null {
+function topCardOf(card: Json): Exclude<SearchRow, { kind: "track" }> | null {
   const title = text(card.title).trim();
   if (!title) return null;
   const thumb = thumbOf(card).url;
   const videoId = at(card, "onTap", "watchEndpoint", "videoId");
   if (typeof videoId === "string") {
     const segments = segmentsOf(card.subtitle);
-    if (segments[0]?.toLowerCase() === "video") return null;
+    const isVideo = segments[0]?.toLowerCase() === "video";
     const segmentArtist = segments.find(
       (segment) => !DURATION.test(segment) && !TYPE_WORDS.has(segment.toLowerCase()) && !TALLY.test(segment),
     );
@@ -229,7 +226,7 @@ function topCardOf(card: Json): SearchRow | null {
         album: null,
         duration: durationText ? parseDuration(durationText) : 0,
         explicit: false,
-        isVideo: false,
+        isVideo,
       },
     };
   }
@@ -237,7 +234,6 @@ function topCardOf(card: Json): SearchRow | null {
   const browseId = at(browseEndpoint, "browseId");
   if (typeof browseId !== "string") return null;
   const type = browseTypeOf(browseId, pageTypeOf(browseEndpoint));
-  if (type === "podcast" && !PODCASTS_ENABLED) return null;
   return {
     kind: "browse",
     top: true,
@@ -264,7 +260,7 @@ function continuationOf(data: unknown): string | null {
   return tokens.find((token): token is string => typeof token === "string") ?? null;
 }
 
-export function parseSearchPage(data: unknown, includeVideos: boolean): SearchPage {
+export function parseSearchPage(data: unknown, includeVideos: boolean | "all"): SearchPage {
   const rows: SearchRow[] = [];
   const seen = new Set<string>();
   const push = (row: SearchRow) => {
@@ -282,7 +278,9 @@ export function parseSearchPage(data: unknown, includeVideos: boolean): SearchPa
         artistShelfRows.set(item, { id: top.item.browseId, name: top.item.title });
       }
     }
-    if (!includeVideos && top) push(top);
+    if (top && includeVideos !== true && (top.kind === "browse" || includeVideos === "all" || !top.song.isVideo)) {
+      push(top);
+    }
   }
 
   for (const item of collect(data, "musicResponsiveListItemRenderer")) {
@@ -296,7 +294,7 @@ export function parseSearchPage(data: unknown, includeVideos: boolean): SearchPa
     if (track && owner && !track.artist) {
       track = { ...track, artist: owner.name, artistId: track.artistId ?? owner.id };
     }
-    if (track && track.isVideo === includeVideos) push({ kind: "track", track });
+    if (track && (includeVideos === "all" || track.isVideo === includeVideos)) push({ kind: "track", track });
   }
 
   return { rows, continuation: continuationOf(data) };
@@ -386,8 +384,10 @@ export function topResult(
 export function searchSections(rows: SearchRow[], filter: SearchFilter): SearchSection[] {
   if (filter !== "all") return rows.length > 0 ? [{ title: null, rows }] : [];
   const sections: SearchSection[] = [];
-  const songs = rows.filter((row) => row.kind !== "browse");
+  const songs = rows.filter((row) => row.kind !== "browse" && !(row.kind === "top" ? row.song : row.track).isVideo);
+  const videos = rows.filter((row) => row.kind !== "browse" && (row.kind === "top" ? row.song : row.track).isVideo);
   if (songs.length > 0) sections.push({ title: "Songs", rows: songs });
+  if (videos.length > 0) sections.push({ title: "Videos", rows: videos });
   for (const [title, type] of BROWSE_SECTIONS) {
     const group = rows.filter((row) => row.kind === "browse" && row.item.type === type);
     if (group.length > 0) sections.push({ title, rows: group });

@@ -311,5 +311,6 @@ describe("getPlaylistPage across continuations", () => {
     const page = await getPlaylistPage("PLlong");
 
     expect(page.tracks.map((track) => track.id)).toEqual(["p1", "p2"]);
+    expect(page.incomplete).toBe(true);
   });
 });

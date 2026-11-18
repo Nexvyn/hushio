@@ -2,7 +2,6 @@ import { TEST_SONG_ID } from "./devSong";
 import type { AlbumRef, ArtistBundle, ArtistRef } from "./artistBundle";
 import { learnedBoost } from "./engagement";
 import type { HomeShelf } from "./home";
-import type { MoodEntry } from "./moods";
 import type { PlaySource } from "./playQueue";
 import { artistMixCard, radioCard, sideMix, SIDE_LETTERS } from "./mixes";
 import { clusterSides, type Side, type SideArtist } from "./sides";
@@ -39,7 +38,7 @@ export type SectionKind =
   | "because"
   | "market";
 
-export type SectionLayout = "tiles" | "row" | "circles" | "mixes" | "radios" | "yt-shelf" | "moods" | "crate" | "list";
+type SectionLayout = "tiles" | "row" | "circles" | "mixes" | "radios" | "yt-shelf" | "crate" | "list";
 
 export type PlaylistRef = { id: string; title: string; subtitle: string; thumb: string | null };
 
@@ -70,7 +69,7 @@ export type SectionItem =
   | { kind: "card"; card: CardRef }
   | { kind: "side"; side: SideRef };
 
-export type Eyebrow = { label: string; name?: string; thumb?: string | null; artistId?: string | null };
+type Eyebrow = { label: string; name?: string; thumb?: string | null; artistId?: string | null };
 
 export type FeedSection = {
   id: string;
@@ -83,7 +82,6 @@ export type FeedSection = {
   priority: number;
   items: SectionItem[];
   shelf?: HomeShelf;
-  moods?: MoodEntry[];
   playlists?: PlaylistRef[];
 };
 
@@ -91,7 +89,6 @@ export type FeedInput = {
   profile: TasteProfile;
   bundles: ReadonlyMap<string, ArtistBundle>;
   shelves: readonly HomeShelf[];
-  moods: readonly MoodEntry[];
   hidden: ReadonlySet<string>;
   taps: Readonly<Record<string, number>>;
   dontRepeat: boolean;
@@ -106,7 +103,6 @@ type Ctx = {
   profile: TasteProfile;
   bundles: ReadonlyMap<string, ArtistBundle>;
   shelves: readonly HomeShelf[];
-  moods: readonly MoodEntry[];
   hidden: ReadonlySet<string>;
   blocked: ReadonlySet<string>;
   now: number;
@@ -273,22 +269,6 @@ function describeFeed(ctx: Ctx): Descriptor[] {
       priority: 94,
       minItems: 0,
       build: () => ({ id: "playlists-for-you", title: "Playlists for you", layout: "crate", items: [], playlists: crate }),
-    });
-  }
-
-  if (ctx.cold && ctx.moods.length > 0) {
-    out.push({
-      kind: "browse",
-      priority: 90,
-      minItems: 0,
-      build: () => ({
-        id: "browse",
-        title: "Browse",
-        subtitle: "Common searches to get you started",
-        layout: "moods",
-        items: [],
-        moods: ctx.moods.slice(0, 8),
-      }),
     });
   }
 
@@ -537,7 +517,7 @@ function describeFeed(ctx: Ctx): Descriptor[] {
 
 function contentLength(section: Built): number {
   return (
-    section.items.length + (section.playlists?.length ?? 0) + (section.moods?.length ?? 0) + (section.shelf?.items.length ?? 0)
+    section.items.length + (section.playlists?.length ?? 0) + (section.shelf?.items.length ?? 0)
   );
 }
 
@@ -565,7 +545,6 @@ function contextOf(input: FeedInput): Ctx {
     profile: input.profile,
     bundles: input.bundles,
     shelves: input.shelves,
-    moods: input.moods,
     hidden: input.hidden,
     blocked: suggestionBlock,
     now: input.now,

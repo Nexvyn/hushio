@@ -1,4 +1,4 @@
-import { getSession, MARKET, withRetry } from "./innertube";
+import { getSearchSession, MARKET, withRetry } from "./innertube";
 import {
   parseSearchPage,
   parseSearchSuggestions,
@@ -50,19 +50,19 @@ export async function searchPage(query: string, filter: SearchFilter): Promise<S
   const q = query.trim();
   if (!q) return { rows: [], continuation: null };
   const params = SEARCH_FILTER_PARAMS[filter];
-  const { innertube } = await getSession(MARKET);
+  const { innertube } = await getSearchSession(MARKET);
   const response = await withRetry(() =>
     innertube.actions.execute("/search", { query: q, ...(params ? { params } : {}), client: "YTMUSIC" }),
   );
-  return parseSearchPage(response.data, filter === "videos");
+  return parseSearchPage(response.data, filter === "all" ? "all" : filter === "videos");
 }
 
 export async function searchMore(token: string, filter: SearchFilter): Promise<SearchPage> {
-  const { innertube } = await getSession(MARKET);
+  const { innertube } = await getSearchSession(MARKET);
   const response = await withRetry(() =>
     innertube.actions.execute("/search", { continuation: token, client: "YTMUSIC" }),
   );
-  return parseSearchPage(response.data, filter === "videos");
+  return parseSearchPage(response.data, filter === "all" ? "all" : filter === "videos");
 }
 
 export function peekSearchPage(query: string, filter: SearchFilter): SearchPage | undefined {
@@ -81,7 +81,7 @@ export async function cachedSearchPage(query: string, filter: SearchFilter): Pro
 export async function getSuggestions(query: string): Promise<SuggestionRow[]> {
   const q = query.trim();
   if (!q) return [];
-  const { innertube } = await getSession(MARKET);
+  const { innertube } = await getSearchSession(MARKET);
   const response = await withRetry(() =>
     innertube.actions.execute("/music/get_search_suggestions", { input: q, client: "YTMUSIC" }),
   );
@@ -98,13 +98,17 @@ export async function typeAhead(query: string): Promise<SuggestionRow[]> {
   if (!q) return [];
   const cached = peekTypeAhead(q);
   if (cached) return cached;
-  const [items, page] = await Promise.all([
-    getSuggestions(q).catch(() => null),
-    searchPage(q, "all").catch(() => null),
-  ]);
-  if (items === null && page === null) throw new Error("Type-ahead failed");
-  const rows = withSearchRows(items ?? [], page?.rows ?? []);
-  if (items !== null) suggestionCache.set(cacheKey("all", q), rows);
+  // Show completions immediately; a full search is only a fallback.
+  const items = await getSuggestions(q).catch(() => null);
+  let rows = items ?? [];
+  if (rows.length === 0) {
+    try {
+      rows = withSearchRows([], (await cachedSearchPage(q, "all")).rows);
+    } catch {
+      if (items === null) throw new Error("Type-ahead failed");
+    }
+  }
+  if (rows.length > 0) suggestionCache.set(cacheKey("all", q), rows);
   return rows;
 }
 

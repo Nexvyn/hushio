@@ -1,21 +1,26 @@
-import type { HomeItem, HomeShelf } from "./home";
+import type { HomeItem, HomeShelf, ShelfMore } from "./home";
 import { upgradeArtwork } from "./artwork";
 import { asArray, at, collect, isRecord, text, type Json } from "./innertube";
 import { parseSearchPage, type SearchSong } from "./searchParse";
+import { joinSubtitle } from "./subtitle";
 import type { Track } from "../types";
 
 export const VIDEO_WORD = /\bvideos?\b/i;
 
 const PLAYLIST_ID = /^(VL|PL|OLAK5uy)/;
 const YEAR = /^\d{4}$/;
+const COPYRIGHT_LINE = /^[℗©]/u;
+const FULL_DATE = /\d{1,2} [A-Za-z]{3,9}\.? \d{4}|[A-Za-z]{3,9}\.? \d{1,2}, \d{4}|\d{4}-\d{2}-\d{2}/;
+const INFO_SPLIT = /[•\n]/;
 const RELEASE_TYPES = new Set(["album", "single", "ep"]);
+const RELEASE_KINDS: Record<string, ReleaseKind> = { album: "Album", single: "Single", ep: "EP", compilation: "Compilation" };
 const SEPARATOR = "•";
 const BULLET_JOIN = " • ";
 const PLAYLIST_HEADERS = ["musicResponsiveHeaderRenderer", "musicDetailHeaderRenderer"] as const;
 const ARTIST_HEADERS = ["musicImmersiveHeaderRenderer", "musicVisualHeaderRenderer"] as const;
 const EDITABLE_HEADER = "musicEditablePlaylistDetailHeaderRenderer";
 
-export type ArtistInfo = { id: string; name: string; thumb: string | null };
+type ArtistInfo = { id: string; name: string; thumb: string | null };
 
 export type ArtistPage = {
   artist: ArtistInfo;
@@ -26,6 +31,18 @@ export type ArtistPage = {
   shelves: HomeShelf[];
 };
 
+export type ReleaseKind = "Album" | "Single" | "EP" | "Compilation";
+
+export type ReleaseCard = {
+  id: string;
+  title: string;
+  thumb: string | null;
+  year: string | null;
+  type: ReleaseKind | null;
+};
+
+export type ReleaseGridPage = { releases: ReleaseCard[]; continuation: string | null };
+
 export type AlbumInfo = {
   id: string;
   title: string;
@@ -35,6 +52,8 @@ export type AlbumInfo = {
   releaseType: string;
   description: string | null;
   artistId: string | null;
+  releaseDate: string | null;
+  copyright: string[];
 };
 
 export type ReleasePage = {
@@ -171,9 +190,25 @@ function cardItemOf(entry: unknown, artistName: string): HomeItem | null {
     return { kind: "artist", id: browseId, name: title, thumb };
   }
   if (pageType === "MUSIC_PAGE_TYPE_PLAYLIST" || PLAYLIST_ID.test(browseId)) {
-    return { kind: "playlist", id: browseId, title, subtitle: text(card.subtitle).trim(), thumb };
+    return { kind: "playlist", id: browseId, title, subtitle: joinSubtitle("", text(card.subtitle)), thumb };
   }
   return null;
+}
+
+function moreOf(carousel: Json): { more?: ShelfMore } {
+  const endpoint = at(
+    carousel,
+    "header",
+    "musicCarouselShelfBasicHeaderRenderer",
+    "moreContentButton",
+    "buttonRenderer",
+    "navigationEndpoint",
+    "browseEndpoint",
+  );
+  const browseId = at(endpoint, "browseId");
+  if (typeof browseId !== "string") return {};
+  const params = at(endpoint, "params");
+  return { more: { browseId, ...(typeof params === "string" ? { params } : {}) } };
 }
 
 function shelfOf(carousel: Json, artistName: string): HomeShelf | null {
@@ -183,7 +218,49 @@ function shelfOf(carousel: Json, artistName: string): HomeShelf | null {
     const item = cardItemOf(entry, artistName);
     return item ? [item] : [];
   });
-  return items.length > 0 ? { title, items } : null;
+  return items.length > 0 ? { title, items, ...moreOf(carousel) } : null;
+}
+
+function releaseCardOf(renderer: Json): ReleaseCard | null {
+  const endpoint = at(renderer, "navigationEndpoint", "browseEndpoint");
+  const id = at(endpoint, "browseId");
+  const title = text(renderer.title).trim();
+  if (typeof id !== "string" || !title) return null;
+  const pageType = at(endpoint, "browseEndpointContextSupportedConfigs", "browseEndpointContextMusicConfig", "pageType");
+  if (pageType !== "MUSIC_PAGE_TYPE_ALBUM" && !id.startsWith("MPRE")) return null;
+  const segments = segmentsOf(text(renderer.subtitle));
+  const kind = segments.map((segment) => RELEASE_KINDS[segment.toLowerCase()]).find((value) => value !== undefined);
+  const year = segments.find((segment) => YEAR.test(segment)) ?? null;
+  return { id, title, thumb: thumbOf(renderer.thumbnailRenderer), year, type: kind ?? null };
+}
+
+export function parseReleaseGrid(data: unknown): ReleaseGridPage {
+  const seen = new Set<string>();
+  const releases = collect(data, "musicTwoRowItemRenderer").flatMap((renderer) => {
+    const card = releaseCardOf(renderer);
+    if (!card || seen.has(card.id)) return [];
+    seen.add(card.id);
+    return [card];
+  });
+  return { releases, continuation: continuationOf(data) };
+}
+
+function infoLinesOf(data: unknown): string[] {
+  const nodes = [...collect(data, "footer"), ...collect(data, "secondSubtitle")];
+  return nodes.flatMap((node) =>
+    text(node)
+      .split(INFO_SPLIT)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0),
+  );
+}
+
+function releaseDateOf(lines: string[]): string | null {
+  for (const line of lines) {
+    const found = line.match(FULL_DATE);
+    if (found) return found[0];
+  }
+  return null;
 }
 
 function subscriberOf(header: Json | null): string | null {
@@ -261,6 +338,8 @@ export function parseReleasePage(data: unknown, albumId: string): ReleasePage {
   const firstTrack = tracks[0];
   const thumb = thumbOf(header);
   const description = kind === "album" ? descriptionOf(data, null) : null;
+  const info = infoLinesOf(data);
+  const copyright = [...new Set(info.filter((line) => COPYRIGHT_LINE.test(line)))];
 
   return {
     kind,
@@ -273,6 +352,8 @@ export function parseReleasePage(data: unknown, albumId: string): ReleasePage {
       releaseType,
       description,
       artistId: artistIdInSubtitle(header) ?? firstTrack?.artistId ?? null,
+      releaseDate: releaseDateOf(info),
+      copyright,
     },
     tracks: withThumb(tracks, thumb),
     continuation: continuationOf(shelf) ?? continuationOf(data),

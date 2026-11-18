@@ -1,15 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { execute, getSession } = vi.hoisted(() => {
+const { execute, getSearchSession } = vi.hoisted(() => {
   const execute = vi.fn();
-  return { execute, getSession: vi.fn(async () => ({ innertube: { actions: { execute } } })) };
+  return { execute, getSearchSession: vi.fn(async () => ({ innertube: { actions: { execute } } })) };
 });
 
 vi.mock("youtubei.js", () => ({ Innertube: { create: vi.fn() } }));
 vi.mock("@tauri-apps/plugin-http", () => ({ fetch: vi.fn() }));
 vi.mock("./innertube", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./innertube")>()),
-  getSession,
+  getSearchSession,
 }));
 
 import {
@@ -52,7 +52,7 @@ function suggestionPage(text: string) {
 beforeEach(() => {
   vi.useFakeTimers();
   execute.mockReset();
-  getSession.mockClear();
+  getSearchSession.mockClear();
   clearSearchCaches();
 });
 
@@ -88,7 +88,7 @@ describe("createTtlCache", () => {
 describe("searchPage", () => {
   it("returns nothing without a network call for an empty query", async () => {
     await expect(searchPage("   ", "all")).resolves.toEqual({ rows: [], continuation: null });
-    expect(getSession).not.toHaveBeenCalled();
+    expect(getSearchSession).not.toHaveBeenCalled();
     expect(execute).not.toHaveBeenCalled();
   });
 
@@ -174,17 +174,17 @@ describe("getSuggestions", () => {
 });
 
 describe("typeAhead", () => {
-  it("merges suggestions with the All search rows and caches the result", async () => {
+  it("returns suggestions without waiting for a full search and caches the result", async () => {
     execute.mockImplementation(async (endpoint: string) =>
       endpoint === "/search" ? page("search-1") : suggestionPage("dua lipa"),
     );
 
     const rows = await typeAhead("dua");
-    expect(rows.map((row) => row.kind)).toEqual(["completion", "track", "track"]);
-    expect(execute.mock.calls.map((call) => call[0]).sort()).toEqual(["/music/get_search_suggestions", "/search"]);
+    expect(rows.map((row) => row.kind)).toEqual(["completion", "track"]);
+    expect(execute.mock.calls.map((call) => call[0]).sort()).toEqual(["/music/get_search_suggestions"]);
 
     await typeAhead("dua");
-    expect(execute).toHaveBeenCalledTimes(2);
+    expect(execute).toHaveBeenCalledTimes(1);
     expect(peekTypeAhead("dua")).toBeDefined();
   });
 

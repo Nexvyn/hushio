@@ -39,7 +39,12 @@ export const useRecents = create<RecentSearchesState>()(
         set((state) => ({ searches: state.searches.filter((search) => search !== query) })),
       clearSearches: () => set({ searches: [] }),
     }),
-    { name: "recent-searches", storage: persistStorage<RecentSearchesState>("recent-searches") },
+    {
+      name: "recent-searches",
+      version: 1,
+      migrate: (persisted) => persisted as RecentSearchesState,
+      storage: persistStorage<RecentSearchesState>("recent-searches"),
+    },
   ),
 );
 
@@ -77,6 +82,11 @@ export const useRecentItems = create<RecentItemsState>()(
         })),
       clear: () => set({ items: [] }),
     }),
-    { name: "recent-items", storage: persistStorage<RecentItemsState>("recent-items") },
+    {
+      name: "recent-items",
+      version: 1,
+      migrate: (persisted) => persisted as RecentItemsState,
+      storage: persistStorage<RecentItemsState>("recent-items"),
+    },
   ),
 );

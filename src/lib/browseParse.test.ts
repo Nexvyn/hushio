@@ -308,6 +308,8 @@ describe("parseReleasePage", () => {
       releaseType: "Album",
       description: null,
       artistId: "UCnova",
+      releaseDate: null,
+      copyright: [],
     });
     expect(page.tracks.map((track) => track.id)).toEqual(["a1", "a2"]);
     expect(page.tracks[1].thumb).toBe("https://lh3.googleusercontent.com/alb=w544-h544");

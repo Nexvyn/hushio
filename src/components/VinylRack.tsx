@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { animate, motion, useMotionValue, type MotionValue } from "motion/react";
-import { MusicNote01Icon } from "@hugeicons/core-free-icons";
+import { MusicNote } from "@phosphor-icons/react";
 import { upgradeArtwork } from "../lib/artwork";
 import { glide, reducedMotion, settle } from "../lib/motion";
 import {
@@ -237,7 +237,7 @@ function RackCover({
 
 function RackCaption({ label }: { label: string }) {
   return (
-    <span className="absolute inset-x-0 bottom-0 truncate px-3 pb-3 text-[12px] font-medium text-art opacity-0 group-hover:opacity-[0.72] group-focus-visible:opacity-[0.72]">
+    <span className="absolute inset-x-0 bottom-0 truncate px-3 pb-3 text-meta font-medium text-art opacity-0 group-hover:opacity-[0.72] group-focus-visible:opacity-[0.72]">
       {label}
     </span>
   );
@@ -258,7 +258,7 @@ function Face({ src, lazy, side, overlay }: { src: string; lazy?: boolean; side?
         />
       ) : (
         <span className="grid h-full w-full place-items-center text-ink-2">
-          <Icon icon={MusicNote01Icon} />
+          <Icon icon={MusicNote} />
         </span>
       )}
       {overlay}

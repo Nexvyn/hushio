@@ -1,16 +1,25 @@
 import { useEffect, useState } from "react";
+import { motion, useTransform } from "motion/react";
 import { PageHeader } from "../components/PageHeader";
 import { Cover, focusRing } from "../components/HomeShelves";
+import { CoverArt, CoverCardLabel, coverCardClass } from "../components/CoverCard";
 import { SectionHeader } from "../components/SectionHeader";
 import { ErrorState } from "../components/ErrorState";
 import { EmptyState } from "../components/EmptyState";
 import { thumbArtwork } from "../lib/artwork";
 import { chartTracks, fetchCharts, type ChartShelf } from "../lib/charts";
 import { marketValue } from "../lib/market";
+import type { Market } from "../lib/innertube";
 import { PhoneArt } from "../components/phone/PhoneArt";
+import { PhoneProfileButton } from "../components/phone/PhoneProfileButton";
 import { PhoneSectionHeader, PhoneShelfCard, PhoneShelfRow } from "../components/phone/PhoneShelf";
 import { PhoneSongRow } from "../components/phone/PhoneTrackRow";
+import { useFirstLoadStagger } from "../components/phone/useFirstLoadStagger";
+import { PullIndicator } from "../components/phone/PullIndicator";
+import { usePullToRefresh } from "../components/phone/usePullToRefresh";
+import { SkeletonSwap } from "../components/SkeletonSwap";
 import { trackMenuItems } from "../lib/trackActions";
+import { browseMenuItems } from "../lib/browseActions";
 import { usePhone } from "../lib/usePhone";
 import { playFromRow, usePlayer } from "../stores/player";
 import { useNavigation } from "../stores/navigation";
@@ -19,19 +28,30 @@ const SHELF_ART = 148;
 
 type LoadStatus = "loading" | "loaded" | "failed";
 
+const REFRESH_MS = 10 * 60 * 1000;
+
+type ChartsCache = { key: string; shelves: ChartShelf[]; loadedAt: number };
+
+let chartsCache: ChartsCache | null = null;
+
+function marketKey(market: Market): string {
+  return `${market.location}|${market.lang}`;
+}
+
+export function clearChartsCache() {
+  chartsCache = null;
+}
+
 function AlbumCard({ album }: { album: ChartShelf["albums"][number] }) {
   const navigate = useNavigation((state) => state.navigate);
   return (
     <button
       type="button"
       onClick={() => navigate({ name: "album", param: album.id })}
-      className={`w-[160px] shrink-0 rounded-[11px] p-1 text-left motion-safe:transition-colors hover:bg-wash active:bg-pressed ${focusRing}`}
+      className={`w-[160px] ${coverCardClass} ${focusRing}`}
     >
-      <Cover src={album.thumb} />
-      <span className="mt-2 block min-w-0 px-0.5">
-        <span className="block truncate text-[13px] font-medium text-ink-1">{album.title}</span>
-        <span className="block truncate text-[12px] text-ink-2">{album.artist}</span>
-      </span>
+      <CoverArt src={album.thumb} />
+      <CoverCardLabel title={album.title} subtitle={album.artist} />
     </button>
   );
 }
@@ -49,13 +69,13 @@ function SongRow({ title, artist, thumb, position, onPlay }: {
       onClick={onPlay}
       className={`flex w-full min-w-0 items-center gap-3 rounded-[10px] p-2 text-left motion-safe:transition-colors hover:bg-wash active:bg-pressed ${focusRing}`}
     >
-      <span className="w-6 shrink-0 text-[13px] tabular-nums text-ink-2">{position}</span>
+      <span className="w-6 shrink-0 text-meta tabular-nums text-ink-2">{position}</span>
       <span className="h-11 w-11 shrink-0">
         <Cover src={thumb} />
       </span>
       <span className="min-w-0">
-        <span className="block truncate text-[13px] font-medium text-ink-1">{title}</span>
-        <span className="block truncate text-[12px] text-ink-2">{artist}</span>
+        <span className="block truncate text-meta font-medium text-ink-1">{title}</span>
+        <span className="block truncate text-meta text-ink-2">{artist}</span>
       </span>
     </button>
   );
@@ -66,11 +86,12 @@ function PhoneChartShelf({ shelf }: { shelf: ChartShelf }) {
   const tracks = chartTracks(shelf);
   const currentId = usePlayer((state) => state.queue[state.index]?.id);
   const playing = usePlayer((state) => state.playing);
+  const stagger = useFirstLoadStagger(shelf.songs.length > 0);
   return (
     <section className="mt-7">
       <PhoneSectionHeader title={shelf.title} />
       {shelf.songs.length > 0 && (
-        <ol>
+        <ol className={stagger.className} onAnimationEnd={stagger.onAnimationEnd}>
           {shelf.songs.map((song, index) => (
             <PhoneSongRow
               key={song.id}
@@ -93,6 +114,7 @@ function PhoneChartShelf({ shelf }: { shelf: ChartShelf }) {
               art={<PhoneArt src={thumbArtwork(album.thumb, SHELF_ART) || null} radius="rounded-[10px]" />}
               title={album.title}
               subtitle={album.artist}
+              menu={() => browseMenuItems({ type: "album", browseId: album.id, title: album.title, subtitle: album.artist, thumb: album.thumb })}
               onActivate={() => navigate({ name: "album", param: album.id })}
             />
           ))}
@@ -104,6 +126,7 @@ function PhoneChartShelf({ shelf }: { shelf: ChartShelf }) {
 
 function Shelf({ shelf }: { shelf: ChartShelf }) {
   const phone = usePhone();
+  if (shelf.songs.length === 0 && shelf.albums.length === 0) return null;
   if (phone) return <PhoneChartShelf shelf={shelf} />;
   const tracks = chartTracks(shelf);
   return (
@@ -125,7 +148,7 @@ function Shelf({ shelf }: { shelf: ChartShelf }) {
         </ol>
       )}
       {shelf.albums.length > 0 && (
-        <div className="no-scrollbar mt-3 flex items-start gap-3 overflow-x-auto pb-3">
+        <div className="no-scrollbar shelf-row mt-3 flex items-start gap-3 overflow-x-auto pb-3">
           {shelf.albums.map((album) => (
             <AlbumCard key={album.id} album={album} />
           ))}
@@ -136,38 +159,60 @@ function Shelf({ shelf }: { shelf: ChartShelf }) {
 }
 
 export function ChartsView() {
-  const [shelves, setShelves] = useState<ChartShelf[]>([]);
-  const [status, setStatus] = useState<LoadStatus>("loading");
+  const phone = usePhone();
+  const market = marketValue();
+  const key = marketKey(market);
+  const cached = chartsCache?.key === key ? chartsCache : null;
+  const [shelves, setShelves] = useState<ChartShelf[]>(cached?.shelves ?? []);
+  const [status, setStatus] = useState<LoadStatus>(cached ? "loaded" : "loading");
   const [attempt, setAttempt] = useState(0);
+  const refresh = () => {
+    chartsCache = null;
+    setAttempt((count) => count + 1);
+  };
+  const pull = usePullToRefresh({ enabled: phone, busy: status === "loading", onRefresh: refresh });
+  const pullWillChange = useTransform(pull.distance, (distance) => (distance > 0 ? "transform" : "auto"));
 
   useEffect(() => {
     let live = true;
-    setStatus("loading");
-    fetchCharts(marketValue()).then(
+    const current = chartsCache?.key === key ? chartsCache : null;
+    if (current && Date.now() - current.loadedAt < REFRESH_MS) return;
+    if (!current) setStatus("loading");
+    fetchCharts(market).then(
       (page) => {
+        chartsCache = { key, shelves: page.shelves, loadedAt: Date.now() };
         if (!live) return;
         setShelves(page.shelves);
         setStatus("loaded");
       },
       () => {
-        if (live) setStatus("failed");
+        if (live && !current) setStatus("failed");
       },
     );
     return () => {
       live = false;
     };
-  }, [attempt]);
+  }, [attempt, key, market]);
 
   return (
-    <div>
-      <PageHeader title="Charts" meta="What's playing everywhere" />
-      {status === "loading" && shelves.length === 0 && (
-        <div role="status" aria-label="Loading Charts" className="mt-6 space-y-4">
-          {[0, 1, 2].map((index) => (
-            <div key={index} className="h-[64px] rounded-[11px] bg-wash" />
-          ))}
-        </div>
-      )}
+    <div className="relative">
+      {phone && <PullIndicator distance={pull.distance} spinning={pull.refreshing} />}
+      <motion.div style={phone ? { y: pull.distance, willChange: pullWillChange } : undefined}>
+      <PageHeader title={phone ? "Hotlist" : "Charts"} meta={phone ? undefined : "What's playing everywhere"} actions={phone ? <PhoneProfileButton /> : undefined} />
+      <SkeletonSwap
+        loading={status === "loading" && shelves.length === 0}
+        skeleton={
+          <div role="status" aria-label="Loading Charts" className="mt-6 space-y-4">
+            {[0, 1, 2].map((index) => (
+              <div key={index} className="h-[64px] rounded-[11px] bg-wash bt-skeleton" />
+            ))}
+          </div>
+        }
+      >
+        {shelves.map((shelf, index) => (
+          <Shelf key={`${shelf.title}-${index}`} shelf={shelf} />
+        ))}
+      </SkeletonSwap>
       {status === "failed" && shelves.length === 0 && (
         <div className="mt-6">
           <ErrorState
@@ -182,9 +227,7 @@ export function ChartsView() {
           <EmptyState title="No charts right now" message="Try again in a little while." />
         </div>
       )}
-      {shelves.map((shelf, index) => (
-        <Shelf key={`${shelf.title}-${index}`} shelf={shelf} />
-      ))}
+      </motion.div>
     </div>
   );
 }

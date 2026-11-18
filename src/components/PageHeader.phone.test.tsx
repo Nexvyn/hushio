@@ -36,9 +36,9 @@ describe("PageHeader back arrow on phone", () => {
   });
 
   it("goes to the tab root when history is empty", () => {
-    useNavigation.setState({ view: { name: "charts" }, navPast: [] });
-    render(<PageHeader title="Charts" />);
+    useNavigation.setState({ view: { name: "newreleases" }, tab: "hotlist", navPast: [] });
+    render(<PageHeader title="New releases" />);
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    expect(useNavigation.getState().view).toEqual({ name: "home" });
+    expect(useNavigation.getState().view).toEqual({ name: "charts" });
   });
 });

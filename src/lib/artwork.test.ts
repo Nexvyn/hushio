@@ -23,16 +23,16 @@ describe("thumbArtwork", () => {
 
   it("rewrites the size suffix of Google images to the device size bucket", () => {
     expect(thumbArtwork("https://lh3.googleusercontent.com/abc=w544-h544-c", 48, 2)).toBe(
-      "https://lh3.googleusercontent.com/abc=w120-h120-c",
+      "https://lh3.googleusercontent.com/abc=w96-h96-c",
     );
     expect(thumbArtwork("https://lh3.googleusercontent.com/abc=s1200", 132, 2.75)).toBe(
-      "https://lh3.googleusercontent.com/abc=s544",
+      "https://lh3.googleusercontent.com/abc=s360",
     );
     expect(thumbArtwork("https://yt3.ggpht.com/a/w544-h544-l90-rj/photo.jpg", 48, 2.625)).toBe(
-      "https://yt3.ggpht.com/a/w226-h226-l90-rj/photo.jpg",
+      "https://yt3.ggpht.com/a/w96-h96-l90-rj/photo.jpg",
     );
     expect(thumbArtwork("https://yt3.googleusercontent.com/x=s544-c-k", 48, 1)).toBe(
-      "https://yt3.googleusercontent.com/x=s120-c-k",
+      "https://yt3.googleusercontent.com/x=s96-c-k",
     );
   });
 
@@ -46,10 +46,12 @@ describe("thumbArtwork", () => {
   });
 
   it("picks the first size bucket that covers the target in device pixels", () => {
-    expect(thumbPixels(48, 1)).toBe(120);
-    expect(thumbPixels(48, 2.625)).toBe(226);
-    expect(thumbPixels(176, 2.75)).toBe(544);
-    expect(thumbPixels(400, 2)).toBe(544);
+    expect(thumbPixels(48, 1)).toBe(96);
+    expect(thumbPixels(48, 2.625)).toBe(96);
+    expect(thumbPixels(88, 2)).toBe(226);
+    expect(thumbPixels(176, 2.75)).toBe(360);
+    expect(thumbPixels(400, 2)).toBe(800);
+    expect(thumbPixels(900, 3)).toBe(1024);
   });
 });
 
@@ -140,5 +142,13 @@ describe("fmtTime", () => {
     [-3, "0:00"],
   ])("formats %s as %s", (seconds, text) => {
     expect(fmtTime(seconds)).toBe(text);
+  });
+});
+
+
+describe("provider artwork filenames", () => {
+  it("does not replace a valid non-YouTube default image with a video filename", () => {
+    expect(upgradeArtwork("https://images.example.com/album/default.jpg")).toBe("https://images.example.com/album/default.jpg");
+    expect(upgradeArtwork("https://i.ytimg.com/vi/song/default.jpg")).toBe("https://i.ytimg.com/vi/song/hqdefault.jpg");
   });
 });

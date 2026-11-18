@@ -1,3 +1,4 @@
+import { onMemoryTrim } from "./memoryTrim";
 import { useEffect, useState } from "react";
 
 export type AmbientPair = { primary: string; secondary: string };
@@ -6,7 +7,7 @@ export type Rgb = [number, number, number];
 export const AMBIENT_FALLBACK: AmbientPair = { primary: "60 60 64", secondary: "40 40 44" };
 const PALETTE_GRID = 30;
 const HUE_BINS = 18;
-const READ_CACHE_ENTRIES = 128;
+const READ_CACHE_ENTRIES = 50;
 
 const LUM_MIN = 0.08;
 const LUM_MAX = 0.95;
@@ -147,6 +148,10 @@ export class LruCache<K, V> {
     return this.entries.size;
   }
 
+  clear(): void {
+    this.entries.clear();
+  }
+
   has(key: K): boolean {
     return this.entries.has(key);
   }
@@ -197,6 +202,7 @@ export async function readAmbient(url: string): Promise<AmbientPair> {
 }
 
 const cache = new LruCache<string, Promise<AmbientPair>>(READ_CACHE_ENTRIES);
+onMemoryTrim(() => cache.clear());
 
 export function ambientFor(url: string): Promise<AmbientPair> {
   if (!url) return Promise.resolve(AMBIENT_FALLBACK);

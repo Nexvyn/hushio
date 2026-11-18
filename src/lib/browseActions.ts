@@ -1,17 +1,11 @@
-import {
-  Download01Icon,
-  Link01Icon,
-  ListStartIcon,
-  PlayIcon,
-  PlayListAddIcon,
-  UserIcon,
-} from "@hugeicons/core-free-icons";
+import { Check, DownloadSimple, LinkSimple, ListDashes, Play, ListPlus, Plus, User } from "@phosphor-icons/react";
 import { getAlbumPage, getPlaylistPage } from "./browse";
 import { youtubeAlbumLink, youtubePlaylistLink } from "./browseText";
 import { downloadAll } from "./downloads";
 import { plural } from "./plural";
 import type { BrowseItem, SearchSong } from "./searchParse";
 import { useNavigation } from "../stores/navigation";
+import { useLibrary } from "../stores/library";
 import { usePlayer } from "../stores/player";
 import { type MenuItem, useUI } from "../stores/ui";
 
@@ -46,12 +40,12 @@ export function browseMenuItems(item: BrowseItem): MenuItem[] {
     return [
       {
         label: "Open artist",
-        icon: UserIcon,
+        icon: User,
         onSelect: () => useNavigation.getState().navigate({ name: "artist", param: item.browseId }),
       },
       {
         label: "Copy link",
-        icon: Link01Icon,
+        icon: LinkSimple,
         onSelect: () => copyLink(`https://music.youtube.com/channel/${encodeURIComponent(item.browseId)}`),
       },
       { label: item.title, subject: { title: item.title, subtitle: "Artist", thumb: item.thumb, round: true } },
@@ -66,28 +60,29 @@ export function browseMenuItems(item: BrowseItem): MenuItem[] {
   return [
     {
       label: "Play",
-      icon: PlayIcon,
+      icon: Play,
       onSelect: () => withTracks((tracks) => usePlayer.getState().playQueue(tracks, 0, item.browseId)),
     },
     {
       label: "Play next",
-      icon: ListStartIcon,
+      icon: ListDashes,
       onSelect: () => withTracks((tracks) => usePlayer.getState().addToQueue(tracks, true)),
     },
     {
       label: "Add to queue",
-      icon: PlayListAddIcon,
+      icon: ListPlus,
       onSelect: () => withTracks((tracks) => usePlayer.getState().addToQueue(tracks)),
     },
     {
       label: "Download all",
-      icon: Download01Icon,
+      icon: DownloadSimple,
       separatorBefore: true,
       onSelect: () => withTracks((tracks) => downloadAll(tracks, item.title)),
     },
+    ...(isAlbum ? [savedAlbumItem(item, withTracks)] : []),
     {
       label: "Copy link",
-      icon: Link01Icon,
+      icon: LinkSimple,
       onSelect: () => copyLink(isAlbum ? youtubeAlbumLink(item.browseId) : youtubePlaylistLink(item.browseId)),
     },
     {
@@ -95,4 +90,28 @@ export function browseMenuItems(item: BrowseItem): MenuItem[] {
       subject: { title: item.title, subtitle: item.subtitle || (isAlbum ? "Album" : "Playlist"), thumb: item.thumb },
     },
   ];
+}
+
+function savedAlbumItem(item: BrowseItem, withTracks: (run: (tracks: SearchSong[]) => void) => void): MenuItem {
+  if (useLibrary.getState().savedAlbums.some((album) => album.id === item.browseId)) {
+    return {
+      label: "Remove from Your Library",
+      icon: Check,
+      onSelect: () => useLibrary.getState().removeSavedAlbum(item.browseId),
+    };
+  }
+  return {
+    label: "Save to Your Library",
+    icon: Plus,
+    onSelect: () =>
+      withTracks((tracks) =>
+        useLibrary.getState().saveAlbum({
+          id: item.browseId,
+          title: item.title,
+          artist: item.subtitle,
+          thumb: item.thumb ?? undefined,
+          trackIds: tracks.map((track) => track.id),
+        }),
+      ),
+  };
 }

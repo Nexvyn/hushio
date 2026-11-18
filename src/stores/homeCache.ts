@@ -5,19 +5,28 @@ import { persistStorage } from "../lib/persist";
 
 type HomeCacheState = {
   market: string | null;
+  language: string;
   shelves: HomeShelf[];
   fetchedAt: number | null;
-  save: (market: string, shelves: HomeShelf[]) => void;
+  continuation: string | null;
+  save: (market: string, shelves: HomeShelf[], continuation?: string | null, language?: string) => void;
 };
 
 export const useHomeCache = create<HomeCacheState>()(
   persist(
     (set) => ({
       market: null,
+      language: "en",
       shelves: [],
       fetchedAt: null,
-      save: (market, shelves) => set({ market, shelves, fetchedAt: Date.now() }),
+      continuation: null,
+      save: (market, shelves, continuation = null, language = "en") => set({ market, language, shelves, continuation, fetchedAt: Date.now() }),
     }),
-    { name: "home-market-cache", storage: persistStorage<HomeCacheState>("home-market-cache") },
+    {
+      name: "home-market-cache",
+      version: 1,
+      migrate: (persisted) => persisted as HomeCacheState,
+      storage: persistStorage<HomeCacheState>("home-market-cache"),
+    },
   ),
 );

@@ -11,6 +11,7 @@ vi.mock("@tauri-apps/plugin-http", () => ({ fetch: vi.fn() }));
 vi.mock("./innertube", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./innertube")>()),
   getSession,
+  getSearchSession: getSession,
 }));
 vi.mock("./market", () => ({ marketValue: () => ({ location: "US", lang: "en" }) }));
 vi.mock("./persist", () => ({
@@ -26,6 +27,8 @@ import {
   HOME_SHELF_MAX,
   HOME_TTL_MS,
   fetchHomeShelves,
+  fetchHomePage,
+  homeContinuationOf,
   homeTracks,
   parseHomeShelves,
   refreshHome,
@@ -261,6 +264,23 @@ describe("fetchHomeShelves", () => {
     const shelves = await fetchHomeShelves({ location: "US", lang: "en" });
 
     expect(shelves).toHaveLength(HOME_SHELF_MAX);
+  });
+});
+
+describe("lazy Home pages", () => {
+  it("loads only one page and preserves its continuation for scrolling", async () => {
+    execute.mockReset();
+    execute.mockResolvedValueOnce({ data: page([shelf("First", threeSongs("a"))], "next-page") });
+    const first = await fetchHomePage({ location: "US", lang: "en" });
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(first.continuation).toBe("next-page");
+    expect(first.shelves).toHaveLength(1);
+  });
+  it("prefers the page continuation over a nested shelf continuation", () => {
+    expect(homeContinuationOf({
+      shelf: { nextContinuationData: { continuation: "shelf-only" } },
+      sectionListRenderer: { continuations: [{ nextContinuationData: { continuation: "page-next" } }] },
+    })).toBe("page-next");
   });
 });
 

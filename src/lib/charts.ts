@@ -4,7 +4,7 @@ import { parseSearchPage, type SearchSong } from "./searchParse";
 import type { Track } from "../types";
 
 export const CHARTS_BROWSE_ID = "FEmusic_charts";
-export const CHARTS_PARAMS = "ggMGCgQIgAQ%3D";
+const CHARTS_PARAMS = "ggMGCgQIgAQ%3D";
 export const NEW_RELEASES_BROWSE_ID = "FEmusic_new_releases";
 
 export type ChartAlbum = {
@@ -28,11 +28,17 @@ export type ChartsPage = {
 
 const SEPARATOR = "•";
 const YEAR = /^\d{4}$/;
+const KIND = /^(chart|charts|playlist|album|single|ep|songs?)$/i;
+const CHART_LABEL = "Chart";
 
 function thumbOf(node: unknown): string | null {
-  const thumbnails = asArray(at(node, "thumbnail", "musicThumbnailRenderer", "thumbnail", "thumbnails"));
-  const url = at(thumbnails.at(-1), "url");
-  return typeof url === "string" ? upgradeArtwork(url) || null : null;
+  for (const key of ["thumbnail", "thumbnailRenderer"]) {
+    const thumbnails = asArray(at(node, key, "musicThumbnailRenderer", "thumbnail", "thumbnails"));
+    const url = at(thumbnails.at(-1), "url");
+    const art = typeof url === "string" ? upgradeArtwork(url) : "";
+    if (art) return art;
+  }
+  return null;
 }
 
 function albumOf(row: Json): ChartAlbum | null {
@@ -45,7 +51,9 @@ function albumOf(row: Json): ChartAlbum | null {
     .map((part) => part.trim())
     .filter(Boolean);
   const year = segments.find((part) => YEAR.test(part)) ?? null;
-  const artist = segments.filter((part) => !YEAR.test(part)).join(", ");
+  const artist = segments
+    .filter((part) => !YEAR.test(part) && !KIND.test(part) && !/youtube/i.test(part))
+    .join(", ");
   return { id, title, artist, year, thumb: thumbOf(row) };
 }
 
@@ -92,7 +100,7 @@ function shelfOf(node: Json, title: string): ChartShelf {
     const two = at(entry, "musicTwoRowItemRenderer");
     if (isRecord(two)) {
       const album = albumOf(two);
-      if (album) albums.push(album);
+      if (album) albums.push({ ...album, artist: album.artist || CHART_LABEL });
       continue;
     }
     const list = at(entry, "musicResponsiveListItemRenderer");
@@ -128,15 +136,20 @@ export function parseChartsPage(data: unknown): ChartsPage {
 }
 
 export function parseNewReleases(data: unknown): ChartShelf {
+  const entries = [
+    ...collect(data, "gridRenderer").flatMap((node) => asArray(node.items)),
+    ...collect(data, "musicCarouselShelfRenderer").flatMap((node) => asArray(node.contents)),
+  ];
   const albums: ChartAlbum[] = [];
-  for (const node of collect(data, "gridRenderer")) {
-    for (const entry of asArray(node.items)) {
-      if (!isRecord(entry)) continue;
-      const two = at(entry, "musicTwoRowItemRenderer");
-      if (!isRecord(two)) continue;
-      const album = albumOf(two);
-      if (album) albums.push(album);
-    }
+  const seen = new Set<string>();
+  for (const entry of entries) {
+    if (!isRecord(entry)) continue;
+    const two = at(entry, "musicTwoRowItemRenderer");
+    if (!isRecord(two)) continue;
+    const album = albumOf(two);
+    if (!album || !album.id.startsWith("MPRE") || seen.has(album.id)) continue;
+    seen.add(album.id);
+    albums.push(album);
   }
   return { title: "New releases", songs: [], albums };
 }

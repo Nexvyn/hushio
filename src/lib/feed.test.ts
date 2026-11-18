@@ -10,7 +10,6 @@ import {
   tasteAffinity,
 } from "./feed";
 import type { HomeShelf } from "./home";
-import type { MoodEntry } from "./moods";
 import { type ArtistScore, type Maturity, type TasteProfile } from "./taste";
 import type { Track } from "../types";
 
@@ -79,7 +78,6 @@ function inputOf(overrides: Partial<FeedInput> = {}): FeedInput {
     profile: profileOf(),
     bundles: new Map(),
     shelves: [],
-    moods: [],
     hidden: new Set(),
     taps: {},
     dontRepeat: false,
@@ -88,13 +86,12 @@ function inputOf(overrides: Partial<FeedInput> = {}): FeedInput {
   };
 }
 
-const mood = (title: string): MoodEntry => ({ title, browseId: "x", params: null, color: null, section: null });
 
 const kinds = (sections: FeedSection[]) => sections.map((section) => section.kind);
 const find = (sections: FeedSection[], kind: FeedSection["kind"]) => sections.find((section) => section.kind === kind);
 
 describe("cold start", () => {
-  it("shows browse moods and the first market shelves when there is no history", () => {
+  it("shows the first market shelves when there is no history", () => {
     const shelves: HomeShelf[] = [
       { title: "Quick picks", items: [{ kind: "track", track: track("q1") }] },
       { title: "Trending", items: [{ kind: "track", track: track("q2") }] },
@@ -102,14 +99,11 @@ describe("cold start", () => {
       { title: "Extra", items: [{ kind: "track", track: track("q4") }] },
     ];
 
-    const sections = buildHomeSections(inputOf({ shelves, moods: [mood("A"), mood("B"), mood("C")] }));
+    const sections = buildHomeSections(inputOf({ shelves }));
 
-    expect(kinds(sections)).toEqual(["browse", "market", "market", "market"]);
-    const browse = find(sections, "browse");
-    expect(browse?.moods?.map((entry) => entry.title)).toEqual(["A", "B", "C"]);
-    expect(browse?.subtitle).toBe("Common searches to get you started");
+    expect(kinds(sections)).toEqual(["market", "market", "market"]);
     expect(sections.filter((section) => section.kind === "market").map((section) => section.priority)).toEqual([60, 59, 58]);
-    expect(sections.map((section) => section.title)).toEqual(["Browse", "Quick picks", "Trending", "Chill"]);
+    expect(sections.map((section) => section.title)).toEqual(["Quick picks", "Trending", "Chill"]);
   });
 
   it("is empty when there is nothing to show", () => {
@@ -340,7 +334,7 @@ describe("diversity and clock", () => {
       maturity: "warmed",
       artists: [artistScore("UC-a", "Alpha", 90), artistScore("UC-b", "Beta", 80), artistScore("UC-c", "Gamma", 70)],
     });
-    const input = inputOf({ profile: profileWithArtists, moods: [mood("A")] });
+    const input = inputOf({ profile: profileWithArtists });
 
     expect(buildHomeSections(input)).toEqual(buildHomeSections(input));
   });

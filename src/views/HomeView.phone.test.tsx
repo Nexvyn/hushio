@@ -96,7 +96,7 @@ describe("HomeView on the phone", () => {
 
     await user.click(screen.getByRole("button", { name: /Shelf song/ }));
 
-    expect(playStream).toHaveBeenCalledWith("shelf-1", "Shelf song");
+    expect(playStream).toHaveBeenCalledWith("shelf-1", "Shelf song", 0, expect.any(Object));
   });
 
   it("shows recent songs as two-column quick tiles of 56px", () => {

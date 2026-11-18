@@ -1,17 +1,20 @@
 import { useId, useState, type ReactNode } from "react";
 import { Cover, focusRing } from "./HomeShelves";
+import { Artwork } from "./SearchRows";
+import { CoverCardLabel, CoverPlay, coverCardClass } from "./CoverCard";
 import { SectionHeader } from "./SectionHeader";
+import type { MenuSource } from "./ContextMenu";
 import { PhoneArt } from "./phone/PhoneArt";
 import { PhoneSongRow } from "./phone/PhoneTrackRow";
 import { PhoneSectionHeader, PhoneShelfArt, PhoneShelfCard, PhoneShelfRow, type ShelfVariant } from "./phone/PhoneShelf";
 import type { FeaturedItem } from "./phone/PhoneFeatured";
 import { thumbArtwork } from "../lib/artwork";
 import { startPlaySource } from "../lib/playSource";
-import { hash32 } from "../lib/queue";
 import type { CardRef, FeedSection, PlaylistRef, SectionItem, SectionKind, SideRef } from "../lib/feed";
 import type { HomeItem } from "../lib/home";
 import type { SearchSong } from "../lib/searchParse";
 import { trackMenuItems } from "../lib/trackActions";
+import { browseMenuItems } from "../lib/browseActions";
 import { usePhone } from "../lib/usePhone";
 import { currentTrack, playFromRow, usePlayer } from "../stores/player";
 import { useNavigation } from "../stores/navigation";
@@ -34,22 +37,7 @@ function fromShelfItem(item: HomeItem): SectionItem {
   }
 }
 
-const CARD_PASTELS: readonly (readonly [string, string])[] = [
-  ["#a7baf5", "#8ea7ef"],
-  ["#c99bf2", "#b57fee"],
-  ["#f2a98e", "#ec9377"],
-  ["#a9e3c3", "#8fd7ae"],
-  ["#d8e07c", "#cbd45f"],
-  ["#f3b8cf", "#eda0bd"],
-  ["#f0cf8e", "#e9bd6e"],
-  ["#9fd8f0", "#7fc7e8"],
-];
-
-const TILE = `shrink-0 rounded-[11px] p-1 text-left motion-safe:transition-colors hover:bg-wash active:bg-pressed ${focusRing}`;
-
-function pastelFor(id: string): string {
-  return CARD_PASTELS[hash32(id) % CARD_PASTELS.length][0];
-}
+const TILE = `${coverCardClass} ${focusRing}`;
 
 function isControl(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest("button, [role='button'], a") !== null;
@@ -62,7 +50,6 @@ function isTrack(item: SectionItem): item is Extract<SectionItem, { kind: "track
 type TileProps = {
   thumb: string | null;
   round?: boolean;
-  band?: string;
   title: string;
   subtitle?: string;
   tag?: string;
@@ -70,27 +57,19 @@ type TileProps = {
   onActivate: () => void;
 };
 
-function Tile({ thumb, round = false, band, title, subtitle, tag, fluid = false, onActivate }: TileProps) {
+function Tile({ thumb, round = false, title, subtitle, tag, fluid = false, onActivate }: TileProps) {
   return (
     <button type="button" onClick={onActivate} className={`${TILE} ${fluid ? "w-full" : "w-[160px]"} ${round ? "text-center" : ""}`}>
       <span className="relative block">
-        {band ? (
-          <span className="block rounded-[11px] p-2" style={{ backgroundColor: band }}>
-            <Cover src={thumb} round={round} />
-          </span>
-        ) : (
-          <Cover src={thumb} round={round} />
-        )}
+        <Cover src={thumb} round={round} />
         {tag && (
-          <span className="absolute left-2 top-2 rounded-[4px] bg-panel px-1.5 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-ink-1">
+          <span className="absolute left-2 top-2 rounded-[4px] bg-panel px-1.5 py-0.5 text-caption font-semibold tracking-[0.08em] text-ink-1">
             {tag}
           </span>
         )}
+        {!round && <CoverPlay />}
       </span>
-      <span className="mt-2 block min-w-0 px-0.5">
-        <span className="block truncate text-[13px] font-medium text-ink-1">{title}</span>
-        {subtitle && <span className="block truncate text-[12px] text-ink-2">{subtitle}</span>}
-      </span>
+      <CoverCardLabel title={title} subtitle={subtitle} />
     </button>
   );
 }
@@ -98,17 +77,14 @@ function Tile({ thumb, round = false, band, title, subtitle, tag, fluid = false,
 function SideTile({ side, onActivate }: { side: SideRef; onActivate: () => void }) {
   return (
     <button type="button" onClick={onActivate} className={`${TILE} w-full`}>
-      <span className="block rounded-[11px] p-2" style={{ backgroundColor: pastelFor(side.id) }}>
-        <span className="grid aspect-square grid-cols-2 gap-px overflow-hidden rounded-[9px]">
+      <span className="block overflow-hidden rounded-art">
+        <span className="grid aspect-square grid-cols-2 gap-px overflow-hidden rounded-art">
           {[0, 1, 2, 3].map((slot) => (
             <Cover key={slot} src={side.thumbs[slot] ?? null} />
           ))}
         </span>
       </span>
-      <span className="mt-2 block min-w-0 px-0.5">
-        <span className="block truncate text-[13px] font-medium text-ink-1">Side {side.letter}</span>
-        <span className="block truncate text-[12px] text-ink-2">{side.caption}</span>
-      </span>
+      <CoverCardLabel title={`Side ${side.letter}`} subtitle={side.caption} />
     </button>
   );
 }
@@ -119,7 +95,6 @@ function CardTile({ card, fluid, onActivate }: { card: CardRef; fluid: boolean; 
     <Tile
       thumb={card.thumb}
       round={radio}
-      band={radio ? undefined : pastelFor(card.id)}
       tag={radio ? "RADIO" : undefined}
       title={card.name}
       subtitle={card.caption}
@@ -134,14 +109,12 @@ function ListRow({ track, note, onActivate }: { track: Track; note?: string; onA
     <button
       type="button"
       onClick={onActivate}
-      className={`flex w-full min-w-0 items-center gap-3 rounded-[10px] p-2 text-left motion-safe:transition-colors hover:bg-wash active:bg-pressed ${focusRing}`}
+      className={`flex h-14 w-full min-w-0 items-center gap-3 rounded-[10px] pl-2 pr-2 text-left motion-safe:transition-colors hover:bg-wash active:bg-pressed ${focusRing}`}
     >
-      <span className="h-11 w-11 shrink-0">
-        <Cover src={track.thumb} />
-      </span>
-      <span className="min-w-0">
-        <span className="block truncate text-[13px] font-medium text-ink-1">{track.title}</span>
-        <span className="block truncate text-[12px] text-ink-2">{note ?? track.artist}</span>
+      <Artwork src={track.thumb} size="h-10 w-10" radius="rounded-[4px]" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-body font-medium text-ink-1">{track.title}</span>
+        <span className="block truncate text-meta text-ink-2">{note ?? track.artist}</span>
       </span>
     </button>
   );
@@ -221,7 +194,7 @@ function Body({ section }: { section: FeedSection }) {
   const navigate = useNavigation((state) => state.navigate);
   if (section.layout === "crate" && section.playlists) {
     return (
-      <div className="no-scrollbar flex gap-3 overflow-x-auto pb-2">
+      <div className="no-scrollbar shelf-row flex gap-3 overflow-x-auto pb-2">
         {section.playlists.map((playlist) => (
           <PlaylistTile
             key={playlist.id}
@@ -234,13 +207,13 @@ function Body({ section }: { section: FeedSection }) {
   }
   if (section.layout === "list") {
     return (
-      <ol className="space-y-1">
+      <ol>
         {section.items.map((item, index) => {
           if (!isTrack(item)) return null;
           const queue = section.items.flatMap((entry) => (isTrack(entry) ? [entry.track] : []));
           const position = section.items.slice(0, index).filter(isTrack).length;
           return (
-            <li key={`${item.track.id}-${index}`}>
+            <li key={`${item.track.id}-${index}`} className="relative after:absolute after:bottom-0 after:left-[60px] after:right-3 after:h-px after:bg-separator last:after:hidden">
               <ListRow track={item.track} note={item.note} onActivate={() => playFromRow(queue, position)} />
             </li>
           );
@@ -250,7 +223,7 @@ function Body({ section }: { section: FeedSection }) {
   }
   const fluid = section.layout === "mixes";
   const items = section.shelf ? section.shelf.items.map(fromShelfItem) : section.items;
-  const layout = fluid ? "grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4" : "no-scrollbar flex items-start gap-3 overflow-x-auto pb-3";
+  const layout = fluid ? "grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4" : "no-scrollbar shelf-row flex items-start gap-3 overflow-x-auto pb-3";
   return (
     <div className={layout}>
       {items.map((item, index) => (
@@ -279,7 +252,7 @@ export function phoneSectionStyle(section: Pick<FeedSection, "kind" | "layout" |
   if (byKind) return byKind;
   if (section.layout === "list") return "songs";
   if (section.layout === "circles") return "round";
-  if (section.layout === "crate" || section.layout === "moods" || section.layout === "mixes" || section.layout === "radios") return "large";
+  if (section.layout === "crate" || section.layout === "mixes" || section.layout === "radios") return "large";
   if (section.layout === "tiles") return "tile";
   if (/new releases/i.test(section.title)) return "compact";
   return "default";
@@ -331,6 +304,7 @@ type PhoneCard = {
   tag?: string;
   title: string;
   subtitle?: string;
+  menu?: MenuSource;
   onActivate: () => void;
 };
 
@@ -345,6 +319,7 @@ function phoneCardOf(item: SectionItem, items: readonly SectionItem[], index: nu
         art: <PhoneShelfArt src={item.track.thumb} variant={variant} />,
         title: item.track.title,
         subtitle: item.track.artist,
+        menu: () => trackMenuItems(songOf(item.track)),
         onActivate: () => playFromRow(queue, position),
       };
     }
@@ -354,6 +329,7 @@ function phoneCardOf(item: SectionItem, items: readonly SectionItem[], index: nu
         art: <PhoneShelfArt src={item.album.thumb} variant={variant} />,
         title: item.album.title,
         subtitle: item.album.artist,
+        menu: () => browseMenuItems({ type: "album", browseId: item.album.id, title: item.album.title, subtitle: item.album.artist, thumb: item.album.thumb }),
         onActivate: () => navigate({ name: "album", param: item.album.id }),
       };
     case "artist":
@@ -362,6 +338,7 @@ function phoneCardOf(item: SectionItem, items: readonly SectionItem[], index: nu
         art: <PhoneShelfArt src={item.artist.thumb} variant={variant} round />,
         round: true,
         title: item.artist.name,
+        menu: () => browseMenuItems({ type: "artist", browseId: item.artist.id, title: item.artist.name, subtitle: "", thumb: item.artist.thumb }),
         onActivate: () => navigate({ name: "artist", param: item.artist.id }),
       };
     case "playlist":
@@ -370,6 +347,7 @@ function phoneCardOf(item: SectionItem, items: readonly SectionItem[], index: nu
         art: <PhoneShelfArt src={item.playlist.thumb} variant={variant} />,
         title: item.playlist.title,
         subtitle: item.playlist.subtitle,
+        menu: () => browseMenuItems({ type: "playlist", browseId: item.playlist.id, title: item.playlist.title, subtitle: item.playlist.subtitle, thumb: item.playlist.thumb }),
         onActivate: () => navigate({ name: "ytplaylist", param: item.playlist.id }),
       };
     case "card": {
@@ -427,6 +405,7 @@ function PhoneBody({ section, variant }: { section: FeedSection; variant: ShelfV
           title={card.title}
           subtitle={card.subtitle}
           variant={variant}
+          menu={card.menu}
           onActivate={card.onActivate}
         />
       ))}
@@ -476,7 +455,7 @@ function PhoneSongList({ section }: { section: FeedSection }) {
         <button
           type="button"
           onClick={() => setExpanded((value) => !value)}
-          className={`mt-1 flex h-11 items-center rounded-[10px] px-0 text-[14px] font-medium text-ink-2 motion-safe:transition-colors hover:text-ink-1 ${focusRing}`}
+          className={`mt-1 flex h-11 items-center rounded-[10px] px-0 text-body font-medium text-ink-2 motion-safe:transition-colors hover:text-ink-1 ${focusRing}`}
         >
           {expanded ? "Show less" : "Show all"}
         </button>
@@ -505,7 +484,7 @@ export function FeedSectionView({ section }: { section: FeedSection }) {
       {section.eyebrow && <p className="mb-1 text-meta font-medium text-ink-2">{section.eyebrow.label}</p>}
       {phone ? <PhoneSectionHeader id={titleId} title={section.title} /> : <SectionHeader id={titleId} title={section.title} />}
       {section.subtitle && (
-        <p className={phone ? "mb-3 text-[13px] leading-[17px] text-ink-2" : "-mt-1.5 mb-3 text-meta text-ink-2"}>
+        <p className={phone ? "mb-3 text-meta leading-[17px] text-ink-2" : "-mt-1.5 mb-3 text-meta text-ink-2"}>
           {section.subtitle}
         </p>
       )}

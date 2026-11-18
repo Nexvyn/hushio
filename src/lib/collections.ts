@@ -1,20 +1,22 @@
 import { upgradeArtwork } from "./artwork";
 import { arrange } from "./libraryOrder";
-import type { Folder, FollowedArtist, PinnedSingles, Playlist } from "../stores/library";
+import type { Folder, FollowedArtist, PinnedSingles, Playlist, SavedAlbum } from "../stores/library";
 
-export const SINGLE_ROWS = ["liked", "spotify", "downloads", "local"] as const;
+const SINGLE_ROWS = ["liked", "spotify", "downloads", "local"] as const;
 export type SingleRow = (typeof SINGLE_ROWS)[number];
 
 export type RowEntry =
   | { key: string; kind: "single"; single: SingleRow }
   | { key: string; kind: "playlist"; playlist: Playlist }
   | { key: string; kind: "folder"; folder: Folder; count: number }
-  | { key: string; kind: "artist"; artist: FollowedArtist };
+  | { key: string; kind: "artist"; artist: FollowedArtist }
+  | { key: string; kind: "album"; album: SavedAlbum };
 
 export type RowsInput = {
   playlists: Playlist[];
   folders: Folder[];
   followedArtists: FollowedArtist[];
+  savedAlbums?: SavedAlbum[];
   pinnedSingles: PinnedSingles;
   libraryOrder: string[] | undefined;
 };
@@ -74,9 +76,13 @@ export function libraryRows(input: RowsInput): { fixed: RowEntry[]; movable: Row
     entry: { key: `artist:${artist.id}`, kind: "artist", artist } as RowEntry,
     pinned: false,
   }));
+  const albums = (input.savedAlbums ?? []).map((album) => ({
+    entry: { key: `album:${album.id}`, kind: "album", album } as RowEntry,
+    pinned: false,
+  }));
 
   const fixed = [...singles, ...playlists].filter((row) => row.pinned).map((row) => row.entry);
-  const defaults = [...singles, ...playlists, ...folders, ...artists].filter((row) => !row.pinned);
+  const defaults = [...singles, ...playlists, ...folders, ...artists, ...albums].filter((row) => !row.pinned);
   const byKey = new Map(defaults.map((row) => [row.entry.key, row.entry]));
   const movable = arrange([...byKey.keys()], input.libraryOrder ?? []).flatMap((key) => {
     const entry = byKey.get(key);

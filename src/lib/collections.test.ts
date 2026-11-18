@@ -104,3 +104,14 @@ describe("coversOf and topArtist", () => {
     expect(topArtist([])).toBeNull();
   });
 });
+
+describe("saved albums and downloads in the library rows", () => {
+  const savedAlbum = { id: "MPREb_1", title: "Night Drive", artist: "Kairo", savedAt: 1, trackIds: ["t1"] };
+
+  it("adds each saved album as an album row after the artists", () => {
+    const rows = libraryRows({ ...base, followedArtists: [artist("x")], savedAlbums: [savedAlbum] });
+    const artistAndAlbum = rows.movable.filter((entry) => entry.kind === "artist" || entry.kind === "album");
+    expect(keys(artistAndAlbum)).toEqual(["artist:x", "album:MPREb_1"]);
+    expect(artistAndAlbum[1]).toMatchObject({ kind: "album", album: savedAlbum });
+  });
+});

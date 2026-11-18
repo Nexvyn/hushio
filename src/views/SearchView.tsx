@@ -1,38 +1,25 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Album01Icon,
-  Cancel01Icon,
-  GridViewIcon,
-  Loading03Icon,
-  MusicNote01Icon,
-  PlayIcon,
-  PlayListAddIcon,
-  PlayListIcon,
-  Search01Icon,
-  SearchX,
-  UserIcon,
-} from "@hugeicons/core-free-icons";
-import type { IconSvgElement } from "@hugeicons/react";
-import { Artwork, BrowseRow } from "../components/SearchRows";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { VinylRecord, X, GridFour, CircleNotch, MusicNote, Play, ListPlus, Playlist, MagnifyingGlass, User, Globe, HardDrives, PuzzlePiece, type Icon as PhosphorIcon } from "@phosphor-icons/react";
+import { Artwork, BrowseCard, BrowseRow } from "../components/SearchRows";
 import { TrackRow } from "../components/TrackRow";
 import { Button } from "../components/Button";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { Icon } from "../components/Icon";
-import { RecogniseSong, useRecogniseSong } from "../components/RecogniseSong";
-import { PhoneBrowseGrid } from "../components/phone/PhoneBrowseGrid";
+import { BrowseGrid, DESKTOP_BROWSE } from "../components/BrowseGrid";
 import { PhoneHeader } from "../components/phone/PhoneHeader";
 import { PhoneProfileButton } from "../components/phone/PhoneProfileButton";
-import { PhoneRecognition } from "../components/phone/PhoneRecognition";
 import { PhoneSearchField } from "../components/phone/PhoneSearchField";
 import { PhoneBrowseRow, PhoneTopSong, PhoneTrackRow } from "../components/phone/PhoneSearchRows";
+import { PhoneSongRow } from "../components/phone/PhoneTrackRow";
 import { platform } from "../lib/bridge";
 import { normalizeCredit } from "../lib/credits";
 import { usePhone } from "../lib/usePhone";
-import { currentTrack, usePlayer } from "../stores/player";
+import { currentTrack, playFromRow, usePlayer } from "../stores/player";
 import { trackMenuItems } from "../lib/trackActions";
 import { APP_NAME } from "../lib/app";
 import { cachedSearchPage, peekSearchPage, searchMore } from "../lib/search";
+import { useJioSaavnSongs } from "../lib/useJioSaavnSongs";
 import { openRecentItem, playSong, recentSearchMenuItems, submitSearch } from "../lib/searchActions";
 import { openMenuAtPointer, openMenuFromKey } from "../components/ContextMenu";
 import {
@@ -44,23 +31,27 @@ import {
   type SearchRow,
   type SearchSong,
 } from "../lib/searchParse";
-import { useNavigation } from "../stores/navigation";
 import { useRecentItems, useRecents, type RecentItem, type RecentKind } from "../stores/recents";
+import { useLocalLibrary } from "../stores/localLibrary";
+import { useSettings } from "../stores/settings";
+import type { AddonSource } from "../lib/addons/types";
+import { addonsAvailable, deviceSongs, searchAddons, type SearchScope } from "../lib/searchScope";
 import { useUI } from "../stores/ui";
+import { SkeletonSwap } from "../components/SkeletonSwap";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
 const HEADING = "text-section text-ink-1";
-const PHONE_HEADING = "font-title text-[20px] leading-[26px] font-bold tracking-[-0.02em] text-ink-1";
+const PHONE_HEADING = "font-title text-card-title leading-[26px] font-bold tracking-[-0.02em] text-ink-1";
 const PHONE_RECENT_LIMIT = 6;
 
-const FILTER_TABS: { filter: SearchFilter; label: string; icon: IconSvgElement }[] = [
-  { filter: "all", label: "All", icon: GridViewIcon },
-  { filter: "songs", label: "Songs", icon: MusicNote01Icon },
-  { filter: "videos", label: "Videos", icon: PlayIcon },
-  { filter: "albums", label: "Albums", icon: Album01Icon },
-  { filter: "artists", label: "Artists", icon: UserIcon },
-  { filter: "playlists", label: "Playlists", icon: PlayListIcon },
+const FILTER_TABS: { filter: SearchFilter; label: string; icon: PhosphorIcon }[] = [
+  { filter: "all", label: "All", icon: GridFour },
+  { filter: "songs", label: "Songs", icon: MusicNote },
+  { filter: "videos", label: "Videos", icon: Play },
+  { filter: "albums", label: "Albums", icon: VinylRecord },
+  { filter: "artists", label: "Artists", icon: User },
+  { filter: "playlists", label: "Playlists", icon: Playlist },
 ];
 
 const KIND_LABEL: Record<RecentKind, string> = {
@@ -76,6 +67,7 @@ type Results = {
   rows: SearchRow[];
   continuation: string | null;
   loadingMore: boolean;
+  moreError?: boolean;
 };
 
 const IDLE: Results = { key: "", status: "idle", rows: [], continuation: null, loadingMore: false };
@@ -123,7 +115,7 @@ function useSearchResults(query: string, filter: SearchFilter) {
   const { status, continuation, loadingMore } = results;
   const loadMore = useCallback(() => {
     if (!continuation || loadingMore || status !== "ready") return;
-    setResults((current) => (current.key === key ? { ...current, loadingMore: true } : current));
+    setResults((current) => (current.key === key ? { ...current, loadingMore: true, moreError: false } : current));
     searchMore(continuation, filter).then(
       (page) =>
         setResults((current) =>
@@ -131,13 +123,13 @@ function useSearchResults(query: string, filter: SearchFilter) {
             ? current
             : { ...current, rows: mergeRows(current.rows, page.rows), continuation: page.continuation, loadingMore: false },
         ),
-      () => setResults((current) => (current.key !== key ? current : { ...current, loadingMore: false })),
+      () => setResults((current) => (current.key !== key ? current : { ...current, loadingMore: false, moreError: true })),
     );
   }, [continuation, filter, key, loadingMore, status]);
 
   useEffect(() => {
     const node = sentinel.current;
-    if (!node || !continuation || loadingMore || status !== "ready") return;
+    if (!node || !continuation || loadingMore || results.moreError || status !== "ready") return;
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) loadMore();
@@ -146,11 +138,12 @@ function useSearchResults(query: string, filter: SearchFilter) {
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [continuation, loadingMore, status, loadMore]);
+  }, [continuation, loadingMore, status, loadMore, results.moreError]);
 
   return {
     results,
     sentinel,
+    loadMore,
     retry: () => setAttempt((count) => count + 1),
   };
 }
@@ -186,16 +179,16 @@ function TopSongCard({ song, query }: { song: SearchSong; query: string }) {
     <div className="flex items-center gap-5 rounded-[11px] bg-panel p-4">
       <Artwork src={song.thumb} size="h-24 w-24" />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[20px] font-semibold text-ink-1">{song.title}</p>
-        <p className="truncate text-[13px] text-ink-2">{normalizeCredit(song.artist)}</p>
+        <p className="truncate text-card-title font-semibold text-ink-1">{song.title}</p>
+        <p className="truncate text-meta text-ink-2">{normalizeCredit(song.artist)}</p>
         <div className="mt-3 flex gap-2">
           <Button variant="primary" className="gap-1.5" onClick={() => playSong(song, query)}>
-            <Icon icon={PlayIcon} />
+            <Icon icon={Play} />
             Play
           </Button>
-          <Button className="gap-1.5" onClick={() => useNavigation.getState().navigate({ name: "playlists" })}>
-            <Icon icon={PlayListAddIcon} />
-            Playlist
+          <Button className="gap-1.5" onClick={() => useUI.getState().openPlaylistPicker([song])}>
+            <Icon icon={ListPlus} />
+            Add to playlist
           </Button>
         </div>
       </div>
@@ -216,8 +209,8 @@ function RecentlyOpened({ items }: { items: RecentItem[] }) {
           onClick={clear}
           className={
             phone
-              ? "-mr-2 flex h-11 items-center rounded-[10px] px-2 text-[13.5px] text-ink-2 active:text-ink-1"
-              : "-mr-2 flex h-10 items-center rounded-md px-2 text-[12px] text-ink-2 transition-colors hover:text-ink-1 active:text-ink-1"
+              ? "-mr-2 flex h-11 items-center rounded-[10px] px-2 text-meta text-ink-2 active:text-ink-1"
+              : "-mr-2 flex h-10 items-center rounded-md px-2 text-meta text-ink-2 transition-colors hover:text-ink-1 active:text-ink-1"
           }
         >
           Clear all
@@ -242,10 +235,10 @@ function RecentlyOpened({ items }: { items: RecentItem[] }) {
                 radius={phone && item.kind !== "artist" ? "rounded-[6px]" : undefined}
               />
               <span className="min-w-0 flex-1">
-                <span className={`block truncate text-ink-1 ${phone ? "text-[16px] leading-[22px] font-normal" : "text-[13px] font-medium"}`}>
+                <span className={`block truncate text-ink-1 ${phone ? "text-body leading-[22px] font-normal" : "text-meta font-medium"}`}>
                   {item.title}
                 </span>
-                <span className={`block truncate text-ink-2 ${phone ? "text-[13.5px] leading-[18px]" : "text-[12px]"}`}>
+                <span className={`block truncate text-ink-2 ${phone ? "text-meta leading-[18px]" : "text-meta"}`}>
                   {item.subtitle ? `${KIND_LABEL[item.kind]} · ${item.subtitle}` : KIND_LABEL[item.kind]}
                 </span>
               </span>
@@ -256,7 +249,7 @@ function RecentlyOpened({ items }: { items: RecentItem[] }) {
               onClick={() => remove(item.kind, item.id)}
               className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-ink-2 opacity-0 transition-opacity hover:bg-wash hover:text-ink-1 active:bg-pressed focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
             >
-              <Icon icon={Cancel01Icon} />
+              <Icon icon={X} />
             </button>
           </li>
         ))}
@@ -278,8 +271,8 @@ function RecentSearches({ searches }: { searches: string[] }) {
           onClick={clearSearches}
           className={
             phone
-              ? "-mr-2 flex h-11 items-center rounded-[10px] px-2 text-[13.5px] text-ink-2 active:text-ink-1"
-              : "-mr-2 flex h-10 items-center rounded-md px-2 text-[12px] text-ink-2 transition-colors hover:text-ink-1 active:text-ink-1"
+              ? "-mr-2 flex h-11 items-center rounded-[10px] px-2 text-meta text-ink-2 active:text-ink-1"
+              : "-mr-2 flex h-10 items-center rounded-md px-2 text-meta text-ink-2 transition-colors hover:text-ink-1 active:text-ink-1"
           }
         >
           Clear all
@@ -293,8 +286,8 @@ function RecentSearches({ searches }: { searches: string[] }) {
             onKeyDown={(event) => void openMenuFromKey(event, () => recentSearchMenuItems(search))}
             className={
               phone
-                ? "flex h-[34px] shrink-0 items-center rounded-[10px] bg-wash text-[14px] text-ink-1"
-                : "flex h-10 items-center rounded-full bg-wash text-[13px] text-ink-1"
+                ? "flex h-[34px] shrink-0 items-center whitespace-nowrap rounded-[10px] bg-wash text-body text-ink-1"
+                : "flex h-10 items-center rounded-full bg-wash text-meta text-ink-1"
             }
           >
             <button
@@ -314,7 +307,7 @@ function RecentSearches({ searches }: { searches: string[] }) {
                   : "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-2 transition-colors hover:bg-hover hover:text-ink-1 active:bg-pressed"
               }
             >
-              <Icon icon={Cancel01Icon} />
+              <Icon icon={X} />
             </button>
           </li>
         ))}
@@ -328,7 +321,6 @@ function PhoneIdleSearch({ items, searches }: { items: RecentItem[]; searches: s
     <div className="mt-4 space-y-7">
       {searches.length > 0 && <RecentSearches searches={searches} />}
       {items.length > 0 && <RecentlyOpened items={items.slice(0, PHONE_RECENT_LIMIT)} />}
-      <PhoneBrowseGrid />
     </div>
   );
 }
@@ -345,10 +337,10 @@ function IdleSearch() {
       {empty ? (
         <section className="flex flex-col items-center py-16 text-center">
           <span className="mb-4 text-ink-2">
-            <Icon icon={Search01Icon} />
+            <Icon icon={MagnifyingGlass} />
           </span>
           <h2 className={HEADING}>{`Search ${APP_NAME}`}</h2>
-          <p className="mt-1 max-w-md text-[12.5px] text-ink-2">
+          <p className="mt-1 max-w-md text-meta text-ink-2">
             {`Find songs, albums, artists and playlists. Press ${shortcut} anywhere to jump into search.`}
           </p>
         </section>
@@ -358,7 +350,173 @@ function IdleSearch() {
           {searches.length > 0 && <RecentSearches searches={searches} />}
         </>
       )}
+      <BrowseGrid items={DESKTOP_BROWSE} />
     </div>
+  );
+}
+
+const SCOPE_TABS: { scope: SearchScope; label: string; icon: PhosphorIcon }[] = [
+  { scope: "online", label: "Online", icon: Globe },
+  { scope: "device", label: "On device", icon: HardDrives },
+  { scope: "addons", label: "Add-ons", icon: PuzzlePiece },
+];
+
+function ScopeControl({
+  scope,
+  scopes,
+  onPick,
+  phone,
+}: {
+  scope: SearchScope;
+  scopes: SearchScope[];
+  onPick: (scope: SearchScope) => void;
+  phone: boolean;
+}) {
+  const tabs = SCOPE_TABS.filter((tab) => scopes.includes(tab.scope));
+  if (phone) {
+    return (
+      <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
+        {tabs.map((tab) => (
+          <button
+            key={tab.scope}
+            type="button"
+            aria-pressed={scope === tab.scope}
+            onClick={() => onPick(tab.scope)}
+            className={`relative inline-flex h-[34px] shrink-0 items-center whitespace-nowrap rounded-[10px] px-3 text-body font-medium before:absolute before:inset-x-0 before:-inset-y-[5px] before:content-[''] motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+              scope === tab.scope ? "bg-accent text-on-accent" : "bg-wash text-ink-2 hover:bg-hover"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div role="group" aria-label="Search where" className="inline-flex h-10 items-center gap-1 rounded-[12px] bg-wash p-1">
+      {tabs.map((tab) => (
+        <button
+          key={tab.scope}
+          type="button"
+          aria-pressed={scope === tab.scope}
+          onClick={() => onPick(tab.scope)}
+          className={`inline-flex h-8 items-center gap-1.5 rounded-[9px] px-3 text-meta font-medium motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+            scope === tab.scope ? "bg-accent text-on-accent" : "text-ink-2 hover:text-ink-1"
+          }`}
+        >
+          <Icon icon={tab.icon} />
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+type AddonSongs = { key: string; status: "loading" | "ready" | "error"; songs: SearchSong[] };
+
+function useAddonSongs(query: string, sources: AddonSource[]) {
+  const [attempt, setAttempt] = useState(0);
+  const [state, setState] = useState<AddonSongs>({ key: "", status: "loading", songs: [] });
+  const key = `${attempt}:${query}:${sources.map((source) => source.id).join("|")}`;
+
+  useEffect(() => {
+    if (!query) return;
+    let live = true;
+    setState({ key, status: "loading", songs: [] });
+    searchAddons(sources, query).then(
+      (songs) => {
+        if (live) setState({ key, status: "ready", songs });
+      },
+      () => {
+        if (live) setState({ key, status: "error", songs: [] });
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [key, query, sources]);
+
+  const current = state.key === key;
+  return {
+    status: current ? state.status : "loading",
+    songs: current ? state.songs : [],
+    retry: () => setAttempt((count) => count + 1),
+  };
+}
+
+function ScopeIdle({ scope }: { scope: SearchScope }) {
+  if (scope === "device") {
+    return <EmptyState icon={HardDrives} title="Search this device" message="Type a song, artist or album from your local music." />;
+  }
+  return (
+    <EmptyState icon={PuzzlePiece} title="Search your add-ons" message="Type a song to search the add-ons you turned on in Settings." />
+  );
+}
+
+function ScopedResults({ scope, query, sources, phone }: { scope: SearchScope; query: string; sources: AddonSource[]; phone: boolean }) {
+  const localTracks = useLocalLibrary((state) => state.library.tracks);
+  const localLoaded = useLocalLibrary((state) => state.loaded);
+  const addons = useAddonSongs(scope === "addons" ? query : "", sources);
+  const current = usePlayer((state) => currentTrack(state)?.id);
+  const playing = usePlayer((state) => state.playing);
+  const songs = useMemo(
+    () => (scope === "device" ? deviceSongs(localTracks, query) : addons.songs),
+    [scope, localTracks, query, addons.songs],
+  );
+
+  if (scope === "online") return null;
+  if (!query) return <ListSkeleton rows={6} phone={phone} />;
+  if (scope === "device" && !localLoaded) return <ListSkeleton rows={6} phone={phone} />;
+  if (scope === "addons" && addons.status === "loading") return <ListSkeleton rows={6} phone={phone} />;
+  if (scope === "addons" && addons.status === "error") {
+    return (
+      <ErrorState
+        title="Add-on search didn't go through"
+        message="None of the enabled add-ons answered. Check them in Settings and try again."
+        action={{ label: "Try again", onClick: addons.retry }}
+      />
+    );
+  }
+  if (songs.length === 0) {
+    if (scope === "device" && localTracks.length === 0) {
+      return <EmptyState icon={HardDrives} title="No music on this device yet" message="Add a folder in Local music, then search it here." />;
+    }
+    return (
+      <EmptyState
+        icon={MagnifyingGlass}
+        title={`No results for “${query}”`}
+        message={scope === "device" ? "Only songs in your local folders are searched here." : "The enabled add-ons had nothing for this search."}
+      />
+    );
+  }
+  return (
+    <ol className={phone ? "animate-fade-in" : "-mx-2 animate-fade-in"}>
+      {songs.map((song, index) =>
+        phone ? (
+          <PhoneSongRow
+            key={song.id}
+            index={index}
+            song={song}
+            current={song.id === current}
+            playing={playing}
+            menu={() => trackMenuItems(song)}
+            onPlay={() => playFromRow(songs, index)}
+          />
+        ) : (
+          <TrackRow
+            key={song.id}
+            index={index}
+            song={song}
+            current={song.id === current}
+            playing={playing}
+            artwork
+            dividerInset="after:left-[60px]"
+            menu={() => trackMenuItems(song)}
+            onPlay={() => playFromRow(songs, index)}
+          />
+        ),
+      )}
+    </ol>
   );
 }
 
@@ -371,7 +529,7 @@ function PhoneFilterChips({ filter, onPick }: { filter: SearchFilter; onPick: (f
           type="button"
           aria-pressed={filter === tab.filter}
           onClick={() => onPick(tab.filter)}
-          className={`relative inline-flex h-[34px] shrink-0 items-center rounded-[10px] px-3 text-[14px] font-medium before:absolute before:inset-x-0 before:-inset-y-[5px] before:content-[''] motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+          className={`relative inline-flex h-[34px] shrink-0 items-center whitespace-nowrap rounded-[10px] px-3 text-body font-medium before:absolute before:inset-x-0 before:-inset-y-[5px] before:content-[''] motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
             filter === tab.filter ? "bg-accent text-on-accent" : "bg-wash text-ink-2 hover:bg-hover"
           }`}
         >
@@ -418,40 +576,71 @@ export function SearchView() {
   const filter = useUI((state) => state.searchFilter);
   const setFilter = useUI((state) => state.setSearchFilter);
   const phone = usePhone();
-  const recognise = useRecogniseSong();
   const trimmed = query.trim();
   const settled = useSettledQuery(trimmed);
-  const { results, sentinel, retry } = useSearchResults(settled, filter);
+  const addonSources = useSettings((state) => state.addonSources);
+  const addonsOn = addonsAvailable(addonSources);
+  const [picked, setScope] = useState<SearchScope>("online");
+  const scope: SearchScope = picked === "addons" && !addonsOn ? "online" : picked;
+  const online = scope === "online";
+  const { results, sentinel, retry, loadMore } = useSearchResults(online ? settled : "", filter);
+  const jiosaavnOn = useSettings((state) => state.jiosaavnEnabled);
+  const jiosaavnSongs = useJioSaavnSongs(online ? settled : "", jiosaavnOn && (filter === "all" || filter === "songs"));
+  const jiosaavnRows: SearchRow[] = jiosaavnSongs.map((track) => ({ kind: "track", track }));
+  const scopes: SearchScope[] = addonsOn ? ["online", "device", "addons"] : ["online", "device"];
+  const scopeBar = (
+    <div className={phone ? "mt-3" : undefined}>
+      <ScopeControl scope={scope} scopes={scopes} onPick={setScope} phone={phone} />
+    </div>
+  );
 
   const field = phone ? (
-    <PhoneSearchField listening={recognise.status === "listening"} onRecognise={() => void recognise.start()} />
+    <PhoneSearchField suggest={online} />
   ) : null;
   const header = phone && !trimmed ? <PhoneHeader title="Search" actions={<PhoneProfileButton />} /> : null;
 
   if (!trimmed) {
+    const idle = online ? <IdleSearch /> : <ScopeIdle scope={scope} />;
     if (!phone) {
       return (
-        <>
-          <RecogniseSong />
-          <IdleSearch />
-        </>
+        <div className="space-y-10">
+          {scopeBar}
+          {idle}
+        </div>
       );
     }
     return (
       <div>
         {header}
         {field}
-        <div className="mt-3 empty:hidden">
-          <PhoneRecognition recognise={recognise} />
-        </div>
-        <IdleSearch />
+        {scopeBar}
+        {idle}
+      </div>
+    );
+  }
+
+  if (!online) {
+    const scoped = (
+      <div className={phone ? "mt-3 space-y-4" : "space-y-4"}>
+        {scopeBar}
+        <ScopedResults scope={scope} query={settled} sources={addonSources} phone={phone} />
+      </div>
+    );
+    if (!phone) return scoped;
+    return (
+      <div>
+        {field}
+        {scoped}
       </div>
     );
   }
 
   const top = topResult(results.rows, filter);
-  const sections = searchSections(top.rest, filter);
-  const loading = results.status === "loading" || results.status === "idle";
+  const sections = [
+    ...searchSections(top.rest, filter),
+    ...(jiosaavnRows.length > 0 ? [{ title: "JioSaavn", rows: jiosaavnRows }] : []),
+  ];
+  const loading = trimmed !== settled || results.key !== `${filter}:${settled}` || results.status === "loading" || results.status === "idle";
   const announcement = loading
     ? "Loading"
     : results.status === "error"
@@ -462,6 +651,7 @@ export function SearchView() {
 
   const body = (
     <div className={phone ? "mt-3 space-y-4" : "space-y-4"}>
+      {scopeBar}
       {phone ? (
         <PhoneFilterChips filter={filter} onPick={setFilter} />
       ) : (
@@ -472,7 +662,7 @@ export function SearchView() {
               type="button"
               aria-pressed={filter === tab.filter}
               onClick={() => setFilter(tab.filter)}
-              className={`inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-[12px] px-3.5 text-[13px] font-medium motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+              className={`inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-[12px] px-3.5 text-meta font-medium motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
                 filter === tab.filter ? "bg-accent text-on-accent" : "bg-wash text-ink-2 hover:bg-hover"
               }`}
             >
@@ -485,22 +675,21 @@ export function SearchView() {
               aria-hidden="true"
               className="flex h-7 w-7 items-center justify-center text-ink-2 bt-spin"
             >
-              <Icon icon={Loading03Icon} />
+              <Icon icon={CircleNotch} />
             </span>
           )}
         </div>
       )}
 
-      {results.status === "error" ? (
+      <SkeletonSwap loading={loading} skeleton={<ListSkeleton rows={9} phone={phone} />}>
+      {loading ? null : results.status === "error" ? (
         <ErrorState
           title="Search didn't go through"
-          message="This is usually a connection hiccup. Give it another try."
+          message="Search is unavailable. Check your connection and try again. If other pages work, the music service may be temporarily unavailable."
           action={{ label: "Try again", onClick: retry }}
         />
-      ) : loading ? (
-        <ListSkeleton rows={9} phone={phone} />
-      ) : results.rows.length === 0 ? (
-        <EmptyState icon={SearchX} title={`No results for “${settled}”`} message="Check the spelling or try another keyword." />
+      ) : results.rows.length === 0 && jiosaavnRows.length === 0 ? (
+        <EmptyState icon={MagnifyingGlass} title={`No results for “${settled}”`} message="Check the spelling or try another keyword." />
       ) : (
         <div className={phone ? "animate-fade-in space-y-7" : "animate-fade-in space-y-8"}>
           {top.browse && (
@@ -521,18 +710,36 @@ export function SearchView() {
               {phone ? <PhoneTopSong song={top.song} query={settled} /> : <TopSongCard song={top.song} query={settled} />}
             </section>
           )}
-          {sections.map((section) => (
-            <section key={section.title ?? "results"} className={phone ? "space-y-3" : "space-y-1"}>
-              {section.title && <h2 className={phone ? PHONE_HEADING : HEADING}>{section.title}</h2>}
-              <ol className={phone ? undefined : "-mx-2"}>
-                {section.rows.map((row) => (
-                  <ResultRow key={rowKey(row)} row={row} query={settled} phone={phone} />
-                ))}
-              </ol>
-            </section>
-          ))}
+          {sections.map((section) => {
+            const cards = !phone && section.rows.length > 0 && section.rows.every((row) => row.kind === "browse");
+            return (
+              <section key={section.title ?? "results"} className={phone ? "space-y-3" : "space-y-1"}>
+                {section.title && <h2 className={phone ? PHONE_HEADING : HEADING}>{section.title}</h2>}
+                {cards ? (
+                  <ul className="grid grid-cols-[repeat(auto-fill,minmax(176px,1fr))] gap-x-4 gap-y-6 pt-2">
+                    {section.rows.map((row) => (
+                      <li key={rowKey(row)} className="min-w-0">
+                        {row.kind === "browse" && <BrowseCard item={row.item} query={settled} />}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <ol className={phone ? undefined : "-mx-2"}>
+                    {section.rows.map((row) => (
+                      <ResultRow key={rowKey(row)} row={row} query={settled} phone={phone} />
+                    ))}
+                  </ol>
+                )}
+              </section>
+            );
+          })}
           {results.loadingMore && <ListSkeleton rows={3} phone={phone} />}
         </div>
+      )}
+      </SkeletonSwap>
+      {results.moreError && !loading && (
+        <ErrorState title="Couldn't load more results" message="Your current results are still available."
+          action={{ label: "Try again", onClick: loadMore }} />
       )}
       <p role="status" className="sr-only">{announcement}</p>
       <div ref={sentinel} aria-hidden="true" className="h-2" />
@@ -544,9 +751,6 @@ export function SearchView() {
     <div>
       {header}
       {field}
-      <div className="mt-3 empty:hidden">
-        <PhoneRecognition recognise={recognise} />
-      </div>
       {body}
     </div>
   );

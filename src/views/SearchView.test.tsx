@@ -41,19 +41,14 @@ vi.mock("../lib/persist", () => ({
 
 vi.mock("../lib/search", () => ({ cachedSearchPage, peekSearchPage, searchMore }));
 
-vi.mock("../lib/explore", () => ({
-  freshMoods: () => null,
-  loadMoods: () => new Promise(() => {}),
-  getMoodCovers: async () => [],
-}));
-
 import { SearchView } from "./SearchView";
 import type { SearchRow, SearchSong } from "../lib/searchParse";
 import { useNavigation } from "../stores/navigation";
+import { useLocalLibrary } from "../stores/localLibrary";
+import { useSettings } from "../stores/settings";
 import { usePlayer } from "../stores/player";
 import { useRecentItems, useRecents } from "../stores/recents";
 import { useUI } from "../stores/ui";
-import { FALLBACK_MOODS } from "../lib/moods";
 
 const initialPlayer = usePlayer.getState();
 
@@ -233,6 +228,33 @@ describe("SearchView", () => {
     expect(searchMore).toHaveBeenCalledWith("TOKEN", "all");
   });
 
+  it("keeps results and offers an explicit retry when pagination fails", async () => {
+    cachedSearchPage.mockResolvedValue({ rows: [songRow("s1", "Physical")], continuation: "TOKEN" });
+    searchMore.mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce({ rows: [songRow("s2", "Recovered")], continuation: null });
+    useUI.setState({ searchQuery: "dua" });
+    const user = userEvent.setup();
+    render(<SearchView />);
+    await screen.findByRole("heading", { name: "Songs" });
+    await act(async () => { observers.at(-1)?.([{ isIntersecting: true }]); });
+    expect(await screen.findByText("Couldn't load more results")).toBeTruthy();
+    expect(screen.getByText("Physical")).toBeTruthy();
+    expect(searchMore).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Recovered")).toBeTruthy();
+    expect(screen.queryByText("Couldn't load more results")).toBeNull();
+  });
+
+  it("opens the playlist picker for the top song", async () => {
+    const top = song("top", "Levitating");
+    cachedSearchPage.mockResolvedValue({ rows: [{ kind: "top", song: top }], continuation: null });
+    useUI.setState({ searchQuery: "dua", playlistPicker: null });
+    const user = userEvent.setup();
+    render(<SearchView />);
+    await user.click(await screen.findByRole("button", { name: "Add to playlist" }));
+    expect(useUI.getState().playlistPicker).toEqual([top]);
+    useUI.setState({ playlistPicker: null });
+  });
+
   it("plays a song from the results and remembers the search and the song", async () => {
     cachedSearchPage.mockResolvedValue({ rows: [songRow("s1", "Physical")], continuation: null });
     useUI.setState({ searchQuery: "dua" });
@@ -264,59 +286,20 @@ describe("SearchView", () => {
       window.innerWidth = 400;
     }
 
-    it("shows Browse all with Charts, New releases and Explore on the phone when the search is empty", () => {
+    it("shows no Browse all section on the phone when the search is empty", () => {
       usePhone();
-      render(<SearchView />);
-
-      expect(screen.getByRole("heading", { name: "Browse all" })).toBeTruthy();
-      for (const name of ["Charts", "New releases"]) {
-        expect(screen.getByRole("button", { name }).className).toContain("h-24");
-      }
-      expect(screen.getByRole("button", { name: "Explore" }).className).toContain("h-11");
-    });
-
-    it("puts Browse all below recent searches", () => {
-      usePhone();
-      useRecents.setState({ searches: ["daft punk"] });
-      render(<SearchView />);
-
-      const browse = screen.getByRole("heading", { name: "Browse all" });
-      const recent = screen.getByRole("heading", { name: "Recent searches" });
-      expect(recent.compareDocumentPosition(browse) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    });
-
-    it("shows placeholder tiles, not the fallback mood names, while the moods load", () => {
-      usePhone();
-      const { container } = render(<SearchView />);
-
-      for (const mood of FALLBACK_MOODS) {
-        expect(screen.queryByRole("button", { name: mood.title })).toBeNull();
-      }
-      expect(container.querySelectorAll(".bt-skeleton > div")).toHaveLength(8);
-    });
-
-    it.each([
-      ["Explore", { name: "explore" }],
-      ["Charts", { name: "charts" }],
-      ["New releases", { name: "newreleases" }],
-    ])("opens %s from the phone search", async (label, view) => {
-      usePhone();
-      const user = userEvent.setup();
-      render(<SearchView />);
-
-      await user.click(screen.getByRole("button", { name: label }));
-
-      expect(useNavigation.getState().view).toEqual(view);
-      expect(useNavigation.getState().navPast.at(-1)?.view).toEqual({ name: "search" });
-    });
-
-    it("does not show the browse entries on desktop", () => {
       render(<SearchView />);
 
       expect(screen.queryByRole("heading", { name: "Browse all" })).toBeNull();
-      expect(screen.queryByRole("button", { name: "Explore" })).toBeNull();
-      expect(screen.queryByRole("button", { name: "Charts" })).toBeNull();
-      expect(screen.queryByRole("button", { name: "New releases" })).toBeNull();
+    });
+
+
+    it("shows the full browse grid on desktop", () => {
+      render(<SearchView />);
+
+      expect(screen.getByRole("heading", { name: "Browse all" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Charts" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Liked Songs" })).toBeTruthy();
     });
 
     it("hides the browse entries while a query is typed", async () => {
@@ -328,7 +311,72 @@ describe("SearchView", () => {
       await screen.findByRole("button", { name: /^Physical/ });
 
       expect(screen.queryByRole("heading", { name: "Browse all" })).toBeNull();
-      expect(screen.queryByRole("button", { name: "Explore" })).toBeNull();
     });
+  });
+});
+
+describe("SearchView search scope", () => {
+  const initialLocal = useLocalLibrary.getState();
+  const initialSettings = useSettings.getState();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    cachedSearchPage.mockResolvedValue({ rows: [], continuation: null });
+    peekSearchPage.mockReturnValue(undefined);
+    useUI.setState({ toasts: [], pendingToasts: [], searchQuery: "nova", searchFilter: "all" });
+    useLocalLibrary.setState({
+      loaded: true,
+      library: {
+        folders: [],
+        scannedAt: 1,
+        unplayable: [],
+        tracks: [
+          { id: "local:1", path: "/music/blue.mp3", title: "Blue Hour", artist: "Nova", album: "Night Air", duration: 200, size: 1, mtime: 1 },
+          { id: "local:2", path: "/music/red.mp3", title: "Red Sun", artist: "Ember", album: "Daybreak", duration: 150, size: 1, mtime: 1 },
+        ],
+      },
+    });
+    useSettings.setState({ addonSources: [] });
+  });
+
+  afterEach(() => {
+    useLocalLibrary.setState(initialLocal, true);
+    useSettings.setState(initialSettings, true);
+    cleanup();
+  });
+
+  it("offers Add-ons only while an add-on source is enabled", () => {
+    const { unmount } = render(<SearchView />);
+    expect(screen.getByRole("button", { name: "On device" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Add-ons" })).toBeNull();
+    unmount();
+
+    useSettings.setState({
+      addonSources: [
+        {
+          id: "one",
+          name: "One",
+          baseUrl: "https://one.example",
+          manifest: { id: "one", name: "One", version: "1", resources: [], settings: [] },
+          enabled: true,
+          priority: 0,
+          lastHealth: null,
+        },
+      ],
+    });
+    render(<SearchView />);
+    expect(screen.getByRole("button", { name: "Add-ons" })).toBeTruthy();
+  });
+
+  it("searches the local library by title, artist and album without a network search", async () => {
+    const user = userEvent.setup();
+    render(<SearchView />);
+
+    await user.click(screen.getByRole("button", { name: "On device" }));
+    cachedSearchPage.mockClear();
+
+    expect(await screen.findByText("Blue Hour")).toBeTruthy();
+    expect(screen.queryByText("Red Sun")).toBeNull();
+    expect(cachedSearchPage).not.toHaveBeenCalled();
   });
 });

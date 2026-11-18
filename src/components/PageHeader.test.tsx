@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { ClockCounterClockwise, Heart } from "@phosphor-icons/react";
 import { PageHeader, monogram } from "./PageHeader";
 
 describe("PageHeader", () => {
@@ -26,6 +27,21 @@ describe("PageHeader", () => {
   it("falls back to a monogram when artwork is null", () => {
     render(<PageHeader title="downloads" artwork={null} />);
     expect(screen.getByTestId("page-monogram").textContent).toBe("D");
+  });
+
+  it("shows the hero icon tile instead of a letter when there is no artwork", () => {
+    const { container } = render(<PageHeader title="History" artwork={null} tile={{ icon: ClockCounterClockwise }} />);
+    expect(container.querySelector('[data-testid="page-monogram"]')).toBeNull();
+    const tile = container.querySelector('[data-testid="page-tile"]');
+    expect(tile?.className).toContain("bg-wash");
+    expect(tile?.className).toContain("text-accent");
+  });
+
+  it("uses the accent tile for Liked Songs", () => {
+    const { container } = render(<PageHeader title="Liked Songs" artwork={null} tile={{ icon: Heart, accent: true }} />);
+    const tile = container.querySelector('[data-testid="page-tile"]');
+    expect(tile?.className).toContain("bg-accent");
+    expect(tile?.className).toContain("text-on-accent");
   });
 });
 

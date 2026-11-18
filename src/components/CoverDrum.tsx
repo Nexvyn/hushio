@@ -1,4 +1,4 @@
-import { Album01Icon } from "@hugeicons/core-free-icons";
+import { VinylRecord } from "@phosphor-icons/react";
 import { Icon } from "./Icon";
 
 const TILES = 12;
@@ -24,7 +24,7 @@ export function CoverDrum({ turn, spinning }: CoverDrumProps) {
               className="absolute left-1/2 top-1/2 flex h-[132px] w-[96px] items-center justify-center rounded-xl border border-separator bg-wash text-ink-2"
               style={{ transform: `translate(-50%, -50%) rotateY(${index * STEP}deg) translateZ(${RADIUS}px)` }}
             >
-              <Icon icon={Album01Icon} />
+              <Icon icon={VinylRecord} />
             </div>
           ))}
         </div>
