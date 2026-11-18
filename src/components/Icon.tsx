@@ -1,9 +1,12 @@
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import type { Icon as PhosphorIcon, IconWeight } from "@phosphor-icons/react";
 
 type IconProps = {
-  icon: IconSvgElement;
+  icon: PhosphorIcon;
+  weight?: IconWeight;
+  fill?: string;
+  size?: number;
 };
 
-export function Icon({ icon }: IconProps) {
-  return <HugeiconsIcon icon={icon} size={20} strokeWidth={1.5} />;
+export function Icon({ icon: Glyph, weight, fill = "none", size = 20 }: IconProps) {
+  return <Glyph size={size} weight={weight ?? (fill === "none" ? "regular" : "fill")} aria-hidden />;
 }

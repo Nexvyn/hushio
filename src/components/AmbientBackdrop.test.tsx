@@ -25,6 +25,23 @@ vi.mock("../lib/persist", () => ({
 import { AmbientBackdrop, AmbientSync, flatFillFor } from "./AmbientBackdrop";
 import { AMBIENT_FALLBACK } from "../lib/artworkPalette";
 
+function parseFill(fill: string): [number, number, number] {
+  const [r, g, b] = fill.slice(4, -1).split(/[ ,]+/).map(Number);
+  return [r, g, b];
+}
+
+function contrastRatio(a: number[], b: number[]): number {
+  const lum = (rgb: number[]) => {
+    const [r, g, b] = rgb.map((value) => {
+      const x = value / 255;
+      return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
 const SRC = "https://example.test/a.jpg";
 
 afterEach(() => {
@@ -57,6 +74,23 @@ describe("AmbientBackdrop", () => {
     expect(Math.max(r, g, b)).toBeLessThan(80);
   });
 
+  it("keeps the dark fill near-black with only a faint hint of the cover hue", () => {
+    for (const cover of ["200 120 60", "220 30 30", "30 60 200", "240 220 40"]) {
+      const [r, g, b] = flatFillFor(cover, false).slice(4, -1).split(" ").map(Number);
+      expect(Math.max(r, g, b)).toBeLessThanOrEqual(40);
+      expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThanOrEqual(20);
+    }
+  });
+
+  it.each(["200 120 60", "220 30 30", "30 60 200", "240 220 40"])(
+    "keeps ink-1 and ink-2 at 4.5:1 or better on the dark fill for cover %s",
+    (cover) => {
+      const fill = parseFill(flatFillFor(cover, false));
+      expect(contrastRatio([245, 245, 247], fill)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio([174, 174, 178], fill)).toBeGreaterThanOrEqual(4.5);
+    },
+  );
+
   it("fills with a soft tone of the artwork colour in the light theme", () => {
     const fill = flatFillFor("200 120 60", true);
     const [r, g, b] = fill.slice(4, -1).split(" ").map(Number);
@@ -64,9 +98,9 @@ describe("AmbientBackdrop", () => {
   });
 
   it("uses a neutral fill when the colour cannot be read", () => {
-    expect(flatFillFor("not a colour", false)).toBe("rgb(28 28 28)");
+    expect(flatFillFor("not a colour", false)).toBe("rgb(18 18 20)");
     const { container } = render(<AmbientBackdrop primary="200 120 60" />);
-    expect(layers(container)[0].getAttribute("style")).toContain("rgb(28, 28, 28)");
+    expect(layers(container)[0].getAttribute("style")).toContain("rgb(18, 18, 20)");
   });
 
   it("uses the banner variant with a bottom fade mask and no image", () => {

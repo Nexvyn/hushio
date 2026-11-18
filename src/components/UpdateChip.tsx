@@ -1,13 +1,12 @@
-import { Download04Icon, RotateClockwiseIcon } from "@hugeicons/core-free-icons";
-import type { IconSvgElement } from "@hugeicons/react";
+import { DownloadSimple, ArrowClockwise, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { Icon } from "./Icon";
 import { chipModel, type ChipModel } from "../lib/updates";
 import { useNavigation } from "../stores/navigation";
 import { useUpdates } from "../stores/updates";
 
-const ICONS: Record<NonNullable<ChipModel["icon"]>, IconSvgElement> = {
-  download: Download04Icon,
-  restart: RotateClockwiseIcon,
+const ICONS: Record<NonNullable<ChipModel["icon"]>, PhosphorIcon> = {
+  download: DownloadSimple,
+  restart: ArrowClockwise,
 };
 
 export function UpdateChip() {
@@ -29,7 +28,7 @@ export function UpdateChip() {
     <button
       type="button"
       onClick={onClick}
-      className="update-chip hit-area flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-accent px-3 text-[13px] font-bold text-on-accent motion-safe:transition-transform motion-safe:duration-quick motion-safe:hover:scale-[1.04] motion-safe:active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-base"
+      className="update-chip hit-area flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-accent px-3 text-meta font-bold text-on-accent motion-safe:transition-transform motion-safe:duration-quick [@media(hover:hover)]:motion-safe:hover:scale-[1.04] motion-safe:active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-base"
     >
       {model.icon && <Icon icon={ICONS[model.icon]} />}
       {model.label}

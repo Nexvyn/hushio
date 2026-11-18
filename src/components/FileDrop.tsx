@@ -31,7 +31,7 @@ export function FileDrop() {
       role="status"
       className="pointer-events-none fixed inset-0 z-[400] flex items-center justify-center bg-black/60"
     >
-      <p className="rounded-full bg-white/10 px-6 py-3 text-[15px] font-semibold text-ink-1">Drop to play</p>
+      <p className="rounded-full bg-white/10 px-6 py-3 text-body font-semibold text-ink-1">Drop to play</p>
     </div>
   );
 }

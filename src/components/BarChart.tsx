@@ -26,7 +26,7 @@ export function BarChart({ title, summary, bars, ticks, columns }: BarChartProps
           />
         ))}
       </div>
-      <div className="relative mt-2 h-4 text-[11px] tabular-nums text-ink-3" aria-hidden="true">
+      <div className="relative mt-2 h-4 text-caption tabular-nums text-ink-3" aria-hidden="true">
         {ticks.map((tick) => (
           <span key={tick.label} className="absolute -translate-x-1/2" style={{ left: `${((tick.at + 0.5) / columns) * 100}%` }}>
             {tick.label}

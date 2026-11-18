@@ -1,10 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  Cancel01Icon,
-  MinusSignIcon,
-  SquareIcon,
-  SquareStackIcon,
-} from "@hugeicons/core-free-icons";
+import { X, Minus, Square, CopySimple } from "@phosphor-icons/react";
 import { Icon } from "./Icon";
 import {
   closeWindow,
@@ -60,7 +55,7 @@ export function CaptionButtons({ variant = "default" }: CaptionButtonsProps) {
         onClick={() => void minimizeWindow()}
         className={compact ? compactButton : captionButton}
       >
-        <Icon icon={MinusSignIcon} />
+        <Icon icon={Minus} />
       </button>
       <button
         type="button"
@@ -69,7 +64,7 @@ export function CaptionButtons({ variant = "default" }: CaptionButtonsProps) {
         onClick={() => void toggleMaximizeWindow()}
         className={compact ? compactButton : captionButton}
       >
-        <Icon icon={maximized ? SquareStackIcon : SquareIcon} />
+        <Icon icon={maximized ? CopySimple : Square} />
       </button>
       <button
         type="button"
@@ -78,7 +73,7 @@ export function CaptionButtons({ variant = "default" }: CaptionButtonsProps) {
         onClick={() => void closeWindow()}
         className={compact ? compactCloseButton : closeButton}
       >
-        <Icon icon={Cancel01Icon} />
+        <Icon icon={X} />
       </button>
     </div>
   );

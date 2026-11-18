@@ -1,4 +1,5 @@
-import { PlayIcon } from "@hugeicons/core-free-icons";
+import type { MouseEvent as ReactMouseEvent } from "react";
+import { Clock, Play, SpeakerHigh } from "@phosphor-icons/react";
 import { ActionMenu } from "./ActionMenu";
 import { EqBars } from "./EqBars";
 import { FitText } from "./FitText";
@@ -8,12 +9,32 @@ import { LikeButton } from "./LikeButton";
 import { type MenuSource, openMenuAtPointer, openMenuFromKey } from "./ContextMenu";
 import { Artwork } from "./SearchRows";
 import { normalizeCredit } from "../lib/credits";
+import { formatAddedAt } from "../lib/dateAdded";
 import { fmtTime } from "../lib/format";
+import { prefetchTrack } from "../lib/prefetch";
 import type { SearchSong } from "../lib/searchParse";
 import type { SortableRowProps } from "../lib/useSortable";
 
 const ROW_MENU =
   "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-2 hover:bg-hover hover:text-ink-1 motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+
+export function TrackListHeader({ showAlbum = false, showAdded = false }: { showAlbum?: boolean; showAdded?: boolean }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="flex h-9 items-center gap-3 border-b border-[rgb(var(--separator))] pl-2 pr-2 text-meta font-medium text-ink-2"
+    >
+      <span className="flex w-7 shrink-0 justify-center">#</span>
+      <span className="w-10 shrink-0" />
+      <span className="min-w-0 flex-1">Title</span>
+      {showAlbum && <span className="hidden w-[30%] min-w-0 truncate md:block">Album</span>}
+      {showAdded && <span className="hidden w-[140px] shrink-0 lg:block">Date added</span>}
+      <span className="flex w-12 shrink-0 justify-end">
+        <Icon icon={Clock} />
+      </span>
+    </div>
+  );
+}
 
 type TrackRowProps = {
   index?: number;
@@ -26,6 +47,11 @@ type TrackRowProps = {
   showAlbum?: boolean;
   dividerInset?: string;
   rowProps?: SortableRowProps;
+  addedAt?: number;
+  showAdded?: boolean;
+  selected?: boolean;
+  onSelectClick?: (event: ReactMouseEvent<HTMLButtonElement>) => void;
+  onContextSelect?: () => void;
 };
 
 export function TrackRow({
@@ -39,37 +65,56 @@ export function TrackRow({
   showAlbum = false,
   dividerInset = "after:left-[112px]",
   rowProps,
+  addedAt,
+  showAdded = false,
+  selected = false,
+  onSelectClick,
+  onContextSelect,
 }: TrackRowProps) {
   const indicator = current ? (
     playing ? (
       <EqBars playing />
     ) : (
       <span aria-hidden="true" className="text-accent">
-        ▸
+        <Icon icon={SpeakerHigh} />
       </span>
     )
   ) : null;
   return (
     <li
       {...rowProps}
-      onContextMenu={(event) => openMenuAtPointer(event, menu)}
+      onContextMenu={(event) => {
+        onContextSelect?.();
+        openMenuAtPointer(event, menu);
+      }}
       onKeyDown={(event) => {
         if (!openMenuFromKey(event, menu)) rowProps?.onKeyDown(event);
       }}
-      className={`group relative isolate flex h-14 items-center gap-1 rounded-[10px] pr-2 motion-safe:transition-colors after:absolute after:bottom-0 after:right-3 after:h-px after:bg-card-edge/[0.06] last:after:hidden ${dividerInset} ${current ? "bg-wash" : "[@media(hover:hover)]:hover:bg-wash/60"}`}
+      className={`group relative isolate flex h-14 items-center gap-1 rounded-[10px] pr-2 motion-safe:transition-colors motion-safe:duration-fade after:absolute after:bottom-0 after:right-3 after:h-px after:bg-separator last:after:hidden group-hover:after:hidden ${dividerInset} ${selected ? "bg-selected after:hidden" : current ? "bg-wash after:hidden" : "[@media(hover:hover)]:hover:bg-wash/60"}`}
     >
       <button
         type="button"
-        onClick={onPlay}
+        onPointerDown={() => void prefetchTrack(song.id)}
+        onClick={(event) => (onSelectClick ? onSelectClick(event) : onPlay())}
+        onDoubleClick={onSelectClick ? onPlay : undefined}
+        onKeyDown={
+          onSelectClick
+            ? (event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                onPlay();
+              }
+            : undefined
+        }
         className="flex min-w-0 flex-1 items-center gap-3 rounded-[10px] py-1 pl-2 pr-2 text-left group-hover:pr-20 group-focus-within:pr-20 [@media(hover:none)]:pr-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
       >
         {index !== undefined && (
-          <span className="flex w-7 shrink-0 justify-center text-[13px] tabular-nums text-ink-2">
+          <span className="flex w-7 shrink-0 justify-center text-meta tabular-nums text-ink-2">
             {indicator ?? (
               <>
                 <span className="group-hover:hidden">{index + 1}</span>
                 <span aria-hidden="true" className="hidden text-ink-1 group-hover:block">
-                  <Icon icon={PlayIcon} />
+                  <Icon icon={Play} />
                 </span>
               </>
             )}
@@ -78,32 +123,37 @@ export function TrackRow({
         {artwork &&
           (index === undefined ? (
             <span className="relative flex shrink-0">
-              <Artwork src={song.thumb} size="h-10 w-10" />
+              <Artwork src={song.thumb} size="h-10 w-10" radius="rounded-[4px]" />
               <span
                 aria-hidden="true"
-                className={`absolute inset-0 place-items-center rounded-md bg-scrim/40 text-on-scrim ${current ? "grid" : "hidden group-hover:grid"}`}
+                className={`absolute inset-0 place-items-center rounded-[4px] bg-scrim/40 text-on-scrim ${current ? "grid" : "hidden group-hover:grid"}`}
               >
-                {indicator ?? <Icon icon={PlayIcon} />}
+                {indicator ?? <Icon icon={Play} />}
               </span>
             </span>
           ) : (
-            <Artwork src={song.thumb} size="h-10 w-10" />
+            <Artwork src={song.thumb} size="h-10 w-10" radius="rounded-[4px]" />
           ))}
         {index === undefined && !artwork && indicator && (
-          <span className="flex w-5 shrink-0 justify-center text-[13px]">{indicator}</span>
+          <span className="flex w-5 shrink-0 justify-center text-meta">{indicator}</span>
         )}
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className={`flex min-w-0 items-center text-[14px] font-medium ${current ? "text-accent" : "text-ink-1"}`}>
+          <span className={`flex min-w-0 items-center text-body font-medium ${current ? "text-accent" : "text-ink-1"}`}>
             {song.explicit && <ExplicitBadge />}
             <FitText text={song.title} />
           </span>
-          {song.artist && <span className="block truncate text-[13px] text-ink-2">{normalizeCredit(song.artist)}</span>}
+          {song.artist && <span className="block truncate text-meta text-ink-2">{normalizeCredit(song.artist)}</span>}
         </span>
         {showAlbum && song.album && (
-          <span className="hidden w-[30%] min-w-0 truncate text-[13px] text-ink-2 md:block">{song.album}</span>
+          <span className="hidden w-[30%] min-w-0 truncate text-meta text-ink-2 md:block">{song.album}</span>
+        )}
+        {showAdded && (
+          <span className="hidden w-[140px] shrink-0 truncate text-meta text-ink-2 lg:block">
+            {formatAddedAt(addedAt, Date.now())}
+          </span>
         )}
         {song.duration > 0 && (
-          <span className="w-12 shrink-0 text-right text-[12px] tabular-nums text-ink-2 group-hover:hidden group-focus-within:hidden [@media(hover:none)]:hidden">
+          <span className="w-12 shrink-0 text-right text-meta tabular-nums text-ink-2 group-hover:hidden group-focus-within:hidden [@media(hover:none)]:hidden">
             {fmtTime(song.duration)}
           </span>
         )}

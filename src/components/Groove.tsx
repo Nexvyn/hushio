@@ -23,7 +23,7 @@ import {
 } from "../lib/groove";
 import { reducedMotion } from "../lib/motion";
 
-export type GrooveVariant = "plain" | "hills";
+type GrooveVariant = "plain" | "hills";
 
 type GrooveProps = {
   seed: string;
@@ -121,7 +121,7 @@ function GrooveTip({ time, line, left, above = false }: { time: number; line: st
     <span
       aria-hidden="true"
       style={{ left: `${left}%` }}
-      className={`pointer-events-none absolute ${above ? "bottom-full mb-1" : "bottom-0"} flex h-5 max-w-[260px] -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-control bg-elevated px-1.5 text-[11px] leading-none text-ink-1 shadow-float`}
+      className={`pointer-events-none absolute ${above ? "bottom-full mb-1" : "bottom-0"} flex h-5 max-w-[260px] -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-control bg-elevated px-1.5 text-caption leading-none text-ink-1 shadow-float`}
     >
       <span className="tabular-nums text-ink-2">{fmtTime(time)}</span>
       {line && <span className="truncate">{line}</span>}
@@ -358,7 +358,7 @@ export function Groove({
 
   if (plain) {
     return (
-      <div className={`flex h-4 w-full items-center gap-3 tabular-nums ${onArt ? "text-[13px] text-art/[0.72]" : "text-meta text-ink-2"} ${className}`}>
+      <div className={`flex h-4 w-full items-center gap-3 tabular-nums ${onArt ? "text-meta text-art/[0.72]" : "text-meta text-ink-2"} ${className}`}>
         <span className="flex h-4 min-w-[2.5rem] shrink-0 items-center justify-end leading-4">{fmtTime(shown)}</span>
         <div className="relative min-w-0 flex-1">
           {slider}
@@ -370,7 +370,7 @@ export function Groove({
   }
 
   return (
-    <div className={`flex w-full flex-col tabular-nums ${onArt ? "text-[13px] text-art/[0.72]" : "text-meta text-ink-2"} ${className}`}>
+    <div className={`flex w-full flex-col tabular-nums ${onArt ? "text-meta text-art/[0.72]" : "text-meta text-ink-2"} ${className}`}>
       {tipStrip}
       {slider}
       <div className="mt-1 flex items-center justify-between leading-4">

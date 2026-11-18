@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef } from "react";
-import { ArrowLeft01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
+import { CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { Icon } from "./Icon";
 import type { SwipeDir } from "../lib/swipe";
 import { discPose, SIDEBAR_COMMIT_PX } from "../lib/swipeFeel";
@@ -149,10 +149,10 @@ export const SwipeArrow = memo(function SwipeArrow() {
       <span className="swipe-arrow__ring" />
       <span className="swipe-arrow__bubble">
         <span className="swipe-arrow__icon swipe-arrow__icon--back">
-          <Icon icon={ArrowLeft01Icon} />
+          <Icon icon={CaretLeft} />
         </span>
         <span className="swipe-arrow__icon swipe-arrow__icon--forward">
-          <Icon icon={ArrowRight01Icon} />
+          <Icon icon={CaretRight} />
         </span>
       </span>
     </div>

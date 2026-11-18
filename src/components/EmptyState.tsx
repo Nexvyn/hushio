@@ -1,4 +1,4 @@
-import type { IconSvgElement } from "@hugeicons/react";
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
 import { PhoneIcon } from "./phone/PhoneIcon";
@@ -10,7 +10,7 @@ type EmptyStateAction = { label: string; onClick: () => void };
 type EmptyStateProps = {
   title: string;
   message: string;
-  icon?: IconSvgElement;
+  icon?: PhosphorIcon;
   action?: EmptyStateAction;
   secondaryAction?: EmptyStateAction;
   centered?: boolean;
@@ -21,21 +21,21 @@ export function EmptyState({ title, message, icon, action, secondaryAction, cent
   const phone = usePhone();
   if (phone) {
     return (
-      <section className="animate-fade-in mx-auto flex max-w-[280px] flex-col items-center px-4 pt-8 text-center">
+      <section className={`animate-fade-in mx-auto flex max-w-[280px] flex-col items-center px-4 text-center ${centered ? "flex-1 justify-center py-8" : "pt-8"}`}>
         {icon && (
           <span aria-hidden="true" className="grid place-items-center text-ink-2">
             <PhoneIcon icon={icon} />
           </span>
         )}
-        <h2 className="mt-3 text-[17px] font-semibold leading-[22px] text-ink-1">{title}</h2>
-        {message && <p className="mt-1 text-[14px] leading-5 text-ink-2">{message}</p>}
+        <h2 className="mt-3 text-card-title font-semibold leading-[22px] text-ink-1">{title}</h2>
+        {message && <p className="mt-1 text-body leading-5 text-ink-2">{message}</p>}
         {(action || secondaryAction) && (
           <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
             {action && (
               <button
                 type="button"
                 onClick={action.onClick}
-                className="inline-flex h-11 items-center justify-center rounded-[12px] [corner-shape:squircle] bg-primary px-5 text-[15px] font-semibold text-on-primary hover:opacity-90 motion-safe:transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                className="inline-flex h-11 items-center justify-center rounded-[12px] [corner-shape:squircle] bg-primary px-5 text-body font-semibold text-on-primary hover:opacity-90 motion-safe:transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               >
                 {action.label}
               </button>
@@ -44,7 +44,7 @@ export function EmptyState({ title, message, icon, action, secondaryAction, cent
               <button
                 type="button"
                 onClick={secondaryAction.onClick}
-                className="inline-flex h-11 items-center justify-center rounded-[12px] px-5 text-[15px] font-semibold text-ink-1 motion-safe:transition-colors hover:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                className="inline-flex h-11 items-center justify-center rounded-[12px] px-5 text-body font-semibold text-ink-1 motion-safe:transition-colors hover:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               >
                 {secondaryAction.label}
               </button>
@@ -61,8 +61,8 @@ export function EmptyState({ title, message, icon, action, secondaryAction, cent
           <Icon icon={icon} />
         </span>
       )}
-      <h2 className={`text-[16px] font-semibold ${ink.primary}`}>{title}</h2>
-      {message && <p className={`mt-1 max-w-sm text-[13px] ${ink.secondary}`}>{message}</p>}
+      <h2 className={`text-body font-semibold ${ink.primary}`}>{title}</h2>
+      {message && <p className={`mt-1 max-w-sm text-meta ${ink.secondary}`}>{message}</p>}
       {(action || secondaryAction) && (
         <div className="mt-4 flex items-center justify-center gap-2">
           {action && (

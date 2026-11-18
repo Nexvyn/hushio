@@ -7,7 +7,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const variants: Record<ButtonVariant, string> = {
-  primary: "bg-primary text-on-primary hover:opacity-90",
+  primary: "bg-accent text-on-accent hover:opacity-90",
   secondary: "bg-wash text-ink-1 hover:bg-hover",
   ghost: "bg-transparent text-ink-1 hover:bg-hover",
 };
@@ -16,7 +16,7 @@ export function Button({ variant = "secondary", className = "", ...props }: Butt
   return (
     <button
       type="button"
-      className={`inline-flex items-center justify-center h-10 rounded-[12px] [corner-shape:squircle] px-4 text-[14px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-[var(--disabled-opacity)] motion-safe:transition-[background-color,color,transform] motion-safe:duration-quick motion-safe:ease-out motion-safe:active:scale-[0.97] ${variants[variant]} ${className}`}
+      className={`app-control inline-flex items-center justify-center h-10 min-h-10 [@media(pointer:coarse)]:min-h-11 rounded-full px-5 text-body font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-[var(--disabled-opacity)] motion-safe:transition-[background-color,color,transform,opacity,box-shadow] motion-safe:duration-quick motion-safe:ease-out motion-safe:enabled:active:scale-[0.97] ${variants[variant]} ${className}`}
       {...props}
     />
   );

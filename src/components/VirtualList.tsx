@@ -9,7 +9,7 @@ type VirtualListProps<T> = {
   renderRow: (item: T, index: number) => ReactNode;
 };
 
-function scrollerOf(element: HTMLElement): HTMLElement | null {
+export function scrollerOf(element: HTMLElement): HTMLElement | null {
   let node = element.parentElement;
   while (node) {
     const overflow = getComputedStyle(node).overflowY;

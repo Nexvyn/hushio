@@ -44,7 +44,7 @@ export function RadioGroup<T extends string>({ label, options, value, onChange }
             tabIndex={checked ? 0 : -1}
             onClick={() => onChange(option.value)}
             onKeyDown={(event) => onKeyDown(event, index)}
-            className={`rounded-[10px] px-3 text-[12.5px] font-medium motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out ${
+            className={`rounded-[10px] px-3 text-meta font-medium motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out ${
               checked ? "bg-accent text-on-accent" : "text-ink-2 hover:text-ink-1"
             }`}
           >

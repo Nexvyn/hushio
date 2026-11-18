@@ -1,17 +1,17 @@
 import { useEffect, useState } from "react";
-import { upgradeArtwork } from "../lib/artwork";
+import { thumbArtwork } from "../lib/artwork";
 import { applyAmbientVars, parseRgb, useArtworkPalette, type Rgb } from "../lib/artworkPalette";
 import { DURATION_MS, reducedMotion } from "../lib/motion";
 import { peekArtistMeta } from "../stores/artistMeta";
 import { currentTrack, usePlayer } from "../stores/player";
 
-export const PALETTE_ART = 544;
+const PALETTE_ART = 96;
 
 type TrackCover = { thumb?: string | null; artist?: string } | null;
 
 export function paletteCoverFor(track: TrackCover): string {
   if (!track) return "";
-  return upgradeArtwork(track.thumb, PALETTE_ART) || upgradeArtwork(peekArtistMeta(track.artist ?? "")?.thumb, PALETTE_ART);
+  return thumbArtwork(track.thumb, PALETTE_ART) || thumbArtwork(peekArtistMeta(track.artist ?? "")?.thumb, PALETTE_ART);
 }
 
 type AmbientVariant = "full" | "banner" | "header";
@@ -23,12 +23,14 @@ const VARIANT_CLASS: Record<AmbientVariant, string> = {
 };
 
 const BANNER_MASK = "linear-gradient(to bottom, black 55%, transparent)";
-const DARK_NEUTRAL: Rgb = [28, 28, 28];
+const DARK_NEUTRAL: Rgb = [18, 18, 20];
 const LIGHT_NEUTRAL: Rgb = [236, 236, 236];
-const DARK_INK: Rgb = [255, 255, 255];
 const LIGHT_INK: Rgb = [17, 17, 17];
 const AA_CONTRAST = 4.5;
 const LIGHTNESS_STEP = 0.02;
+const DARK_COVER_MIX = 0.15;
+const DARK_MAX_LIGHTNESS = 0.12;
+const DARK_MAX_SATURATION = 0.2;
 
 function channelLinear(value: number): number {
   const x = value / 255;
@@ -84,17 +86,23 @@ function isLightTheme(): boolean {
   return text !== "" && parseRgb(text)[0] < 128;
 }
 
+function darkFill(cover: Rgb): Rgb {
+  const mixed = DARK_NEUTRAL.map((value, index) => value + (cover[index] - value) * DARK_COVER_MIX) as Rgb;
+  const { h, s, l } = rgbToHsl(mixed);
+  return hslToRgb(h, Math.min(s, DARK_MAX_SATURATION), Math.min(l, DARK_MAX_LIGHTNESS));
+}
+
 export function flatFillFor(source: string, light: boolean): string {
   const rgb = parseRgb(source);
   const valid = source.trim().split(/\s+/).length === 3 && rgb.every((channel) => Number.isFinite(channel));
   if (!valid) return formatFill(light ? LIGHT_NEUTRAL : DARK_NEUTRAL);
+  if (!light) return formatFill(darkFill(rgb));
   const { h, s } = rgbToHsl(rgb);
-  const ink = light ? LIGHT_INK : DARK_INK;
-  let lightness = light ? 0.9 : 0.2;
-  const saturation = Math.min(s, light ? 0.35 : 0.55);
+  let lightness = 0.9;
+  const saturation = Math.min(s, 0.35);
   let fill = hslToRgb(h, saturation, lightness);
-  while (contrast(fill, ink) < AA_CONTRAST && (light ? lightness < 1 : lightness > 0)) {
-    lightness += light ? LIGHTNESS_STEP : -LIGHTNESS_STEP;
+  while (contrast(fill, LIGHT_INK) < AA_CONTRAST && lightness < 1) {
+    lightness += LIGHTNESS_STEP;
     fill = hslToRgb(h, saturation, lightness);
   }
   return formatFill(fill);

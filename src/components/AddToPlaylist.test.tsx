@@ -32,7 +32,12 @@ vi.mock("../lib/persist", () => ({
   }),
 }));
 
-import { PlayerBar } from "./PlayerBar";
+vi.mock("../lib/artistCard", () => ({
+  resolveArtistRef: vi.fn(async () => null),
+  loadArtistCard: vi.fn(),
+}));
+
+import { RightRail } from "./RightRail";
 import { usePlayer } from "../stores/player";
 import { useUI } from "../stores/ui";
 
@@ -50,29 +55,29 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
-describe("Add to playlist button in the player bar", () => {
-  it("is disabled when nothing is playing", async () => {
-    render(<><PlayerBar /><ContextMenu /></>);
+describe("Track options button in the Now Playing rail", () => {
+  it("is disabled when nothing is playing", () => {
+    render(<><RightRail /><ContextMenu /></>);
 
-    expect((screen.getByRole("button", { name: "Add to playlist" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Track options" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("opens the add-to-playlist menu for the playing song", async () => {
+  it("opens the track menu with the add actions for the playing song", () => {
     usePlayer.setState({ queue: [track], index: 0 });
-    render(<><PlayerBar /><ContextMenu /></>);
+    render(<><RightRail /><ContextMenu /></>);
 
-    fireEvent.click(screen.getByRole("button", { name: "Add to playlist" }));
+    fireEvent.click(screen.getByRole("button", { name: "Track options" }));
 
     expect(screen.getByRole("menu", { name: "Night Drive" })).toBeTruthy();
     expect(screen.getByRole("menuitem", { name: "Add to Liked Songs" })).toBeTruthy();
-    expect(screen.getByRole("menuitem", { name: "Add to playlist" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Add to queue" })).toBeTruthy();
   });
 
   it("closes its menu on a second press", async () => {
     usePlayer.setState({ queue: [track], index: 0 });
-    render(<><PlayerBar /><ContextMenu /></>);
+    render(<><RightRail /><ContextMenu /></>);
 
-    const button = screen.getByRole("button", { name: "Add to playlist" });
+    const button = screen.getByRole("button", { name: "Track options" });
     fireEvent.click(button);
     fireEvent.click(button);
 

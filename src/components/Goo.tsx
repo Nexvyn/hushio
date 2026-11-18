@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import type { Variants } from "motion/react";
 import { DURATION_MS, EASE_OUT, glide } from "../lib/motion";
 
-export const GOO_FILTER_ID = "goo";
+const GOO_FILTER_ID = "goo";
 
 export const GOO_SHAPE = "absolute left-0 right-0 rounded-[12px] [corner-shape:squircle] bg-elevated";
 
