@@ -1,8 +1,8 @@
 import { APP_NAME, APP_SLUG } from "./app";
 
-export type UpdateStatus = "idle" | "checking" | "current" | "available" | "downloading" | "ready" | "error";
+type UpdateStatus = "idle" | "checking" | "current" | "available" | "downloading" | "ready" | "error";
 export type UpdateRoute = "inApp" | "website" | "releases" | "flathub";
-export type UpdatePhase = "check" | "install";
+type UpdatePhase = "check" | "install";
 
 export type UpdateState = {
   status: UpdateStatus;
@@ -42,7 +42,7 @@ export function actionLabel(route: UpdateRoute): string {
   return "Open releases";
 }
 
-export type ChipAction = "install" | "restart" | "about";
+type ChipAction = "install" | "restart" | "about";
 
 export type ChipModel = { label: string; action: ChipAction; icon: "download" | "restart" | null };
 

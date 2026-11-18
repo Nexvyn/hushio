@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   historyMenuItems,
   playerAddMenuItems,
+  playAlbumVersion,
   playlistTrackMenuItems,
   songOf,
   trackMenuItems,
@@ -9,9 +10,11 @@ import {
 import type { SearchSong } from "./searchParse";
 import { type LibraryTrack, type Playlist, useLibrary } from "../stores/library";
 import { usePlayer } from "../stores/player";
+import { useSongInfo } from "../stores/songInfo";
 import { type MenuItem, useUI } from "../stores/ui";
 
-const { audio, playStream, play, pause, seekTo, setVolume, setMuted } = vi.hoisted(() => ({
+const { matchSong, audio, playStream, play, pause, seekTo, setVolume, setMuted } = vi.hoisted(() => ({
+  matchSong: vi.fn(),
   audio: new Audio(),
   playStream: vi.fn(),
   play: vi.fn(),
@@ -20,6 +23,8 @@ const { audio, playStream, play, pause, seekTo, setVolume, setMuted } = vi.hoist
   setVolume: vi.fn(),
   setMuted: vi.fn(),
 }));
+
+vi.mock("./importMatch", () => ({ matchSong }));
 
 vi.mock("./audio", () => ({
   audio,
@@ -81,12 +86,14 @@ function lastToastAction() {
 }
 
 beforeEach(() => {
+  matchSong.mockReset();
   useLibrary.setState(initialLibrary, true);
   usePlayer.setState(initialPlayer, true);
   useUI.setState({ ...initialUI, toasts: [], pendingToasts: [] }, true);
 });
 
 afterEach(() => {
+  localStorage.removeItem("hushio.debugStream");
   vi.restoreAllMocks();
 });
 
@@ -98,19 +105,35 @@ describe("track menu (PRD 32.10.1 A)", () => {
       "Play now",
       "Play next",
       "Add to queue",
+      "Start radio",
       "Add to Liked Songs",
       'Add to "Mix"',
       'Add to "Road"',
       "Add to playlists",
       "New playlist",
+      "Play album version",
       "Download",
-      "Comments",
       "Go to artist",
       "Go to album",
-      "Copy link",
+      "Share",
+      "Song info",
       "Sleep timer",
-      "Copy log",
     ]);
+  });
+
+  it("shows Copy log only when the debug stream flag is on", () => {
+    expect(labelsOf(trackMenuItems(song))).not.toContain("Copy log");
+
+    localStorage.setItem("hushio.debugStream", "1");
+
+    expect(labelsOf(trackMenuItems(song))).toContain("Copy log");
+  });
+
+  it("hides Play now for the song that is playing", () => {
+    usePlayer.setState({ queue: [songOf(song)], index: 0 });
+
+    expect(labelsOf(trackMenuItems(song))).not.toContain("Play now");
+    expect(labelsOf(trackMenuItems({ ...song, id: "other" }))).toContain("Play now");
   });
 
   it("shows Remove from Liked Songs for a liked song", () => {
@@ -129,15 +152,16 @@ describe("track menu (PRD 32.10.1 A)", () => {
     expect(labels).toContain("Add to playlists");
   });
 
-  it("leaves out Download and Copy link for a local song and keeps Copy log", () => {
+  it("leaves out Download, Share and Start radio for a local song", () => {
     const local: SearchSong = { ...song, id: "local:file-1", artistId: null, albumId: null };
 
     const labels = labelsOf(trackMenuItems(local));
     expect(labels).not.toContain("Download");
-    expect(labels).not.toContain("Copy link");
+    expect(labels).not.toContain("Share");
+    expect(labels).not.toContain("Start radio");
+    expect(labels).toContain("Song info");
     expect(labels).not.toContain("Go to artist");
     expect(labels).not.toContain("Go to album");
-    expect(labels).toContain("Copy log");
   });
 
   it("offers Download and an enabled Sleep timer submenu", () => {
@@ -158,7 +182,7 @@ describe("track menu (PRD 32.10.1 A)", () => {
     ]);
   });
 
-  it("swaps Download for Show in folder once the song is saved", () => {
+  it("drops Download and offers no folder item once the song is saved", () => {
     useLibrary.setState({
       downloads: {
         [song.id]: {
@@ -174,7 +198,7 @@ describe("track menu (PRD 32.10.1 A)", () => {
     const items = trackMenuItems(song);
 
     expect(items.some((item) => item.label === "Download")).toBe(false);
-    expect(itemNamed(items, "Show in folder").disabled).toBeFalsy();
+    expect(items.some((item) => item.label === "Show in folder")).toBe(false);
     useLibrary.setState({ downloads: {} });
   });
 
@@ -183,13 +207,44 @@ describe("track menu (PRD 32.10.1 A)", () => {
     expect(itemNamed(trackMenuItems({ ...song, artistId: null }), "Go to album").separatorBefore).toBe(true);
   });
 
-  it("copies the YouTube Music link for Copy link", () => {
+  it("copies the YouTube Music link when the system share sheet is unavailable", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
 
-    itemNamed(trackMenuItems(song), "Copy link").onSelect?.();
+    itemNamed(trackMenuItems(song), "Share").onSelect?.();
 
     expect(writeText).toHaveBeenCalledWith("https://music.youtube.com/watch?v=v1");
+  });
+
+  it("shares the title, artist and link through the system share sheet", () => {
+    const share = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "share", { value: share, configurable: true });
+
+    itemNamed(trackMenuItems(song), "Share").onSelect?.();
+
+    expect(share).toHaveBeenCalledWith({
+      title: "Night Drive",
+      text: "Night Drive by Band",
+      url: "https://music.youtube.com/watch?v=v1",
+    });
+    Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
+  });
+
+  it("starts radio from the song", () => {
+    const startRadio = vi.fn().mockResolvedValue(undefined);
+    usePlayer.setState({ startRadio });
+
+    itemNamed(trackMenuItems(song), "Start radio").onSelect?.();
+
+    expect(startRadio).toHaveBeenCalledWith(song);
+  });
+
+  it("opens the song info sheet for the song", () => {
+    itemNamed(trackMenuItems(song), "Song info").onSelect?.();
+
+    expect(useSongInfo.getState().song).toEqual(song);
+    useSongInfo.getState().close();
   });
 
   it("queues the song next and says so", () => {
@@ -314,5 +369,58 @@ describe("player plus menu (PRD 32.1)", () => {
 
     expect(useLibrary.getState().playlists[0].tracks.map((item) => item.id)).toEqual(["v1"]);
     expect(useUI.getState().toasts.at(-1)?.message).toBe('Added to "Road"');
+  });
+});
+
+
+describe("album recording playback", () => {
+  it("finds a song without matching the video's longer duration", async () => {
+    const match = { ...song, id: "album-audio", isVideo: false };
+    matchSong.mockResolvedValueOnce(match);
+    const play = vi.spyOn(usePlayer.getState(), "playTrack");
+    await playAlbumVersion(song);
+    expect(matchSong).toHaveBeenCalledWith({ title: song.title, artist: song.artist, album: song.album, duration: 0 }, "");
+    expect(play).toHaveBeenCalledWith(match);
+  });
+
+  it("leaves playback unchanged when no matching recording exists", async () => {
+    matchSong.mockResolvedValueOnce(null);
+    const play = vi.spyOn(usePlayer.getState(), "playTrack");
+    await playAlbumVersion(song);
+    expect(play).not.toHaveBeenCalled();
+    expect(useUI.getState().toasts.some(item => item.message.includes("No matching album recording"))).toBe(true);
+  });
+});
+
+
+describe("album lookup races", () => {
+  it("ignores an older lookup that completes after a newer selection", async () => {
+    let finishFirst!: (value: SearchSong) => void;
+    let finishSecond!: (value: SearchSong) => void;
+    matchSong.mockImplementationOnce(() => new Promise(resolve => { finishFirst = resolve; }))
+      .mockImplementationOnce(() => new Promise(resolve => { finishSecond = resolve; }));
+    const play = vi.spyOn(usePlayer.getState(), "playTrack");
+    const first = playAlbumVersion({ ...song, id: "first-request" });
+    const second = playAlbumVersion({ ...song, id: "second-request" });
+    await vi.waitFor(() => expect(matchSong).toHaveBeenCalledTimes(2));
+    const newer = { ...song, id: "newer-audio" };
+    finishSecond(newer);
+    await second;
+    finishFirst({ ...song, id: "older-audio" });
+    await first;
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(play).toHaveBeenCalledWith(newer);
+  });
+
+  it("does not interrupt playback changed while a lookup is pending", async () => {
+    let finish!: (value: SearchSong) => void;
+    matchSong.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const play = vi.spyOn(usePlayer.getState(), "playTrack");
+    const pending = playAlbumVersion({ ...song, id: "pending-request" });
+    await vi.waitFor(() => expect(matchSong).toHaveBeenCalledOnce());
+    usePlayer.setState({ queue: [{ ...song, id: "chosen-song" }], index: 0 });
+    finish({ ...song, id: "late-audio" });
+    await pending;
+    expect(play).not.toHaveBeenCalled();
   });
 });

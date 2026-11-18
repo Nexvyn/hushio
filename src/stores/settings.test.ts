@@ -63,9 +63,9 @@ describe("defaults", () => {
 });
 
 describe("device settings", () => {
-  it("lists exactly the five device-only keys", () => {
+  it("lists exactly the eight device-only keys", () => {
     expect([...DEVICE_SETTINGS_KEYS].sort()).toEqual(
-      ["audioSinkId", "closeToTray", "downloadDir", "localMusicFolder", "lyricsOffset"].sort(),
+      ["audioSinkId", "closeToTray", "downloadDir", "imageCacheMb", "libraryLayout", "localMusicFolder", "lyricsOffset", "sidebarLayout"].sort(),
     );
   });
 
@@ -153,7 +153,7 @@ describe("persistence", () => {
   it("syncs every other setting value", () => {
     const current = useSettings.getState();
     const expected = Object.keys(current).filter(
-      (key) => !(DEVICE_SETTINGS_KEYS as readonly string[]).includes(key),
+      (key) => !(DEVICE_SETTINGS_KEYS as readonly string[]).includes(key) && key !== "addonSources",
     );
     expect(Object.keys(syncableSettings(current)).sort()).toEqual(expected.sort());
   });
@@ -186,5 +186,15 @@ describe("appearance", () => {
     } finally {
       setDesktopAppearance(NO_DESKTOP_APPEARANCE);
     }
+  });
+});
+
+describe("library layout default", () => {
+  it("moves a saved list layout back to grid once, on the first load after this version", () => {
+    const migrate = useSettings.persist.getOptions().migrate;
+    const saved = { ...initial, libraryLayout: "list" as const };
+
+    expect(migrate?.(saved, 1)).toMatchObject({ libraryLayout: "grid" });
+    expect(migrate?.({ ...saved, libraryLayout: "list" }, 2)).toMatchObject({ libraryLayout: "list" });
   });
 });

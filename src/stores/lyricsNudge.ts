@@ -44,6 +44,8 @@ export const useLyricsNudge = create<NudgeState>()(
     }),
     {
       name: "lyrics-nudges",
+      version: 1,
+      migrate: (persisted) => persisted as NudgeState,
       storage: persistStorage<NudgeState>("lyrics-nudges"),
     },
   ),

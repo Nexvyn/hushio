@@ -2,8 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { getArtistBundle } from "./artistBundle";
 import { hiddenNow, tapsNow } from "./engagement";
 import type { HomeShelf } from "./home";
-import type { MoodEntry } from "./moods";
-import { loadMoods } from "./explore";
 import { replayJournal, replaySummary } from "./bridge";
 import { type FeedSection, buildHomeSections } from "./feed";
 import { dayBucket } from "./seeded";
@@ -48,7 +46,6 @@ function durationsOf(tracks: readonly (Track & { duration?: number })[]): Record
 
 export function useHomeFeed(shelves: readonly HomeShelf[] = NO_SHELVES): FeedSection[] {
   const [stats, setStats] = useState<Stats | null>(null);
-  const [moods, setMoods] = useState<readonly MoodEntry[]>([]);
   const history = useLibrary((state) => state.history);
   const liked = useLibrary((state) => state.liked);
   const playlists = useLibrary((state) => state.playlists);
@@ -73,16 +70,6 @@ export function useHomeFeed(shelves: readonly HomeShelf[] = NO_SHELVES): FeedSec
     return () => {
       active = false;
       window.clearInterval(timer);
-    };
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    void loadMoods().then((next) => {
-      if (active) setMoods(next);
-    });
-    return () => {
-      active = false;
     };
   }, []);
 
@@ -125,12 +112,11 @@ export function useHomeFeed(shelves: readonly HomeShelf[] = NO_SHELVES): FeedSec
         profile,
         bundles: new Map(Object.entries(bundles)),
         shelves,
-        moods,
         hidden: hiddenNow(hiddenTracks, Date.now()),
         taps: tapsNow(taps, Date.now()),
         dontRepeat,
         now: Date.now(),
       }),
-    [profile, bundles, shelves, moods, hiddenTracks, taps, dontRepeat],
+    [profile, bundles, shelves, hiddenTracks, taps, dontRepeat],
   );
 }

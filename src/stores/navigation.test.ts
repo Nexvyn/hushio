@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { useUI } from "./ui";
 import { useNavigation } from "./navigation";
 
 const initial = useNavigation.getState();
@@ -16,27 +17,77 @@ describe("navigation history", () => {
   });
 
   it("ignores a navigation to the same view", () => {
-    useNavigation.getState().navigate({ name: "explore" });
-    useNavigation.getState().navigate({ name: "explore" });
+    useNavigation.getState().navigate({ name: "charts" });
+    useNavigation.getState().navigate({ name: "charts" });
     expect(useNavigation.getState().navPast).toHaveLength(1);
   });
 
-  it("sends podcast views to Home while podcasts are disabled", () => {
-    useNavigation.getState().navigate({ name: "explore" });
-    useNavigation.getState().navigate({ name: "podcasts" });
-    expect(useNavigation.getState().view).toEqual({ name: "home" });
-    useNavigation.getState().navigate({ name: "podcast", param: "MPSPx" });
-    expect(useNavigation.getState().view).toEqual({ name: "home" });
-  });
 
   it("goes back and forward", () => {
-    useNavigation.getState().navigate({ name: "explore" });
+    useNavigation.getState().navigate({ name: "charts" });
     useNavigation.getState().navigate({ name: "library" });
 
     useNavigation.getState().goBack();
-    expect(useNavigation.getState().view).toEqual({ name: "explore" });
+    expect(useNavigation.getState().view).toEqual({ name: "charts" });
 
     useNavigation.getState().goForward();
     expect(useNavigation.getState().view).toEqual({ name: "library" });
+  });
+});
+
+it("restores submitted queries and their filters with Back and Forward", () => {
+  function submit(query: string) {
+    useNavigation.getState().submitSearch(query);
+    useUI.getState().setSearchQuery(query);
+    useNavigation.getState().navigate({ name: "search" });
+  }
+  useUI.setState({ searchQuery: "", searchFilter: "songs" });
+  submit("Dua Lipa");
+  useUI.getState().setSearchQuery("Arijit");
+  submit("Arijit");
+  useUI.getState().setSearchFilter("albums");
+  useNavigation.getState().navigate({ name: "home" });
+  useNavigation.getState().goBack();
+  expect(useUI.getState()).toMatchObject({ searchQuery: "Arijit", searchFilter: "albums" });
+  useNavigation.getState().goBack();
+  expect(useUI.getState()).toMatchObject({ searchQuery: "Dua Lipa", searchFilter: "songs" });
+  useNavigation.getState().goForward();
+  expect(useUI.getState()).toMatchObject({ searchQuery: "Arijit", searchFilter: "albums" });
+});
+
+it("restores live search text after opening another page", () => {
+  useNavigation.setState({ view: { name: "search" }, committedSearch: { query: "old query", filter: "all" } });
+  useUI.setState({ searchQuery: "typed query", searchFilter: "artists" });
+  useNavigation.getState().navigate({ name: "artist", param: "UC1" });
+  useUI.setState({ searchQuery: "another query", searchFilter: "all" });
+  useNavigation.getState().goBack();
+  expect(useUI.getState()).toMatchObject({ searchQuery: "typed query", searchFilter: "artists" });
+});
+
+describe("originating tab", () => {
+  it("keeps the tab a detail view was opened from", () => {
+    useNavigation.getState().navigate({ name: "search" });
+    useNavigation.getState().navigate({ name: "album", param: "a1" });
+    expect(useNavigation.getState().tab).toBe("search");
+    useNavigation.getState().navigate({ name: "artist", param: "x1" });
+    expect(useNavigation.getState().tab).toBe("search");
+  });
+
+  it("switches tab only when a tab root is opened", () => {
+    useNavigation.getState().navigate({ name: "search" });
+    useNavigation.getState().navigate({ name: "library", param: "liked" });
+    expect(useNavigation.getState().tab).toBe("search");
+    useNavigation.getState().navigate({ name: "library" });
+    expect(useNavigation.getState().tab).toBe("library");
+  });
+
+  it("restores the tab of the entry Back returns to", () => {
+    useNavigation.getState().navigate({ name: "search" });
+    useNavigation.getState().navigate({ name: "album", param: "a1" });
+    useNavigation.getState().navigate({ name: "library" });
+    useNavigation.getState().goBack();
+    expect(useNavigation.getState()).toMatchObject({ view: { name: "album" }, tab: "search" });
+    useNavigation.getState().goForward();
+    expect(useNavigation.getState().tab).toBe("library");
   });
 });

@@ -6,6 +6,7 @@ export type DeletionGroup =
   | "tracks"
   | "folders"
   | "followedArtists"
+  | "savedAlbums"
   | "history"
   | "searches";
 

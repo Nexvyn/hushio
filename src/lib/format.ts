@@ -17,10 +17,3 @@ export function fmtTotal(seconds: number): string {
   if (rest === 0) return `${hours} hr`;
   return `${hours} hr ${rest} min`;
 }
-
-export const PAGE_TITLE_SIZE = ["text-[34px]", "text-[28px]", "text-[24px]"] as const;
-
-export function titleStep(name: string): 0 | 1 | 2 {
-  if (name.length <= 26) return 0;
-  return name.length <= 48 ? 1 : 2;
-}

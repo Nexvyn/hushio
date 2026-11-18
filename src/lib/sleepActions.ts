@@ -6,7 +6,7 @@ const INVALID_TIME = "Enter a time from 1 minute to 12 hours";
 
 type SleepSnapshot = { endsAt: number | null; endOfSong: boolean };
 
-export function sleepRunning(state: SleepSnapshot): boolean {
+function sleepRunning(state: SleepSnapshot): boolean {
   return state.endOfSong || state.endsAt !== null;
 }
 

@@ -1,6 +1,6 @@
-export type PipRepeat = "off" | "all" | "one";
+type PipRepeat = "off" | "all" | "one";
 
-export type PipTrackInfo = {
+type PipTrackInfo = {
   id: string;
   title: string;
   artist: string;

@@ -5,14 +5,14 @@ import type { CardRef, SideRef } from "./feed";
 import type { Track } from "../types";
 
 export const SIDE_LETTERS = ["A", "B", "C", "D"] as const;
-export const MIX_LENGTH = 30;
+const MIX_LENGTH = 30;
 const MIX_MIN = 10;
 const PER_ARTIST = 4;
 const FRESH_EVERY = 4;
 const NAMES_SHOWN = 3;
 const THUMBS_SHOWN = 4;
 
-export type SideMember = { key: string; name: string; artistId: string | null };
+type SideMember = { key: string; name: string; artistId: string | null };
 
 export type SideMixInput = {
   members: readonly SideMember[];
@@ -37,7 +37,7 @@ export function namesLine(names: readonly string[]): string {
   return `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]}`;
 }
 
-export function artistCaption(relatedNames: readonly string[], fallback: string): string {
+function artistCaption(relatedNames: readonly string[], fallback: string): string {
   return captionWith(relatedNames.slice(0, NAMES_SHOWN)) || fallback;
 }
 

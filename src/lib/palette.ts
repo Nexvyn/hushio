@@ -1,3 +1,4 @@
+import { onMemoryTrim } from "./memoryTrim";
 import { useEffect, useState } from "react";
 
 export type Lch = { l: number; c: number; h: number };
@@ -11,7 +12,7 @@ export type CoverRead = {
 };
 
 export const PALETTE_PX = 64;
-export const READ_CACHE_ENTRIES = 128;
+const READ_CACHE_ENTRIES = 50;
 export const NEUTRAL_TINT = "13 13 15";
 
 const CHROMA_FROM = 0.03;
@@ -247,6 +248,7 @@ export async function readArtwork(url: string): Promise<CoverRead | null> {
 }
 
 const tintCache = new Map<string, Promise<string>>();
+onMemoryTrim(() => tintCache.clear());
 
 export function artTintFor(url: string): Promise<string> {
   const cached = tintCache.get(url);

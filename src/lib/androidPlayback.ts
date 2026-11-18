@@ -1,4 +1,4 @@
-export type PlayerRepeat = "off" | "all" | "one";
+type PlayerRepeat = "off" | "all" | "one";
 
 export type PlayerSnapshot = {
   playing: boolean;
@@ -22,6 +22,13 @@ export type PlayerQueueItem = {
   liked: boolean;
   expiresAtEpochMs: number | null;
   contentUri?: string;
+  artworkUrl?: string;
+};
+
+export type PlayMeta = {
+  artist?: string;
+  artworkUrl?: string;
+  durationMs?: number;
 };
 
 export type MediaEvent = "play" | "pause" | "playing" | "waiting" | "timeupdate" | "durationchange";
@@ -58,8 +65,20 @@ export function queueItemFor(
   url: string,
   headers: Record<string, string>,
   expiresAtEpochMs: number,
+  meta: PlayMeta = {},
 ): PlayerQueueItem {
-  return { id, title, artist: "", durationMs: 0, url, headers: { ...headers }, liked: false, expiresAtEpochMs };
+  const item: PlayerQueueItem = {
+    id,
+    title,
+    artist: meta.artist ?? "",
+    durationMs: meta.durationMs ?? 0,
+    url,
+    headers: { ...headers },
+    liked: false,
+    expiresAtEpochMs,
+  };
+  if (meta.artworkUrl) item.artworkUrl = meta.artworkUrl;
+  return item;
 }
 
 export function mediaEventsFor(before: PlayerSnapshot, after: PlayerSnapshot): MediaEvent[] {

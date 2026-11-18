@@ -1,6 +1,6 @@
 import { pairKey } from "./taste";
 
-export const MERGE_AT = 0.3;
+const MERGE_AT = 0.3;
 export const MAX_SIDES = 4;
 const BACK_TO_BACK_CAP = 3;
 

@@ -6,13 +6,11 @@ import { TopBar } from "./components/TopBar";
 import { PlayerBar } from "./components/PlayerBar";
 import { HomeView } from "./views/HomeView";
 import { SearchView } from "./views/SearchView";
-import { ExploreView } from "./views/ExploreView";
 import { LibraryView } from "./views/LibraryView";
 import { LikedView } from "./views/LikedView";
 import { DownloadsView } from "./views/DownloadsView";
 import { LocalMusicView } from "./views/LocalMusicView";
 import { SettingsView } from "./views/SettingsView";
-import { PodcastsView } from "./views/PodcastsView";
 
 vi.mock("./lib/bridge", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./lib/bridge")>()),
@@ -44,8 +42,8 @@ function focusRuleCss(): string {
 }
 
 const VIEWS = {
-  Sidebar, TopBar, PlayerBar, HomeView, SearchView, ExploreView, LibraryView,
-  LikedView, DownloadsView, LocalMusicView, SettingsView, PodcastsView,
+  Sidebar, TopBar, PlayerBar, HomeView, SearchView, LibraryView,
+  LikedView, DownloadsView, LocalMusicView, SettingsView,
 };
 
 describe("a11y smoke: main views", () => {
@@ -57,6 +55,7 @@ describe("a11y smoke: main views", () => {
         expect(hasFocusRing(control), `${name}: no focus ring ${control.outerHTML.slice(0, 80)}`).toBe(true);
       }
       for (const icon of Array.from(view.container.querySelectorAll("svg"))) {
+        if (icon.closest(".app-logo")) continue;
         expect(icon.getAttribute("width"), `${name}: icon size`).toBe("20");
       }
       cleanup();

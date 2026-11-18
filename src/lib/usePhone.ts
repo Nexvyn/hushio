@@ -1,7 +1,7 @@
 import { platform } from "./bridge";
-import { shellFor, useViewportWidth } from "./layoutTier";
+import { shellFor, useShortSide } from "./layoutTier";
 
 export function usePhone(): boolean {
-  const width = useViewportWidth();
-  return platform === "android" && shellFor(width) === "phone";
+  const shortSide = useShortSide();
+  return platform === "android" && shellFor(shortSide) === "phone";
 }

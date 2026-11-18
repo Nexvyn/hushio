@@ -5,7 +5,7 @@ import { applyFontVars } from "./fonts";
 import { motionVars } from "./motion";
 import { useSettings, type LyricsTextSize } from "../stores/settings";
 
-export const OS_REDUCE_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+const OS_REDUCE_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 const PLATFORM_CLASSES: Record<Platform, string> = {
   windows: "platform-windows",
@@ -26,7 +26,7 @@ export function lyricScale(size: LyricsTextSize): string {
   return LYRIC_SCALE[size] ?? "1";
 }
 
-export type HtmlFlags = {
+type HtmlFlags = {
   reduceAnimation: boolean;
   reduceDynamicBlur: boolean;
   osReduceMotion: boolean;
@@ -35,7 +35,7 @@ export type HtmlFlags = {
   platform: Platform;
 };
 
-export function htmlClassNames(flags: HtmlFlags): string[] {
+function htmlClassNames(flags: HtmlFlags): string[] {
   const names = [PLATFORM_CLASSES[flags.platform]];
   if (flags.reduceAnimation || flags.osReduceMotion || flags.desktopReduceMotion || flags.systemMotion) {
     names.push("reduce-motion");
@@ -44,7 +44,7 @@ export function htmlClassNames(flags: HtmlFlags): string[] {
   return names;
 }
 
-export function applyHtmlClasses(root: HTMLElement, flags: HtmlFlags): void {
+function applyHtmlClasses(root: HTMLElement, flags: HtmlFlags): void {
   root.classList.remove(...MANAGED_CLASSES);
   const names = htmlClassNames(flags);
   root.classList.add(...names);

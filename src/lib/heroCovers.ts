@@ -1,4 +1,4 @@
-export const HERO_WALL_MIN = 3;
+
 export const HERO_COVER_LIMIT = 12;
 
 export function distinctCovers(

@@ -1,56 +1,85 @@
-import {
-  Album01Icon,
-  ArrowDown01Icon,
-  ArrowDownDoubleIcon,
-  ArrowUp01Icon,
-  ArrowUpDoubleIcon,
-  Chat01Icon,
-  Copy01Icon,
-  Delete02Icon,
-  Download01Icon,
-  FavouriteIcon,
-  FolderOpenIcon,
-  Link01Icon,
-  ListStartIcon,
-  MoonIcon,
-  PlayIcon,
-  PlayListAddIcon,
-  Playlist01Icon,
-  UserAdd01Icon,
-  UserIcon,
-} from "@hugeicons/core-free-icons";
+import { VinylRecord, CaretDown, CaretDoubleDown, CaretUp, CaretDoubleUp, Copy, Trash, DownloadSimple, Heart, Info, ListDashes, MusicNotesPlus, Moon, Play, ListPlus, Playlist as PlaylistIcon, Radio, ShareNetwork, User } from "@phosphor-icons/react";
 import type { Box } from "./pickerLayout";
 import { copyLink } from "./browseActions";
+import { isAddonTrackId } from "./searchScope";
+import { trackShareLink } from "./shareLink";
 import { openNewPlaylistWith, toSong } from "./collectionActions";
 import { addSongsToPlaylists } from "./devicePlaylists";
-import { downloadedPath, revealDownload, startDownload } from "./downloads";
+import { downloadedPath, startDownload } from "./downloads";
+import { flyToQueue } from "./flyToTarget";
+import { reducedMotion } from "./motion";
 import { sleepMenuItems } from "./sleepActions";
+import { traceOn } from "./streamTrace";
 import type { SearchSong } from "./searchParse";
 import { type LibraryTrack, type Playlist, useLibrary } from "../stores/library";
-import { useComments } from "../stores/comments";
-import { useListenTogether } from "../stores/listenTogether";
 import { useNavigation } from "../stores/navigation";
-import { usePlayer } from "../stores/player";
+import { currentTrack, usePlayer } from "../stores/player";
+import { useSongInfo } from "../stores/songInfo";
 import { type MenuItem, type ToastAction, useUI } from "../stores/ui";
+import { trackToastOptions } from "./toastStack";
 import type { Track } from "../types";
 
 const PLAYLIST_CAP = 6;
+const albumLookups = new Set<string>();
+let latestAlbumLookup = 0;
+
+export async function playAlbumVersion(track: Track): Promise<void> {
+  if (albumLookups.has(track.id)) return;
+  albumLookups.add(track.id);
+  const request = ++latestAlbumLookup;
+  const initialTrackId = currentTrack(usePlayer.getState())?.id;
+  const { toast, dismissToast } = useUI.getState();
+  const pending = toast("Finding the album recording.");
+  try {
+    const { matchSong } = await import("./importMatch");
+    const match = await matchSong({ title: track.title, artist: track.artist, album: track.album ?? undefined, duration: 0 }, "");
+    if (request !== latestAlbumLookup || currentTrack(usePlayer.getState())?.id !== initialTrackId) return;
+    if (!match) { toast("No matching album recording found. Try Songs in Search.", "info"); return; }
+    usePlayer.getState().playTrack(match);
+    toast("Playing the song recording", "success");
+  } catch {
+    if (request !== latestAlbumLookup) return;
+    toast("Couldn't find the album recording. Try again.", "error");
+  } finally {
+    dismissToast(pending);
+    albumLookups.delete(track.id);
+  }
+}
 
 function notify(message: string, action?: ToastAction) {
   useUI.getState().toast(message, "info", undefined, action);
+}
+
+function notifyTrack(message: string, track: Pick<Track, "title" | "artist" | "thumb">) {
+  useUI.getState().toast(message, "info", undefined, undefined, trackToastOptions(track));
+}
+
+function flyTrackToQueue(anchor: Box | undefined, track: Track) {
+  if (anchor && track.thumb) flyToQueue(anchor, track.thumb, reducedMotion());
 }
 
 export function songOf(track: Track): SearchSong {
   return { ...track, album: null, duration: 0, explicit: false, artistId: null, albumId: null, isVideo: false };
 }
 
-export function isLocalTrack(track: Pick<Track, "id">): boolean {
+function isLocalTrack(track: Pick<Track, "id">): boolean {
   return track.id.startsWith("local:");
+}
+
+function shareTrack(track: SearchSong) {
+  const url = trackShareLink(track.id);
+  if (typeof navigator.share !== "function") {
+    copyLink(url);
+    return;
+  }
+  navigator.share({ title: track.title, text: `${track.title} by ${track.artist}`, url }).catch((error: Error) => {
+    if (error.name !== "AbortError") copyLink(url);
+  });
 }
 
 function addToNamedPlaylist(playlist: Playlist, track: SearchSong) {
   const added = addSongsToPlaylists([playlist.id], [track]) > 0;
-  notify(added ? `Added to "${playlist.name}"` : "Already in this playlist");
+  notifyTrack(added ? `Added to "${playlist.name}"` : "Already in this playlist", track);
 }
 
 function copyLog(track: SearchSong) {
@@ -81,73 +110,57 @@ export function trackMenuItems(track: SearchSong): MenuItem[] {
   const playlists = library.playlists;
   const local = isLocalTrack(track);
   const { artistId, albumId } = track;
+  const playingNow = currentTrack(usePlayer.getState())?.id === track.id;
+  const external = local || isAddonTrackId(track.id);
 
   const items: MenuItem[] = [
-    { label: "Play now", icon: PlayIcon, onSelect: () => usePlayer.getState().playTrack(track) },
+    ...(playingNow ? [] : [{ label: "Play now", icon: Play, onSelect: () => usePlayer.getState().playTrack(track) }]),
     {
       label: "Play next",
-      icon: ListStartIcon,
-      onSelect: () => {
+      icon: ListDashes,
+      onSelect: (anchor) => {
         usePlayer.getState().addToQueue([track], true);
-        notify("Playing next");
+        notifyTrack("Playing next", track);
+        flyTrackToQueue(anchor, track);
       },
     },
     {
       label: "Add to queue",
-      icon: PlayListAddIcon,
-      onSelect: () => notify(usePlayer.getState().addToQueue([track]) > 0 ? "Added to queue" : "Already in your queue"),
+      icon: ListPlus,
+      onSelect: (anchor) => {
+        const added = usePlayer.getState().addToQueue([track]) > 0;
+        notifyTrack(added ? "Added to queue" : "Already in your queue", track);
+        if (added) flyTrackToQueue(anchor, track);
+      },
     },
+    ...(external ? [] : [{ label: "Start radio", icon: Radio, onSelect: () => void usePlayer.getState().startRadio(track) }]),
     {
       label: liked ? "Remove from Liked Songs" : "Add to Liked Songs",
-      icon: FavouriteIcon,
+      icon: Heart,
       separatorBefore: true,
       onSelect: () => useLibrary.getState().toggleLike(track),
     },
     ...playlists.slice(0, PLAYLIST_CAP).map((playlist) => ({
       label: `Add to "${playlist.name}"`,
+      icon: MusicNotesPlus,
       onSelect: () => addToNamedPlaylist(playlist, track),
     })),
   ];
   if (playlists.length > 1) {
-    items.push({ label: "Add to playlists", icon: PlayListAddIcon, onSelect: (anchor?: Box) => useUI.getState().openPlaylistPicker([track], anchor) });
+    items.push({ label: "Add to playlists", icon: ListPlus, onSelect: (anchor?: Box) => useUI.getState().openPlaylistPicker([track], anchor) });
   }
-  items.push({ label: "New playlist", icon: Playlist01Icon, onSelect: () => openNewPlaylistWith(track) });
+  items.push({ label: "New playlist", icon: PlaylistIcon, onSelect: () => openNewPlaylistWith(track) });
 
-  if (!local) {
-    const saved = downloadedPath(track.id);
-    items.push(
-      saved
-        ? { label: "Show in folder", icon: FolderOpenIcon, separatorBefore: true, onSelect: () => revealDownload(saved) }
-        : { label: "Download", icon: Download01Icon, separatorBefore: true, onSelect: () => void startDownload(track) },
-    );
+  if (!external && !("episode" in track && track.episode)) {
+    items.push({ label: "Play album version", icon: VinylRecord, onSelect: () => void playAlbumVersion(track) });
   }
-  if (!local) {
-    items.push({
-      label: "Comments",
-      icon: Chat01Icon,
-      separatorBefore: true,
-      onSelect: () => useComments.getState().open(track.id),
-    });
-  }
-  if (useListenTogether.getState().room.status === "joined" && useListenTogether.getState().room.role === "guest") {
-    items.push({
-      label: "Suggest to the room",
-      icon: UserAdd01Icon,
-      onSelect: () =>
-        useListenTogether.getState().suggest({
-          id: `${track.id}-${Date.now()}`,
-          trackId: track.id,
-          title: track.title,
-          artist: track.artist,
-          thumb: track.thumb,
-          fromName: "",
-        }),
-    });
+  if (!external && !downloadedPath(track.id)) {
+    items.push({ label: "Download", icon: DownloadSimple, separatorBefore: true, onSelect: () => void startDownload(track) });
   }
   if (artistId) {
     items.push({
       label: "Go to artist",
-      icon: UserIcon,
+      icon: User,
       separatorBefore: true,
       onSelect: () => useNavigation.getState().navigate({ name: "artist", param: artistId }),
     });
@@ -155,21 +168,18 @@ export function trackMenuItems(track: SearchSong): MenuItem[] {
   if (albumId) {
     items.push({
       label: "Go to album",
-      icon: Album01Icon,
+      icon: VinylRecord,
       separatorBefore: !artistId,
       onSelect: () => useNavigation.getState().navigate({ name: "album", param: albumId }),
     });
   }
-  if (!local) {
-    items.push({
-      label: "Copy link",
-      icon: Link01Icon,
-      onSelect: () => copyLink(`https://music.youtube.com/watch?v=${track.id}`),
-    });
+  if (!external) {
+    items.push({ label: "Share", icon: ShareNetwork, onSelect: () => shareTrack(track) });
   }
   items.push(
-    { label: "Sleep timer", icon: MoonIcon, separatorBefore: true, children: sleepMenuItems() },
-    { label: "Copy log", icon: Copy01Icon, onSelect: () => copyLog(track) },
+    { label: "Song info", icon: Info, onSelect: () => useSongInfo.getState().open(track) },
+    { label: "Sleep timer", icon: Moon, separatorBefore: true, children: sleepMenuItems() },
+    ...(traceOn() ? [{ label: "Copy log", icon: Copy, onSelect: () => copyLog(track) }] : []),
     { label: track.title, subject: { title: track.title, subtitle: track.artist, thumb: track.thumb } },
   );
   return items;
@@ -179,7 +189,7 @@ export function historyMenuItems(track: LibraryTrack): MenuItem[] {
   return [
     {
       label: "Remove from Recently played",
-      icon: Delete02Icon,
+      icon: Trash,
       danger: true,
       onSelect: () => {
         useLibrary.getState().removeFromHistory(track.id);
@@ -202,14 +212,14 @@ export function playlistTrackMenuItems(playlist: Playlist, index: number): MenuI
     tracks.length < 2
       ? []
       : [
-          { label: "Move up", icon: ArrowUp01Icon, disabled: index === 0, onSelect: moveTo(index - 1) },
-          { label: "Move down", icon: ArrowDown01Icon, disabled: index === last, onSelect: moveTo(index + 1) },
-          { label: "Move to top", icon: ArrowUpDoubleIcon, disabled: index === 0, onSelect: moveTo(0) },
-          { label: "Move to bottom", icon: ArrowDownDoubleIcon, disabled: index === last, onSelect: moveTo(last) },
+          { label: "Move up", icon: CaretUp, disabled: index === 0, onSelect: moveTo(index - 1) },
+          { label: "Move down", icon: CaretDown, disabled: index === last, onSelect: moveTo(index + 1) },
+          { label: "Move to top", icon: CaretDoubleUp, disabled: index === 0, onSelect: moveTo(0) },
+          { label: "Move to bottom", icon: CaretDoubleDown, disabled: index === last, onSelect: moveTo(last) },
         ];
   const remove: MenuItem = {
     label: "Remove from this playlist",
-    icon: Delete02Icon,
+    icon: Trash,
     separatorBefore: moves.length > 0,
     onSelect: () => {
       useLibrary.getState().removeFromPlaylist(playlist.id, track.id);
@@ -252,18 +262,18 @@ export function playerAddMenuItems(track: SearchSong): MenuItem[] {
   const children: MenuItem[] = [
     ...picks,
     ...(playlists.length > PLAYLIST_CAP
-      ? [{ label: "Add to playlists", icon: PlayListAddIcon, onSelect: (anchor?: Box) => useUI.getState().openPlaylistPicker([track], anchor) }]
+      ? [{ label: "Add to playlists", icon: ListPlus, onSelect: (anchor?: Box) => useUI.getState().openPlaylistPicker([track], anchor) }]
       : []),
     {
       label: "New playlist",
-      icon: PlayListAddIcon,
+      icon: ListPlus,
       separatorBefore: playlists.length > 0,
       onSelect: () => openNewPlaylistWith(track),
     },
   ];
   return [
-    { label: liked ? "Remove from Liked Songs" : "Add to Liked Songs", icon: FavouriteIcon, onSelect: () => useLibrary.getState().toggleLike(track) },
-    { label: "Add to playlist", icon: Playlist01Icon, children },
+    { label: liked ? "Remove from Liked Songs" : "Add to Liked Songs", icon: Heart, onSelect: () => useLibrary.getState().toggleLike(track) },
+    { label: "Add to playlist", icon: PlaylistIcon, children },
     { label: track.title, subject: { title: track.title, subtitle: track.artist, thumb: track.thumb } },
   ];
 }

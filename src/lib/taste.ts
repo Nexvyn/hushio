@@ -25,7 +25,7 @@ export type JournalEntry = { track: Track; at: number; heard: number };
 export type VotedEntry = JournalEntry & { out: Outcome };
 export type Maturity = "cold" | "light" | "warmed" | "strong";
 
-export const VOTE: Record<Outcome, number> = { done: 1, part: 0.5, skip: -1 };
+const VOTE: Record<Outcome, number> = { done: 1, part: 0.5, skip: -1 };
 
 export function isEarlyExit(playedSec: number, durationSec: number): boolean {
   if (playedSec < MIN_HEARD_S) return false;
@@ -41,7 +41,7 @@ export function outcomeOf(heardSec: number, durationSec: number): Outcome | null
   return full ? "done" : "part";
 }
 
-export function fade(ageMs: number, halfLifeMs: number): number {
+function fade(ageMs: number, halfLifeMs: number): number {
   return ageMs <= 0 ? 1 : 0.5 ** (ageMs / halfLifeMs);
 }
 
@@ -160,11 +160,11 @@ export function rankByTaste<T extends { subtitle?: string }>(items: readonly T[]
     .map((entry) => entry.item);
 }
 
-export type StatsTrack = { id: string; title: string; artist: string; thumb: string | null; ms: number; plays: number; lastAt?: number };
-export type StatsArtist = { name: string; ms: number; plays: number };
+type StatsTrack = { id: string; title: string; artist: string; thumb: string | null; ms: number; plays: number; lastAt?: number };
+type StatsArtist = { name: string; ms: number; plays: number };
 export type StatsSummary = { plays: number; artists: StatsArtist[]; tracks: StatsTrack[]; hours: number[] };
-export type ArtistIdentity = { artistId: string; thumb: string | null };
-export type SkipTally = { count: number; updatedAt: number };
+type ArtistIdentity = { artistId: string; thumb: string | null };
+type SkipTally = { count: number; updatedAt: number };
 export type HiddenTally = { n: number; at: number };
 
 export type ProfileInput = {

@@ -13,6 +13,7 @@ import { startSmtc } from "./lib/smtc";
 import { startDesktopAppearance } from "./lib/desktopAppearance";
 import { usesNativeMediaControls } from "./lib/desktopPlatform";
 import { startInsets } from "./lib/insets";
+import { warmPlayback } from "./lib/prefetch";
 import { PipApp } from "./pip/PipApp";
 import { startPipSync } from "./pip/pipSync";
 import { useLocalLibrary } from "./stores/localLibrary";
@@ -67,6 +68,7 @@ function mountMain() {
   void useLocalLibrary.getState().startupRescan();
   startPipSync();
   resumeQueueAfterHydration();
+  warmPlayback();
 
   ReactDOM.createRoot(root).render(
     <React.StrictMode>
@@ -84,4 +86,4 @@ function mountMain() {
 if (isPip) mountPip();
 else mountMain();
 
-if (import.meta.env.DEV && !isPip) void import("./devTools").then((module) => module.mountDevTools());
+if (import.meta.env.DEV && !isPip && new URLSearchParams(window.location.search).has("inspect")) void import("./devTools").then((module) => module.mountDevTools());

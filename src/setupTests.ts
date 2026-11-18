@@ -13,3 +13,5 @@ if (!window.matchMedia) {
     value: (query: string) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {} }),
   });
 }
+
+if (!Element.prototype.scrollTo) Element.prototype.scrollTo = () => {};

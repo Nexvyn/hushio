@@ -6,6 +6,9 @@ import { type EqPreset, flatGains, normalizeEqGains, normalizeEqPresets } from "
 import { desktopAppearance } from "../lib/desktopAppearance";
 import { DEFAULT_FONT, isAppFont, type AppFontId } from "../lib/fonts";
 import { applyTheme, type ThemeMode } from "../lib/theme";
+import { parseAddonSources } from "../lib/addons/registry";
+import type { AddonSource } from "../lib/addons/types";
+import { DEFAULT_IMAGE_CACHE_MB } from "../lib/cacheStats";
 
 export const DEVICE_SETTINGS_KEYS = [
   "downloadDir",
@@ -13,7 +16,16 @@ export const DEVICE_SETTINGS_KEYS = [
   "audioSinkId",
   "lyricsOffset",
   "closeToTray",
+  "libraryLayout",
+  "sidebarLayout",
+  "imageCacheMb",
 ] as const;
+
+export const LIBRARY_LAYOUTS = ["grid", "list"] as const;
+export type LibraryLayout = (typeof LIBRARY_LAYOUTS)[number];
+
+export const SIDEBAR_LAYOUTS = ["compact", "list", "grid"] as const;
+export type SidebarLayout = (typeof SIDEBAR_LAYOUTS)[number];
 
 export const LYRICS_OFFSET_LIMIT = 3;
 const LYRICS_OFFSET_STEPS_PER_SECOND = 20;
@@ -54,6 +66,8 @@ export type SettingsValues = {
   audioSinkId: string;
   lyricsOffset: number;
   closeToTray: boolean;
+  libraryLayout: LibraryLayout;
+  sidebarLayout: SidebarLayout;
   crossfadeSeconds: number;
   smartFade: boolean;
   skipSilence: boolean;
@@ -61,12 +75,14 @@ export type SettingsValues = {
   dontRepeatSuggestions: boolean;
   playbackSpeed: number;
   streamingQuality: StreamingQuality;
+  mobileStreamingQuality: StreamingQuality;
   loudnessLevel: LoudnessLevel;
   syncedLyrics: boolean;
   blurUnfocusedLyrics: boolean;
   romanizeLyrics: boolean;
   fullBleedArtwork: boolean;
-  animatedCanvas: boolean;
+  animatedCovers: boolean;
+  movingBackground: boolean;
   hideVolumeBar: boolean;
   filterNonMusicAudio: boolean;
   downloadQuality: DownloadQuality;
@@ -78,6 +94,10 @@ export type SettingsValues = {
   eqPresets: EqPreset[];
   eqAutoHeadroom: boolean;
   autoDownloadLiked: boolean;
+  downloadWifiOnly: boolean;
+  keepPlaylistsUpdated: boolean;
+  imageCacheMb: number;
+  zoom: number;
   pauseListeningHistory: boolean;
   pauseSearchHistory: boolean;
   noDuplicateQueue: boolean;
@@ -89,7 +109,11 @@ export type SettingsValues = {
   appFont: AppFontId;
   keepScreenAwake: boolean;
   dataSaver: boolean;
+  jiosaavnEnabled: boolean;
   haptics: boolean;
+  statsForNerds: boolean;
+  autoUpdateCheck: boolean;
+  addonSources: AddonSource[];
 };
 
 export type SettingsState = SettingsValues & {
@@ -134,6 +158,7 @@ export function clampPlaybackSpeed(value: number) {
 export function syncableSettings(settings: SettingsValues): Partial<SettingsValues> {
   const result: Partial<SettingsValues> = { ...settings };
   for (const key of DEVICE_SETTINGS_KEYS) delete result[key];
+  delete result.addonSources;
   return result;
 }
 
@@ -148,6 +173,14 @@ function isThemeMode(value: unknown): value is ThemeMode {
   return value === "dark" || value === "light" || value === "system";
 }
 
+function isLibraryLayout(value: unknown): value is LibraryLayout {
+  return (LIBRARY_LAYOUTS as readonly unknown[]).includes(value);
+}
+
+function isSidebarLayout(value: unknown): value is SidebarLayout {
+  return (SIDEBAR_LAYOUTS as readonly unknown[]).includes(value);
+}
+
 export const useSettings = create<SettingsState>()(
   persist(
     (set) => ({
@@ -159,6 +192,8 @@ export const useSettings = create<SettingsState>()(
       audioSinkId: "",
       lyricsOffset: 0,
       closeToTray: true,
+      libraryLayout: "grid",
+      sidebarLayout: "list",
       crossfadeSeconds: 0,
       smartFade: false,
       skipSilence: false,
@@ -166,12 +201,14 @@ export const useSettings = create<SettingsState>()(
       dontRepeatSuggestions: false,
       playbackSpeed: 1,
       streamingQuality: "high",
+      mobileStreamingQuality: "medium",
       loudnessLevel: "loud",
       syncedLyrics: true,
       blurUnfocusedLyrics: true,
       romanizeLyrics: false,
       fullBleedArtwork: true,
-      animatedCanvas: false,
+      animatedCovers: true,
+      movingBackground: true,
       hideVolumeBar: false,
       filterNonMusicAudio: true,
       downloadQuality: "lossless",
@@ -183,6 +220,10 @@ export const useSettings = create<SettingsState>()(
       eqPresets: [],
       eqAutoHeadroom: true,
       autoDownloadLiked: false,
+      downloadWifiOnly: false,
+      keepPlaylistsUpdated: true,
+      imageCacheMb: DEFAULT_IMAGE_CACHE_MB,
+      zoom: 1,
       pauseListeningHistory: false,
       pauseSearchHistory: false,
       noDuplicateQueue: false,
@@ -194,7 +235,11 @@ export const useSettings = create<SettingsState>()(
       appFont: DEFAULT_FONT,
       keepScreenAwake: false,
       dataSaver: false,
+      jiosaavnEnabled: false,
       haptics: true,
+      statsForNerds: false,
+      autoUpdateCheck: true,
+      addonSources: [],
       setCrossfadeSeconds: (value) => set({ crossfadeSeconds: clampCrossfadeSeconds(value) }),
       setPlaybackSpeed: (value) => set({ playbackSpeed: clampPlaybackSpeed(value) }),
       setEqGains: (value) => set({ eqGains: normalizeEqGains(value) }),
@@ -210,14 +255,26 @@ export const useSettings = create<SettingsState>()(
     }),
     {
       name: "settings",
+      version: 5,
+      migrate: (persisted, version) => {
+        const state = persisted as SettingsState;
+        const libraryReset = version < 2 ? { ...state, libraryLayout: "grid" as const } : state;
+        const sidebarReset = version < 3 ? { ...libraryReset, sidebarLayout: "list" as const } : libraryReset;
+        if (version >= 5) return sidebarReset;
+        const { rollHintOpens: _dropped, ...rest } = sidebarReset as SettingsState & { rollHintOpens?: number };
+        return rest;
+      },
       storage: persistStorage<SettingsState>("settings"),
       merge: (persisted, current) => {
         const stored = persisted as Partial<SettingsValues>;
         const theme = isThemeMode(stored.theme) ? stored.theme : current.theme;
+        const libraryLayout = isLibraryLayout(stored.libraryLayout) ? stored.libraryLayout : current.libraryLayout;
+        const sidebarLayout = isSidebarLayout(stored.sidebarLayout) ? stored.sidebarLayout : current.sidebarLayout;
         const eqGains = stored.eqGains === undefined ? current.eqGains : normalizeEqGains(stored.eqGains);
         const eqPresets = stored.eqPresets === undefined ? current.eqPresets : normalizeEqPresets(stored.eqPresets);
         const appFont = isAppFont(stored.appFont) ? stored.appFont : current.appFont;
-        return { ...current, ...stored, theme, eqGains, eqPresets, appFont };
+        const addonSources = parseAddonSources(stored.addonSources) ?? current.addonSources;
+        return { ...current, ...stored, theme, libraryLayout, sidebarLayout, eqGains, eqPresets, appFont, addonSources };
       },
     },
   ),

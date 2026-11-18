@@ -1,7 +1,7 @@
 import { APP_SLUG } from "./app";
 import type { Market } from "./innertube";
 
-export const DEFAULT_MARKET = "US";
+const DEFAULT_MARKET = "US";
 
 const ZONE_COUNTRY: Record<string, string> = {
   "asia/kolkata": "IN",
@@ -95,7 +95,7 @@ const ZONE_COUNTRY: Record<string, string> = {
   "pacific/auckland": "NZ",
 };
 
-export type MarketSource = "override" | "os-region" | "timezone" | "default";
+type MarketSource = "override" | "os-region" | "timezone" | "default";
 
 export type MarketSignals = {
   isDev: boolean;

@@ -9,8 +9,8 @@ const FLICK_VELOCITY = 0.6;
 export const DRAG_START_PX = 6;
 const RUBBER_C = 0.55;
 
-export const CENTRE_MAX = 420;
-export const CENTRE_FRACTION = 0.6;
+const CENTRE_MAX = 420;
+const CENTRE_FRACTION = 0.6;
 const NEAR_SCALE = 0.78;
 const FAR_SCALE = 0.66;
 const ROTATE_DEG = 42;

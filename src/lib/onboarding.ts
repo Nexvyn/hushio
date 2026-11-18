@@ -1,5 +1,5 @@
 export type Screen = "choose" | "resume" | "restoring";
-export type Mode = "guest" | "google" | null;
+type Mode = "guest" | "google" | null;
 
 export type OnboardingState = {
   screen: Screen;
@@ -95,10 +95,6 @@ let intent: Screen | null = null;
 
 export function setOnboardingIntent(screen: Screen): void {
   intent = screen;
-}
-
-export function peekOnboardingIntent(): Screen | null {
-  return intent;
 }
 
 export function takeOnboardingIntent(): Screen | null {

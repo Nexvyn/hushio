@@ -5,8 +5,10 @@ import {
   googleSignInCancel,
   googleSignOut,
   listenGoogleAuthChanged,
+  platform,
   type GoogleAccount,
 } from "../lib/bridge";
+import { deviceNoun } from "../lib/desktopPlatform";
 import { useUI } from "./ui";
 
 export const GUEST_ACCOUNT: GoogleAccount = {
@@ -21,8 +23,6 @@ export const GUEST_ACCOUNT: GoogleAccount = {
 
 const SESSION_ENDED = "Your Google session ended. Sign in again to keep your library in sync.";
 const SIGNED_OUT = "Signed out. Sync is off.";
-const SIGN_OUT_BODY =
-  "Your library stays on this computer. Sync stops until you sign in again. Your playlists stay on YouTube.";
 
 type AuthState = {
   account: GoogleAccount;
@@ -94,7 +94,7 @@ export const useAuth = create<AuthState>()((set, get) => ({
   requestSignOut: () => {
     useUI.getState().openDialog({
       title: "Sign out of Hushio?",
-      body: SIGN_OUT_BODY,
+      body: `Your library stays on this ${deviceNoun(platform)}. Sync stops until you sign in again. Your playlists stay on YouTube.`,
       confirmLabel: "Sign out",
       cancelLabel: "Cancel",
       onConfirm: () => {

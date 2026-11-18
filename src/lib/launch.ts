@@ -12,6 +12,7 @@ import { launchTargetFor, type LaunchPayload, type LaunchTarget } from "./launch
 import { dropPaths } from "./localDrop";
 import { useNavigation } from "../stores/navigation";
 import { usePlayer } from "../stores/player";
+import { adoptNativeItem } from "./androidEngine";
 
 const SHARED_VIDEO_TITLE = "Shared YouTube video";
 const OPENED_FILE_TITLE = "Opened audio file";
@@ -38,6 +39,7 @@ async function playOpenedFile(uri: string): Promise<void> {
     0,
     0,
   );
+  adoptNativeItem(uri, OPENED_FILE_TITLE);
   await playerPlay();
 }
 

@@ -57,6 +57,21 @@ describe("queueItemFor", () => {
   });
 });
 
+describe("queueItemFor metadata", () => {
+  it("fills artist, duration and artwork when given", () => {
+    const item = queueItemFor("a", "A", "https://x/a", {}, 1, { artist: "Artist", durationMs: 200_000, artworkUrl: "https://img/a.jpg" });
+    expect(item).toMatchObject({ artist: "Artist", durationMs: 200_000, artworkUrl: "https://img/a.jpg" });
+  });
+
+  it("leaves artwork out when there is none", () => {
+    const item = queueItemFor("a", "A", "https://x/a", {}, 1);
+    expect(item.artist).toBe("");
+    expect(item.durationMs).toBe(0);
+    expect(item).not.toHaveProperty("artworkUrl");
+    expect(queueItemFor("a", "A", "https://x/a", {}, 1, { artworkUrl: "" })).not.toHaveProperty("artworkUrl");
+  });
+});
+
 describe("isAndroidAgent", () => {
   it("detects Android user agents only", () => {
     expect(isAndroidAgent("Mozilla/5.0 (Linux; Android 14; Pixel 8)")).toBe(true);

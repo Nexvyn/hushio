@@ -6,7 +6,7 @@ import { Image } from "@tauri-apps/api/image";
 import { writeImage } from "@tauri-apps/plugin-clipboard-manager";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { PipCommand, PipSnapshot } from "../pip/types";
-import type { PlayerQueueItem } from "./androidPlayback";
+import type { PlayerQueueItem, PlayerSnapshot } from "./androidPlayback";
 import type { LaunchPayload } from "./launchLink";
 import type { AudioOutputState } from "./outputDevices";
 import type { JournalEntry, ReplayData } from "./replay";
@@ -137,6 +137,24 @@ export function replayJournal(): Promise<JournalEntry[]> {
   return call<JournalEntry[]>("replay_journal");
 }
 
+export function replayJournalRemove(keys: { at: number; id: string }[]): Promise<number> {
+  return call<number>("replay_journal_remove", { keys });
+}
+
+export type CacheUsage = { bytes: number; files: number };
+
+export function cacheSize(): Promise<CacheUsage> {
+  return call<CacheUsage>("cache_size");
+}
+
+export function cacheClear(): Promise<CacheUsage> {
+  return call<CacheUsage>("cache_clear");
+}
+
+export function cacheSetLimit(megabytes: number): Promise<CacheUsage> {
+  return call<CacheUsage>("cache_set_limit", { megabytes });
+}
+
 export async function copyImage(png: Uint8Array): Promise<void> {
   const image = await Image.fromBytes(png);
   await writeImage(image);
@@ -174,6 +192,10 @@ export function playerSetQueue(
 
 export function playerPlay(): Promise<void> {
   return playerCall<void>("player_play");
+}
+
+export function playerGetState(): Promise<PlayerSnapshot> {
+  return playerCall<PlayerSnapshot>("player_get_state");
 }
 
 export function playerPause(): Promise<void> {
@@ -224,10 +246,15 @@ export function playerKeepAwake(on: boolean): Promise<void> {
   return playerCall("player_keep_awake", { on });
 }
 
+export function playerSetSystemBars(dark: boolean): Promise<void> {
+  return playerCall("player_set_system_bars", { dark });
+}
+
 export type CastStatus = { connected: boolean; playing: boolean; positionMs: number };
 
 export type CastLoad = {
   url: string;
+  contentType: string;
   title: string;
   artist: string;
   artworkUrl: string | null;
@@ -342,6 +369,7 @@ export interface SyncedLyricLine {
   words?: SyncedLyricWord[];
   bg?: SyncedLyricBg;
   roman?: string;
+  translation?: string;
   gap?: boolean;
 }
 
@@ -366,14 +394,6 @@ export interface LyricsCandidate {
 
 export function lyricsGet(meta: LyricsMeta): Promise<LyricsResult | null> {
   return call<LyricsResult | null>("lyrics_get", { meta });
-}
-
-export function lyricsSearch(query: string, duration?: number): Promise<LyricsCandidate[]> {
-  return call<LyricsCandidate[]>("lyrics_search", { query, duration });
-}
-
-export function lyricsPick(songId: string, provider: string, candidateId: string): Promise<LyricsResult> {
-  return call<LyricsResult>("lyrics_pick", { songId, provider, candidateId });
 }
 
 export function lyricsReset(songId: string): Promise<void> {
@@ -418,6 +438,14 @@ export function downloadStart(
 
 export function pickFolder(title?: string): Promise<string | null> {
   return call<string | null>("folder_pick", { title });
+}
+
+export function playlistCoverPick(playlistId: string): Promise<string | null> {
+  return call<string | null>("playlist_cover_pick", { playlistId });
+}
+
+export function playlistCoverRemove(playlistId: string): Promise<void> {
+  return call<void>("playlist_cover_remove", { playlistId });
 }
 
 export function pathExists(path: string): Promise<boolean> {
@@ -574,6 +602,28 @@ export function googleSignOut(): Promise<GoogleAccount> {
 
 export function listenGoogleAuthChanged(onChange: (account: GoogleAccount) => void): Promise<UnlistenFn> {
   return listen<GoogleAccount>("google-auth-changed", (event) => onChange(event.payload));
+}
+
+export type SpotifyAccount = {
+  configured: boolean;
+  signedIn: boolean;
+  name: string | null;
+};
+
+export function spotifyStatus(): Promise<SpotifyAccount> {
+  return call<SpotifyAccount>("spotify_status");
+}
+
+export function spotifySignIn(): Promise<SpotifyAccount> {
+  return call<SpotifyAccount>("spotify_sign_in");
+}
+
+export function spotifySignOut(): Promise<SpotifyAccount> {
+  return call<SpotifyAccount>("spotify_sign_out");
+}
+
+export function spotifyAccessToken(): Promise<string> {
+  return call<string>("spotify_access_token");
 }
 
 export function audioOutputState(): Promise<AudioOutputState> {
@@ -994,16 +1044,3 @@ export function networkTracks(id: string, path: string): Promise<NetworkTrack[]>
   return call<NetworkTrack[]>("network_tracks", { id, path });
 }
 
-export type RecognitionMatch = {
-  title: string;
-  artist: string;
-  album: string;
-  cover: string | null;
-  videoId: string | null;
-  appleUrl: string | null;
-  spotifyUrl: string | null;
-};
-
-export function recogniseSong(): Promise<RecognitionMatch> {
-  return call<RecognitionMatch>("recognise_song");
-}

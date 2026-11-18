@@ -11,6 +11,10 @@ describe("joinSubtitle", () => {
     expect(joinSubtitle("Song", "Dua Lipa • dua lipa • 2020")).toBe("Song • Dua Lipa • 2020");
   });
 
+  it("drops the YouTube Music author from playlist subtitles", () => {
+    expect(joinSubtitle("", "Playlist • YouTube Music")).toBe("Playlist");
+  });
+
   it("keeps artist, song and album subtitles", () => {
     expect(joinSubtitle("Artist", "655M monthly audience")).toBe("Artist • 655M monthly audience");
     expect(joinSubtitle("Song", "Dua Lipa")).toBe("Song • Dua Lipa");

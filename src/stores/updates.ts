@@ -1,15 +1,23 @@
 import { create } from "zustand";
+import { APP_NAME } from "../lib/app";
 import {
+  appVersion,
   listenUpdates,
   openExternal,
   persistRead,
   persistWrite,
   platform,
+  updateCheck,
   updatesCheck,
   updatesInstall,
   updatesRestart,
   updatesState,
 } from "../lib/bridge";
+import {
+  ANDROID_UPDATE_FIRST_CHECK_MS,
+  ANDROID_UPDATE_TICK_MS,
+  shouldCheck,
+} from "../lib/androidUpdateSchedule";
 import {
   DOWNLOAD_PAGE,
   INITIAL_UPDATE_STATE,
@@ -19,10 +27,15 @@ import {
   shouldNotify,
   type UpdateState,
 } from "../lib/updates";
+import { useNavigation } from "./navigation";
+import { useSettings } from "./settings";
 import { useUI } from "./ui";
 
 const NOTICE_STORE = "updates";
+const ANDROID_STORE = "android-updates";
 const NOTICE_OWNER = "guest";
+
+type AndroidRecord = { checkedAt?: number; notified?: string };
 
 type UpdatesStore = {
   state: UpdateState;
@@ -87,8 +100,69 @@ export const useUpdates = create<UpdatesStore>()((set, get) => ({
   },
 }));
 
+function startAndroidUpdates(): () => void {
+  let live = true;
+  let busy = false;
+  let record: AndroidRecord | null = null;
+
+  async function load(): Promise<AndroidRecord> {
+    record ??= (await persistRead<AndroidRecord>(ANDROID_STORE, NOTICE_OWNER).catch(() => null)) ?? {};
+    return record;
+  }
+
+  async function save(patch: AndroidRecord) {
+    record = { ...record, ...patch };
+    await persistWrite(ANDROID_STORE, record, NOTICE_OWNER).catch(() => {});
+  }
+
+  async function checkOnce() {
+    const stored = await load();
+    const { autoUpdateCheck } = useSettings.getState();
+    if (!shouldCheck(stored.checkedAt ?? null, Date.now(), autoUpdateCheck, navigator.onLine)) return;
+    const current = await appVersion();
+    const result = await updateCheck(current);
+    if (!live || result.state === "error") return;
+    await save({ checkedAt: Date.now() });
+    if (result.state !== "available") return;
+    const state: UpdateState = {
+      ...INITIAL_UPDATE_STATE,
+      current,
+      status: "available",
+      version: result.version,
+      route: "inApp",
+    };
+    if (!shouldNotify(state, stored.notified ?? null)) return;
+    await save({ notified: result.version });
+    useUI.getState().toast(`${APP_NAME} ${result.version} is available.`, "info", undefined, {
+      label: "View",
+      run: () => useNavigation.getState().navigate({ name: "settings", param: "about" }),
+    });
+  }
+
+  function tick() {
+    if (!live || busy) return;
+    busy = true;
+    checkOnce()
+      .catch(() => {})
+      .finally(() => {
+        busy = false;
+      });
+  }
+
+  const first = setTimeout(tick, ANDROID_UPDATE_FIRST_CHECK_MS);
+  const interval = setInterval(tick, ANDROID_UPDATE_TICK_MS);
+  window.addEventListener("online", tick);
+
+  return () => {
+    live = false;
+    clearTimeout(first);
+    clearInterval(interval);
+    window.removeEventListener("online", tick);
+  };
+}
+
 export function startUpdates(): () => void {
-  if (platform === "android") return () => {};
+  if (platform === "android") return startAndroidUpdates();
   let live = true;
   let stop: (() => void) | undefined;
 

@@ -1,4 +1,4 @@
-export const SLEEP_FADE_MS = 10_000;
+const SLEEP_FADE_MS = 10_000;
 export const SLEEP_MAX_MINUTES = 720;
 export const SLEEP_RESTORE_MS = 500;
 export const SLEEP_TICK_MS = 250;

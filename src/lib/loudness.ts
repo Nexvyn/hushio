@@ -1,6 +1,6 @@
 import type { LoudnessLevel } from "../stores/settings";
 
-export const LOUDNESS_TARGETS: Record<Exclude<LoudnessLevel, "off">, number> = {
+const LOUDNESS_TARGETS: Record<Exclude<LoudnessLevel, "off">, number> = {
   quiet: -19,
   normal: -14,
   loud: -11,
@@ -9,8 +9,8 @@ export const FALLBACK_LUFS = -9;
 export const MASTER_TRIM = 1;
 export const LEVEL_GLIDE_MS = 2000;
 export const GAINS_MAX = 600;
-export const ANALYSIS_MIN_S = 10;
-export const ANALYSIS_MAX_S = 1200;
+const ANALYSIS_MIN_S = 10;
+const ANALYSIS_MAX_S = 1200;
 const MIN_GAIN = 0.05;
 const GLIDE_EPSILON = 1e-4;
 

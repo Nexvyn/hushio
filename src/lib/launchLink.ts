@@ -19,7 +19,7 @@ function playlist(id: string | null): LaunchTarget | null {
   return id && LIST_ID.test(id) ? { kind: "playlist", id } : null;
 }
 
-export function parseYouTubeUrl(url: URL): LaunchTarget | null {
+function parseYouTubeUrl(url: URL): LaunchTarget | null {
   const host = url.hostname.replace(/^www\./, "");
   if (!YOUTUBE_HOSTS.has(host)) return null;
   if (host === "youtu.be") return video(url.pathname.slice(1));

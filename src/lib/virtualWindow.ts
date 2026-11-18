@@ -1,5 +1,4 @@
 export const VIRTUAL_THRESHOLD = 200;
-export const TRACK_ROW_DP = 56;
 const OVERSCAN_ROWS = 6;
 
 export type RowWindow = { start: number; end: number };

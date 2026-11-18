@@ -12,10 +12,6 @@ function wakeLockApi(): NavigatorWithWakeLock["wakeLock"] | undefined {
   return (navigator as NavigatorWithWakeLock).wakeLock;
 }
 
-export function wakeLockSupported(): boolean {
-  return typeof navigator !== "undefined" && wakeLockApi() !== undefined;
-}
-
 async function releaseSentinel(): Promise<void> {
   const current = sentinel;
   sentinel = null;
@@ -43,8 +39,4 @@ export async function setKeepAwake(on: boolean): Promise<void> {
   } catch {
     sentinel = null;
   }
-}
-
-export function keepAwakeActive(): boolean {
-  return sentinel !== null && !sentinel.released;
 }

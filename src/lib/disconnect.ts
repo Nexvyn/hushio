@@ -1,4 +1,7 @@
-export type EraseScope = "account" | "computer" | "reset";
+import { platform } from "./bridge";
+import { deviceNoun } from "./desktopPlatform";
+
+type EraseScope = "account" | "computer" | "reset";
 
 export type EraseOptions = {
   scope: EraseScope;
@@ -21,13 +24,16 @@ export type EraseOutcome = { ok: true } | { ok: false; stage: EraseStage; messag
 
 type EraseStep = Exclude<keyof EraseSteps, "resumeSync">;
 
-export const STEP_LABELS: Record<EraseStep, string> = {
+const STEP_LABELS: Record<Exclude<EraseStep, "wipeLocal">, string> = {
   stopSync: "Stopping sync",
   deleteYoutubePlaylists: "Deleting YouTube playlists",
   revokeTokens: "Signing out of Google",
   removeKeyring: "Signing out of Google",
-  wipeLocal: "Erasing this computer",
 };
+
+function stepLabel(step: EraseStep): string {
+  return step === "wipeLocal" ? `Erasing this ${deviceNoun(platform)}` : STEP_LABELS[step];
+}
 
 type Planned = { step: EraseStep; run: () => Promise<unknown> };
 
@@ -41,7 +47,7 @@ async function execute(
   onStep: (label: string) => void,
 ): Promise<EraseOutcome> {
   for (const { step, run } of planned) {
-    onStep(STEP_LABELS[step]);
+    onStep(stepLabel(step));
     try {
       await run();
     } catch (error) {

@@ -6,4 +6,6 @@ export type Track = {
   album?: string | null;
   duration?: number;
   episode?: true;
+  recommended?: true;
+  queued?: true;
 };

@@ -8,7 +8,7 @@ export const APP_FONTS = [
   {
     id: "system",
     label: "System",
-    stack: '"Segoe UI Variable Display", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
+    stack: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Display", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
   },
   {
     id: "hushio",
@@ -27,7 +27,7 @@ export const APP_FONTS = [
   },
   {
     id: "mono",
-    label: "Monospace",
+    label: "Mono",
     stack: '"Cascadia Mono", "Consolas", "SF Mono", "DejaVu Sans Mono", monospace',
   },
 ] as const;

@@ -5,6 +5,12 @@ import type { Track } from "../types";
 const song = (duration?: number): Track => ({ id: "a", title: "A", artist: "B", thumb: null, duration });
 
 describe("shownDuration", () => {
+  it("ignores non-finite player durations and retains a valid metadata duration", () => {
+    expect(shownDuration(Infinity, song(180))).toBe(180);
+    expect(shownDuration(Number.NaN, song(180))).toBe(180);
+    expect(shownDuration(Infinity, null)).toBe(0);
+  });
+
   it("uses the player duration when it is known", () => {
     expect(shownDuration(212, song(200))).toBe(212);
   });

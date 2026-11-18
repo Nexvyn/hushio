@@ -1,23 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { IconSvgElement } from "@hugeicons/react";
-import {
-  AppWindowIcon,
-  Cancel01Icon,
-  ExpandIcon,
-  FavouriteIcon,
-  MinimizeIcon,
-  MusicNote01Icon,
-  NextIcon,
-  PauseIcon,
-  PlayIcon,
-  PreviousIcon,
-  RepeatIcon,
-  RepeatOne01Icon,
-  ShrinkIcon,
-  ShuffleIcon,
-  VolumeHighIcon,
-  VolumeOffIcon,
-} from "@hugeicons/core-free-icons";
+import { AppWindow, X, ArrowsOut, Heart, Minus, MusicNote, SkipForward, Pause, Play, SkipBack, Repeat, RepeatOnce, ArrowsIn, Shuffle, SpeakerHigh, SpeakerX, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { Groove } from "../components/Groove";
 import { Icon } from "../components/Icon";
 import {
@@ -38,7 +20,7 @@ const COMPACT_BELOW_HEIGHT = 175;
 
 type ButtonProps = {
   label: string;
-  icon: IconSvgElement;
+  icon: PhosphorIcon;
   onClick: () => void;
   pressed?: boolean;
   disabled?: boolean;
@@ -156,35 +138,35 @@ export function PipApp() {
       <div data-tauri-drag-region className="flex h-[26px] shrink-0 items-center justify-end gap-1 px-1">
         <IconButton
           label={compact ? "Expand mini player" : "Compact mini player"}
-          icon={compact ? ExpandIcon : ShrinkIcon}
+          icon={compact ? ArrowsOut : ArrowsIn}
           onClick={toggleCompact}
         />
-        <IconButton label="Minimize" icon={MinimizeIcon} onClick={() => void pipMinimize()} />
-        <IconButton label="Show Hushio" icon={AppWindowIcon} onClick={() => void pipShowMain()} />
-        <IconButton label="Close mini player" icon={Cancel01Icon} onClick={() => void pipClose()} />
+        <IconButton label="Minimize" icon={Minus} onClick={() => void pipMinimize()} />
+        <IconButton label="Show Hushio" icon={AppWindow} onClick={() => void pipShowMain()} />
+        <IconButton label="Close mini player" icon={X} onClick={() => void pipClose()} />
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-1 pb-1">
         {!compact && (
           <div className="grid min-h-0 flex-1 place-items-center overflow-hidden rounded-[8px] bg-[#181818]">
             {track?.thumb ? (
-              <img src={track.thumb} alt="" draggable={false} className="h-full w-full object-cover" />
+              <img loading="lazy" decoding="async" src={track.thumb} alt="" draggable={false} className="h-full w-full object-cover" />
             ) : (
-              <Icon icon={MusicNote01Icon} />
+              <Icon icon={MusicNote} />
             )}
           </div>
         )}
 
         <div className="flex min-w-0 items-center gap-2 px-1">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[14px] font-semibold">
+            <p className="truncate text-body font-semibold">
               {track ? track.title : ready ? "Nothing playing" : ""}
             </p>
-            <p className="truncate text-[12px] text-[#b3b3b3]">{track?.artist ?? ""}</p>
+            <p className="truncate text-meta text-[#b3b3b3]">{track?.artist ?? ""}</p>
           </div>
           <IconButton
             label={snapshot?.liked ? "Remove from Liked" : "Add to Liked"}
-            icon={FavouriteIcon}
+            icon={Heart}
             pressed={snapshot?.liked ?? false}
             disabled={!track}
             onClick={() => send({ type: "like" })}
@@ -206,22 +188,22 @@ export function PipApp() {
         <div className="flex items-center justify-center gap-1">
           <IconButton
             label="Shuffle"
-            icon={ShuffleIcon}
+            icon={Shuffle}
             pressed={snapshot?.shuffle ?? false}
             onClick={() => send({ type: "shuffle" })}
           />
-          <IconButton label="Previous" icon={PreviousIcon} disabled={!track} onClick={() => send({ type: "prev" })} />
+          <IconButton label="Previous" icon={SkipBack} disabled={!track} onClick={() => send({ type: "prev" })} />
           <PlayButton playing={snapshot?.playing ?? false} disabled={!track} onClick={() => send({ type: "toggle" })} />
-          <IconButton label="Next" icon={NextIcon} disabled={!track} onClick={() => send({ type: "next" })} />
+          <IconButton label="Next" icon={SkipForward} disabled={!track} onClick={() => send({ type: "next" })} />
           <IconButton
             label={snapshot?.repeat === "one" ? "Repeat one" : "Repeat"}
-            icon={snapshot?.repeat === "one" ? RepeatOne01Icon : RepeatIcon}
+            icon={snapshot?.repeat === "one" ? RepeatOnce : Repeat}
             pressed={snapshot !== null && snapshot.repeat !== "off"}
             onClick={() => send({ type: "repeat" })}
           />
           <IconButton
             label={snapshot?.muted ? "Unmute" : "Mute"}
-            icon={snapshot?.muted ? VolumeOffIcon : VolumeHighIcon}
+            icon={snapshot?.muted ? SpeakerX : SpeakerHigh}
             pressed={snapshot?.muted ?? false}
             onClick={() => send({ type: "mute" })}
           />
@@ -242,7 +224,7 @@ function PlayButton({ playing, disabled, onClick }: { playing: boolean; disabled
       onClick={onClick}
       className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white text-black disabled:opacity-40"
     >
-      <Icon icon={playing ? PauseIcon : PlayIcon} />
+      <Icon icon={playing ? Pause : Play} />
     </button>
   );
 }

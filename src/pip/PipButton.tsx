@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { PictureInPictureIcon, PictureInPictureOnIcon } from "@hugeicons/core-free-icons";
+import { PictureInPicture } from "@phosphor-icons/react";
 import { Icon } from "../components/Icon";
 import { listenPipOpenChanged, pipIsOpen, pipToggle, platform } from "../lib/bridge";
 
@@ -42,7 +42,7 @@ export function PipButton() {
       }}
       className={`hit-area grid h-8 w-8 shrink-0 place-items-center rounded-full motion-safe:transition-colors motion-safe:duration-quick ${open ? "text-ink-1" : "text-ink-2 hover:text-ink-1"}`}
     >
-      <Icon icon={open ? PictureInPictureOnIcon : PictureInPictureIcon} />
+      <Icon icon={open ? PictureInPicture : PictureInPicture} />
     </button>
   );
 }

@@ -104,7 +104,7 @@ describe("release workflow", () => {
     const appleSecrets = ["APPLE_CERTIFICATE", "APPLE_CERTIFICATE_PASSWORD", "APPLE_SIGNING_IDENTITY", "APPLE_ID", "APPLE_PASSWORD", "APPLE_TEAM_ID"];
     const signing = stepNamed(jobs["build-macos"], "Select macOS signing mode");
     for (const name of appleSecrets) expect(signing.env?.[name]).toBe(`\${{ secrets.${name} }}`);
-    const androidSecrets = ["ANDROID_KEYSTORE_BASE64", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD", "HUSHIO_GOOGLE_CLIENT_ID"];
+    const androidSecrets = ["ANDROID_KEYSTORE_BASE64", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD", "HUSHIO_GOOGLE_CLIENT_ID", "HUSHIO_SPOTIFY_CLIENT_ID"];
     for (const name of secretNames) expect(["GITHUB_TOKEN", ...appleSecrets, ...androidSecrets, "TAURI_SIGNING_PRIVATE_KEY", "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"]).toContain(name);
     expect(jobs.build.steps.some((step) => Object.keys(step.env ?? {}).some((key) => key.startsWith("APPLE_")))).toBe(false);
   });
@@ -241,9 +241,10 @@ describe("android release job", () => {
     expect(build.ANDROID_KEY_ALIAS).toBe("${{ secrets.ANDROID_KEY_ALIAS }}");
     expect(build.ANDROID_KEY_PASSWORD).toBe("${{ secrets.ANDROID_KEY_PASSWORD }}");
     expect(build.HUSHIO_GOOGLE_CLIENT_ID).toBe("${{ secrets.HUSHIO_GOOGLE_CLIENT_ID }}");
+    expect(build.HUSHIO_SPOTIFY_CLIENT_ID).toBe("${{ secrets.HUSHIO_SPOTIFY_CLIENT_ID }}");
     const androidSecretNames = [...androidText.matchAll(/secrets\.([A-Z0-9_]+)/g)].map((m) => m[1]);
     for (const name of androidSecretNames) {
-      expect(["GITHUB_TOKEN", "ANDROID_KEYSTORE_BASE64", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD", "HUSHIO_GOOGLE_CLIENT_ID"]).toContain(name);
+      expect(["GITHUB_TOKEN", "ANDROID_KEYSTORE_BASE64", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD", "HUSHIO_GOOGLE_CLIENT_ID", "HUSHIO_SPOTIFY_CLIENT_ID"]).toContain(name);
     }
   });
 

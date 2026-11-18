@@ -1,14 +1,15 @@
 import { create } from "zustand";
-import type { IconSvgElement } from "@hugeicons/react";
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import type { Box } from "../lib/pickerLayout";
 import type { SearchFilter } from "../lib/searchParse";
+import { sameToast } from "../lib/toastStack";
 import type { Track } from "../types";
 
 export type MenuSubject = { title: string; subtitle?: string; thumb?: string | null; round?: boolean };
 
 export type MenuItem = {
   label: string;
-  icon?: IconSvgElement;
+  icon?: PhosphorIcon;
   note?: string;
   trailing?: string;
   onSelect?: (anchor?: Box) => void;
@@ -30,12 +31,20 @@ export type ToastKind = "info" | "success" | "error" | "warning";
 
 export type ToastAction = { label: string; run: () => void };
 
+type ToastOptions = { art?: string; detail?: string; progress?: number };
+
+type ToastPatch = Partial<Pick<Toast, "message" | "kind" | "art" | "detail" | "progress">>;
+
 export type Toast = {
   id: number;
   message: string;
   kind: ToastKind;
   duration?: number;
   action?: ToastAction;
+  art?: string;
+  detail?: string;
+  progress?: number;
+  bump?: number;
 };
 
 export type DialogRequest = {
@@ -52,19 +61,33 @@ export type DialogRequest = {
   onConfirm: (value: string) => void;
 };
 
-const TOAST_LIMIT = 4;
-export const DEFAULT_TOAST_MS = 4600;
+const TOAST_LIMIT = 3;
 
 let nextToastId = 1;
+
+function bumpToast(existing: Toast, incoming: Toast): Toast {
+  return {
+    ...existing,
+    art: incoming.art,
+    detail: incoming.detail,
+    progress: incoming.progress,
+    action: incoming.action ?? existing.action,
+    duration: incoming.duration ?? existing.duration,
+    bump: (existing.bump ?? 0) + 1,
+  };
+}
 
 type UIState = {
   rightPanel: "details" | "queue";
   railSheetOpen: boolean;
+  railColumnOpen: boolean;
+  libraryCollapsed: boolean;
+  setLibraryCollapsed: (value: boolean) => void;
   setRailSheetOpen: (open: boolean) => void;
   lyricsCenter: boolean;
   nowPlayingOpen: boolean;
   phoneQueueOpen: boolean;
-  phoneLyricsSearchOpen: boolean;
+  phoneLyricsOpen: boolean;
   osFullscreen: boolean;
   toasts: Toast[];
   pendingToasts: Toast[];
@@ -78,11 +101,13 @@ type UIState = {
   searchFilter: SearchFilter;
   setSearchQuery: (query: string) => void;
   setSearchFilter: (filter: SearchFilter) => void;
-  toast: (message: string, kind?: ToastKind, duration?: number, action?: ToastAction) => number;
+  toast: (message: string, kind?: ToastKind, duration?: number, action?: ToastAction, options?: ToastOptions) => number;
+  updateToast: (id: number, patch: ToastPatch) => void;
   dismissToast: (id: number) => void;
   setOsFullscreen: (value: boolean) => void;
   setRightPanel: (panel: "details" | "queue") => void;
-  toggleQueue: () => void;
+  toggleQueue: (sheet?: boolean) => void;
+  closeRail: (sheet?: boolean) => void;
   toggleLyrics: () => void;
   closeLyrics: () => void;
   toggleNowPlaying: () => void;
@@ -90,8 +115,8 @@ type UIState = {
   closeNowPlaying: () => void;
   openPhoneQueue: () => void;
   closePhoneQueue: () => void;
-  openPhoneLyricsSearch: () => void;
-  closePhoneLyricsSearch: () => void;
+  openPhoneLyrics: () => void;
+  closePhoneLyrics: () => void;
   closePanels: () => void;
   openDialog: (request: DialogRequest) => void;
   closeDialog: () => void;
@@ -102,11 +127,14 @@ type UIState = {
 export const useUI = create<UIState>()((set) => ({
   rightPanel: "details",
   railSheetOpen: false,
+  railColumnOpen: true,
+  libraryCollapsed: false,
+  setLibraryCollapsed: (value) => set({ libraryCollapsed: value }),
   setRailSheetOpen: (open) => set({ railSheetOpen: open }),
   lyricsCenter: false,
   nowPlayingOpen: false,
   phoneQueueOpen: false,
-  phoneLyricsSearchOpen: false,
+  phoneLyricsOpen: false,
   osFullscreen: false,
   toasts: [],
   pendingToasts: [],
@@ -128,17 +156,38 @@ export const useUI = create<UIState>()((set) => ({
 
   setSearchFilter: (filter) => set({ searchFilter: filter }),
 
-  toast: (message, kind = "info", duration = DEFAULT_TOAST_MS, action) => {
+  toast: (message, kind = "info", duration, action, options = {}) => {
     const id = nextToastId++;
+    let shownId = id;
     set((state) => {
-      const next = { id, message, kind, duration, action };
-      if (state.toasts.length < TOAST_LIMIT) {
-        return { toasts: [...state.toasts, next] };
+      const incoming: Toast = { id, message, kind, duration, action, ...options };
+      const shown = state.toasts.findIndex((item) => sameToast(item, incoming));
+      if (shown !== -1) {
+        shownId = state.toasts[shown].id;
+        const toasts = [...state.toasts];
+        toasts[shown] = bumpToast(state.toasts[shown], incoming);
+        return { toasts };
       }
-      return { pendingToasts: [...state.pendingToasts, next] };
+      const waiting = state.pendingToasts.findIndex((item) => sameToast(item, incoming));
+      if (waiting !== -1) {
+        shownId = state.pendingToasts[waiting].id;
+        const pendingToasts = [...state.pendingToasts];
+        pendingToasts[waiting] = bumpToast(state.pendingToasts[waiting], incoming);
+        return { pendingToasts };
+      }
+      if (state.toasts.length < TOAST_LIMIT) {
+        return { toasts: [...state.toasts, incoming] };
+      }
+      return { pendingToasts: [...state.pendingToasts, incoming] };
     });
-    return id;
+    return shownId;
   },
+
+  updateToast: (id, patch) =>
+    set((state) => ({
+      toasts: state.toasts.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+      pendingToasts: state.pendingToasts.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+    })),
 
   dismissToast: (id) =>
     set((state) => {
@@ -158,11 +207,18 @@ export const useUI = create<UIState>()((set) => ({
 
   setRightPanel: (panel) => set({ rightPanel: panel }),
 
-  toggleQueue: () =>
+  toggleQueue: (sheet = false) =>
     set((state) => {
-      const queueVisible = state.rightPanel === "queue" && state.railSheetOpen;
-      return { rightPanel: queueVisible ? "details" : "queue", railSheetOpen: !queueVisible };
+      if (sheet) {
+        const showingQueue = state.railSheetOpen && state.rightPanel === "queue";
+        return { railSheetOpen: true, rightPanel: showingQueue ? "details" : "queue" };
+      }
+      const showingQueue = state.railColumnOpen && state.rightPanel === "queue";
+      return { railColumnOpen: true, rightPanel: showingQueue ? "details" : "queue" };
     }),
+
+  closeRail: (sheet = false) =>
+    set(sheet ? { railSheetOpen: false, rightPanel: "details" } : { railColumnOpen: false, rightPanel: "details" }),
 
   toggleLyrics: () => set((state) => ({ lyricsCenter: !state.lyricsCenter })),
 
@@ -178,9 +234,9 @@ export const useUI = create<UIState>()((set) => ({
 
   closePhoneQueue: () => set({ phoneQueueOpen: false }),
 
-  openPhoneLyricsSearch: () => set({ phoneLyricsSearchOpen: true }),
+  openPhoneLyrics: () => set({ phoneLyricsOpen: true }),
 
-  closePhoneLyricsSearch: () => set({ phoneLyricsSearchOpen: false }),
+  closePhoneLyrics: () => set({ phoneLyricsOpen: false }),
 
   closePanels: () =>
     set({ rightPanel: "details", lyricsCenter: false, nowPlayingOpen: false }),

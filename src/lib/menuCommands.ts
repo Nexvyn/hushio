@@ -27,7 +27,7 @@ export const MENU_COMMANDS = [
 
 export type MenuCommand = (typeof MENU_COMMANDS)[number];
 
-export type RepeatValue = "off" | "all" | "one";
+type RepeatValue = "off" | "all" | "one";
 
 export type MenuDeps = {
   toggle: () => void;
