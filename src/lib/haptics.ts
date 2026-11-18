@@ -1,12 +1,13 @@
 import { platform } from "./bridge";
 import { useSettings } from "../stores/settings";
 
-export type Haptic = "tick" | "select" | "success";
+export type Haptic = "tick" | "select" | "success" | "warning";
 
 const PATTERNS: Record<Haptic, number | number[]> = {
   tick: 8,
   select: 12,
   success: [10, 40, 14],
+  warning: [16, 60, 16],
 };
 
 const MIN_GAP_MS = 40;

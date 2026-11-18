@@ -1,6 +1,6 @@
 import type { Transition } from "motion/react";
 
-export const EASE_OUT: [number, number, number, number] = [0, 0, 0.58, 1];
+export const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 export const EASE_IN_OUT: [number, number, number, number] = [0.42, 0, 0.58, 1];
 
 export const DURATION_MS = {
@@ -16,11 +16,23 @@ export const DURATION_MS = {
   sheen: 1300,
   spin: 850,
   intro: 160,
+  press: 50,
   pageIn: 240,
-  pageOut: 120,
+  reveal: 280,
+  stagger: 40,
+  hover: 200,
+  nowPlayingExit: 210,
+  roll: 380,
   gooOut: 160,
   gooFade: 120,
   gooDelay: 60,
+  canvasFade: 500,
+  lyric: 400,
+  queue: 420,
+  progress: 300,
+  toastOut: 160,
+  introItem: 220,
+  introAppend: 180,
 } as const;
 
 export type DurationName = keyof typeof DURATION_MS;
@@ -46,21 +58,32 @@ export const settle: Transition = { type: "spring", stiffness: 438.7, damping: 3
 
 export const quick: Transition = { duration: DURATION_MS.quick / 1000, ease: EASE_OUT };
 export const fade: Transition = { duration: DURATION_MS.fade / 1000, ease: EASE_OUT };
+export const canvasFade: Transition = { duration: DURATION_MS.canvasFade / 1000, ease: EASE_OUT };
 export const swap: Transition = { duration: DURATION_MS.swap / 1000, ease: EASE_OUT };
 export const instant: Transition = { duration: 0 };
 export const pickerIn: Transition = { duration: DURATION_MS.picker / 1000, ease: EASE_OUT };
 export const pickerOut: Transition = { duration: DURATION_MS.pickerOut / 1000, ease: EASE_OUT };
 export const introFade: Transition = { duration: DURATION_MS.intro / 1000, ease: EASE_OUT };
+export const nowPlayingExit: Transition = { duration: DURATION_MS.nowPlayingExit / 1000, ease: EASE_OUT };
 
 export function gate<T extends Transition>(reduced: boolean, t: T): Transition {
   return reduced ? instant : t;
 }
 
+let mediaFn: typeof window.matchMedia | undefined;
+let mediaList: MediaQueryList | null = null;
+
+function systemReducesMotion(): boolean {
+  if (typeof window.matchMedia !== "function") return false;
+  if (window.matchMedia !== mediaFn) {
+    mediaFn = window.matchMedia;
+    mediaList = window.matchMedia("(prefers-reduced-motion: reduce)") ?? null;
+  }
+  return mediaList?.matches ?? false;
+}
+
 export function reducedMotion(): boolean {
-  return (
-    document.documentElement.classList.contains("reduce-motion") ||
-    (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false)
-  );
+  return document.documentElement.classList.contains("reduce-motion") || systemReducesMotion();
 }
 
 export function restartClass(node: HTMLElement | null, className: string): void {
@@ -90,7 +113,7 @@ export const INTRO_TIMING = {
   wordWidth: 268.5,
 } as const;
 
-export const INTRO_POP_EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
+export const INTRO_POP_EASE = EASE_OUT;
 export const INTRO_LETTER_EASE: [number, number, number, number] = [0.33, 1, 0.68, 1];
 export const INTRO_SETTLE_EASES: [[number, number, number, number], [number, number, number, number]] = [
   [0.32, 0, 0.67, 0],
@@ -100,7 +123,9 @@ export const INTRO_FLIGHT_EASE: [number, number, number, number] = [0.65, 0, 0.3
 
 export const phoneSnappy: Transition = { type: "spring", stiffness: 420, damping: 36, mass: 1 };
 export const phoneSmooth: Transition = { type: "spring", stiffness: 260, damping: 30, mass: 1 };
-export const phoneBouncy: Transition = { type: "spring", stiffness: 380, damping: 22, mass: 1 };
+export const phoneBouncy: Transition = { type: "spring", stiffness: 380, damping: 29, mass: 1 };
+export const phoneShared: Transition = { type: "spring", stiffness: 300, damping: 34, mass: 1 };
+export const nowPlayingEnter = phoneShared;
 
 export const PHONE_MS = {
   scrim: 160,
@@ -110,6 +135,11 @@ export const PHONE_MS = {
   artOut: 120,
   text: 150,
   icon: 160,
+  press: 50,
+  likeHold: 290,
+  likeFade: 160,
+  likeBeat: 120,
+  lyricsHint: 400,
 } as const;
 
 export function phoneTween(ms: number): Transition {
@@ -118,4 +148,26 @@ export function phoneTween(ms: number): Transition {
 
 export function phoneTransition(reduced: boolean, spring: Transition): Transition {
   return reduced ? fade : spring;
+}
+
+export const toastStack: Transition = { type: "spring", stiffness: 300, damping: 30, mass: 1 };
+export const toastOut: Transition = { duration: DURATION_MS.toastOut / 1000, ease: EASE_OUT };
+export const progressFill: Transition = { duration: DURATION_MS.progress / 1000, ease: EASE_OUT };
+
+export const sheetSpring: Transition ={ type: "spring", stiffness: 195, damping: 27.93, mass: 1, restDelta: 0.5 };
+export const nowPlayingSpring: Transition = { type: "spring", stiffness: 400, damping: 40, mass: 1, restDelta: 1, restSpeed: 20 };
+export const artPauseSpring: Transition = { type: "spring", stiffness: 300, damping: 33, mass: 1 };
+export const scrubSpring: Transition = { type: "spring", stiffness: 400, damping: 36, mass: 1 };
+export const coverSnapSpring: Transition = { type: "spring", stiffness: 400, damping: 40, mass: 1 };
+export const QUEUE_EASE: [number, number, number, number] = [0.4, 0, 0.2, 1];
+export const LYRIC_EASE = "cubic-bezier(0.41, 0, 0.12, 0.99)";
+export const pressIn: Transition = { duration: PHONE_MS.press / 1000, ease: EASE_OUT };
+
+export const MARQUEE = { pxPerS: 26, gapPx: 48, restS: 5, artistDelayS: 3 } as const;
+
+const PRESS_SCALE = 0.97;
+const PRESS_DIM = 0.82;
+
+export function pressTap(reduced: boolean) {
+  return reduced ? undefined : { scale: PRESS_SCALE, opacity: PRESS_DIM, transition: pressIn };
 }

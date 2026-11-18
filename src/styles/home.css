@@ -1,0 +1,21 @@
+.home-sections { margin-top: 24px; display: flex; flex-direction: column; gap: 28px; }
+.home-feature { display: flex; align-items: center; gap: 20px; padding: 0 0 24px; border-bottom: 1px solid rgb(var(--separator)); }
+.home-feature-open { display: flex; flex: 1; min-width: 0; align-items: center; gap: 20px; text-align: left; border-radius: 10px; }
+.home-feature-art { width: 128px; height: 128px; object-fit: cover; flex-shrink: 0; border-radius: 10px; }
+.home-feature-copy { display: flex; flex-direction: column; min-width: 0; gap: 6px; }
+.home-eyebrow { font-size: 12px; color: rgb(var(--ink-2)); font-weight: 500; }
+.home-feature-title { font-size: clamp(22px, 2.6vw, 30px); line-height: 1.2; letter-spacing: -.025em; font-weight: 600; overflow-wrap: anywhere; }
+.home-feature-subtitle { font-size: 13px; color: rgb(var(--ink-2)); line-height: 1.6; }
+.home-feed-footer { padding: 8px 0 36px; color: rgb(var(--ink-2)); font-size: 13px; }
+.home-shelf-skeleton { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); grid-auto-rows: 0; grid-template-rows: auto auto; gap: 12px; overflow: hidden; }
+.home-shelf-skeleton-title { grid-column: 1 / -1; display: block; width: 180px; height: 20px; border-radius: 6px; background: rgb(var(--wash)); }
+.home-shelf-skeleton-card { display: block; aspect-ratio: 1; border-radius: 8px; background: rgb(var(--wash)); }
+.home-feed-footer p { margin-bottom: 12px; }
+.home-loading { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.home-loading-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+@media (prefers-reduced-motion: no-preference) {
+  :root:not(.reduce-motion) .home-loading-dot { animation: bt-fade-in var(--dur-spin) ease-in-out infinite alternate; }
+}
+@media (max-width: 700px) { .home-sections { margin-top: 12px; gap: 28px; } }
+.shelf-row { scroll-snap-type: x mandatory; overscroll-behavior-x: contain; }
+.shelf-row > * { scroll-snap-align: start; scroll-snap-stop: normal; }

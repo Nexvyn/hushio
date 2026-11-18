@@ -35,9 +35,10 @@ export type SortableRowProps = {
 export type SortableOptions = {
   keys: readonly string[];
   listRef: RefObject<HTMLElement | null>;
-  onMove: (from: number, to: number) => void;
+  onMove?: (from: number, to: number) => void;
+  reorder?: boolean;
   canDropOn?: (key: string, targetId: string) => boolean;
-  onDropOn?: (key: string, targetId: string) => void;
+  onDropOn?: (key: string, targetId: string, point: { x: number; y: number }) => void;
 };
 
 type DropHit = { id: string; element: HTMLElement };
@@ -84,6 +85,7 @@ export function useSortable(options: SortableOptions) {
   const suppressClick = useRef(false);
   const pendingFocus = useRef<string | null>(null);
   const settleTimer = useRef<number | undefined>(undefined);
+  const selfMove = useRef(false);
 
   useLayoutEffect(() => {
     const key = pendingFocus.current;
@@ -142,7 +144,8 @@ export function useSortable(options: SortableOptions) {
       if (drop) drop.element.dataset.dropHover = "true";
     }
     drag.drop = drop;
-    drag.target = drop || Math.abs(layout) < START_PX ? drag.from : slotFor(drag.from, drag.boxes, layout);
+    const reorder = optionsRef.current.reorder !== false;
+    drag.target = drop || !reorder || Math.abs(layout) < START_PX ? drag.from : slotFor(drag.from, drag.boxes, layout);
     drag.offset = clampOffset(layout, drag.boxes, drag.from);
     paint(drag);
   }
@@ -241,9 +244,9 @@ export function useSortable(options: SortableOptions) {
     }, 250);
 
     if (drag.drop) {
-      const { key, drop } = drag;
+      const { key, drop, x, y } = drag;
       clear(drag);
-      optionsRef.current.onDropOn?.(key, drop.id);
+      optionsRef.current.onDropOn?.(key, drop.id, { x, y });
       return;
     }
     const { from, target } = drag;
@@ -259,7 +262,8 @@ export function useSortable(options: SortableOptions) {
       () => {
         settleTimer.current = undefined;
         clear(drag);
-        optionsRef.current.onMove(from, target);
+        selfMove.current = true;
+        optionsRef.current.onMove?.(from, target);
       },
       reduced ? 0 : SETTLE_MS,
     );
@@ -333,15 +337,15 @@ export function useSortable(options: SortableOptions) {
 
   function handleKeyDown(key: string, event: ReactKeyboardEvent<HTMLElement>) {
     if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
-    const { keys, onMove } = optionsRef.current;
+    const { keys, onMove, reorder } = optionsRef.current;
     const from = keys.indexOf(key);
-    if (from < 0) return;
+    if (from < 0 || reorder === false) return;
     event.preventDefault();
     event.stopPropagation();
     const to = Math.min(keys.length - 1, Math.max(0, from + (event.key === "ArrowUp" ? -1 : 1)));
     if (to === from) return;
     pendingFocus.current = key;
-    onMove(from, to);
+    onMove?.(from, to);
   }
 
   function handleClickCapture(event: ReactMouseEvent<HTMLElement>) {
@@ -350,7 +354,14 @@ export function useSortable(options: SortableOptions) {
     event.stopPropagation();
   }
 
+  function consumeSelfMove(): boolean {
+    const busy = selfMove.current || dragRef.current !== null;
+    selfMove.current = false;
+    return busy;
+  }
+
   return {
+    consumeSelfMove,
     bind: (key: string): SortableRowProps => ({
       "data-row-key": key,
       onPointerDown: (event) => handlePointerDown(key, event),

@@ -3,7 +3,7 @@ import { reducedMotion } from "./motion";
 
 export const COUNT_UP_MS = 1100;
 
-export function easeOutQuartic(progress: number): number {
+function easeOutQuartic(progress: number): number {
   return 1 - Math.pow(1 - progress, 4);
 }
 

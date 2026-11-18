@@ -1,7 +1,7 @@
 import { type Point, pressMoved } from "./touchGesture";
 
 export const LONG_PRESS_MS = 300;
-export const LONG_PRESS_SLOP_DP = 5;
+const LONG_PRESS_SLOP_DP = 5;
 
 export class LongPress {
   private timer: ReturnType<typeof setTimeout> | null = null;

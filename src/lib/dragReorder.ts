@@ -18,3 +18,11 @@ export function slideOffset(index: number, from: number, to: number, rowPx: numb
   if (from > to && index >= to && index < from) return rowPx;
   return 0;
 }
+
+export function autoScrollStep(pointerY: number, top: number, bottom: number, edgePx: number, maxPx: number): number {
+  const near = top + edgePx - pointerY;
+  if (near > 0) return -maxPx * Math.min(1, near / edgePx);
+  const far = pointerY - (bottom - edgePx);
+  if (far > 0) return maxPx * Math.min(1, far / edgePx);
+  return 0;
+}

@@ -1,5 +1,6 @@
 @import "./styles/tokens.css";
 @import "./styles/motion.css";
+@import "./styles/refinement.css";
 
 @tailwind base;
 @tailwind components;
@@ -144,12 +145,6 @@ textarea:focus-visible {
   background: rgb(var(--elevated));
   border: 1px solid rgb(var(--separator));
   box-shadow: var(--shadow-plate);
-}
-
-.toast-beacon {
-  background: rgb(var(--elevated));
-  border: 1px solid rgb(var(--separator));
-  box-shadow: var(--shadow-toast);
 }
 
 .swipe-arrow {

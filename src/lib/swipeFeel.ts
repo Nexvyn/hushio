@@ -1,4 +1,4 @@
-export const RESIST_FACTOR = 0.25;
+const RESIST_FACTOR = 0.25;
 export const SIDEBAR_COMMIT_PX = 50;
 export const TOP_BAR_COMMIT_PX = 31.2;
 const DISC_RANGE_PX = 110;

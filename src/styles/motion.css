@@ -24,6 +24,7 @@
 }
 
 :root { --sheen: #393939; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --sheen: #f9f9f9; } }
 :root[data-theme="light"] { --sheen: #f9f9f9; }
 :root[data-theme="dark"] { --sheen: #393939; }
 
@@ -66,7 +67,7 @@
 }
 
 @keyframes bt-pop-in {
-  from { opacity: 0; transform: scale(0.97); }
+  from { opacity: 0; transform: scale(0.96); }
   to { opacity: 1; transform: scale(1); }
 }
 
@@ -75,25 +76,12 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes bt-sink-out {
-  from { opacity: 1; transform: translateY(0); }
-  to { opacity: 0; transform: translateY(12px); }
-}
-
 .animate-fade-in {
   animation: bt-fade-in var(--dur-fade) var(--ease-out) both;
 }
 
 .animate-pop-in {
-  animation: bt-pop-in var(--dur-settle) var(--ease-settle) both;
-}
-
-.toast-enter {
-  animation: bt-rise-in var(--dur-settle) var(--ease-settle) both;
-}
-
-.toast-leave {
-  animation: bt-sink-out var(--dur-settle) var(--ease-settle) both;
+  animation: bt-pop-in var(--dur-swap) var(--ease-out) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -101,7 +89,7 @@
   *::before,
   *::after {
     animation: none !important;
-    transition: none !important;
+    transition-property: opacity, color, background-color, border-color, outline-color, fill, stroke !important;
     scroll-behavior: auto !important;
   }
 }
@@ -110,7 +98,7 @@
 :root.reduce-motion *::before,
 :root.reduce-motion *::after {
   animation: none !important;
-  transition: none !important;
+  transition-property: opacity, color, background-color, border-color, outline-color, fill, stroke !important;
   scroll-behavior: auto !important;
 }
 
@@ -120,8 +108,13 @@
   backdrop-filter: none !important;
 }
 
+@keyframes bt-sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
 .animate-slide-up {
-  animation: bt-fade-in var(--dur-fade) var(--ease-out) both;
+  animation: bt-sheet-up var(--dur-reveal) var(--ease-emphasized) both;
 }
 
 .bt-skeleton {
@@ -143,19 +136,74 @@
 }
 
 @keyframes bt-page-in {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(var(--page-rise, 8px)); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 .bt-page-in {
-  animation: bt-page-in var(--dur-pageIn) var(--ease-out) both;
+  animation: bt-page-in var(--dur-pageIn) var(--ease-emphasized) backwards;
 }
 
-@keyframes bt-page-out {
-  from { opacity: 1; }
-  to { opacity: 0; }
+.bt-page-in:has(.bt-stagger) {
+  --page-rise: 0px;
 }
 
-.bt-page-out {
-  animation: bt-page-out var(--dur-pageOut) var(--ease-out) both;
+.bt-label-in {
+  animation: bt-fade-in var(--dur-quick) var(--ease-out) both;
+}
+
+@keyframes bt-rise-soft {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bt-reveal {
+  from { opacity: 0; transform: translateY(8px); filter: blur(4px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
+.bt-reveal {
+  animation: bt-reveal var(--dur-reveal) var(--ease-emphasized) both;
+}
+
+.bt-stagger > * {
+  animation: bt-rise-soft var(--dur-reveal) var(--ease-emphasized) backwards;
+}
+
+.bt-stagger > :nth-child(2) { animation-delay: calc(var(--dur-stagger) * 1); }
+.bt-stagger > :nth-child(3) { animation-delay: calc(var(--dur-stagger) * 2); }
+.bt-stagger > :nth-child(4) { animation-delay: calc(var(--dur-stagger) * 3); }
+.bt-stagger > :nth-child(5) { animation-delay: calc(var(--dur-stagger) * 4); }
+.bt-stagger > :nth-child(n+6) { animation: none; }
+
+@supports (animation-timeline: view()) {
+  .bt-scroll-reveal {
+    animation: bt-rise-soft linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 35%;
+  }
+}
+
+.bt-press {
+  transition: transform var(--dur-quick) var(--ease-out);
+}
+
+.bt-press:active:not(:disabled) {
+  transform: scale(0.97);
+  transition-duration: var(--dur-press);
+}
+
+.bt-img {
+  opacity: 0;
+  transition: opacity var(--dur-reveal) var(--ease-out), transform var(--dur-hover) var(--ease-out);
+}
+
+.bt-img[data-loaded] {
+  opacity: 1;
+}
+
+@media (hover: hover) {
+  .group:hover .bt-img {
+    transform: scale(1.02);
+  }
 }

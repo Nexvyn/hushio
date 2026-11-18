@@ -29,12 +29,13 @@ type HarnessProps = {
   onClick?: (id: string) => void;
 };
 
-function Harness({ initial, onMove, onDropOn, onClick }: HarnessProps) {
+function Harness({ initial, onMove, onDropOn, onClick, reorder }: HarnessProps & { reorder?: boolean }) {
   const [ids, setIds] = useState(initial);
   const listRef = useRef<HTMLUListElement>(null);
   const sortable = useSortable({
     keys: ids,
     listRef,
+    reorder,
     onMove: (from, to) => {
       onMove?.(from, to);
       setIds((current) => moveKey(current, from, to));
@@ -193,6 +194,32 @@ describe("pointer reorder", () => {
   });
 });
 
+describe("drop-only lists", () => {
+  it("lifts a row onto a target without shifting the rows around it", () => {
+    const onMove = vi.fn();
+    const onDropOn = vi.fn();
+    render(<Harness initial={["a", "b", "c"]} onMove={onMove} onDropOn={onDropOn} reorder={false} />);
+    const target = screen.getByRole("button", { name: "Folder" });
+    mockElementFromPoint(target);
+
+    pointer(rowOf("a"), "pointerdown", { x: 0, y: 25 });
+    pointer(window, "pointermove", { x: 0, y: 95 });
+    expect(rowOf("b").style.transform).toBe("translateY(0px)");
+    pointer(window, "pointerup", { x: 0, y: 95 });
+
+    expect(onDropOn).toHaveBeenCalledWith("a", "folder:1", expect.any(Object));
+    expect(onMove).not.toHaveBeenCalled();
+    expect(order()).toEqual(["a", "b", "c"]);
+  });
+
+  it("ignores Alt+Arrow when reordering is off", () => {
+    const onMove = vi.fn();
+    render(<Harness initial={["a", "b", "c"]} onMove={onMove} reorder={false} />);
+    fireEvent.keyDown(rowOf("a"), { key: "ArrowDown", altKey: true });
+    expect(onMove).not.toHaveBeenCalled();
+  });
+});
+
 describe("drop targets", () => {
   it("highlights the target under the pointer and calls onDropOn instead of reordering", () => {
     const onMove = vi.fn();
@@ -208,7 +235,7 @@ describe("drop targets", () => {
 
     pointer(window, "pointerup", { x: 0, y: 95 });
 
-    expect(onDropOn).toHaveBeenCalledWith("a", "folder:1");
+    expect(onDropOn).toHaveBeenCalledWith("a", "folder:1", expect.objectContaining({ y: 95 }));
     expect(onMove).not.toHaveBeenCalled();
     expect(target.dataset.dropHover).toBeUndefined();
     expect(order()).toEqual(["a", "b", "c"]);

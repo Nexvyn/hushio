@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { neighbourTracks, swipeAxis, trackSwipeChange } from "./trackSwipe";
 import type { Track } from "../types";
 
-const base = { distance: 100, speed: 500, canPrev: true, canNext: true };
 
 describe("swipeAxis", () => {
   it("waits for 10px before locking an axis", () => {
@@ -16,6 +15,8 @@ describe("swipeAxis", () => {
 });
 
 describe("trackSwipeChange", () => {
+  const base = { distance: 100, canPrev: true, canNext: true };
+
   it("changes to next on a leftward drag past the distance", () => {
     expect(trackSwipeChange({ ...base, offset: -120, velocity: 0 })).toBe("next");
   });
@@ -24,13 +25,17 @@ describe("trackSwipeChange", () => {
     expect(trackSwipeChange({ ...base, offset: 120, velocity: 0 })).toBe("prev");
   });
 
-  it("does not change on a short drag without speed", () => {
-    expect(trackSwipeChange({ ...base, offset: -99, velocity: -100 })).toBeNull();
+  it("does not change on a short drag that stays short", () => {
+    expect(trackSwipeChange({ ...base, offset: -80, velocity: -20 })).toBeNull();
   });
 
-  it("changes on a fast flick even when the distance is short", () => {
-    expect(trackSwipeChange({ ...base, offset: -20, velocity: -501 })).toBe("next");
-    expect(trackSwipeChange({ ...base, offset: 20, velocity: 500 })).toBeNull();
+  it("changes on a short drag that a fast flick carries past the distance", () => {
+    expect(trackSwipeChange({ ...base, offset: -20, velocity: -900 })).toBe("next");
+    expect(trackSwipeChange({ ...base, offset: 20, velocity: 100 })).toBeNull();
+  });
+
+  it("does not change when a long drag is flicked back the other way", () => {
+    expect(trackSwipeChange({ ...base, offset: -120, velocity: 2000 })).toBeNull();
   });
 
   it("never changes toward a missing neighbour", () => {
@@ -38,8 +43,8 @@ describe("trackSwipeChange", () => {
     expect(trackSwipeChange({ ...base, canPrev: false, offset: 300, velocity: 900 })).toBeNull();
   });
 
-  it("supports the mini player thresholds of 32px and 400px/s", () => {
-    const mini = { distance: 32, speed: 400, canPrev: true, canNext: true };
+  it("supports the mini player threshold of 32px", () => {
+    const mini = { distance: 32, canPrev: true, canNext: true };
     expect(trackSwipeChange({ ...mini, offset: -33, velocity: 0 })).toBe("next");
     expect(trackSwipeChange({ ...mini, offset: 10, velocity: 401 })).toBe("prev");
     expect(trackSwipeChange({ ...mini, offset: -10, velocity: 0 })).toBeNull();

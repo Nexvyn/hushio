@@ -1,7 +1,7 @@
 export const START_PX = 5;
 export const TOUCH_HOLD_MS = 400;
 export const TOUCH_SLOP_PX = 10;
-export const EDGE_PX = 48;
+const EDGE_PX = 48;
 import { DURATION_MS } from "./motion";
 
 export const SETTLE_MS = DURATION_MS.settle;

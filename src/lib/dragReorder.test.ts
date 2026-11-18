@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dropIndex, moveItem, slideOffset } from "./dragReorder";
+import { autoScrollStep, dropIndex, moveItem, slideOffset } from "./dragReorder";
 
 describe("moveItem", () => {
   it("moves an item and returns a new array", () => {
@@ -37,5 +37,19 @@ describe("slideOffset", () => {
   it("keeps the dragged row and an unmoved list at rest", () => {
     expect(slideOffset(0, 0, 3, 56)).toBe(0);
     expect(slideOffset(2, 2, 2, 56)).toBe(0);
+  });
+});
+
+describe("autoScrollStep", () => {
+  it("scrolls up when the finger is within the top edge and faster the closer it gets", () => {
+    expect(autoScrollStep(100, 0, 600, 50, 18)).toBe(0);
+    expect(autoScrollStep(25, 0, 600, 50, 18)).toBeCloseTo(-9);
+    expect(autoScrollStep(-40, 0, 600, 50, 18)).toBe(-18);
+  });
+
+  it("scrolls down when the finger is within the bottom edge", () => {
+    expect(autoScrollStep(300, 0, 600, 50, 18)).toBe(0);
+    expect(autoScrollStep(575, 0, 600, 50, 18)).toBeCloseTo(9);
+    expect(autoScrollStep(700, 0, 600, 50, 18)).toBe(18);
   });
 });

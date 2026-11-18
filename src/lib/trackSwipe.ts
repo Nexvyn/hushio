@@ -1,6 +1,7 @@
 import type { Track } from "../types";
+import { landsPast } from "./gesturePhysics";
 
-export const AXIS_LOCK_PX = 10;
+const AXIS_LOCK_PX = 10;
 export const RUBBER_BAND = 0.3;
 
 export type Axis = "x" | "y";
@@ -15,14 +16,13 @@ export type TrackChangeInput = {
   offset: number;
   velocity: number;
   distance: number;
-  speed: number;
   canPrev: boolean;
   canNext: boolean;
 };
 
-export function trackSwipeChange({ offset, velocity, distance, speed, canPrev, canNext }: TrackChangeInput): TrackChange | null {
-  if (offset < 0 && canNext && (-offset > distance || -velocity > speed)) return "next";
-  if (offset > 0 && canPrev && (offset > distance || velocity > speed)) return "prev";
+export function trackSwipeChange({ offset, velocity, distance, canPrev, canNext }: TrackChangeInput): TrackChange | null {
+  if (offset < 0 && canNext && landsPast(offset, velocity, distance)) return "next";
+  if (offset > 0 && canPrev && landsPast(offset, velocity, distance)) return "prev";
   return null;
 }
 

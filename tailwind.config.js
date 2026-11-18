@@ -1,4 +1,7 @@
 export default {
+  future: {
+    hoverOnlyWhenSupported: true,
+  },
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
@@ -9,14 +12,19 @@ export default {
         title: ["var(--font-title)"],
       },
       fontSize: {
-        "page-title": ["32px", { lineHeight: "1.15", letterSpacing: "-0.02em", fontWeight: "700" }],
-        section: ["18px", { lineHeight: "1.3", letterSpacing: "-0.01em", fontWeight: "650" }],
-        body: ["14px", { lineHeight: "1.5", fontWeight: "400" }],
-        meta: ["12.5px", { lineHeight: "1.4", fontWeight: "450" }],
+        "page-title": ["34px", { lineHeight: "40px", letterSpacing: "-0.02em", fontWeight: "700" }],
+        section: ["22px", { lineHeight: "28px", letterSpacing: "-0.01em", fontWeight: "600" }],
+        "card-title": ["17px", { lineHeight: "22px", letterSpacing: "-0.01em", fontWeight: "600" }],
+        body: ["15px", { lineHeight: "20px", fontWeight: "400" }],
+        meta: ["13px", { lineHeight: "18px", fontWeight: "400" }],
+        caption: ["11px", { lineHeight: "14px", fontWeight: "500" }],
       },
       borderRadius: {
         control: "6px",
-        art: "10px",
+        art: "8px",
+        field: "10px",
+        card: "12px",
+        panel: "12px",
       },
       boxShadow: {
         float: "var(--shadow-float)",
@@ -27,6 +35,12 @@ export default {
         fade: "var(--dur-fade)",
         swap: "var(--dur-swap)",
         reading: "var(--dur-reading)",
+        press: "var(--dur-press)",
+        reveal: "var(--dur-reveal)",
+        hover: "var(--dur-hover)",
+      },
+      transitionTimingFunction: {
+        DEFAULT: "var(--ease-out)",
       },
       colors: {
         base: "rgb(var(--base) / <alpha-value>)",
