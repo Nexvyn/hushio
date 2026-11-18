@@ -1,37 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
-import type { LyricsCandidate, LyricsResult } from "../../lib/bridge";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { LyricsResult } from "../../lib/bridge";
 import { forgetLyrics } from "../../lib/lyrics";
 import { OnArtContext } from "../../lib/onArt";
 import type { Track } from "../../types";
 
-const { lyricsGet, lyricsSearch, lyricsPick, lyricsReset, listenBack, exitApp } = vi.hoisted(() => {
-  if (!window.matchMedia) {
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: (query: string) => ({
-        matches: false,
-        media: query,
-        addEventListener: () => {},
-        removeEventListener: () => {},
-      }),
-    });
-  }
-  return {
-    lyricsGet: vi.fn(),
-    lyricsSearch: vi.fn(),
-    lyricsPick: vi.fn(),
-    lyricsReset: vi.fn(),
-    listenBack: vi.fn(),
-    exitApp: vi.fn(() => Promise.resolve()),
-  };
-});
+const { lyricsGet, lyricsReset, listenBack, exitApp } = vi.hoisted(() => ({
+  lyricsGet: vi.fn(),
+  lyricsReset: vi.fn(),
+  listenBack: vi.fn(),
+  exitApp: vi.fn(() => Promise.resolve()),
+}));
 
 vi.mock("../../lib/bridge", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../lib/bridge")>()),
   lyricsGet,
-  lyricsSearch,
-  lyricsPick,
   lyricsReset,
   listenBackButton: listenBack,
   exitApp,
@@ -46,7 +29,6 @@ vi.mock("../../lib/persist", () => ({
 }));
 
 import { PhoneLyrics } from "./PhoneLyrics";
-import { usePhoneBack } from "./usePhoneBack";
 import { usePlayer } from "../../stores/player";
 import { useUI } from "../../stores/ui";
 
@@ -67,25 +49,20 @@ const chosen: LyricsResult = {
   custom: true,
 };
 
-const candidate: LyricsCandidate = {
-  provider: "lrclib",
-  candidateId: "9001",
-  title: "Yellow",
-  artist: "Coldplay",
-  album: null,
-  duration: 272,
-  synced: true,
-  preview: ["Look at the stars"],
+const translated: LyricsResult = {
+  synced: [
+    { time: 1, text: "Bonjour line", translation: "Hello line" },
+    { time: 2, text: "Second line" },
+  ],
+  plain: null,
+  source: "LRCLIB",
+  wordSynced: false,
 };
-
-const sheetName = { name: "Search lyrics" };
 
 beforeEach(() => {
   usePlayer.setState({ queue: [track], index: 0, playing: false, buffering: false, position: 0, duration: 272 });
-  useUI.setState({ phoneLyricsSearchOpen: false, contextMenu: null, dialog: null, playlistPicker: null, phoneQueueOpen: false, nowPlayingOpen: true, toasts: [], pendingToasts: [] });
+  useUI.setState({ contextMenu: null, dialog: null, playlistPicker: null, phoneQueueOpen: false, nowPlayingOpen: true, toasts: [], pendingToasts: [] });
   lyricsGet.mockReset();
-  lyricsSearch.mockReset();
-  lyricsPick.mockReset();
   lyricsReset.mockReset();
   listenBack.mockReset();
   listenBack.mockImplementation(() => Promise.resolve(() => {}));
@@ -97,33 +74,25 @@ afterEach(() => {
 });
 
 describe("PhoneLyrics", () => {
-  it("shows Search lyrics in the empty state and opens the search sheet", async () => {
+  it("shows the empty state without any search control", async () => {
     lyricsGet.mockResolvedValue(null);
-    lyricsSearch.mockResolvedValue([candidate]);
     render(<PhoneLyrics />);
 
-    expect(await screen.findByText("No lyrics")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Search lyrics" }));
-
-    expect(await screen.findByRole("dialog", sheetName)).toBeTruthy();
-    expect(lyricsSearch).toHaveBeenCalledWith("Coldplay Yellow", 272);
-    expect(await screen.findByRole("button", { name: /Yellow/ })).toBeTruthy();
+    expect(await screen.findByText("Lyrics not available")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /search/i })).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("picks a result, closes the sheet and shows the chosen lyrics", async () => {
-    lyricsGet.mockResolvedValue(null);
-    lyricsSearch.mockResolvedValue([candidate]);
-    lyricsPick.mockResolvedValue(chosen);
-    render(<PhoneLyrics />);
-    expect(await screen.findByText("No lyrics")).toBeTruthy();
+  it("shows automatic lyrics with no search control in the header", async () => {
+    lyricsGet.mockResolvedValue(automatic);
+    render(
+      <OnArtContext.Provider value={true}>
+        <PhoneLyrics />
+      </OnArtContext.Provider>,
+    );
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Search lyrics" })[0]);
-    fireEvent.click(await screen.findByRole("button", { name: /Yellow/ }));
-
-    expect(await screen.findByText("chosen line")).toBeTruthy();
-    await waitFor(() => expect(screen.queryByRole("dialog", sheetName)).toBeNull(), { timeout: 3000 });
-    expect(lyricsPick).toHaveBeenCalledWith("phone-lyrics-track", "lrclib", "9001");
-    expect(lyricsGet).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("automatic line")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /search/i })).toBeNull();
   });
 
   it("hides Reset to automatic for automatic lyrics", async () => {
@@ -147,34 +116,29 @@ describe("PhoneLyrics", () => {
     expect(screen.queryByRole("button", { name: "Reset to automatic" })).toBeNull();
   });
 
-  it("closes the search sheet on Android back and leaves Now Playing open", async () => {
-    lyricsGet.mockResolvedValue(null);
-    lyricsSearch.mockResolvedValue([candidate]);
-    renderHook(() => usePhoneBack());
+  it("shows Translate only for lyrics with translations and shows the translation when on", async () => {
+    lyricsGet.mockResolvedValue(translated);
     render(<PhoneLyrics />);
-    expect(await screen.findByText("No lyrics")).toBeTruthy();
-    await waitFor(() => expect(listenBack).toHaveBeenCalled());
-    const onBack = listenBack.mock.calls[0][0] as () => void;
+    const toggle = await screen.findByRole("button", { name: "Translate lyrics" });
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    expect(screen.queryByText("Hello line")).toBeNull();
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Search lyrics" })[0]);
-    expect(await screen.findByRole("dialog", sheetName)).toBeTruthy();
-
-    act(() => onBack());
-
-    await waitFor(() => expect(screen.queryByRole("dialog", sheetName)).toBeNull(), { timeout: 3000 });
-    expect(useUI.getState().nowPlayingOpen).toBe(true);
+    fireEvent.click(toggle);
+    expect(screen.getByRole("button", { name: "Translate lyrics" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("Hello line")).toBeTruthy();
   });
 
-  it("draws the search button in the on-art colour over the artwork", async () => {
+  it("hides Translate when the lyrics have no translation", async () => {
     lyricsGet.mockResolvedValue(automatic);
-    render(
-      <OnArtContext.Provider value={true}>
-        <PhoneLyrics />
-      </OnArtContext.Provider>,
-    );
+    render(<PhoneLyrics />);
     expect(await screen.findByText("automatic line")).toBeTruthy();
-    const search = screen.getByRole("button", { name: "Search lyrics" });
-    expect(search.className).toContain("text-art");
-    expect(search.className).not.toContain("text-ink-1");
+    expect(screen.queryByRole("button", { name: "Translate lyrics" })).toBeNull();
+  });
+
+  it("has no lyrics share button", async () => {
+    lyricsGet.mockResolvedValue(automatic);
+    render(<PhoneLyrics />);
+    expect(await screen.findByText("automatic line")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Share lyrics" })).toBeNull();
   });
 });

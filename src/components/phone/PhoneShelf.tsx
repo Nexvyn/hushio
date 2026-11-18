@@ -1,9 +1,13 @@
 import type { ReactNode } from "react";
+import { motion } from "motion/react";
 import { focusRing } from "../HomeShelves";
+import type { MenuSource } from "../ContextMenu";
 import { thumbArtwork } from "../../lib/artwork";
+import { phoneSmooth, pressTap, reducedMotion } from "../../lib/motion";
 import { openRecentItem } from "../../lib/searchActions";
 import type { RecentItem } from "../../stores/recents";
 import { PhoneArt } from "./PhoneArt";
+import { menuAt, useCardLongPress } from "./useCardLongPress";
 
 export type ShelfVariant = "tile" | "large" | "round" | "compact" | "default";
 
@@ -18,11 +22,11 @@ const FRAME: Record<ShelfVariant, string> = {
 };
 
 const TITLE: Record<ShelfVariant, string> = {
-  default: "text-[14px] leading-[18px] font-medium",
-  tile: "text-[14px] leading-[18px] font-medium",
-  large: "text-[15px] leading-5 font-medium",
-  round: "text-[14px] leading-[18px] font-medium",
-  compact: "text-[16px] leading-[22px] font-normal",
+  default: "text-body font-semibold leading-5",
+  tile: "text-body font-semibold leading-5",
+  large: "text-body font-semibold leading-5",
+  round: "text-body font-semibold leading-5",
+  compact: "text-body leading-[22px] font-normal",
 };
 
 const ROW: Record<ShelfVariant, string> = {
@@ -35,7 +39,7 @@ const ROW: Record<ShelfVariant, string> = {
 
 export function PhoneSectionHeader({ id, title }: { id?: string; title: string }) {
   return (
-    <h2 id={id} className="mb-3 truncate font-title text-[20px] leading-[26px] font-bold tracking-[-0.02em] text-ink-1">
+    <h2 id={id} className="mb-3 truncate font-title text-card-title leading-[26px] font-semibold tracking-[-0.02em] text-ink-1">
       {title}
     </h2>
   );
@@ -44,7 +48,8 @@ export function PhoneSectionHeader({ id, title }: { id?: string; title: string }
 export function PhoneShelfRow({ children, variant = "default" }: { children: ReactNode; variant?: ShelfVariant }) {
   return (
     <div
-      className={`no-scrollbar -mx-4 snap-x snap-mandatory scroll-px-4 overflow-x-auto px-4 pb-1 ${ROW[variant]}`}
+      data-hscroll
+      className={`no-scrollbar -mr-4 snap-x snap-proximity overflow-x-auto pr-4 pb-1 ${ROW[variant]}`}
     >
       {children}
     </div>
@@ -57,7 +62,7 @@ export function PhoneShelfArt({ src, variant = "default", round = false }: { src
     <PhoneArt
       src={thumbArtwork(src, ART_SIZE[variant]) || null}
       round={round}
-      radius={compact ? "rounded-[6px]" : "rounded-[10px]"}
+      radius="rounded-art"
       className={compact ? "block size-14 shrink-0" : "block aspect-square w-full"}
     />
   );
@@ -70,22 +75,30 @@ type PhoneShelfCardProps = {
   tag?: string;
   round?: boolean;
   variant?: ShelfVariant;
+  menu?: MenuSource;
   onActivate: () => void;
 };
 
-export function PhoneShelfCard({ art, title, subtitle, tag, round = false, variant = "default", onActivate }: PhoneShelfCardProps) {
+export function PhoneShelfCard({ art, title, subtitle, tag, round = false, variant = "default", menu, onActivate }: PhoneShelfCardProps) {
   const row = variant === "compact";
   const showSubtitle = subtitle && variant !== "tile" && variant !== "round";
+  const reduced = reducedMotion();
+  const hold = useCardLongPress(menuAt(menu));
   return (
-    <button
+    <motion.button
       type="button"
-      onClick={onActivate}
-      className={`flex shrink-0 snap-start rounded-[10px] text-left motion-safe:transition-opacity active:opacity-70 ${FRAME[variant]} ${round ? "text-center" : ""} ${focusRing}`}
+      onClick={() => {
+        if (!hold.consumeHold()) onActivate();
+      }}
+      {...hold.bind}
+      whileTap={pressTap(reduced)}
+      transition={phoneSmooth}
+      className={`flex shrink-0 snap-start rounded-art text-left ${FRAME[variant]} ${round ? "text-center" : ""} ${focusRing}`}
     >
       <span className={`relative block ${row ? "size-14 shrink-0" : "w-full"}`}>
         {art}
         {tag && (
-          <span className="absolute left-1.5 top-1.5 rounded-[6px] bg-panel px-1.5 py-0.5 text-[12px] font-semibold tracking-[0.08em] text-ink-1">
+          <span className="absolute left-1.5 top-1.5 rounded-[6px] bg-panel px-1.5 py-0.5 text-meta font-semibold tracking-[0.08em] text-ink-1">
             {tag}
           </span>
         )}
@@ -93,28 +106,42 @@ export function PhoneShelfCard({ art, title, subtitle, tag, round = false, varia
       <span className={`block min-w-0 ${row ? "flex-1" : "mt-2"}`}>
         <span className={`block truncate text-ink-1 ${TITLE[variant]}`}>{title}</span>
         {showSubtitle && (
-          <span className={row ? "block truncate text-[13.5px] leading-[18px] text-ink-2" : "line-clamp-2 text-[13px] leading-[17px] text-ink-2"}>
+          <span className="block truncate text-meta leading-[18px] text-ink-2">
             {subtitle}
           </span>
         )}
       </span>
-    </button>
+    </motion.button>
   );
 }
 
-export function PhoneQuickTiles({ items }: { items: RecentItem[] }) {
+type QuickTileProps = { item: RecentItem; menu?: MenuSource };
+
+function QuickTile({ item, menu }: QuickTileProps) {
+  const reduced = reducedMotion();
+  const hold = useCardLongPress(menuAt(menu));
+  return (
+    <motion.button
+      type="button"
+      onClick={() => {
+        if (!hold.consumeHold()) openRecentItem(item);
+      }}
+      {...hold.bind}
+      whileTap={pressTap(reduced)}
+      transition={phoneSmooth}
+      className={`flex h-14 min-w-0 items-center overflow-hidden rounded-[10px] bg-elevated text-left ${focusRing}`}
+    >
+      <PhoneArt src={thumbArtwork(item.thumb, 56) || null} radius="rounded-none" className="block size-14 shrink-0" />
+      <span className="line-clamp-2 min-w-0 flex-1 px-2.5 text-body font-semibold leading-5 text-ink-1">{item.title}</span>
+    </motion.button>
+  );
+}
+
+export function PhoneQuickTiles({ items, menuFor }: { items: RecentItem[]; menuFor?: (item: RecentItem) => MenuSource | undefined }) {
   return (
     <div className="grid grid-cols-2 gap-2">
       {items.map((item) => (
-        <button
-          type="button"
-          key={`${item.kind}-${item.id}`}
-          onClick={() => openRecentItem(item)}
-          className={`flex h-14 min-w-0 items-center overflow-hidden rounded-[10px] bg-elevated text-left motion-safe:transition-colors active:bg-pressed ${focusRing}`}
-        >
-          <PhoneArt src={thumbArtwork(item.thumb, 56) || null} radius="rounded-none" className="block size-14 shrink-0" />
-          <span className="line-clamp-2 min-w-0 flex-1 px-2.5 text-[14px] leading-[18px] font-medium text-ink-1">{item.title}</span>
-        </button>
+        <QuickTile key={`${item.kind}-${item.id}`} item={item} menu={menuFor?.(item)} />
       ))}
     </div>
   );

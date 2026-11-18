@@ -1,46 +1,33 @@
-import { useEffect, useRef, type PointerEvent } from "react";
-import { animate, useMotionValue, type AnimationPlaybackControls } from "motion/react";
+import { useEffect, useMemo, useRef, type PointerEvent } from "react";
+import { animate, useMotionValue, type AnimationPlaybackControls, type MotionValue } from "motion/react";
 import { type PointerHandlers } from "../../lib/usePointerSwipe";
-import { phoneSmooth, reducedMotion } from "../../lib/motion";
-import { swipeAxis, RUBBER_BAND, type Axis } from "../../lib/trackSwipe";
+import { projectDistance, rubberBandEdge } from "../../lib/gesturePhysics";
+import { swipeAxis, type Axis } from "../../lib/trackSwipe";
+import { reducedMotion, sheetSpring } from "../../lib/motion";
+import { viewportHeight } from "../../lib/viewport";
+import { VelocityTracker } from "../../lib/velocity";
 
-export const SHEET_CLOSE_SHARE_OF_SCREEN = 0.28;
-export const SHEET_CLOSE_DOWN_VELOCITY = 600;
-const VELOCITY_STALE_MS = 100;
+const SHEET_CLOSE_SHARE_OF_SCREEN = 0.28;
 
-export function dragOffset(raw: number): number {
-  return raw < 0 ? raw * RUBBER_BAND : raw;
+export type SheetDriver = {
+  y: MotionValue<number>;
+  height: () => number;
+  glide: (target: number, velocity: number, onDone?: () => void) => void;
+  hold: () => void;
+};
+
+export function dragOffset(raw: number, dimension: number = viewportHeight()): number {
+  return rubberBandEdge(raw, dimension);
 }
 
 export function sheetReleaseCloses(distancePx: number, screenHeightPx: number, downVelocityPxPerS: number): boolean {
-  return distancePx > screenHeightPx * SHEET_CLOSE_SHARE_OF_SCREEN || downVelocityPxPerS > SHEET_CLOSE_DOWN_VELOCITY;
+  return distancePx + projectDistance(downVelocityPxPerS) > screenHeightPx * SHEET_CLOSE_SHARE_OF_SCREEN;
 }
 
-function screenHeight(): number {
-  return typeof window === "undefined" ? 0 : window.innerHeight;
-}
-
-type Session = {
-  startX: number;
-  startY: number;
-  base: number;
-  lastY: number;
-  lastT: number;
-  velocity: number;
-  axis: Axis | null;
-};
-
-export function useSheetDrag(
-  onClose: () => void,
-  canStart: (event: PointerEvent) => boolean,
-) {
-  const reduced = reducedMotion();
-  const y = useMotionValue(reduced ? 0 : screenHeight());
-  const session = useRef<Session | null>(null);
+function useLocalDriver(travel?: () => number): SheetDriver {
+  const y = useMotionValue(reducedMotion() ? 0 : viewportHeight());
   const controls = useRef<AnimationPlaybackControls | null>(null);
   const token = useRef(0);
-  const close = useRef(onClose);
-  close.current = onClose;
 
   useEffect(
     () => () => {
@@ -50,70 +37,136 @@ export function useSheetDrag(
     [],
   );
 
+  return useMemo<SheetDriver>(
+    () => ({
+      y,
+      height: travel ?? viewportHeight,
+      hold() {
+        token.current += 1;
+        controls.current?.stop();
+      },
+      glide(target, velocity, onDone) {
+        token.current += 1;
+        const id = token.current;
+        if (reducedMotion()) {
+          y.set(target);
+          onDone?.();
+          return;
+        }
+        controls.current = animate(y, target, { ...sheetSpring, velocity });
+        controls.current.finished.then(
+          () => {
+            if (token.current === id) onDone?.();
+          },
+          () => {},
+        );
+      },
+    }),
+    [y],
+  );
+}
+
+export type DragStart = "grab" | "content";
+
+type Session = {
+  mode: DragStart;
+  engaged: boolean;
+  startX: number;
+  startY: number;
+  base: number;
+  axis: Axis | null;
+  tracker: VelocityTracker;
+};
+
+export function sheetBodyAtTop(target: Element, root: Element): boolean {
+  for (let node: Element | null = target; node && node !== root; node = node.parentElement) {
+    if (node.scrollHeight > node.clientHeight && node.scrollTop > 0) return false;
+  }
+  return root.scrollTop <= 0;
+}
+
+export function useSheetDrag(
+  onClose: () => void,
+  canStart: (event: PointerEvent) => DragStart | null,
+  external?: SheetDriver,
+  travel?: () => number,
+) {
+  const local = useLocalDriver(travel);
+  const driver = external ?? local;
+  const session = useRef<Session | null>(null);
+  const goal = useRef<"open" | "closed">("open");
+  const close = useRef(onClose);
+  close.current = onClose;
+
   const settle = (velocity: number) => {
-    token.current += 1;
-    if (reducedMotion()) {
-      y.set(0);
-      return;
-    }
-    controls.current = animate(y, 0, { ...phoneSmooth, velocity });
+    goal.current = "open";
+    driver.glide(0, velocity);
   };
 
   const dismiss = (velocity: number) => {
-    if (reducedMotion()) {
-      close.current();
-      return;
-    }
-    const id = ++token.current;
-    controls.current = animate(y, screenHeight(), { ...phoneSmooth, velocity });
-    controls.current.finished.then(() => {
-      if (token.current === id) close.current();
-    });
+    goal.current = "closed";
+    driver.glide(driver.height(), velocity, () => close.current());
+  };
+
+  const resume = () => {
+    if (goal.current === "closed") dismiss(0);
+    else settle(0);
   };
 
   const handlers: PointerHandlers = {
     onPointerDown(event: PointerEvent) {
-      if (!canStart(event)) return;
-      controls.current?.stop();
-      token.current += 1;
+      const mode = canStart(event);
+      if (!mode) return;
+      if (mode === "grab") driver.hold();
+      const tracker = new VelocityTracker();
+      tracker.reset(event.timeStamp, event.clientY);
       session.current = {
+        mode,
+        engaged: mode === "grab",
         startX: event.clientX,
         startY: event.clientY,
-        base: y.get(),
-        lastY: event.clientY,
-        lastT: event.timeStamp,
-        velocity: 0,
+        base: driver.y.get(),
         axis: null,
+        tracker,
       };
     },
     onPointerMove(event: PointerEvent) {
       const current = session.current;
       if (!current) return;
-      const elapsed = event.timeStamp - current.lastT;
-      if (elapsed > 0) current.velocity = ((event.clientY - current.lastY) / elapsed) * 1000;
-      current.lastY = event.clientY;
-      current.lastT = event.timeStamp;
+      current.tracker.add(event.timeStamp, event.clientY);
       if (current.axis === null) {
         current.axis = swipeAxis(event.clientX - current.startX, event.clientY - current.startY);
         if (current.axis === null) return;
       }
       if (current.axis !== "y") return;
-      y.set(dragOffset(current.base + event.clientY - current.startY));
+      if (!current.engaged) {
+        if (event.clientY - current.startY <= 0) return;
+        current.engaged = true;
+        driver.hold();
+        current.base = driver.y.get();
+      }
+      driver.y.set(dragOffset(current.base + event.clientY - current.startY));
     },
     onPointerUp(event: PointerEvent) {
       const current = session.current;
       session.current = null;
-      if (!current || current.axis !== "y") return;
-      const velocity = event.timeStamp - current.lastT > VELOCITY_STALE_MS ? 0 : current.velocity;
-      if (sheetReleaseCloses(Math.max(0, y.get()), screenHeight(), velocity)) dismiss(velocity);
+      if (!current) return;
+      if (current.axis !== "y" || !current.engaged) {
+        if (current.mode === "grab") resume();
+        return;
+      }
+      current.tracker.add(event.timeStamp, event.clientY);
+      const velocity = current.tracker.velocity(event.timeStamp);
+      if (sheetReleaseCloses(Math.max(0, driver.y.get()), driver.height(), velocity)) dismiss(velocity);
       else settle(velocity);
     },
     onPointerCancel() {
       const current = session.current;
       session.current = null;
-      if (current?.axis === "y") settle(0);
+      if (current?.engaged && current.axis === "y") settle(0);
+      else if (current?.mode !== "content") resume();
     },
   };
 
-  return { handlers, y };
+  return { handlers, close: () => dismiss(0), y: driver.y };
 }

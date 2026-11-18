@@ -1,17 +1,49 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject, type PointerEvent, type ReactNode } from "react";
 import { AnimatePresence, animate, motion, useMotionValue, useTransform, type AnimationPlaybackControls, type MotionValue, type Variants } from "motion/react";
-import { MusicNote01Icon } from "@hugeicons/core-free-icons";
-import { Icon } from "../Icon";
-import { upgradeArtwork } from "../../lib/artwork";
-import { PHONE_MS, fade, phoneSmooth, phoneTween, reducedMotion } from "../../lib/motion";
+import { MusicNote } from "@phosphor-icons/react";
+import { PhoneIcon } from "./PhoneIcon";
+import { thumbArtwork } from "../../lib/artwork";
+import { PHONE_MS, artPauseSpring, coverSnapSpring, fade, gate, phoneSmooth, phoneTween, reducedMotion } from "../../lib/motion";
 import { haptic } from "../../lib/haptics";
-import { RUBBER_BAND, swipeAxis, trackSwipeChange, type Axis, type TrackChange } from "../../lib/trackSwipe";
+import { rubberBand } from "../../lib/gesturePhysics";
+import { swipeAxis, trackSwipeChange, type Axis, type TrackChange } from "../../lib/trackSwipe";
 import type { Track } from "../../types";
+import { CanvasVideo } from "../CanvasVideo";
+import { useCanvasClip } from "../useCanvasClip";
+import { useSettings } from "../../stores/settings";
+import { markRevealed, useImageReveal } from "../useImageReveal";
+import { viewportHeight, viewportWidth } from "../../lib/viewport";
+import { VelocityTracker } from "../../lib/velocity";
 
-const GAP_PX = 16;
-const COVER_SIZE = "min(calc(100vw - 48px), 44vh, 380px)";
-const CHANGE_DISTANCE_SHARE = 0.25;
-const CHANGE_SPEED_PX_S = 500;
+const GAP_PX = 24;
+const COVER_SIZE = "min(88vw, 56vh, 460px)";
+const SKIP_PX = 72;
+const DRAG_SHARE = 0.35;
+export const PAUSED_SCALE = 0.86;
+const MINI_THUMB_PX = 48;
+
+function coverPixels(): number {
+  return Math.min(viewportWidth() * 0.88, viewportHeight() * 0.56, 460);
+}
+
+export function warmCover(thumb: string | null | undefined): void {
+  const src = thumb ? thumbArtwork(thumb, coverPixels()) : "";
+  if (!src || typeof Image === "undefined") return;
+  const image = new Image();
+  image.src = src;
+  image.decode?.().then(
+    () => markRevealed(src),
+    () => {},
+  );
+}
+
+type CoverFlight = {
+  x: MotionValue<number>;
+  y: MotionValue<number>;
+  scale: MotionValue<number>;
+  radius?: MotionValue<number>;
+  fade?: MotionValue<number>;
+};
 
 type CarouselProps = {
   current: Track | null;
@@ -19,29 +51,43 @@ type CarouselProps = {
   next: Track | null;
   playing: boolean;
   onChange: (change: TrackChange) => void;
+  flight?: CoverFlight;
 };
 
-type Session = { x0: number; y0: number; base: number; lastX: number; lastT: number; velocity: number; axis: Axis | null };
+type Session = { x0: number; y0: number; base: number; axis: Axis | null; tracker: VelocityTracker };
 
 function focus(distance: number, span: number): number {
   if (span <= 0) return 1;
   return Math.min(1, Math.max(0, 1 - Math.abs(distance) / span));
 }
 
-function coverVariants(reduced: boolean): Variants {
-  return {
-    initial: (instant: boolean) => (instant ? { opacity: 1, scale: 1 } : reduced ? { opacity: 0 } : { opacity: 0, scale: 0.96 }),
-    animate: { opacity: 1, scale: 1, transition: reduced ? fade : phoneTween(PHONE_MS.artIn) },
-    exit: (instant: boolean) => ({ opacity: 0, transition: instant ? { duration: 0 } : phoneTween(PHONE_MS.artOut) }),
-  };
-}
+type CoverCustom = { instant: boolean };
 
-function CoverFace({ track }: { track: Track }) {
-  const src = track.thumb ? upgradeArtwork(track.thumb) : null;
+const coverVariants: Variants = {
+  initial: ({ instant }: CoverCustom) => (instant ? { opacity: 1 } : { opacity: 0 }),
+  animate: { opacity: 1, transition: fade },
+  exit: { opacity: 0, transition: phoneTween(PHONE_MS.artOut) },
+};
+
+type FaceProps = { track: Track; clip?: string | null; playing?: boolean; lead?: boolean; radius?: MotionValue<number> };
+
+function CoverFace({ track, clip = null, playing = false, lead = false, radius }: FaceProps) {
+  const src = track.thumb ? thumbArtwork(track.thumb, coverPixels()) : null;
+  const small = lead && track.thumb ? thumbArtwork(track.thumb, MINI_THUMB_PX) : "";
+  const reveal = useImageReveal(src);
   return (
-    <span className="grid h-full w-full place-items-center overflow-hidden rounded-[12px] [corner-shape:squircle] bg-wash text-ink-2">
-      {src ? <img src={src} alt="" className="h-full w-full object-cover" /> : <Icon icon={MusicNote01Icon} />}
-    </span>
+    <motion.span
+      className="relative grid h-full w-full place-items-center overflow-hidden rounded-[12px] [corner-shape:squircle] bg-wash text-ink-2"
+      style={radius ? { borderRadius: radius } : undefined}
+    >
+      {small && <img src={small} alt="" decoding="sync" className="absolute inset-0 h-full w-full object-cover" />}
+      {src ? (
+        <img loading={lead ? "eager" : "lazy"} decoding="async" src={src} alt="" onLoad={reveal.onLoad} className={`relative h-full w-full object-cover ${reveal.className}`} />
+      ) : (
+        <PhoneIcon icon={MusicNote} />
+      )}
+      {clip && <CanvasVideo key={clip} src={clip} playing={playing} className="absolute inset-0 h-full w-full object-cover" />}
+    </motion.span>
   );
 }
 
@@ -49,32 +95,41 @@ type SlotProps = {
   x: MotionValue<number>;
   side: -1 | 0 | 1;
   span: MutableRefObject<number>;
+  fade: MotionValue<number>;
   slotRef?: MutableRefObject<HTMLDivElement | null>;
+  artCentre?: boolean;
   children?: ReactNode;
 };
 
-function Slot({ x, side, span, slotRef, children }: SlotProps) {
+function Slot({ x, side, span, fade: visible, slotRef, artCentre = false, children }: SlotProps) {
   const scale = useTransform(x, (value) => 0.9 + 0.1 * focus(value + side * span.current, span.current));
-  const opacity = useTransform(x, (value) => 0.6 + 0.4 * focus(value + side * span.current, span.current));
+  const opacity = useTransform([x, visible], ([value, shown]: number[]) => (0.6 + 0.4 * focus(value + side * span.current, span.current)) * shown);
   return (
     <motion.div
       ref={slotRef}
+      data-art-centre={artCentre ? "" : undefined}
       style={{ width: COVER_SIZE, aspectRatio: "1 / 1", scale, opacity }}
-      className="relative shrink-0"
+      className="relative shrink-0 will-change-[transform,opacity]"
     >
       {children}
     </motion.div>
   );
 }
 
-export function ArtCarousel({ current, prev, next, playing, onChange }: CarouselProps) {
+export function ArtCarousel({ current, prev, next, playing, onChange, flight }: CarouselProps) {
   const reduced = reducedMotion();
   const x = useMotionValue(0);
+  const solid = useMotionValue(1);
+  const shown = flight?.fade ?? solid;
   const span = useRef(0);
   const centre = useRef<HTMLDivElement | null>(null);
   const session = useRef<Session | null>(null);
   const controls = useRef<AnimationPlaybackControls | null>(null);
+  const pendingChange = useRef<TrackChange | null>(null);
   const [instant, setInstant] = useState(false);
+  const animatedCovers = useSettings((state) => state.animatedCovers);
+  const dataSaver = useSettings((state) => state.dataSaver);
+  const clip = useCanvasClip(current, animatedCovers && !dataSaver);
 
   const measure = () => {
     const width = centre.current?.offsetWidth ?? 0;
@@ -84,102 +139,129 @@ export function ArtCarousel({ current, prev, next, playing, onChange }: Carousel
   useLayoutEffect(measure, []);
   useEffect(() => setInstant(false), [current?.id]);
 
+  const changeRef = useRef(onChange);
+  changeRef.current = onChange;
+  useEffect(
+    () => () => {
+      const change = pendingChange.current;
+      if (!change) return;
+      pendingChange.current = null;
+      changeRef.current(change);
+    },
+    [],
+  );
+
   const release = (event: PointerEvent<HTMLDivElement>, cancelled: boolean) => {
     const active = session.current;
     session.current = null;
     if (!active || active.axis !== "x") return;
-    const offset = reduced ? event.clientX - active.x0 : x.get();
-    const cover = span.current - GAP_PX;
+    active.tracker.add(event.timeStamp, event.clientX);
+    const velocity = active.tracker.velocity(event.timeStamp);
     const change = cancelled
       ? null
       : trackSwipeChange({
-          offset,
-          velocity: active.velocity,
-          distance: cover * CHANGE_DISTANCE_SHARE,
-          speed: CHANGE_SPEED_PX_S,
+          offset: event.clientX - active.x0,
+          velocity,
+          distance: SKIP_PX,
           canPrev: prev !== null,
           canNext: next !== null,
         });
     if (!change) {
       if (reduced) x.set(0);
-      else controls.current = animate(x, 0, { ...phoneSmooth, velocity: active.velocity });
+      else controls.current = animate(x, 0, { ...coverSnapSpring, velocity: velocity * DRAG_SHARE });
       return;
     }
-    haptic("select");
+    haptic("tick");
     if (reduced) {
       onChange(change);
       return;
     }
-    setInstant(true);
-    x.set(offset + (change === "next" ? span.current : -span.current));
-    onChange(change);
-    controls.current = animate(x, 0, { ...phoneSmooth, velocity: active.velocity });
+    pendingChange.current = change;
+    controls.current = animate(x, change === "next" ? -span.current : span.current, { ...phoneSmooth, velocity: velocity * DRAG_SHARE });
+    controls.current.finished.then(
+      () => {
+        if (pendingChange.current !== change) return;
+        pendingChange.current = null;
+        setInstant(true);
+        x.set(0);
+        onChange(change);
+      },
+      () => {},
+    );
   };
+
+  const flightStyle = flight ? { x: flight.x, y: flight.y, scale: flight.scale, transformOrigin: "0px 0px" } : undefined;
 
   return (
     <div
-      className="flex w-full touch-none justify-center gap-4"
+      className="flex w-full touch-none justify-center gap-6"
       onPointerDown={(event) => {
         controls.current?.stop();
+        const change = pendingChange.current;
+        if (change) {
+          pendingChange.current = null;
+          x.set(x.get() + (change === "next" ? span.current : -span.current));
+          setInstant(true);
+          onChange(change);
+        }
         measure();
+        const tracker = new VelocityTracker();
+        tracker.reset(event.timeStamp, event.clientX);
         session.current = {
           x0: event.clientX,
           y0: event.clientY,
           base: x.get(),
-          lastX: event.clientX,
-          lastT: event.timeStamp,
-          velocity: 0,
           axis: null,
+          tracker,
         };
       }}
       onPointerMove={(event) => {
         const active = session.current;
         if (!active) return;
-        const elapsed = event.timeStamp - active.lastT;
-        if (elapsed > 0) active.velocity = ((event.clientX - active.lastX) / elapsed) * 1000;
-        active.lastX = event.clientX;
-        active.lastT = event.timeStamp;
+        active.tracker.add(event.timeStamp, event.clientX);
         if (active.axis === null) {
           active.axis = swipeAxis(event.clientX - active.x0, event.clientY - active.y0);
           if (active.axis === null) return;
         }
         if (active.axis !== "x" || reduced) return;
-        const raw = active.base + event.clientX - active.x0;
+        const raw = active.base + (event.clientX - active.x0) * DRAG_SHARE;
         const blocked = (raw < 0 && next === null) || (raw > 0 && prev === null);
-        x.set(blocked ? raw * RUBBER_BAND : raw);
+        x.set(blocked ? rubberBand(raw, viewportWidth()) : raw);
       }}
       onPointerUp={(event) => release(event, false)}
       onPointerCancel={(event) => release(event, true)}
     >
-      <Slot x={x} side={-1} span={span}>
+      <Slot x={x} side={-1} span={span} fade={shown}>
         {prev && <CoverFace track={prev} />}
       </Slot>
-      <Slot x={x} side={0} span={span} slotRef={centre}>
+      <Slot x={x} side={0} span={span} fade={reduced ? shown : solid} slotRef={centre} artCentre>
         {current && (
-          <motion.div
-            className="h-full w-full"
-            animate={{ scale: playing || reduced ? 1 : 0.9 }}
-            transition={phoneSmooth}
-          >
-            <div className="grid h-full w-full">
-              <AnimatePresence initial={false} custom={instant}>
-                <motion.div
-                  key={current.id}
-                  className="col-start-1 row-start-1 h-full w-full"
-                  custom={instant}
-                  variants={coverVariants(reduced)}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                >
-                  <CoverFace track={current} />
-                </motion.div>
-              </AnimatePresence>
-            </div>
+          <motion.div className="relative h-full w-full will-change-transform" style={flightStyle}>
+            <motion.div
+              className="h-full w-full"
+              animate={{ scale: playing || reduced ? 1 : PAUSED_SCALE }}
+              transition={gate(reduced, artPauseSpring)}
+            >
+              <div className="grid h-full w-full">
+                <AnimatePresence initial={false} custom={{ instant }}>
+                  <motion.div
+                    key={current.id}
+                    className="col-start-1 row-start-1 h-full w-full"
+                    custom={{ instant }}
+                    variants={coverVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                  >
+                    <CoverFace track={current} clip={clip} playing={playing} lead radius={flight?.radius} />
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </Slot>
-      <Slot x={x} side={1} span={span}>
+      <Slot x={x} side={1} span={span} fade={shown}>
         {next && <CoverFace track={next} />}
       </Slot>
     </div>

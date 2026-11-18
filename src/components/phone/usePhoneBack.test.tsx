@@ -18,6 +18,7 @@ vi.mock("../../lib/bridge", () => ({
 import { usePhoneBack } from "./usePhoneBack";
 import { useNavigation } from "../../stores/navigation";
 import { useUI } from "../../stores/ui";
+import { useSongInfo } from "../../stores/songInfo";
 
 let press: () => void = () => {};
 
@@ -31,7 +32,8 @@ beforeEach(() => {
   });
   exitApp.mockClear();
   useNavigation.setState({ view: { name: "home" }, navPast: [], navFuture: [], pendingScroll: null });
-  useUI.setState({ contextMenu: null, dialog: null, playlistPicker: null, phoneQueueOpen: false, phoneLyricsSearchOpen: false, nowPlayingOpen: false, toasts: [], pendingToasts: [] });
+  useUI.setState({ contextMenu: null, dialog: null, playlistPicker: null, phoneQueueOpen: false, phoneLyricsOpen: false, nowPlayingOpen: false, toasts: [], pendingToasts: [] });
+  useSongInfo.setState({ song: null });
 });
 
 afterEach(() => {
@@ -49,12 +51,25 @@ describe("usePhoneBack", () => {
     expect(useUI.getState().nowPlayingOpen).toBe(true);
   });
 
-  it("closes the phone lyrics search sheet on back", async () => {
+  it("closes song info on back and does not go back in history", async () => {
     renderHook(() => usePhoneBack());
     await vi.waitFor(() => expect(listen).toHaveBeenCalled());
-    useUI.setState({ nowPlayingOpen: true, phoneLyricsSearchOpen: true });
+    useNavigation.setState({ view: { name: "search" }, navPast: [{ view: { name: "home" }, scroll: 0 }] });
+    useSongInfo.setState({
+      song: { id: "s1", title: "Song", artist: "Artist", thumb: null, artistId: null, albumId: null, album: null, duration: 0, explicit: false, isVideo: false },
+    });
     press();
-    expect(useUI.getState().phoneLyricsSearchOpen).toBe(false);
+    expect(useSongInfo.getState().song).toBeNull();
+    expect(useNavigation.getState().view.name).toBe("search");
+    expect(useNavigation.getState().navPast).toHaveLength(1);
+  });
+
+  it("closes the lyrics panel on back and keeps Now Playing open", async () => {
+    renderHook(() => usePhoneBack());
+    await vi.waitFor(() => expect(listen).toHaveBeenCalled());
+    useUI.setState({ nowPlayingOpen: true, phoneLyricsOpen: true });
+    press();
+    expect(useUI.getState().phoneLyricsOpen).toBe(false);
     expect(useUI.getState().nowPlayingOpen).toBe(true);
   });
 

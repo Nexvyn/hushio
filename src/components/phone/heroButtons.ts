@@ -1,5 +1,5 @@
 const BASE =
-  "flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-[12px] [corner-shape:squircle] px-4 text-[15px] font-semibold disabled:opacity-[var(--disabled-opacity)] motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+  "flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-[12px] [corner-shape:squircle] px-4 text-[15px] font-semibold disabled:opacity-[var(--disabled-opacity)] motion-safe:transition-[color,background-color,transform] motion-safe:duration-press motion-safe:active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
 export const PHONE_PLAY = `${BASE} bg-[color:var(--hero-play-bg,rgb(var(--primary)))] text-[color:var(--hero-play-ink,rgb(var(--on-primary)))] hover:opacity-90`;
 

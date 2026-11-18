@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { AnimatePresence } from "motion/react";
-import { ArrowRight01Icon, CheckIcon } from "@hugeicons/core-free-icons";
-import { Icon } from "../Icon";
+import { CaretRight, Check } from "@phosphor-icons/react";
+import { PhoneIcon } from "./PhoneIcon";
 import { RowThumb } from "../RowThumb";
+import { SongInfoSheet } from "../SongInfoSheet";
 import { Sheet } from "./Sheet";
 import { PressRow } from "./PressRow";
 import type { MenuItem, ContextMenuState } from "../../stores/ui";
@@ -16,12 +17,12 @@ function MenuRow({ item, onActivate, indent }: { item: MenuItem; onActivate: (it
   const tone = item.danger ? "text-danger-text" : "text-ink-1";
   return (
     <PressRow label={item.label} className={`px-4 ${item.disabled ? "opacity-[var(--disabled-opacity)]" : ""}`} onPress={() => !item.disabled && onActivate(item)}>
-      <span className={`flex w-full items-center gap-3 text-[13px] font-normal ${tone} ${indent ? "pl-8" : ""}`}>
-        {item.icon && <Icon icon={item.icon} />}
+      <span className={`flex w-full items-center gap-3 text-meta font-normal ${tone} ${indent ? "pl-8" : ""}`}>
+        {item.icon && <PhoneIcon icon={item.icon} />}
         <span className="min-w-0 flex-1 truncate">{item.label}</span>
-        {item.note && <span className="truncate text-[11.5px] text-ink-2">{item.note}</span>}
-        {item.checked === true && <Icon icon={CheckIcon} />}
-        {item.children && <Icon icon={ArrowRight01Icon} />}
+        {item.note && <span className="truncate text-caption text-ink-2">{item.note}</span>}
+        {item.checked === true && <PhoneIcon icon={Check} />}
+        {item.children && <PhoneIcon icon={CaretRight} />}
       </span>
     </PressRow>
   );
@@ -53,8 +54,8 @@ function MenuBody({ menu }: { menu: ContextMenuState }) {
           <div className="flex items-center gap-3 pb-2">
             <RowThumb src={subject.thumb} size={48} />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-semibold text-ink-1">{subject.title}</p>
-              {subject.subtitle && <p className="truncate text-[11.5px] text-ink-2">{subject.subtitle}</p>}
+              <p className="truncate text-meta font-semibold text-ink-1">{subject.title}</p>
+              {subject.subtitle && <p className="truncate text-caption text-ink-2">{subject.subtitle}</p>}
             </div>
           </div>
         )
@@ -62,10 +63,9 @@ function MenuBody({ menu }: { menu: ContextMenuState }) {
     >
       <div role="menu" className="flex flex-col pb-2">
         {rows.map((item, index) => (
-          <div key={`${index}:${item.label}`}>
-            {item.separatorBefore && <div className="my-1 h-px bg-separator" />}
+          <div key={`${index}:${item.label}`} className={item.separatorBefore ? "mt-2" : undefined}>
             {item.header ? (
-              <p className="px-4 pb-1 pt-2 text-[11.5px] text-ink-2">{item.label}</p>
+              <p className="px-4 pb-1 pt-2 text-caption text-ink-2">{item.label}</p>
             ) : (
               <MenuRow item={item} onActivate={activate} />
             )}
@@ -80,5 +80,10 @@ function MenuBody({ menu }: { menu: ContextMenuState }) {
 
 export function PhoneMenuSheet() {
   const menu = useUI((state) => state.contextMenu);
-  return <AnimatePresence>{menu && <MenuBody key="phone-menu" menu={menu} />}</AnimatePresence>;
+  return (
+    <>
+      <AnimatePresence>{menu && <MenuBody key="phone-menu" menu={menu} />}</AnimatePresence>
+      <SongInfoSheet />
+    </>
+  );
 }

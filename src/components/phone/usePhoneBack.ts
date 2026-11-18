@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { listenBackButton, exitApp } from "../../lib/bridge";
 import { EXIT_WINDOW_MS, nextArmedAt, resolveBack } from "../../lib/phoneBack";
 import { useNavigation } from "../../stores/navigation";
+import { useSongInfo } from "../../stores/songInfo";
 import { useUI } from "../../stores/ui";
 
 export function usePhoneBack(enabled = true) {
@@ -15,12 +16,14 @@ export function usePhoneBack(enabled = true) {
       const ui = useUI.getState();
       const nav = useNavigation.getState();
       const now = Date.now();
+      const songInfoOpen = useSongInfo.getState().song !== null;
       const sheetOpen =
         ui.contextMenu !== null ||
+        songInfoOpen ||
         ui.dialog !== null ||
         ui.playlistPicker !== null ||
         ui.phoneQueueOpen ||
-        ui.phoneLyricsSearchOpen;
+        ui.phoneLyricsOpen;
       const action = resolveBack({
         sheetOpen,
         nowPlayingOpen: ui.nowPlayingOpen,
@@ -33,9 +36,10 @@ export function usePhoneBack(enabled = true) {
       switch (action) {
         case "close-sheet":
           if (ui.contextMenu) ui.closeContextMenu();
+          else if (songInfoOpen) useSongInfo.getState().close();
           else if (ui.dialog) ui.closeDialog();
           else if (ui.playlistPicker) ui.closePlaylistPicker();
-          else if (ui.phoneLyricsSearchOpen) ui.closePhoneLyricsSearch();
+          else if (ui.phoneLyricsOpen) ui.closePhoneLyrics();
           else ui.closePhoneQueue();
           break;
         case "close-now-playing":

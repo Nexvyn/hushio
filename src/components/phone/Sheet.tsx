@@ -1,8 +1,9 @@
-import { useRef, type ReactNode } from "react";
-import { motion } from "motion/react";
-import { PHONE_MS, fade, phoneSmooth, phoneTransition, phoneTween, reducedMotion } from "../../lib/motion";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { motion, useTransform } from "motion/react";
+import { fade, phoneSmooth, phoneTransition, reducedMotion } from "../../lib/motion";
 import { INSET_BOTTOM } from "../../lib/phoneNav";
-import { useSheetDrag } from "./useSheetDrag";
+import { viewportHeight } from "../../lib/viewport";
+import { sheetBodyAtTop, useSheetDrag } from "./useSheetDrag";
 
 type SheetProps = {
   label: string;
@@ -16,21 +17,36 @@ type SheetProps = {
 export function Sheet({ label, onClose, header, height, zClass = "z-[115]", children }: SheetProps) {
   const reduced = reducedMotion();
   const panel = useRef<HTMLElement>(null);
-  const drag = useSheetDrag(onClose, (event) => {
-    const target = event.target as HTMLElement;
-    return target.closest("[data-sheet-grab]") !== null;
-  });
+  const body = useRef<HTMLDivElement>(null);
+  const travel = useRef(0);
+  const drag = useSheetDrag(
+    onClose,
+    (event) => {
+      const target = event.target as Element;
+      if (target.closest("[data-sheet-grab]")) return "grab";
+      const root = body.current;
+      return root !== null && root.contains(target) && sheetBodyAtTop(target, root) ? "content" : null;
+    },
+    undefined,
+    () => travel.current || viewportHeight(),
+  );
+  const scrimOpacity = useTransform(drag.y, (y) => 1 - Math.min(1, Math.max(0, y / (travel.current || viewportHeight()))));
+
+  useLayoutEffect(() => {
+    travel.current = panel.current?.offsetHeight ?? 0;
+    if (!reduced) drag.y.set(travel.current || viewportHeight());
+  }, []);
 
   return (
     <motion.div className={`fixed inset-0 ${zClass} flex flex-col justify-end`}>
       <motion.div
         aria-hidden="true"
-        className="absolute inset-0"
-        style={{ background: "rgb(var(--scrim) / var(--scrim-alpha))" }}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={reduced ? fade : phoneTween(PHONE_MS.scrim)}
+        className={reduced ? "absolute inset-0" : "absolute inset-0 will-change-[opacity]"}
+        style={{ background: "rgb(var(--scrim) / var(--scrim-alpha))", opacity: reduced ? undefined : scrimOpacity }}
+        initial={reduced ? { opacity: 0 } : undefined}
+        animate={reduced ? { opacity: 1 } : undefined}
+        exit={reduced ? { opacity: 0 } : undefined}
+        transition={reduced ? fade : undefined}
         onClick={onClose}
       />
       <motion.section
@@ -40,10 +56,10 @@ export function Sheet({ label, onClose, header, height, zClass = "z-[115]", chil
         aria-label={label}
         initial={reduced ? { opacity: 0 } : undefined}
         animate={{ y: 0, opacity: 1 }}
-        exit={reduced ? { opacity: 0 } : { y: window.innerHeight }}
+        exit={reduced ? { opacity: 0 } : { y: travel.current || viewportHeight() }}
         transition={phoneTransition(reduced, phoneSmooth)}
         {...drag.handlers}
-        className="relative flex w-full flex-col overflow-hidden rounded-t-[20px] bg-elevated text-ink-1"
+        className="relative flex w-full flex-col overflow-hidden rounded-t-[20px] bg-elevated text-ink-1 will-change-transform"
         style={{ height, maxHeight: "90vh", paddingBottom: INSET_BOTTOM, y: drag.y }}
       >
         <div data-sheet-grab className="flex shrink-0 cursor-grab touch-none flex-col items-center pb-1 pt-2">
@@ -54,7 +70,7 @@ export function Sheet({ label, onClose, header, height, zClass = "z-[115]", chil
             {header}
           </div>
         )}
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
+        <div ref={body} className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">{children}</div>
       </motion.section>
     </motion.div>
   );

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode, type PointerEvent, type MouseEvent } from "react";
+import { haptic } from "../../lib/haptics";
 import { LongPress } from "../../lib/longPress";
 import { reducedMotion } from "../../lib/motion";
 import { PRESS_SLOP_PX, pressMoved, type Point } from "../../lib/touchGesture";
@@ -8,11 +9,13 @@ type PressRowProps = {
   className?: string;
   contentClassName?: string;
   onPress?: () => void;
+  onPressStart?: () => void;
   onLongPress?: (point: Point) => void;
+  longPressMs?: number;
   children: ReactNode;
 };
 
-export function PressRow({ label, className = "", contentClassName = "", onPress, onLongPress, children }: PressRowProps) {
+export function PressRow({ label, className = "", contentClassName = "", onPress, onPressStart, onLongPress, longPressMs, children }: PressRowProps) {
   const reduced = reducedMotion();
   const [pressed, setPressed] = useState(false);
   const origin = useRef<Point | null>(null);
@@ -26,8 +29,10 @@ export function PressRow({ label, className = "", contentClassName = "", onPress
       fired.current = true;
       setPressed(false);
       const at = origin.current;
-      if (at) handlers.current.onLongPress?.(at);
-    });
+      if (!at) return;
+      haptic("select");
+      handlers.current.onLongPress?.(at);
+    }, longPressMs);
   }
 
   useEffect(() => () => press.current?.cancel(), []);
@@ -43,6 +48,7 @@ export function PressRow({ label, className = "", contentClassName = "", onPress
     origin.current = { x: event.clientX, y: event.clientY };
     setPressed(true);
     press.current?.start(origin.current);
+    onPressStart?.();
   };
 
   const onPointerMove = (event: PointerEvent<HTMLButtonElement>) => {

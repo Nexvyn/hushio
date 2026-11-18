@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { MusicNote01Icon } from "@hugeicons/core-free-icons";
+import { MusicNote } from "@phosphor-icons/react";
 import { Icon } from "../Icon";
 
 type PhoneArtProps = {
@@ -10,16 +10,18 @@ type PhoneArtProps = {
   children?: ReactNode;
 };
 
+const loadedArt = new Set<string>();
+
 export function PhoneArt({ src, round = false, radius = "rounded-[12px]", className = "block aspect-square w-full", children }: PhoneArtProps) {
   const shape = round ? "rounded-full" : `${radius} [corner-shape:squircle]`;
   const [settled, setSettled] = useState<{ src: string; ok: boolean } | null>(null);
   const state = settled?.src === src ? settled : null;
-  const loaded = state?.ok === true;
+  const loaded = (src !== null && loadedArt.has(src)) || state?.ok === true;
   const failed = state?.ok === false;
   return (
     <span aria-hidden="true" className={`${className} relative overflow-hidden bg-wash text-ink-2 ${shape}`}>
       <span className="absolute inset-0 grid place-items-center">
-        <Icon icon={MusicNote01Icon} />
+        <Icon icon={MusicNote} />
       </span>
       {src && !failed && (
         <img
@@ -27,7 +29,10 @@ export function PhoneArt({ src, round = false, radius = "rounded-[12px]", classN
           alt=""
           loading="lazy"
           decoding="async"
-          onLoad={() => setSettled({ src, ok: true })}
+          onLoad={() => {
+            loadedArt.add(src);
+            setSettled({ src, ok: true });
+          }}
           onError={() => setSettled({ src, ok: false })}
           className={`absolute inset-0 size-full object-cover ${shape} motion-safe:transition-opacity motion-safe:duration-reading ${loaded ? "opacity-100" : "opacity-0"}`}
         />

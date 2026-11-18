@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Track } from "../../types";
+import { INSET_TOP } from "../../lib/phoneNav";
 
 if (!("PointerEvent" in window)) {
   Object.defineProperty(window, "PointerEvent", { configurable: true, value: class PointerEvent extends MouseEvent {} });
@@ -19,7 +20,17 @@ const { audio, playStream, play, pause, seekTo, setVolume, setMuted, getPlayback
 
 vi.mock("../../lib/audio", () => ({ audio, playStream, play, pause, seekTo, setVolume, setMuted, getPlaybackPosition }));
 vi.mock("../../lib/lyrics", () => ({ prefetchLyrics: () => {} }));
-vi.mock("../../lib/useTrackLyrics", () => ({ useTrackLyrics: () => ({ lyrics: null, loading: false }) }));
+const { lyricsState, useTrackLyricsSpy } = vi.hoisted(() => ({
+  lyricsState: { lyrics: null as import("../../lib/bridge").LyricsResult | null, loading: false },
+  useTrackLyricsSpy: vi.fn(),
+}));
+
+vi.mock("../../lib/useTrackLyrics", () => ({
+  useTrackLyrics: (...args: unknown[]) => {
+    useTrackLyricsSpy(...args);
+    return { ...lyricsState, reload: () => {} };
+  },
+}));
 vi.mock("../../lib/persist", () => ({
   persistStorage: () => ({
     getItem: async () => null,
@@ -46,7 +57,9 @@ function header(): HTMLElement {
 
 beforeEach(() => {
   usePlayer.setState({ queue: [track(1), track(2)], index: 0, playing: false, buffering: false, position: 50, duration: 200 });
-  useUI.setState({ nowPlayingOpen: true });
+  lyricsState.lyrics = null;
+  lyricsState.loading = false;
+  useUI.setState({ nowPlayingOpen: true, phoneQueueOpen: false, phoneLyricsOpen: false });
 });
 
 afterEach(() => {
@@ -59,6 +72,21 @@ describe("PhoneNowPlaying", () => {
     useUI.setState({ nowPlayingOpen: false });
     render(<PhoneNowPlaying />);
     expect(screen.queryByRole("dialog", { name: "Now playing" })).toBeNull();
+  });
+
+  it("covers the whole screen and keeps the header below the status inset", () => {
+    render(<PhoneNowPlaying />);
+    const close = screen.getByRole("button", { name: "Close Now Playing" });
+    const section = screen.getByRole("dialog", { name: "Now playing" });
+    expect(section.className).toContain("inset-0");
+    const backdrop = section.firstElementChild as HTMLElement;
+    expect(backdrop.className).toContain("bg-base");
+    expect(backdrop.className).not.toContain("rounded");
+    expect(screen.getByRole("button", { name: "More options" })).toBeTruthy();
+    const body = close.closest<HTMLElement>("[data-sheet-body]");
+    expect(body && section.contains(body)).toBe(true);
+    expect(body?.style.paddingTop).toBe(INSET_TOP);
+    expect(document.querySelector("[data-roll-strip]")).toBeNull();
   });
 
   it("shows the transport and secondary controls and no timing nudge", () => {
@@ -74,7 +102,6 @@ describe("PhoneNowPlaying", () => {
       "Download",
       "Lyrics",
       "Queue",
-      "Sleep timer",
       "Cast",
     ]) {
       expect(screen.getByRole("button", { name })).toBeTruthy();
@@ -95,14 +122,14 @@ describe("PhoneNowPlaying", () => {
     render(<PhoneNowPlaying />);
     expect(screen.getByText("--:--")).toBeTruthy();
     const slider = screen.getByRole("slider", { name: "Seek" });
-    expect(slider.querySelector("[style*='width: 0%']")).toBeTruthy();
+    expect(slider.querySelector("[style*='scaleX(0)']")).toBeTruthy();
   });
 
   it("closes from the down chevron", async () => {
     render(<PhoneNowPlaying />);
     fireEvent.click(screen.getByRole("button", { name: "Close Now Playing" }));
-    expect(useUI.getState().nowPlayingOpen).toBe(false);
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Now playing" })).toBeNull());
+    await waitFor(() => expect(useUI.getState().nowPlayingOpen).toBe(false), { timeout: 3000 });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Now playing" })).toBeNull(), { timeout: 3000 });
   });
 
   it("seeks to the tapped point of the seek bar", () => {
@@ -126,23 +153,85 @@ describe("PhoneNowPlaying", () => {
     expect(seekTo).toHaveBeenLastCalledWith(150);
   });
 
-  it("toggles the lyrics page from the Lyrics button", () => {
+  it("puts Cast on the left, the Lyrics label in the centre and Queue on the right of one bottom row", () => {
     render(<PhoneNowPlaying />);
-    expect(screen.getByRole("button", { name: "Lyrics" }).getAttribute("aria-pressed")).toBe("false");
-    fireEvent.click(screen.getByRole("button", { name: "Lyrics" }));
-    expect(screen.getByRole("button", { name: "Lyrics" }).getAttribute("aria-pressed")).toBe("true");
-    fireEvent.click(screen.getByRole("button", { name: "Lyrics" }));
-    expect(screen.getByRole("button", { name: "Lyrics" }).getAttribute("aria-pressed")).toBe("false");
+    const cast = screen.getByRole("button", { name: "Cast" });
+    const lyrics = screen.getByRole("button", { name: "Lyrics" });
+    const queue = screen.getByRole("button", { name: "Queue" });
+    const row = cast.parentElement as HTMLElement;
+    expect(lyrics.closest("[data-lyrics-hint]")?.parentElement).toBe(row);
+    expect(queue.parentElement).toBe(row);
+    expect(row.children).toHaveLength(3);
+    expect(row.firstElementChild).toBe(cast);
+    expect(row.children[1]).toBe(lyrics.closest("[data-lyrics-hint]"));
+    expect(row.lastElementChild).toBe(queue);
   });
 
-  it("opens lyrics only from the Lyrics button, not from a swipe", () => {
+  it("opens lyrics, not the queue, on an upward swipe over the artwork", () => {
     render(<PhoneNowPlaying />);
     const pages = screen.getByRole("group", { name: "Now playing pages" });
-    fireEvent.pointerDown(pages, { clientX: 300, clientY: 300 });
-    fireEvent(pages, createEvent.pointerUp(pages, { clientX: 200, clientY: 300 }));
-    expect(screen.getByRole("button", { name: "Lyrics" }).getAttribute("aria-pressed")).toBe("false");
+    fireEvent.pointerDown(pages, { clientX: 300, clientY: 400 });
+    fireEvent.pointerMove(pages, { clientX: 300, clientY: 200 });
+    fireEvent.pointerMove(pages, { clientX: 300, clientY: 50 });
+    fireEvent.pointerUp(pages, { clientX: 300, clientY: 50 });
+    expect(useUI.getState().phoneLyricsOpen).toBe(true);
+    expect(useUI.getState().phoneQueueOpen).toBe(false);
+  });
+
+  it("opens lyrics on an upward swipe over the transport and bottom row", () => {
+    render(<PhoneNowPlaying />);
+    const transport = screen.getByRole("group", { name: "Transport" });
+    fireEvent.pointerDown(transport, { clientX: 300, clientY: 400 });
+    fireEvent.pointerMove(transport, { clientX: 300, clientY: 200 });
+    fireEvent.pointerMove(transport, { clientX: 300, clientY: 50 });
+    fireEvent.pointerUp(transport, { clientX: 300, clientY: 50 });
+    expect(useUI.getState().phoneLyricsOpen).toBe(true);
+    expect(useUI.getState().phoneQueueOpen).toBe(false);
+  });
+
+  it("does not open lyrics from an upward drag on the seek bar", () => {
+    render(<PhoneNowPlaying />);
+    const slider = screen.getByRole("slider", { name: "Seek" });
+    fireEvent.pointerDown(slider, { clientX: 300, clientY: 400 });
+    fireEvent.pointerMove(slider, { clientX: 300, clientY: 200 });
+    fireEvent.pointerMove(slider, { clientX: 300, clientY: 50 });
+    fireEvent.pointerUp(slider, { clientX: 300, clientY: 50 });
+    expect(useUI.getState().phoneLyricsOpen).toBe(false);
+  });
+
+  it("closes the lyrics from a downward drag on the panel header", () => {
+    useUI.setState({ phoneLyricsOpen: true });
+    render(<PhoneNowPlaying />);
+    const row = document.querySelector("[data-queue-thumb]")?.parentElement as HTMLElement;
+    pointer("pointerDown", row, 100, 1000);
+    pointer("pointerMove", row, 600, 2000);
+    pointer("pointerUp", row, 600, 2000);
+    expect(useUI.getState().phoneLyricsOpen).toBe(false);
+  });
+
+  it("opens the queue from the Queue button only", () => {
+    render(<PhoneNowPlaying />);
+    fireEvent.click(screen.getByRole("button", { name: "Queue" }));
+    expect(useUI.getState().phoneQueueOpen).toBe(true);
+    expect(useUI.getState().phoneLyricsOpen).toBe(false);
+  });
+
+  it("opens the lyrics from the centre Lyrics label when the track has lyrics", () => {
+    lyricsState.lyrics = { synced: [{ time: 1, text: "line" }], plain: null, source: "LRCLIB", wordSynced: false };
+    render(<PhoneNowPlaying />);
     fireEvent.click(screen.getByRole("button", { name: "Lyrics" }));
-    expect(screen.getByRole("button", { name: "Lyrics" }).getAttribute("aria-pressed")).toBe("true");
+    expect(useUI.getState().phoneLyricsOpen).toBe(true);
+  });
+
+  it("hides the Lyrics label when the track has no lyrics", () => {
+    render(<PhoneNowPlaying />);
+    const hint = screen.getByRole("button", { name: "Lyrics" }).closest("[data-lyrics-hint]");
+    expect(hint?.className).toContain("hidden");
+  });
+
+  it("starts loading the current track's lyrics when Now Playing opens", () => {
+    render(<PhoneNowPlaying />);
+    expect(useTrackLyricsSpy).toHaveBeenCalledWith(expect.objectContaining({ id: "t1" }), 200);
   });
 
   it("does not skip the track on a swipe over the artwork", () => {
@@ -158,8 +247,8 @@ describe("PhoneNowPlaying", () => {
     pointer("pointerDown", header(), 100, 1000);
     pointer("pointerMove", header(), 520, 2000);
     pointer("pointerUp", header(), 520, 2000);
-    await waitFor(() => expect(useUI.getState().nowPlayingOpen).toBe(false));
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Now playing" })).toBeNull());
+    await waitFor(() => expect(useUI.getState().nowPlayingOpen).toBe(false), { timeout: 3000 });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Now playing" })).toBeNull(), { timeout: 3000 });
   });
 
   it("stays open after a short, slow drag", () => {
@@ -175,36 +264,106 @@ describe("PhoneNowPlaying", () => {
     pointer("pointerDown", header(), 100, 1000);
     pointer("pointerMove", header(), 200, 1100);
     pointer("pointerUp", header(), 200, 1100);
-    await waitFor(() => expect(useUI.getState().nowPlayingOpen).toBe(false));
+    await waitFor(() => expect(useUI.getState().nowPlayingOpen).toBe(false), { timeout: 3000 });
   });
 
-  it("puts the title on the left and the like and download buttons on the right of one row", () => {
+  it("centres the title between download and like", () => {
     render(<PhoneNowPlaying />);
-    const title = screen.getByText("Track 1");
-    expect(title.className).toContain("text-[22px]");
-    expect(title.className).toContain("font-bold");
+    const title = screen.getAllByText("Track 1")[0];
+    expect(title.className).toContain("text-section");
+    expect(title.className).toContain("font-semibold");
     expect(title.className).toContain("truncate");
+    expect(title.className).toContain("text-center");
     const like = screen.getByRole("button", { name: "Like" });
     const download = screen.getByRole("button", { name: "Download" });
     const row = like.parentElement as HTMLElement;
     expect(row.contains(title)).toBe(true);
-    expect(row.contains(download)).toBe(true);
-    expect(row.lastElementChild).toBe(download);
-    expect(Boolean(title.compareDocumentPosition(like) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(row.firstElementChild?.contains(download)).toBe(true);
+    expect(row.lastElementChild?.contains(like)).toBe(true);
+    expect(row.contains(screen.getByRole("button", { name: "Cast" }))).toBe(false);
   });
 
-  it("labels the four bottom actions by aria-label only, with no visible text", () => {
+  it("keeps like a single tap away from the title", () => {
     render(<PhoneNowPlaying />);
-    for (const name of ["Lyrics", "Queue", "Sleep timer", "Cast"]) {
+    const like = screen.getByRole("button", { name: "Like" });
+    expect(like.className).toContain("h-11");
+    expect(like.className).toContain("w-11");
+  });
+
+  it("labels Cast and Queue by aria-label only, and shows the Lyrics label as text", () => {
+    render(<PhoneNowPlaying />);
+    for (const name of ["Queue", "Cast"]) {
       const button = screen.getByRole("button", { name });
       expect(button.getAttribute("aria-label")).toBe(name);
       expect(button.getAttribute("title")).toBe(name);
       expect(button.textContent).toBe("");
     }
+    expect(screen.getByRole("button", { name: "Lyrics" }).textContent).toBe("Lyrics");
   });
 
   it("keeps the flat artwork backdrop out when the track has no artwork", () => {
     render(<PhoneNowPlaying />);
     expect(document.querySelector("[data-ambient-backdrop]")).toBeNull();
+  });
+});
+
+
+describe("phone seeking safeguards", () => {
+  function slider() {
+    const el = screen.getByRole("slider", { name: "Seek" });
+    el.getBoundingClientRect = () => ({ left: 0, width: 200 }) as DOMRect;
+    return el;
+  }
+
+  it("announces the dragged position before committing playback", () => {
+    render(<PhoneNowPlaying />);
+    const el = slider();
+    fireEvent.pointerDown(el, { clientX: 40 });
+    fireEvent.pointerMove(el, { clientX: 150 });
+    expect(el.getAttribute("aria-valuenow")).toBe("150");
+    expect(seekTo).not.toHaveBeenCalled();
+    fireEvent.pointerUp(el, { clientX: 150 });
+    expect(seekTo).toHaveBeenLastCalledWith(150);
+  });
+
+  it("cancels a seek when the track changes during the gesture", () => {
+    render(<PhoneNowPlaying />);
+    const el = slider();
+    fireEvent.pointerDown(el, { clientX: 40 });
+    act(() => { usePlayer.setState({ index: 1, position: 0, duration: 240 }); });
+    fireEvent.pointerUp(el, { clientX: 150 });
+    expect(seekTo).not.toHaveBeenCalled();
+    expect(el.getAttribute("aria-valuenow")).toBe("0");
+  });
+
+  it("does not commit cancelled gestures", () => {
+    render(<PhoneNowPlaying />);
+    const el = slider();
+    fireEvent.pointerDown(el, { clientX: 40 });
+    fireEvent.pointerCancel(el);
+    fireEvent.pointerUp(el, { clientX: 150 });
+    expect(seekTo).not.toHaveBeenCalled();
+  });
+
+  it("supports Home, End and vertical arrow keys", () => {
+    render(<PhoneNowPlaying />);
+    const el = slider();
+    fireEvent.keyDown(el, { key: "Home" });
+    expect(seekTo).toHaveBeenLastCalledWith(0);
+    fireEvent.keyDown(el, { key: "End" });
+    expect(seekTo).toHaveBeenLastCalledWith(200);
+    act(() => { usePlayer.setState({ position: 50 }); });
+    fireEvent.keyDown(el, { key: "ArrowUp" });
+    expect(seekTo).toHaveBeenLastCalledWith(55);
+  });
+
+  it("disables unknown-duration seeking and clamps invalid positions", () => {
+    usePlayer.setState({ position: Number.NaN, duration: Infinity });
+    render(<PhoneNowPlaying />);
+    const el = slider();
+    expect(el.getAttribute("aria-valuenow")).toBe("0");
+    expect(el.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.keyDown(el, { key: "End" });
+    expect(seekTo).not.toHaveBeenCalled();
   });
 });

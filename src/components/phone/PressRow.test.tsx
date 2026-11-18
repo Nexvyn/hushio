@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, createEvent, fireEvent, render, screen } from "@testing-library/react";
 import { PressRow } from "./PressRow";
 import { LONG_PRESS_MS } from "../../lib/longPress";
+import { haptic } from "../../lib/haptics";
+
+vi.mock("../../lib/haptics", () => ({ haptic: vi.fn() }));
 
 function pointer(type: "pointerDown" | "pointerMove" | "pointerUp", target: Element, clientX: number, clientY: number) {
   fireEvent(target, createEvent[type](target, { clientX, clientY }));
@@ -16,6 +19,16 @@ describe("PressRow", () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
+  });
+
+  it("gives a select tick when the long press fires", () => {
+    render(<PressRow label="Row" onLongPress={vi.fn()}>Row</PressRow>);
+    const row = screen.getByRole("button", { name: "Row" });
+    pointer("pointerDown", row, 0, 0);
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(haptic).toHaveBeenCalledWith("select");
   });
 
   it("presses on a short tap", () => {

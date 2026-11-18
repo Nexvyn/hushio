@@ -8,14 +8,24 @@ export function heldPalette(settled: SettledPalette | null, url: string): Ambien
   return settled.pair;
 }
 
+let lastSettled: SettledPalette | null = null;
+
+export function warmPalette(url: string): void {
+  if (!url || lastSettled?.url === url) return;
+  void ambientFor(url).then((pair) => {
+    lastSettled = { url, pair };
+  });
+}
+
 export function useHeldPalette(url: string): AmbientPair | null {
-  const [settled, setSettled] = useState<SettledPalette | null>(null);
+  const [settled, setSettled] = useState<SettledPalette | null>(() => (lastSettled?.url === url ? lastSettled : null));
 
   useEffect(() => {
     if (!url) return;
     let live = true;
     void ambientFor(url).then((pair) => {
-      if (live) setSettled({ url, pair });
+      lastSettled = { url, pair };
+      if (live) setSettled(lastSettled);
     });
     return () => {
       live = false;

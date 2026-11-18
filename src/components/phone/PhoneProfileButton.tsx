@@ -1,5 +1,5 @@
-import { UserIcon } from "@hugeicons/core-free-icons";
-import { Icon } from "../Icon";
+import { User } from "@phosphor-icons/react";
+import { PhoneIcon } from "./PhoneIcon";
 import { useAuth } from "../../stores/auth";
 import { useNavigation } from "../../stores/navigation";
 
@@ -8,7 +8,7 @@ export function AccountAvatar({ size }: { size: number }) {
   const picture = account.mode === "google" ? account.pictureUrl : null;
   if (picture) {
     return (
-      <img
+      <img loading="lazy" decoding="async"
         src={picture}
         alt=""
         referrerPolicy="no-referrer"
@@ -21,9 +21,9 @@ export function AccountAvatar({ size }: { size: number }) {
     <span
       aria-hidden="true"
       style={{ width: size, height: size }}
-      className="grid shrink-0 place-items-center rounded-full bg-wash text-ink-1"
+      className="grid shrink-0 place-items-center rounded-full text-ink-1"
     >
-      <Icon icon={UserIcon} />
+      <PhoneIcon icon={User} />
     </span>
   );
 }

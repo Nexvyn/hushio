@@ -40,10 +40,11 @@ describe("PhoneProfileButton", () => {
     expect(container.querySelector("img")?.getAttribute("src")).toBe("https://example.test/a.png");
   });
 
-  it("shows a neutral circle without a picture", () => {
+  it("shows a plain icon with no background without a picture", () => {
     const { container } = render(<PhoneProfileButton />);
     expect(container.querySelector("img")).toBeNull();
-    expect(container.querySelector("span.bg-wash")).not.toBeNull();
+    expect(container.querySelector("span.bg-wash")).toBeNull();
+    expect(container.querySelector("svg")).not.toBeNull();
   });
 
   it("opens settings when tapped", () => {

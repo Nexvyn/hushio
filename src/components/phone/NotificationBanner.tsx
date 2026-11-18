@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Notification03Icon } from "@hugeicons/core-free-icons";
+import { Bell } from "@phosphor-icons/react";
 import { Button } from "../Button";
-import { Icon } from "../Icon";
+import { PhoneIcon } from "./PhoneIcon";
 import {
   notificationRequest,
   notificationSettings,
@@ -43,7 +43,7 @@ export function NotificationBanner() {
       style={{ top: "calc(var(--inset-top, 0px) + 8px)" }}
     >
       <span className="text-ink-2">
-        <Icon icon={Notification03Icon} />
+        <PhoneIcon icon={Bell} />
       </span>
       <p className="min-w-0 flex-1 text-sm">
         Notifications are off. Playback still works, but the media controls are hidden.

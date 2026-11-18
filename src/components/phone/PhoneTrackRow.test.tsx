@@ -4,9 +4,17 @@ import { cleanup, render, screen } from "@testing-library/react";
 const phone = vi.hoisted(() => ({ value: true }));
 
 vi.mock("../../lib/usePhone", () => ({ usePhone: () => phone.value }));
+vi.mock("../../lib/persist", () => ({
+  persistStorage: () => ({
+    getItem: async () => null,
+    setItem: async () => {},
+    removeItem: async () => {},
+  }),
+}));
 
 import { PhoneSongRow } from "./PhoneTrackRow";
 import type { SearchSong } from "../../lib/searchParse";
+import { useLibrary } from "../../stores/library";
 
 const song: SearchSong = {
   id: "s1",
@@ -74,5 +82,23 @@ describe("PhoneSongRow playing state", () => {
     renderRow(false, true);
 
     expect(screen.getByText("Physical").parentElement?.className).not.toContain("text-accent");
+  });
+});
+
+describe("PhoneSongRow like state", () => {
+  afterEach(() => {
+    cleanup();
+    useLibrary.setState({ liked: [] });
+  });
+
+  it("shows a heart on a liked song", () => {
+    useLibrary.setState({ liked: [{ ...song, album: null, duration: 203, explicit: false }] });
+    renderRow(false, false);
+    expect(screen.getByRole("img", { name: "Liked" })).toBeTruthy();
+  });
+
+  it("shows no heart on a song that is not liked", () => {
+    renderRow(false, false);
+    expect(screen.queryByRole("img", { name: "Liked" })).toBeNull();
   });
 });
