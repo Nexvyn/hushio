@@ -37,6 +37,7 @@ import { type LibraryTrack, type Playlist, useLibrary } from "../stores/library"
 import { useNavigation } from "../stores/navigation";
 import { usePlayer } from "../stores/player";
 import { useUI } from "../stores/ui";
+import { useLocalLibrary } from "../stores/localLibrary";
 
 const song = (i: number): LibraryTrack => ({
   id: `s${i}`,
@@ -82,6 +83,32 @@ describe("Your Library page copy", () => {
   });
 });
 
+describe("Your Library on-device count", () => {
+  const initialLocal = useLocalLibrary.getState();
+  afterEach(() => useLocalLibrary.setState(initialLocal, true));
+
+  it("counts local files and finished downloads together in the Local music tile", () => {
+    useLocalLibrary.setState({
+      library: {
+        folders: [],
+        scannedAt: 0,
+        tracks: [{ id: "local:One", path: "C:\\One.mp3", title: "One", artist: "A", album: "B", duration: 1, size: 1, mtime: 1 }],
+        unplayable: [],
+      },
+    });
+    useLibrary.setState({
+      downloads: {
+        dl1: { track: { id: "dl1", title: "Saved", artist: "C", duration: 1 }, path: "C:\\dl1.m4a", status: "done", progress: 1, downloaded: 0, total: 0 },
+        dl2: { track: { id: "dl2", title: "Queued", artist: "C", duration: 1 }, path: null, status: "queued", progress: 0, downloaded: 0, total: 0 },
+      },
+    });
+    render(<><LibraryView /><ContextMenu /></>);
+
+    expect(screen.getByText("2 songs on this device")).toBeTruthy();
+    expect(screen.getByText("Downloads").closest("button")?.textContent).toContain("1 song");
+  });
+});
+
 describe("Your Library with nothing saved", () => {
   it("shows zero counts and the no playlists empty state", () => {
     render(<><LibraryView /><ContextMenu /></>);
@@ -102,7 +129,7 @@ describe("Your Library with nothing saved", () => {
 });
 
 describe("Your Library collections", () => {
-  it("shows the liked count, pinned first, with the Downloads and Local Music stacks", () => {
+  it("shows the liked count, pinned first, with the Downloads and Local music stacks", () => {
     useLibrary.setState({ liked: [song(1), song(2)] });
     render(<><LibraryView /><ContextMenu /></>);
 
@@ -127,9 +154,16 @@ describe("Your Library collections", () => {
 
     expect(screen.getByText("Liked Songs").closest("button")).toBeTruthy();
     expect(screen.getByText("Downloads").closest("button")).toBeTruthy();
-    expect(screen.getByText("Local Music").closest("button")).toBeTruthy();
+    expect(screen.getByText("Local music").closest("button")).toBeTruthy();
     expect(screen.getAllByText("Playlists")[0].closest("button")).toBeTruthy();
     expect(screen.queryByText("0 playlists", { exact: true })).toBeNull();
+  });
+
+  it("has no Replay entry in the library", () => {
+    render(<><LibraryView /><ContextMenu /></>);
+
+    expect(screen.queryByText("Replay")).toBeNull();
+    expect(screen.getByText("History").closest("button")).toBeTruthy();
   });
 });
 

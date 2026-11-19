@@ -50,7 +50,7 @@ export function bundleFromPage(page: ArtistPage, now: number): ArtistBundle {
   };
 }
 
-export function isFresh(bundle: ArtistBundle, now: number): boolean {
+function isFresh(bundle: ArtistBundle, now: number): boolean {
   return now - bundle.fetchedAt < BUNDLE_TTL_MS;
 }
 

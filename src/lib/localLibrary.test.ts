@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { LocalTrack } from "./bridge";
+import type { DownloadItem } from "../stores/library";
 import {
   albumGroups,
   artistGroups,
   artUrl,
   childPath,
+  deviceTracks,
+  filterDevice,
   folderListing,
+  isDownloadedTrack,
   isLocalId,
   isUnderPath,
   joinOr,
@@ -189,5 +193,44 @@ describe("unplayable copy", () => {
       ]),
     ).toBe("3 files left out: Hushio can't play WMA or ALAC files.");
     expect(leftOutText([{ format: "AIFF", count: 1 }])).toBe("1 file left out: Hushio can't play AIFF files.");
+  });
+});
+
+function download(id: string, overrides: Partial<DownloadItem> = {}): DownloadItem {
+  return {
+    track: { id, title: `Saved ${id}`, artist: "Remote", thumb: "https://img.test/a.jpg", album: "", duration: 90 },
+    path: `C:\\Downloads\\${id}.m4a`,
+    status: "done",
+    progress: 1,
+    downloaded: 0,
+    total: 0,
+    ...overrides,
+  };
+}
+
+describe("on this device", () => {
+  it("adds finished downloads after the local files and skips ones already local", () => {
+    const local = [track({ path: "C:\\Music\\Alpha.mp3", title: "Alpha" })];
+    const merged = deviceTracks(local, [
+      download("dl1"),
+      download("local:Alpha", { status: "done" }),
+      download("dl2", { status: "downloading" }),
+      download("dl3", { path: null, status: "done" }),
+    ]);
+    expect(merged.map((item) => item.id)).toEqual(["local:Alpha", "dl1"]);
+    expect(merged[1]).toMatchObject({ title: "Saved dl1", artist: "Remote", album: "Unknown album", art: "https://img.test/a.jpg" });
+  });
+
+  it("keeps a download's remote cover as a usable art url", () => {
+    const [saved] = deviceTracks([], [download("dl1")]);
+    expect(artUrl(saved.art, "windows")).toBe("https://img.test/a.jpg");
+  });
+
+  it("splits the list into local files and downloads", () => {
+    const merged = deviceTracks([track({ path: "C:\\Music\\Alpha.mp3", title: "Alpha" })], [download("dl1")]);
+    expect(merged.map(isDownloadedTrack)).toEqual([false, true]);
+    expect(filterDevice(merged, "local").map((item) => item.id)).toEqual(["local:Alpha"]);
+    expect(filterDevice(merged, "downloaded").map((item) => item.id)).toEqual(["dl1"]);
+    expect(filterDevice(merged, "all")).toHaveLength(2);
   });
 });

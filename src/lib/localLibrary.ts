@@ -2,13 +2,14 @@ import { platform, type LocalFolderEntry, type LocalTrack, type LocalUnplayable 
 import { APP_NAME } from "./app";
 import { plural } from "./plural";
 import type { Track } from "../types";
+import type { DownloadItem } from "../stores/library";
 
 export type LocalScope = { kind: "all" } | { kind: "opened" } | { kind: "folder"; path: string } | { kind: "network"; id: string };
 export type LocalSort = "title" | "artist" | "recent";
 export type LocalTab = "songs" | "albums" | "artists" | "folders";
 
 export const LOCAL_ID_PREFIX = "local:";
-export const NETWORK_ID_PREFIX = "net:";
+const NETWORK_ID_PREFIX = "net:";
 
 export function isLocalId(id: string): boolean {
   return id.startsWith(LOCAL_ID_PREFIX);
@@ -20,6 +21,7 @@ export function isNetworkId(id: string): boolean {
 
 export function artUrl(art: string | undefined, os: string = platform): string | null {
   if (!art) return null;
+  if (/^https?:\/\//.test(art)) return art;
   const name = art.replace(/^localart:\/\//, "");
   return os === "windows" || os === "android" ? `http://localart.localhost/${name}` : `localart://localhost/${name}`;
 }
@@ -56,6 +58,39 @@ export function folderName(folder: LocalFolderEntry): string {
 function matchesSearch(track: LocalTrack, query: string): boolean {
   if (!query) return true;
   return [track.title, track.artist, track.album].some((value) => value.toLowerCase().includes(query));
+}
+
+export type DeviceFilter = "all" | "local" | "downloaded";
+
+export function isDownloadedTrack(track: LocalTrack): boolean {
+  return !isLocalId(track.id);
+}
+
+export function deviceTracks(tracks: LocalTrack[], downloads: DownloadItem[]): LocalTrack[] {
+  const seen = new Set(tracks.map((track) => track.id));
+  const saved: LocalTrack[] = [];
+  for (const item of downloads) {
+    if (item.status !== "done" || !item.path || seen.has(item.track.id)) continue;
+    seen.add(item.track.id);
+    saved.push({
+      id: item.track.id,
+      path: item.path,
+      title: item.track.title,
+      artist: item.track.artist,
+      album: item.track.album || "Unknown album",
+      duration: item.track.duration,
+      size: 0,
+      mtime: 0,
+      art: item.track.thumb,
+    });
+  }
+  return [...tracks, ...saved];
+}
+
+export function filterDevice(tracks: LocalTrack[], filter: DeviceFilter): LocalTrack[] {
+  if (filter === "all") return tracks;
+  const downloaded = filter === "downloaded";
+  return tracks.filter((track) => isDownloadedTrack(track) === downloaded);
 }
 
 export function scopeTracks(

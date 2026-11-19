@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { PlayListAddIcon, Tick02Icon } from "@hugeicons/core-free-icons";
+import { ListPlus, Check } from "@phosphor-icons/react";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
 import { shortTitle } from "../lib/browseText";
@@ -187,19 +187,19 @@ function Picker({ tracks, anchor: anchorProp }: { tracks: Track[]; anchor: Box |
         transition={panelMotion.transition}
       >
         <div className="px-2 pb-0.5 pt-1">
-          <h2 className="text-[14px] font-semibold text-ink-1">Add to playlists</h2>
-          <p className="mt-0.5 truncate text-[12px] text-ink-2">Choose where {what} should go.</p>
+          <h2 className="text-body font-semibold text-ink-1">Add to playlists</h2>
+          <p className="mt-0.5 truncate text-meta text-ink-2">Choose where {what} should go.</p>
         </div>
         <button type="button" data-picker-item className={ROW} onClick={createAndAdd}>
           <span className="grid h-5 w-5 shrink-0 place-items-center text-ink-1">
-            <Icon icon={PlayListAddIcon} />
+            <Icon icon={ListPlus} />
           </span>
           New playlist
         </button>
         {playlists.length === 0 ? (
           <div className="px-2 pb-1">
-            <p className="text-[13px] font-medium text-ink-1">No playlists yet</p>
-            <p className="mt-0.5 text-[12px] text-ink-2">Create one to hold {what}.</p>
+            <p className="text-meta font-medium text-ink-1">No playlists yet</p>
+            <p className="mt-0.5 text-meta text-ink-2">Create one to hold {what}.</p>
           </div>
         ) : (
           <div
@@ -227,10 +227,10 @@ function Picker({ tracks, anchor: anchorProp }: { tracks: Track[]; anchor: Box |
                       checked ? "border-accent bg-accent text-on-accent" : "border-ink-1/30"
                     } ${locked ? "opacity-60" : ""}`}
                   >
-                    {checked && <Icon icon={Tick02Icon} />}
+                    {checked && <Icon icon={Check} />}
                   </span>
                   <span className="min-w-0 flex-1 truncate">{playlist.name}</span>
-                  {locked && <span className="shrink-0 text-[12px] text-ink-2">Already added</span>}
+                  {locked && <span className="shrink-0 text-meta text-ink-2">Already added</span>}
                 </button>
               );
             })}

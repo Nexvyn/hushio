@@ -63,6 +63,8 @@ function releasePage(overrides: Partial<ReleasePage["album"]> = {}, tracks = son
       releaseType: "Album",
       description: "Recorded in one night at the coast.",
       artistId: "UCnova",
+      releaseDate: null,
+      copyright: [],
       ...overrides,
     },
     tracks,

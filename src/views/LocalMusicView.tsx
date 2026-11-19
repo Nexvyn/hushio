@@ -1,25 +1,8 @@
 import { useEffect, useState } from "react";
-import {
-  ArrowLeft01Icon,
-  Alert01Icon,
-  Cancel01Icon,
-  CloudServerIcon,
-  Delete02Icon,
-  FileMusicIcon,
-  FolderAddIcon,
-  FolderOpenIcon,
-  MusicNote01Icon,
-  PencilEdit02Icon,
-  PlayIcon,
-  PlayListIcon,
-  RefreshIcon,
-  Search01Icon,
-  ShuffleIcon,
-  UserIcon,
-} from "@hugeicons/core-free-icons";
+import { CaretLeft, Warning, X, Cloud, Trash, DownloadSimple, FileAudio, FolderPlus, FolderOpen, MusicNote, PencilSimple, Play, Playlist, ArrowClockwise, MagnifyingGlass, Shuffle, User } from "@phosphor-icons/react";
 import type { LocalFolderEntry, LocalTrack, NetworkServer, NetworkTrack } from "../lib/bridge";
 import { ActionMenu } from "../components/ActionMenu";
-import { ROUND, PILL } from "../components/BrowseHero";
+import { GHOST_ICON, PILL, ROUND, SHUFFLE_PILL } from "../components/BrowseHero";
 import { CollectionHero } from "../components/CollectionHero";
 import { CoverStack, STACK_GRID } from "../components/CoverStack";
 import { EmptyState } from "../components/EmptyState";
@@ -28,14 +11,19 @@ import { Icon } from "../components/Icon";
 import { PageHeader } from "../components/PageHeader";
 import { PHONE_ICON, PHONE_PLAY, PHONE_SHUFFLE } from "../components/phone/heroButtons";
 import { APP_NAME } from "../lib/app";
+import { removeDownload } from "../lib/downloads";
 import { fmtTime, fmtTotal } from "../lib/format";
 import {
   albumGroups,
   artistGroups,
   artUrl,
   childPath,
+  deviceTracks,
+  type DeviceFilter,
+  filterDevice,
   folderListing,
   folderName,
+  isDownloadedTrack,
   isUnderPath,
   leftOutText,
   scopeTracks,
@@ -48,6 +36,7 @@ import {
 import { OPENED_FROM } from "../lib/localDrop";
 import { plural } from "../lib/plural";
 import { usePhone } from "../lib/usePhone";
+import { useLibrary } from "../stores/library";
 import { useLocalLibrary } from "../stores/localLibrary";
 import { useNavigation } from "../stores/navigation";
 import { useNetwork } from "../stores/network";
@@ -57,13 +46,19 @@ import type { Track } from "../types";
 
 const ALL = "all";
 const OPENED = "opened";
+const ON_DEVICE = "On this device";
+const DEVICE_FILTERS: { id: DeviceFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "local", label: "Local files" },
+  { id: "downloaded", label: "Downloaded" },
+];
 const FIELD =
-  "h-9 w-56 rounded-full border border-white/10 bg-white/5 pl-9 pr-3 text-base md:text-[14px] text-ink-1 placeholder:text-ink-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+  "h-9 w-56 rounded-full border border-ink-1/10 bg-ink-1/5 pl-9 pr-3 text-base md:text-body text-ink-1 placeholder:text-ink-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 const TAB =
-  "rounded-full px-3.5 py-1.5 text-[13.5px] font-medium motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+  "rounded-full px-3.5 py-1.5 text-meta font-medium motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 const ROW =
-  "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left [@media(hover:hover)]:hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
-const WARNING = "rounded-xl bg-amber-500/10 px-4 py-3 text-[14px] text-amber-300";
+  "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left [@media(hover:hover)]:hover:bg-ink-1/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+const WARNING = "rounded-xl bg-amber-500/10 px-4 py-3 text-body text-amber-300";
 const CRUMB = "underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus rounded";
 
 type Filter = { kind: "album"; album: string; artist: string } | { kind: "artist"; artist: string } | null;
@@ -125,6 +120,7 @@ function shuffleNetworkTracks(tracks: Track[], from: string) {
 
 function LocalTrackRow({ track, onPlay, onRemove }: { track: LocalTrack; onPlay: () => void; onRemove?: () => void }) {
   const phone = usePhone();
+  const downloaded = isDownloadedTrack(track);
   return (
     <div className={phone ? "flex items-center gap-2" : "flex items-center gap-2"}>
       <button
@@ -134,15 +130,27 @@ function LocalTrackRow({ track, onPlay, onRemove }: { track: LocalTrack; onPlay:
         className={phone ? "flex h-14 min-w-0 flex-1 items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus" : ROW}
       >
         <span className="min-w-0 flex-1">
-          <span className={phone ? "block truncate text-[16px] leading-[22px] text-ink-1" : "block truncate text-[15px] text-ink-1"}>
-            {track.title}
+          <span className={`flex min-w-0 items-center gap-1.5 text-body text-ink-1 ${phone ? "leading-[22px]" : ""}`}>
+            <span className="truncate">{track.title}</span>
+            {downloaded && (
+              <span className="shrink-0 text-accent" title="Downloaded">
+                <Icon icon={DownloadSimple} size={16} fill="fill" />
+              </span>
+            )}
           </span>
-          <span className={`block truncate ${phone ? "text-[13.5px] leading-[18px] text-ink-2" : "text-[13px] text-ink-3"}`}>
+          <span className={`block truncate ${phone ? "text-meta leading-[18px] text-ink-2" : "text-meta text-ink-3"}`}>
             {track.artist} · {track.album}
           </span>
         </span>
-        {!phone && <span className="tabular-nums text-[13px] text-ink-3">{fmtTime(track.duration)}</span>}
+        {!phone && <span className="tabular-nums text-meta text-ink-3">{fmtTime(track.duration)}</span>}
       </button>
+      {downloaded && (
+        <ActionMenu
+          items={[{ label: "Remove download", icon: Trash, danger: true, onSelect: () => removeDownload(track.id) }]}
+          label={`More options for ${track.title}`}
+          triggerClass={phone ? PHONE_ICON : `${ROUND} hit-area h-9 w-9 shrink-0`}
+        />
+      )}
       {onRemove && (
         <button
           type="button"
@@ -151,7 +159,7 @@ function LocalTrackRow({ track, onPlay, onRemove }: { track: LocalTrack; onPlay:
           onClick={onRemove}
           className={phone ? `${ROUND} size-11 shrink-0` : `${ROUND} hit-area h-9 w-9 shrink-0`}
         >
-          <Icon icon={Cancel01Icon} />
+          <Icon icon={X} />
         </button>
       )}
     </div>
@@ -160,9 +168,9 @@ function LocalTrackRow({ track, onPlay, onRemove }: { track: LocalTrack; onPlay:
 
 function Spinner() {
   return (
-    <p className="flex items-center gap-2 text-[14px] text-ink-2" role="status">
+    <p className="flex items-center gap-2 text-body text-ink-2" role="status">
       <span className="bt-spin">
-        <Icon icon={RefreshIcon} />
+        <Icon icon={ArrowClockwise} />
       </span>
       Reading tags and artwork…
     </p>
@@ -199,8 +207,8 @@ function FolderActions({ folder }: { folder: LocalFolderEntry }) {
     return (
       <ActionMenu
         items={[
-          { label: "Rename", icon: PencilEdit02Icon, onSelect: renameFolder },
-          { label: "Remove", icon: Delete02Icon, danger: true, onSelect: removeFolder },
+          { label: "Rename", icon: PencilSimple, onSelect: renameFolder },
+          { label: "Remove", icon: Trash, danger: true, onSelect: removeFolder },
         ]}
         label="Folder options"
         triggerClass={PHONE_ICON}
@@ -216,7 +224,7 @@ function FolderActions({ folder }: { folder: LocalFolderEntry }) {
         title={`Rename in ${APP_NAME}`}
         onClick={renameFolder}
       >
-        <Icon icon={PencilEdit02Icon} />
+        <Icon icon={PencilSimple} />
       </button>
       <button
         type="button"
@@ -225,7 +233,7 @@ function FolderActions({ folder }: { folder: LocalFolderEntry }) {
         title={`Remove from ${APP_NAME}`}
         onClick={removeFolder}
       >
-        <Icon icon={Delete02Icon} />
+        <Icon icon={Trash} />
       </button>
     </>
   );
@@ -238,55 +246,58 @@ function IndexView({ onOpen }: { onOpen: (param: string) => void }) {
   const scanning = useLocalLibrary((state) => state.scanning);
   const scan = useLocalLibrary((state) => state.scan);
   const importFolders = useLocalLibrary((state) => state.importFromPicker);
+  const downloads = useLibrary((state) => state.downloads);
   const { folders, tracks } = library;
+  const device = deviceTracks(tracks, Object.values(downloads));
+  const hasSaved = device.length > tracks.length;
   const left = leftOutText(library.unplayable);
   const phone = usePhone();
 
   return (
     <div className="pb-14">
       <CollectionHero
-        title="Local Music"
-        icon={MusicNote01Icon}
-        covers={uniqueArt(tracks, 8)}
+        title="Local music"
+        icon={MusicNote}
+        covers={uniqueArt(device, 8)}
         facts={
           <>
             <span>
-              {plural(tracks.length, "song", "songs")} · {plural(folders.length, "folder", "folders")}
+              {plural(device.length, "song", "songs")} · {plural(folders.length, "folder", "folders")}
               {library.scannedAt > 0 && ` · Scanned ${scannedOn(library.scannedAt)}`}
             </span>
-            {left && <span className={`mt-1 block text-[13px] ${phone ? "text-ink-2" : "text-white/55"}`}>{left}</span>}
+            {left && <span className={`mt-1 block text-meta text-ink-2`}>{left}</span>}
           </>
         }
       >
         <button
           type="button"
           className={phone ? PHONE_PLAY : PILL}
-          disabled={tracks.length === 0}
-          onClick={() => playTracks(tracks, 0, "Local Music")}
+          disabled={device.length === 0}
+          onClick={() => playTracks(device, 0, "Local music")}
         >
-          <HeroIcon icon={PlayIcon} /> Play
+          <HeroIcon icon={Play} /> Play
         </button>
         <button
           type="button"
-          className={phone ? PHONE_SHUFFLE : ROUND}
+          className={phone ? PHONE_SHUFFLE : SHUFFLE_PILL}
           aria-label="Shuffle"
           title="Shuffle"
-          disabled={tracks.length === 0}
-          onClick={() => shuffleTracks(tracks, "Local Music")}
+          disabled={device.length === 0}
+          onClick={() => shuffleTracks(device, "Local music")}
         >
-          <HeroIcon icon={ShuffleIcon} />
+          <HeroIcon icon={Shuffle} />
           {phone && "Shuffle"}
         </button>
         <button
           type="button"
-          className={phone ? PHONE_ICON : ROUND}
+          className={phone ? PHONE_ICON : GHOST_ICON}
           aria-label="Rescan every folder"
           title="Rescan every folder"
           disabled={scanning || folders.length === 0}
           onClick={() => void scan()}
         >
           <span className={scanning ? "bt-spin" : undefined}>
-            <Icon icon={RefreshIcon} />
+            <Icon icon={ArrowClockwise} />
           </span>
         </button>
         <button
@@ -297,7 +308,7 @@ function IndexView({ onOpen }: { onOpen: (param: string) => void }) {
           aria-label={phone ? "Add folders" : undefined}
           title={phone ? "Add folders" : undefined}
         >
-          <Icon icon={FolderAddIcon} />
+          <Icon icon={FolderPlus} />
           {phone ? null : " Add folders"}
         </button>
       </CollectionHero>
@@ -308,14 +319,14 @@ function IndexView({ onOpen }: { onOpen: (param: string) => void }) {
       )}
       <section aria-label="Your local music" className="mt-8">
         <div className={STACK_GRID}>
-          {folders.length > 0 && (
+          {(folders.length > 0 || hasSaved) && (
             <CoverStack
-              title="All songs"
-              subtitle={`Everything imported · ${plural(tracks.length, "song", "songs")}`}
-              covers={uniqueArt(tracks, 4)}
-              fallback={PlayListIcon}
+              title={ON_DEVICE}
+              subtitle={`Local files and downloads · ${plural(device.length, "song", "songs")}`}
+              covers={uniqueArt(device, 4)}
+              fallback={Playlist}
               onOpen={() => onOpen(ALL)}
-              onPlay={() => playTracks(sortTracks(tracks, "title"), 0, "All songs")}
+              onPlay={() => playTracks(sortTracks(device, "title"), 0, ON_DEVICE)}
             />
           )}
           {folders.map((folder) => {
@@ -330,7 +341,7 @@ function IndexView({ onOpen }: { onOpen: (param: string) => void }) {
                     : plural(inside.length, "song", "songs")
                 }
                 covers={uniqueArt(inside, 4)}
-                fallback={FolderOpenIcon}
+                fallback={FolderOpen}
                 onOpen={() => onOpen(folder.path)}
                 onPlay={() => playTracks(sortTracks(inside, "title"), 0, folderName(folder))}
               />
@@ -341,7 +352,7 @@ function IndexView({ onOpen }: { onOpen: (param: string) => void }) {
               title="Opened files"
               subtitle={`Opened with ${APP_NAME} · ${plural(opened.length, "song", "songs")}`}
               covers={uniqueArt(opened, 4)}
-              fallback={FileMusicIcon}
+              fallback={FileAudio}
               onOpen={() => onOpen(OPENED)}
               onPlay={() => playTracks(opened, 0, OPENED_FROM)}
             />
@@ -350,11 +361,11 @@ function IndexView({ onOpen }: { onOpen: (param: string) => void }) {
             type="button"
             onClick={() => void importFolders()}
             disabled={scanning}
-            className="flex min-h-[120px] flex-col items-start justify-center gap-1 rounded-2xl border border-dashed border-white/15 p-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            className="flex min-h-[120px] flex-col items-start justify-center gap-1 rounded-2xl border border-dashed border-ink-1/15 p-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
-            <Icon icon={FolderAddIcon} />
-            <span className="text-[15px] font-semibold text-ink-1">Import another folder</span>
-            <span className="text-[13px] text-ink-3">Your files stay where they are</span>
+            <Icon icon={FolderPlus} />
+            <span className="text-body font-semibold text-ink-1">Import another folder</span>
+            <span className="text-meta text-ink-3">Your files stay where they are</span>
           </button>
         </div>
       </section>
@@ -385,7 +396,7 @@ function NetworkServers({ onOpen }: { onOpen: (param: string) => void }) {
 
   return (
     <section aria-label="Network servers" className="mt-8">
-      <h2 className="mb-3 text-[15px] font-semibold text-ink-1">Network servers</h2>
+      <h2 className="mb-3 text-body font-semibold text-ink-1">Network servers</h2>
       <div className={STACK_GRID}>
         {servers.map((server) => {
           const found = tracks[server.id] ?? [];
@@ -401,7 +412,7 @@ function NetworkServers({ onOpen }: { onOpen: (param: string) => void }) {
                     : "Open to read the server"
               }
               covers={[]}
-              fallback={CloudServerIcon}
+              fallback={Cloud}
               onOpen={() => void open(server)}
               onPlay={() => {
                 if (found.length > 0) playNetworkTracks(networkTracksOf(found), 0, server.name);
@@ -447,7 +458,7 @@ function FolderTab({
   return (
     <div className="flex flex-col gap-5">
       {crumbs.length > 0 && (
-        <nav aria-label="Folder path" className="flex flex-wrap items-center gap-1 text-[14px] text-ink-2">
+        <nav aria-label="Folder path" className="flex flex-wrap items-center gap-1 text-body text-ink-2">
           <button type="button" className={CRUMB} onClick={() => onFolder(root)}>
             {label}
           </button>
@@ -469,7 +480,7 @@ function FolderTab({
               title={folder.name}
               subtitle={plural(folder.count, "song", "songs")}
               covers={[]}
-              fallback={FolderOpenIcon}
+              fallback={FolderOpen}
               onOpen={() => onFolder(folder.path)}
               onPlay={() =>
                 playTracks(
@@ -485,7 +496,7 @@ function FolderTab({
       {listing.files.map((track, index) => (
         <LocalTrackRow key={track.id} track={track} onPlay={() => playTracks(listing.files, index, label)} />
       ))}
-      {empty && <EmptyState icon={MusicNote01Icon} title="This folder has no music yet." message="Add audio files to it, then rescan." />}
+      {empty && <EmptyState icon={MusicNote} title="This folder has no music yet." message="Add audio files to it, then rescan." />}
     </div>
   );
 }
@@ -497,10 +508,12 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
   const scanning = useLocalLibrary((state) => state.scanning);
   const scan = useLocalLibrary((state) => state.scan);
   const forgetOpened = useLocalLibrary((state) => state.forgetOpened);
+  const downloads = useLibrary((state) => state.downloads);
   const [tab, setTab] = useState<LocalTab>("songs");
   const [sort, setSort] = useState<LocalSort>("title");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>(null);
+  const [source, setSource] = useState<DeviceFilter>("all");
   const [folderAt, setFolderAt] = useState<string | null>(null);
 
   const scope = scopeOf(param);
@@ -508,14 +521,17 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
   const rootPath = scope.kind === "folder" ? scope.path : "";
   const title =
     scope.kind === "all"
-      ? "All songs"
+      ? ON_DEVICE
       : scope.kind === "opened"
         ? "Opened files"
         : folder
           ? folderName(folder)
           : folderLabel(rootPath);
-  const everything = scopeTracks(library.tracks, opened, scope, "");
-  const scoped = scopeTracks(library.tracks, opened, scope, query);
+  const device = deviceTracks(library.tracks, Object.values(downloads));
+  const pool = scope.kind === "all" ? filterDevice(device, source) : library.tracks;
+  const everything = scopeTracks(pool, opened, scope, "");
+  const everythingSeconds = everything.reduce((sum, track) => sum + track.duration, 0);
+  const scoped = scopeTracks(pool, opened, scope, query);
   const list = sortTracks(scoped.filter((track) => matchesFilter(track, filter)), sort === "recent" ? "title" : sort);
   const folderTabs = scope.kind === "folder" ? folderListing(library.tracks, rootPath).folders.length : 0;
   const inMissing = scope.kind === "folder" && missing.includes(rootPath);
@@ -534,23 +550,24 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
     <div className="pb-14">
       <CollectionHero
         title={title}
-        icon={FolderOpenIcon}
+        icon={FolderOpen}
         onBack={phone ? onBack : undefined}
         covers={uniqueArt(everything, 8)}
         facts={
           <>
             <span>
-              {plural(everything.length, "song", "songs")} · {fmtTotal(everything.reduce((sum, track) => sum + track.duration, 0))}
+              {plural(everything.length, "song", "songs")}
+              {everythingSeconds > 0 && ` · ${fmtTotal(everythingSeconds)}`}
               {library.scannedAt > 0 && scope.kind !== "opened" && ` · Scanned ${scannedOn(library.scannedAt)}`}
             </span>
             {topArtist(everything) && (
-              <span className={`block text-[13px] ${phone ? "text-ink-2" : "text-white/55"}`}>Top artist: {topArtist(everything)}</span>
+              <span className={`block text-meta text-ink-2`}>Top artist: {topArtist(everything)}</span>
             )}
             {scope.kind === "folder" && (
-              <span className={`block break-all text-[13px] ${phone ? "text-ink-2" : "text-white/55"}`}>{rootPath}</span>
+              <span className={`block break-all text-meta text-ink-2`}>{rootPath}</span>
             )}
             {scope.kind === "opened" && (
-              <span className={`block text-[13px] ${phone ? "text-ink-2" : "text-white/55"}`}>
+              <span className={`block text-meta text-ink-2`}>
                 Songs you opened with {APP_NAME}. The files stay where they are.
               </span>
             )}
@@ -564,44 +581,44 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
           aria-label={`Play ${title}`}
           onClick={() => playTracks(list, 0, title)}
         >
-          <HeroIcon icon={PlayIcon} /> Play
+          <HeroIcon icon={Play} /> Play
         </button>
         <button
           type="button"
-          className={phone ? PHONE_SHUFFLE : ROUND}
+          className={phone ? PHONE_SHUFFLE : SHUFFLE_PILL}
           aria-label="Shuffle"
           title="Shuffle"
           disabled={list.length === 0}
           onClick={() => shuffleTracks(list, title)}
         >
-          <HeroIcon icon={ShuffleIcon} />
+          <HeroIcon icon={Shuffle} />
           {phone && "Shuffle"}
         </button>
         {scope.kind !== "opened" && (
           <button
             type="button"
-            className={phone ? PHONE_ICON : ROUND}
+            className={phone ? PHONE_ICON : GHOST_ICON}
             aria-label="Rescan"
             title="Rescan"
             disabled={scanning}
             onClick={() => void scan()}
           >
             <span className={scanning ? "bt-spin" : undefined}>
-              <Icon icon={RefreshIcon} />
+              <Icon icon={ArrowClockwise} />
             </span>
           </button>
         )}
         {folder && <FolderActions folder={folder} />}
         {!phone && (
-          <button type="button" className={ROUND} aria-label="Back to Local Music" title="Local Music" onClick={onBack}>
-            <Icon icon={ArrowLeft01Icon} />
+          <button type="button" className={ROUND} aria-label="Back to Local music" title="Local music" onClick={onBack}>
+            <Icon icon={CaretLeft} />
           </button>
         )}
       </CollectionHero>
 
       {inMissing && (
         <p className={`${WARNING} mt-6 flex items-start gap-3`} role="alert">
-          <Icon icon={Alert01Icon} />
+          <Icon icon={Warning} />
           <span>
             This folder can&apos;t be reached right now. The list below is {APP_NAME}&apos;s last scan: rescan after
             reconnecting the drive, or remove the folder from {APP_NAME}.
@@ -615,14 +632,34 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
         </div>
       )}
 
-      <div className="mt-6 flex flex-wrap items-center gap-2" role="group" aria-label="Collection views">
+      {scope.kind === "all" && (
+        <div className="mt-6 flex flex-wrap items-center gap-2" role="group" aria-label="Filter songs">
+          {DEVICE_FILTERS.map((option) => {
+            const count = filterDevice(device, option.id).length;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={source === option.id}
+                onClick={() => setSource(option.id)}
+                className={`${TAB} ${source === option.id ? "bg-ink-1 text-base" : "text-ink-2"}`}
+              >
+                {option.label}
+                {count > 0 && ` · ${count}`}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div className={`${scope.kind === "all" ? "mt-4" : "mt-6"} flex flex-wrap items-center gap-2`} role="group" aria-label="Collection views">
         {tabs.map((item) => (
           <button
             key={item.id}
             type="button"
             aria-pressed={tab === item.id}
             onClick={() => setTab(item.id)}
-            className={`${TAB} ${tab === item.id ? "bg-white text-black" : "bg-white/5 text-ink-2"}`}
+            className={`${TAB} ${tab === item.id ? "bg-ink-1 text-base" : "bg-ink-1/5 text-ink-2"}`}
           >
             {item.label}
             {item.count > 0 && ` · ${item.count}`}
@@ -635,7 +672,7 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
               type="button"
               aria-pressed={songsSorted === option}
               onClick={() => setSort(option)}
-              className={`${TAB} ${songsSorted === option ? "bg-white/15 text-ink-1" : "text-ink-3"}`}
+              className={`${TAB} ${songsSorted === option ? "bg-ink-1/15 text-ink-1" : "text-ink-3"}`}
             >
               {option === "title" ? "Title" : "Artist"}
             </button>
@@ -643,7 +680,7 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
         <label className="relative ml-auto">
           <span className="sr-only">Search your files</span>
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3">
-            <Icon icon={Search01Icon} />
+            <Icon icon={MagnifyingGlass} />
           </span>
           <input
             type="search"
@@ -658,7 +695,7 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
       {filter && (
         <button
           type="button"
-          className="mt-4 text-[13px] text-ink-2 underline-offset-4 hover:underline"
+          className="mt-4 text-meta text-ink-2 underline-offset-4 hover:underline"
           onClick={() => setFilter(null)}
         >
           ← Clear filter: {filter.kind === "album" ? filter.album : filter.artist}
@@ -671,6 +708,7 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
             list={list}
             scopeEmpty={everything.length === 0}
             searching={query.trim().length > 0}
+            filter={scope.kind === "all" ? source : "all"}
             isOpened={scope.kind === "opened"}
             onPlay={(index) => playTracks(list, index, title)}
             onForget={async (id) => {
@@ -687,7 +725,7 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
                 title={group.album}
                 subtitle={`${group.artist} · ${plural(group.count, "song", "songs")}`}
                 covers={group.art ? [group.art] : []}
-                fallback={PlayListIcon}
+                fallback={Playlist}
                 onOpen={() => {
                   setFilter({ kind: "album", album: group.album, artist: group.artist });
                   setTab("songs");
@@ -709,16 +747,16 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
                   setTab("songs");
                 }}
               >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/[0.07]">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-ink-1/[0.07]">
                   {group.art ? (
-                    <img src={group.art} alt="" className="h-full w-full object-cover" />
+                    <img loading="lazy" decoding="async" src={group.art} alt="" className="h-full w-full object-cover" />
                   ) : (
-                    <Icon icon={UserIcon} />
+                    <Icon icon={User} />
                   )}
                 </span>
                 <span className="min-w-0">
-                  <span className="block truncate text-[15px] text-ink-1">{group.artist}</span>
-                  <span className="block text-[13px] text-ink-3">{plural(group.count, "song", "songs")}</span>
+                  <span className="block truncate text-body text-ink-1">{group.artist}</span>
+                  <span className="block text-meta text-ink-3">{plural(group.count, "song", "songs")}</span>
                 </span>
               </button>
             ))}
@@ -736,6 +774,7 @@ function SongsTab({
   list,
   scopeEmpty,
   searching,
+  filter,
   isOpened,
   onPlay,
   onForget,
@@ -743,18 +782,26 @@ function SongsTab({
   list: LocalTrack[];
   scopeEmpty: boolean;
   searching: boolean;
+  filter: DeviceFilter;
   isOpened: boolean;
   onPlay: (index: number) => void;
   onForget: (id: string) => Promise<void>;
 }) {
   if (list.length === 0) {
+    if (filter !== "all" && !searching) {
+      return filter === "downloaded" ? (
+        <EmptyState icon={DownloadSimple} title="No downloads yet" message="Songs you download show up here, next to your local files." />
+      ) : (
+        <EmptyState icon={MusicNote} title="No local files yet" message="Import a folder and its songs show up here." />
+      );
+    }
     if (scopeEmpty) {
-      return <EmptyState icon={MusicNote01Icon} title="No music found in this folder" message="Add audio files to it, then rescan." />;
+      return <EmptyState icon={MusicNote} title="No music found in this folder" message="Add audio files to it, then rescan." />;
     }
     if (searching) {
-      return <EmptyState icon={Search01Icon} title="Nothing matches that search" message="Try another word or clear the filter." />;
+      return <EmptyState icon={MagnifyingGlass} title="Nothing matches that search" message="Try another word or clear the filter." />;
     }
-    return <p className="text-[14px] text-ink-3">No songs.</p>;
+    return <p className="text-body text-ink-3">No songs.</p>;
   }
   return (
     <div className="flex flex-col">
@@ -779,20 +826,22 @@ export function LocalMusicView() {
   const opened = useLocalLibrary((state) => state.opened);
   const scanning = useLocalLibrary((state) => state.scanning);
   const importFolders = useLocalLibrary((state) => state.importFromPicker);
+  const downloads = useLibrary((state) => state.downloads);
   const phone = usePhone();
+  const hasDownloads = Object.values(downloads).some((item) => item.status === "done");
 
   useEffect(() => {
     if (!loaded) void refresh();
   }, [loaded, refresh]);
 
-  if (!param && library.folders.length === 0 && opened.length === 0) {
+  if (!param && library.folders.length === 0 && opened.length === 0 && !hasDownloads) {
     return (
       <div className="pb-14">
-        <PageHeader title="Local Music" />
+        <PageHeader title="Local music" />
         <div className={phone ? "" : "mt-6 flex min-h-[50vh] flex-col"}>
           <EmptyState
             centered
-            icon={FolderOpenIcon}
+            icon={FolderOpen}
             title="Play your own files"
             message="Import a folder and its songs play here, offline, with tags and cover art."
             action={{ label: scanning ? "Scanning…" : "Choose a folder", onClick: () => void importFolders() }}
@@ -836,7 +885,7 @@ function NetworkCollectionView({ id, onBack }: { id: string; onBack: () => void 
     <div className="pb-14">
       <CollectionHero
         title={server?.name ?? "Network server"}
-        icon={CloudServerIcon}
+        icon={Cloud}
         onBack={phone ? onBack : undefined}
         covers={[]}
         facts={
@@ -853,22 +902,22 @@ function NetworkCollectionView({ id, onBack }: { id: string; onBack: () => void 
           aria-label={`Play ${server?.name ?? "the server"}`}
           onClick={() => playNetworkTracks(list, 0, server?.name ?? "Network server")}
         >
-          <HeroIcon icon={PlayIcon} /> Play
+          <HeroIcon icon={Play} /> Play
         </button>
         <button
           type="button"
-          className={phone ? PHONE_SHUFFLE : ROUND}
+          className={phone ? PHONE_SHUFFLE : SHUFFLE_PILL}
           aria-label="Shuffle"
           title="Shuffle"
           disabled={list.length === 0}
           onClick={() => shuffleNetworkTracks(list, server?.name ?? "Network server")}
         >
-          <HeroIcon icon={ShuffleIcon} />
+          <HeroIcon icon={Shuffle} />
           {phone && "Shuffle"}
         </button>
         {!phone && (
-          <button type="button" className={ROUND} aria-label="Back to Local Music" title="Local Music" onClick={onBack}>
-            <Icon icon={ArrowLeft01Icon} />
+          <button type="button" className={ROUND} aria-label="Back to Local music" title="Local music" onClick={onBack}>
+            <Icon icon={CaretLeft} />
           </button>
         )}
       </CollectionHero>
@@ -881,8 +930,8 @@ function NetworkCollectionView({ id, onBack }: { id: string; onBack: () => void 
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left [@media(hover:hover)]:hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[14px] font-medium text-ink-1">{track.title}</span>
-              <span className="block truncate text-[12.5px] text-ink-3">{track.artist}</span>
+              <span className="block truncate text-body font-medium text-ink-1">{track.title}</span>
+              <span className="block truncate text-meta text-ink-3">{track.artist}</span>
             </span>
           </button>
         ))}

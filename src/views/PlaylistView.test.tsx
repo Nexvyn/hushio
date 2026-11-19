@@ -40,6 +40,7 @@ import { type LibraryTrack, type Playlist, useLibrary } from "../stores/library"
 import { useNavigation } from "../stores/navigation";
 import { usePlayer } from "../stores/player";
 import { useUI } from "../stores/ui";
+import { usePlaylistEdit } from "../stores/playlistEdit";
 
 function pointer(target: Element | Window, type: string, at: { x: number; y: number; pointerType?: string }) {
   const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX: at.x, clientY: at.y, button: 0 });
@@ -95,13 +96,11 @@ describe("Playlist page when empty", () => {
     useLibrary.setState({ playlists: [playlist([])] });
   });
 
-  it("offers search and Explore from the empty state", () => {
+  it("offers search from the empty state", () => {
     render(<><PlaylistView /><ContextMenu /></>);
 
     expect(screen.getByRole("heading", { name: "Let's find something for your playlist" })).toBeTruthy();
     expect(screen.getByText("No songs yet")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Browse Explore" }));
-    expect(useNavigation.getState().view).toEqual({ name: "explore" });
   });
 
   it("disables Shuffle and does nothing when Play is pressed", () => {
@@ -152,7 +151,7 @@ describe("Playlist page with songs", () => {
   it("starts playback from a clicked row and keeps the playlist as the source", () => {
     render(<><PlaylistView /><ContextMenu /></>);
 
-    fireEvent.click(screen.getByText("Song 2"));
+    fireEvent.doubleClick(screen.getByText("Song 2"));
     expect(usePlayer.getState().playingFrom).toBe("p1");
     expect(usePlayer.getState().index).toBe(1);
   });
@@ -280,14 +279,13 @@ describe("Playlist page with songs", () => {
     expect(useUI.getState().toasts.map((toast) => toast.message)).toContain("Playlist added to queue");
   });
 
-  it("opens the rename dialog with the current name", () => {
+  it("opens the edit dialog for a user playlist", () => {
     render(<><PlaylistView /><ContextMenu /></>);
 
     fireEvent.click(screen.getByRole("button", { name: "More options" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Edit details" }));
 
-    expect(useUI.getState().dialog?.title).toBe("Rename playlist");
-    expect(useUI.getState().dialog?.initialValue).toBe("Road trip");
+    expect(usePlaylistEdit.getState().id).not.toBeNull();
   });
 
   it("asks before deleting and then returns to Your Library", () => {

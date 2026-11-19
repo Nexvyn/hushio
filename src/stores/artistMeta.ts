@@ -39,7 +39,12 @@ export const useArtistMeta = create<ArtistMetaState>()(
           return { byName };
         }),
     }),
-    { name: "artist-meta-cache", storage: persistStorage<ArtistMetaState>("artist-meta-cache") },
+    {
+      name: "artist-meta-cache",
+      version: 1,
+      migrate: (persisted) => persisted as ArtistMetaState,
+      storage: persistStorage<ArtistMetaState>("artist-meta-cache"),
+    },
   ),
 );
 

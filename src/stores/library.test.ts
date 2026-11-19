@@ -27,7 +27,7 @@ vi.mock("../lib/bridge", async (importOriginal) => ({
   scrobbleLove: love,
 }));
 
-vi.mock("../lib/downloads", () => ({ autoDownloadLiked: autoDownload }));
+vi.mock("../lib/downloads", () => ({ autoDownloadLiked: autoDownload, autoDownloadAdded: vi.fn() }));
 
 import { deletionKey } from "../lib/deletionSync";
 import { LOCAL_ID_PREFIX } from "../lib/localLibrary";
@@ -104,6 +104,7 @@ describe("liked songs", () => {
       album: "Album",
       duration: 200,
       explicit: true,
+      addedAt: expect.any(Number),
     });
   });
 
@@ -271,11 +272,11 @@ describe("version metadata and migration", () => {
   it("persists under the library key at version 2 with the whole state", () => {
     const options = useLibrary.persist.getOptions();
     expect(options.name).toBe("library");
-    expect(options.version).toBe(4);
+    expect(options.version).toBe(7);
 
     useLibrary.getState().toggleLike(track(1));
     expect(storage.writes.at(-1)).toMatchObject({
-      version: 4,
+      version: 7,
       state: { liked: [{ id: "t1" }], pinnedSingles: DEFAULT_PINS },
     });
   });
@@ -352,5 +353,29 @@ describe("restarting the app", () => {
     });
 
     await vi.waitFor(() => expect(ids(loading.getState().liked)).toEqual(["t9", "t1"]));
+  });
+});
+
+describe("date added", () => {
+  it("stamps addedAt when a song joins a playlist or Liked Songs", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-03T12:00:00Z"));
+    const id = useLibrary.getState().createPlaylist("Mix");
+    useLibrary.getState().addToPlaylist(id, track(1));
+    useLibrary.getState().toggleLike(track(2));
+    vi.useRealTimers();
+
+    const stamp = Date.parse("2026-11-03T12:00:00Z");
+    expect(useLibrary.getState().playlists.find((item) => item.id === id)?.tracks[0].addedAt).toBe(stamp);
+    expect(useLibrary.getState().liked[0].addedAt).toBe(stamp);
+  });
+
+  it("leaves songs saved before this version without addedAt", () => {
+    const migrate = useLibrary.persist.getOptions().migrate;
+    const old = { id: "t1", title: "Track 1", artist: "Artist 1", thumb: null, album: null, duration: 0, explicit: false };
+    const migrated = migrate?.({ liked: [old], playlists: [{ id: "p", name: "Old", folderId: null, pinned: false, tracks: [old] }] }, 4);
+
+    expect(migrated).toMatchObject({ liked: [old], playlists: [{ tracks: [old] }] });
+    expect(migrated).not.toHaveProperty("liked.0.addedAt");
   });
 });

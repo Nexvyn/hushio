@@ -13,7 +13,7 @@ import { BUNDLE_TTL_MS, type ArtistBundle, bundleFromPage, getArtistBundle, peek
 import { getArtistPage } from "./browse";
 import type { ArtistPage } from "./browseParse";
 import type { HomeShelf } from "./home";
-import { keepNewest, useArtistBundles } from "../stores/artistBundles";
+import { BUNDLE_MAX, keepNewest, useArtistBundles } from "../stores/artistBundles";
 import type { SearchSong } from "./searchParse";
 
 const NOW = Date.UTC(2026, 10, 9, 12);
@@ -76,19 +76,19 @@ describe("bundleFromPage", () => {
 });
 
 describe("keepNewest", () => {
-  it("keeps the 24 most recently fetched bundles", () => {
+  it("keeps the BUNDLE_MAX most recently fetched bundles", () => {
     const bundles: Record<string, ArtistBundle> = {};
-    for (let index = 0; index < 26; index++) {
+    for (let index = 0; index < BUNDLE_MAX + 2; index++) {
       const id = `UC-${index}`;
       bundles[id] = { artistId: id, name: id, thumb: null, topSongs: [], albums: [], related: [], fetchedAt: NOW + index };
     }
 
     const kept = keepNewest(bundles);
 
-    expect(Object.keys(kept)).toHaveLength(24);
+    expect(Object.keys(kept)).toHaveLength(BUNDLE_MAX);
     expect(kept["UC-0"]).toBeUndefined();
     expect(kept["UC-1"]).toBeUndefined();
-    expect(kept["UC-25"]).toBeDefined();
+    expect(kept[`UC-${BUNDLE_MAX + 1}`]).toBeDefined();
   });
 });
 

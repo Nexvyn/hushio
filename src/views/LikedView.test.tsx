@@ -115,7 +115,7 @@ describe("Liked Songs with songs", () => {
   it("starts from a clicked row", () => {
     render(<LikedView />);
 
-    fireEvent.click(screen.getByText("Track 2"));
+    fireEvent.doubleClick(screen.getByText("Track 2"));
     expect(usePlayer.getState().index).toBe(1);
     expect(usePlayer.getState().playingFrom).toBe("__liked__");
   });

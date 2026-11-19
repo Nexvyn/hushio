@@ -5,6 +5,7 @@ import { DownloadsView } from "./DownloadsView";
 import { type DownloadItem, useLibrary } from "../stores/library";
 import { usePlayer } from "../stores/player";
 import { useUI } from "../stores/ui";
+import { ContextMenu } from "../components/ContextMenu";
 
 const bridge = vi.hoisted(() => ({
   platform: "windows",
@@ -117,7 +118,7 @@ describe("Downloads view states", () => {
     const playQueue = vi.spyOn(usePlayer.getState(), "playQueue").mockImplementation(() => {});
     render(<DownloadsView />);
 
-    fireEvent.click(screen.getByRole("button", { name: /Bravo/ }));
+    fireEvent.doubleClick(screen.getByRole("button", { name: /Bravo/ }));
 
     expect(playQueue).toHaveBeenCalledWith(
       [
@@ -130,11 +131,15 @@ describe("Downloads view states", () => {
     playQueue.mockRestore();
   });
 
-  it("keeps a row that is not saved yet out of the play action", () => {
+  it("selects a row that is not saved yet but does not play it", () => {
     seed([row("c", "Charlie", "queued")]);
+    const playQueue = vi.spyOn(usePlayer.getState(), "playQueue").mockImplementation(() => {});
     render(<DownloadsView />);
 
-    expect((screen.getByRole("button", { name: /Charlie/ }) as HTMLButtonElement).disabled).toBe(true);
+    const charlie = screen.getByRole("button", { name: /Charlie/ }) as HTMLButtonElement;
+    expect(charlie.disabled).toBe(false);
+    fireEvent.doubleClick(charlie);
+    expect(playQueue).not.toHaveBeenCalled();
   });
 });
 
@@ -193,12 +198,13 @@ describe("Downloads row actions", () => {
     expect(screen.queryByRole("button", { name: "Remove from list" })).toBeNull();
   });
 
-  it("opens the downloads folder from the hero", async () => {
+  it("opens the downloads folder from the hero menu", async () => {
     seed([row("a", "Alpha", "done", { path: "/a.m4a" })]);
-    render(<DownloadsView />);
+    render(<><DownloadsView /><ContextMenu /></>);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole("button", { name: "Open the downloads folder" }));
+    await user.click(screen.getByRole("button", { name: "More options" }));
+    await user.click(screen.getByRole("menuitem", { name: "Open the downloads folder" }));
 
     expect(bridge.openFolder).toHaveBeenCalledWith(undefined);
   });

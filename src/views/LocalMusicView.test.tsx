@@ -9,6 +9,7 @@ const player = vi.hoisted(() => ({
 const bridge = vi.hoisted(() => ({
   pickFolder: vi.fn(async () => null),
   localLibraryRemoveFolder: vi.fn(),
+  downloadDeleteFile: vi.fn(async () => undefined),
 }));
 
 vi.mock("../stores/player", () => ({ usePlayer: { getState: () => player } }));
@@ -16,6 +17,9 @@ vi.mock("../lib/bridge", () => ({
   platform: "windows",
   pickFolder: bridge.pickFolder,
   localLibraryRemoveFolder: bridge.localLibraryRemoveFolder,
+  downloadDeleteFile: bridge.downloadDeleteFile,
+  persistRead: vi.fn(async () => null),
+  persistWrite: vi.fn(async () => true),
   localLibraryGet: vi.fn(),
   localLibraryOpened: vi.fn(),
   localLibraryFolderStatuses: vi.fn(),
@@ -31,6 +35,7 @@ vi.mock("../lib/bridge", () => ({
 
 import { LocalMusicView } from "./LocalMusicView";
 import { useLocalLibrary } from "../stores/localLibrary";
+import { useLibrary, type DownloadItem } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
 import { useUI } from "../stores/ui";
 import type { LocalTrack } from "../lib/bridge";
@@ -78,6 +83,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   player.shuffle = false;
   useUI.setState({ dialog: null, toasts: [] });
+  useLibrary.setState({ downloads: {} });
 });
 
 describe("LocalMusicView index", () => {
@@ -92,10 +98,10 @@ describe("LocalMusicView index", () => {
 
   it("lists All songs, each folder and the left-out count", () => {
     setup(undefined, { missing: ["D:\\Gone"] });
-    expect(screen.getByRole("heading", { name: "Local Music" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Local music" })).toBeTruthy();
     expect(screen.getByText(/^2 songs · 2 folders · Scanned /)).toBeTruthy();
     expect(screen.getByText("3 files left out: Hushio can't play WMA files.")).toBeTruthy();
-    expect(screen.getByText("All songs")).toBeTruthy();
+    expect(screen.getByText("On this device")).toBeTruthy();
     expect(screen.getByText("Old drive")).toBeTruthy();
     expect(screen.getByText("Folder missing: check the drive, or remove it")).toBeTruthy();
     expect(screen.getByText("Import another folder")).toBeTruthy();
@@ -113,13 +119,93 @@ describe("LocalMusicView index", () => {
     expect(player.playQueue).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ id: "local:Alpha" }), expect.objectContaining({ id: "local:Zulu" })]),
       0,
-      "Local Music",
+      "Local music",
     );
   });
 
   it("lists opened files when there are any", () => {
     setup(undefined, { opened: [track({ path: "E:\\One.mp3", title: "One" })] });
     expect(screen.getByText("Opened files")).toBeTruthy();
+  });
+});
+
+const savedDownload: DownloadItem = {
+  track: { id: "dl1", title: "Saved Song", artist: "Web Artist", album: "Web", duration: 120, thumb: "https://img.test/s.jpg" },
+  path: "C:\\Downloads\\saved.m4a",
+  status: "done",
+  progress: 1,
+  downloaded: 0,
+  total: 0,
+};
+
+describe("LocalMusicView on this device", () => {
+  beforeEach(() => {
+    useLibrary.setState({ downloads: { dl1: savedDownload } });
+  });
+
+  it("lists local files and downloads together, sorted by title", () => {
+    setup("all");
+    expect(screen.getByRole("button", { name: "Play Alpha" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Play Saved Song" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Play Zulu" })).toBeTruthy();
+  });
+
+  it("filters the list to local files or downloads with the chips", () => {
+    setup("all");
+    fireEvent.click(screen.getByRole("button", { name: /^Downloaded/ }));
+    expect(screen.queryByRole("button", { name: "Play Alpha" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Play Saved Song" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /^Local files/ }));
+    expect(screen.getByRole("button", { name: "Play Alpha" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Play Saved Song" })).toBeNull();
+  });
+
+  it("explains an empty downloads filter", () => {
+    useLibrary.setState({ downloads: {} });
+    setup("all");
+    fireEvent.click(screen.getByRole("button", { name: /^Downloaded/ }));
+    expect(screen.getByText("No downloads yet")).toBeTruthy();
+  });
+
+  it("marks only the downloaded rows with a badge", () => {
+    setup("all");
+    expect(screen.getAllByTitle("Downloaded")).toHaveLength(1);
+  });
+
+  it("searches local files and downloads together", () => {
+    setup("all");
+    fireEvent.change(screen.getByPlaceholderText("Search your files"), { target: { value: "web" } });
+    expect(screen.getByRole("button", { name: "Play Saved Song" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Play Alpha" })).toBeNull();
+  });
+
+  it("plays a downloaded row through the queue at its position", () => {
+    setup("all");
+    fireEvent.click(screen.getByRole("button", { name: "Play Saved Song" }));
+    expect(player.playQueue).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({ id: "local:Alpha" }),
+        expect.objectContaining({ id: "dl1", thumb: "https://img.test/s.jpg" }),
+        expect.objectContaining({ id: "local:Zulu" }),
+      ],
+      1,
+      "On this device",
+    );
+  });
+
+  it("removes a download from its row menu and deletes the file", () => {
+    setup("all");
+    fireEvent.click(screen.getByRole("button", { name: "More options for Saved Song" }));
+    const remove = useUI.getState().contextMenu?.items.find((entry) => entry.label === "Remove download");
+    expect(remove).toBeTruthy();
+    remove?.onSelect?.();
+    expect(bridge.downloadDeleteFile).toHaveBeenCalledWith("C:\\Downloads\\saved.m4a");
+    expect(useLibrary.getState().downloads.dl1).toBeUndefined();
+  });
+
+  it("gives local rows no download menu", () => {
+    setup("all");
+    expect(screen.queryByRole("button", { name: "More options for Alpha" })).toBeNull();
   });
 });
 
@@ -194,6 +280,15 @@ describe("LocalMusicView collection", () => {
     expect(dialog?.title).toBe('Remove "Music"?');
     expect(dialog?.body).toContain("Your files stay exactly where they are on disk.");
     expect(dialog?.danger).toBe(true);
+  });
+
+  it("lists a downloads-only library with the on-device card", () => {
+    useLocalLibrary.setState({ library: { folders: [], scannedAt: 0, tracks: [], unplayable: [] }, opened: [], loaded: true });
+    useLibrary.setState({ downloads: { dl1: savedDownload } });
+    useNavigation.setState({ view: { name: "local" } });
+    render(<LocalMusicView />);
+    expect(screen.getByText("On this device")).toBeTruthy();
+    expect(screen.queryByText("Play your own files")).toBeNull();
   });
 
   it("lets opened files be removed one by one", () => {

@@ -1,27 +1,35 @@
 import type { ReactNode } from "react";
-import type { IconSvgElement } from "@hugeicons/react";
-import { PageHeader } from "./PageHeader";
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
+import { PageHeader, type HeroTile } from "./PageHeader";
 
 type CollectionHeroProps = {
-  ambient?: boolean;
-  title: string;
+    title: string;
   covers: string[];
   facts: ReactNode;
-  children: ReactNode;
-  icon?: IconSvgElement;
+  children?: ReactNode;
+  icon?: PhosphorIcon;
+  tile?: HeroTile;
   onBack?: () => void;
+  eyebrow?: string;
+  footer?: ReactNode;
+  description?: string;
+  onEdit?: () => void;
 };
 
-export function CollectionHero({ title, covers, facts, children, ambient = false, icon, onBack }: CollectionHeroProps) {
+export function CollectionHero({ title, covers, facts, children, icon, tile, onBack, eyebrow, footer, description, onEdit }: CollectionHeroProps) {
   return (
     <PageHeader
       title={title}
       meta={facts}
       artwork={covers[0] ?? null}
       actions={children}
-      ambient={ambient}
       icon={icon}
+      tile={tile}
       onBack={onBack}
+      eyebrow={eyebrow}
+      footer={footer}
+      description={description}
+      onEdit={onEdit}
     />
   );
 }

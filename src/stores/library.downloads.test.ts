@@ -23,9 +23,9 @@ beforeEach(() => {
 });
 
 describe("library downloads state", () => {
-  it("starts empty and persists under library version 4", () => {
-    expect(LIBRARY_VERSION).toBe(4);
-    expect(useLibrary.persist.getOptions().version).toBe(4);
+  it("starts empty and persists under library version 7", () => {
+    expect(LIBRARY_VERSION).toBe(7);
+    expect(useLibrary.persist.getOptions().version).toBe(7);
     expect(useLibrary.getState().downloads).toEqual({});
   });
 

@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  autoDownloadAdded,
+  shouldHoldForWifi,
+  releaseWaitingDownloads,
   autoDownloadLiked,
   chooseDownloadFolder,
   cancelDownload,
@@ -11,6 +14,7 @@ import {
   listenForDownloadProgress,
   reconcileStaleDownloads,
   revealDownload,
+  removeDownload,
   openDownloadFolder,
   startDownload,
   type DownloadSource,
@@ -34,8 +38,14 @@ const bridge = vi.hoisted(() => ({
 
 const resolve = vi.hoisted(() => vi.fn());
 
+const network = vi.hoisted(() => ({ type: "wifi" as "wifi" | "cellular" | "unknown" }));
+
 vi.mock("./bridge", () => bridge);
 vi.mock("./resolveStream", () => ({ resolveStream: resolve }));
+vi.mock("./networkType", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./networkType")>()),
+  currentNetworkType: () => network.type,
+}));
 
 const SONG: DownloadSource = { id: "abc123", title: "Song", artist: "Artist", thumb: "https://img.test/t.jpg", duration: 200 };
 
@@ -61,7 +71,14 @@ function toastMessages(): string[] {
 beforeEach(() => {
   useLibrary.setState({ downloads: {} });
   useUI.setState({ toasts: [], pendingToasts: [], dialog: null });
-  useSettings.setState({ downloadDir: null, downloadQuality: "lossless", exportDownloads: false });
+  useSettings.setState({
+    downloadDir: null,
+    downloadQuality: "lossless",
+    exportDownloads: false,
+    downloadWifiOnly: false,
+    keepPlaylistsUpdated: true,
+  });
+  network.type = "wifi";
   resolve.mockReset().mockResolvedValue({ url: "https://rr.test/stream", mime: "audio/mp4", lufs: null });
   bridge.downloadStart.mockReset().mockResolvedValue(undefined);
   bridge.downloadCancel.mockReset().mockResolvedValue(true);
@@ -568,5 +585,103 @@ describe("downloadMenuItems", () => {
       .find((entry) => entry.label === "Remove from list")
       ?.onSelect?.();
     expect(useLibrary.getState().downloads.abc123).toBeUndefined();
+  });
+});
+
+describe("removeDownload", () => {
+  it("deletes the file of a finished download and forgets it", () => {
+    seed("abc123", item({ status: "done", path: "/a.m4a" }));
+    removeDownload("abc123");
+    expect(bridge.downloadDeleteFile).toHaveBeenCalledWith("/a.m4a");
+    expect(useLibrary.getState().downloads.abc123).toBeUndefined();
+  });
+});
+
+const settle = () => new Promise((done) => setTimeout(done, 0));
+
+describe("Wi-Fi only downloads", () => {
+  it("holds a download on cellular and starts it once Wi-Fi returns", async () => {
+    useSettings.setState({ downloadWifiOnly: true });
+    network.type = "cellular";
+    await startDownload(SONG);
+    expect(useLibrary.getState().downloads.abc123.status).toBe("waiting");
+    expect(resolve).not.toHaveBeenCalled();
+    expect(bridge.downloadStart).not.toHaveBeenCalled();
+
+    network.type = "wifi";
+    releaseWaitingDownloads();
+    await vi.waitFor(() => expect(bridge.downloadStart).toHaveBeenCalledTimes(1));
+    expect(useLibrary.getState().downloads.abc123.status).toBe("queued");
+  });
+
+  it("keeps waiting while the device is still on cellular", async () => {
+    useSettings.setState({ downloadWifiOnly: true });
+    network.type = "cellular";
+    await startDownload(SONG);
+    releaseWaitingDownloads();
+    await settle();
+    expect(useLibrary.getState().downloads.abc123.status).toBe("waiting");
+    expect(bridge.downloadStart).not.toHaveBeenCalled();
+  });
+
+  it("starts right away on cellular when the setting is off", async () => {
+    network.type = "cellular";
+    await startDownload(SONG);
+    expect(useLibrary.getState().downloads.abc123.status).toBe("queued");
+    expect(bridge.downloadStart).toHaveBeenCalledTimes(1);
+  });
+
+  it("removes a waiting download on cancel without asking the backend", async () => {
+    useSettings.setState({ downloadWifiOnly: true });
+    network.type = "cellular";
+    await startDownload(SONG);
+    await cancelDownload("abc123");
+    expect(bridge.downloadCancel).not.toHaveBeenCalled();
+    expect(useLibrary.getState().downloads.abc123).toBeUndefined();
+  });
+
+  it("holds only on cellular while the setting is on", () => {
+    expect(shouldHoldForWifi(true, "cellular")).toBe(true);
+    expect(shouldHoldForWifi(false, "cellular")).toBe(false);
+    expect(shouldHoldForWifi(true, "wifi")).toBe(false);
+    expect(shouldHoldForWifi(true, "unknown")).toBe(false);
+  });
+});
+
+describe("autoDownloadAdded", () => {
+  const SAVED: DownloadSource = { id: "plA", title: "A", artist: "Artist" };
+  const NEW: DownloadSource = { id: "plB", title: "B", artist: "Artist" };
+
+  it("downloads a new song when every song already in the playlist is saved", async () => {
+    seed("plA", item({ status: "done", path: "/music/a.m4a" }));
+    autoDownloadAdded([SAVED, NEW], ["plB"]);
+    await vi.waitFor(() =>
+      expect(bridge.downloadStart).toHaveBeenCalledWith(expect.objectContaining({ id: "plB" }), expect.any(String), undefined, false, false),
+    );
+    expect(bridge.downloadStart).toHaveBeenCalledTimes(1);
+  });
+
+  it("does nothing when a song already in the playlist is not saved", async () => {
+    seed("plA", item({ status: "failed" }));
+    autoDownloadAdded([SAVED, NEW], ["plB"]);
+    await settle();
+    expect(bridge.downloadStart).not.toHaveBeenCalled();
+    expect(useLibrary.getState().downloads.plB).toBeUndefined();
+  });
+
+  it("does nothing while keeping playlists updated is off", async () => {
+    useSettings.setState({ keepPlaylistsUpdated: false });
+    seed("plA", item({ status: "done", path: "/music/a.m4a" }));
+    autoDownloadAdded([SAVED, NEW], ["plB"]);
+    await settle();
+    expect(bridge.downloadStart).not.toHaveBeenCalled();
+  });
+
+  it("skips a new song that is already saved", async () => {
+    seed("plA", item({ status: "done", path: "/music/a.m4a" }));
+    seed("plB", item({ status: "done", path: "/music/b.m4a" }));
+    autoDownloadAdded([SAVED, NEW], ["plB"]);
+    await settle();
+    expect(bridge.downloadStart).not.toHaveBeenCalled();
   });
 });

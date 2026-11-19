@@ -173,7 +173,7 @@ describe("persistence and versioning", () => {
     useLibrary.getState().setLibraryOrder(["folder:" + folderId]);
 
     expect(storage.writes.at(-1)).toMatchObject({
-      version: 4,
+      version: 7,
       state: {
         playlists: [{ id: playlistId, name: "Evening", folderId: null, pinned: false, tracks: [] }],
         folders: [{ id: folderId, name: "Chill" }],

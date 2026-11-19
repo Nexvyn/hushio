@@ -1,13 +1,15 @@
-import { Copy01Icon, Download01Icon, PlayIcon, PlayListAddIcon, PlayListIcon, ShuffleIcon } from "@hugeicons/core-free-icons";
+import { Copy, DownloadSimple, Play, ListPlus, Playlist, Shuffle } from "@phosphor-icons/react";
 import { ActionMenu } from "../components/ActionMenu";
 import { HeroControls } from "../components/BrowseHero";
 import { BrowseSkeleton } from "../components/BrowseSkeleton";
+import { SkeletonSwap } from "../components/SkeletonSwap";
 import { CollectionHero } from "../components/CollectionHero";
 import { HeroIcon } from "../components/HeroIcon";
 import { PageHeader } from "../components/PageHeader";
 import { ErrorState } from "../components/ErrorState";
 import { PHONE_ICON, PHONE_PLAY, PHONE_SHUFFLE } from "../components/phone/heroButtons";
 import { PhoneSongRow } from "../components/phone/PhoneTrackRow";
+import { useFirstLoadStagger } from "../components/phone/useFirstLoadStagger";
 import type { MenuItem } from "../stores/ui";
 import { TrackRow } from "../components/TrackRow";
 import { getPlaylistPage } from "../lib/browse";
@@ -29,7 +31,6 @@ export function RemotePlaylistView() {
   const playlistId = useNavigation((state) => state.view.param) ?? "";
   const { state, retry } = useBrowseLoad(playlistId, getPlaylistPage);
 
-  if (state.status === "loading") return <BrowseSkeleton rows={7} />;
   if (state.status === "error") {
     return (
       <div className="pt-10">
@@ -41,13 +42,22 @@ export function RemotePlaylistView() {
       </div>
     );
   }
-  return <PlaylistContent page={state.data} playlistId={playlistId} />;
+  return (
+    <SkeletonSwap loading={state.status === "loading"} skeleton={<BrowseSkeleton rows={7} />}>
+      {state.status === "loading" ? null : (
+        <div className="animate-fade-in">
+          <PlaylistContent page={state.data} playlistId={playlistId} />
+        </div>
+      )}
+    </SkeletonSwap>
+  );
 }
 
 function PlaylistContent({ page, playlistId }: { page: PlaylistPage; playlistId: string }) {
   const { tracks } = page;
   const { current, playing, playAt, shuffle } = useBrowsePlayback(tracks);
   const phone = usePhone();
+  const stagger = useFirstLoadStagger(tracks.length > 0);
   const empty = tracks.length === 0;
   const credit = ownerCredit(page.credit);
   const cover = phone ? thumbArtwork(page.thumb, HEADER_ART) || null : heroCover(page.thumb);
@@ -55,17 +65,17 @@ function PlaylistContent({ page, playlistId }: { page: PlaylistPage; playlistId:
   const menu: MenuItem[] = [
     {
       label: "Add all to queue",
-      icon: PlayListAddIcon,
+      icon: ListPlus,
       disabled: tracks.length === 0,
       onSelect: () => queueAll(tracks, "Playlist added to queue"),
     },
     {
       label: "Download all",
-      icon: Download01Icon,
+      icon: DownloadSimple,
       disabled: tracks.length === 0,
       onSelect: () => downloadAll(tracks, page.title),
     },
-    { label: "Copy link", icon: Copy01Icon, onSelect: () => copyLink(youtubePlaylistLink(playlistId)) },
+    { label: "Copy link", icon: Copy, onSelect: () => copyLink(youtubePlaylistLink(playlistId)) },
   ];
 
   const facts = (
@@ -84,25 +94,23 @@ function PlaylistContent({ page, playlistId }: { page: PlaylistPage; playlistId:
     <>
       {phone ? (
         <CollectionHero
-          ambient
           title={page.title}
           covers={cover ? [cover] : []}
           facts={facts}
-          icon={PlayListIcon}
+          icon={Playlist}
         >
           <button type="button" onClick={() => playAt(0)} disabled={empty} className={PHONE_PLAY}>
-            <HeroIcon icon={PlayIcon} />
+            <HeroIcon icon={Play} />
             Play
           </button>
           <button type="button" aria-label="Shuffle" title="Shuffle" disabled={empty} onClick={shuffle} className={PHONE_SHUFFLE}>
-            <HeroIcon icon={ShuffleIcon} />
+            <HeroIcon icon={Shuffle} />
             Shuffle
           </button>
           <ActionMenu items={menu} label="More options" triggerClass={PHONE_ICON} phoneIcon />
         </CollectionHero>
       ) : (
         <PageHeader
-          ambient
           title={page.title}
           artwork={cover}
           meta={facts}
@@ -120,9 +128,9 @@ function PlaylistContent({ page, playlistId }: { page: PlaylistPage; playlistId:
 
       <div className={phone ? "pb-14 pt-5" : "pb-12"}>
         {empty ? (
-          <p className="py-10 text-center text-[13px] text-ink-2">This playlist is empty.</p>
+          <p className="py-10 text-center text-meta text-ink-2">This playlist is empty.</p>
         ) : phone ? (
-          <ol className="flex flex-col">
+          <ol className={`flex flex-col ${stagger.className}`} onAnimationEnd={stagger.onAnimationEnd}>
             {tracks.map((song, index) => (
               <PhoneSongRow
                 key={`${song.id}-${index}`}

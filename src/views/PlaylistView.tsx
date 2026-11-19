@@ -1,15 +1,22 @@
-import { useRef } from "react";
-import { FavouriteIcon, PlayIcon, PlayListAddIcon, PlayListIcon, ShuffleIcon } from "@hugeicons/core-free-icons";
+import { useEffect, useRef, useState } from "react";
+import { Heart, Play, ListPlus, Playlist as PlaylistIcon, Shuffle, Trash } from "@phosphor-icons/react";
 import { ActionMenu } from "../components/ActionMenu";
-import { PILL, ROUND } from "../components/BrowseHero";
 import { CollectionHero } from "../components/CollectionHero";
 import { EmptyState } from "../components/EmptyState";
 import { HeroIcon } from "../components/HeroIcon";
-import { TrackRow } from "../components/TrackRow";
+import { ALL_SORTS, arrangeTracks, CollectionActions, FILTER_MIN_TRACKS, PhoneTrackFilter, type SortKey, TrackTools } from "../components/TrackListControls";
+import { TrackListHeader, TrackRow } from "../components/TrackRow";
 import { PHONE_ICON, PHONE_PLAY, PHONE_SHUFFLE } from "../components/phone/heroButtons";
 import { PhoneSongRow } from "../components/phone/PhoneTrackRow";
-import { coversOf, topArtist } from "../lib/collections";
-import { dropTrackOnTarget, playCollection, playlistHeaderItems, toSong } from "../lib/collectionActions";
+import { useFirstLoadStagger } from "../components/phone/useFirstLoadStagger";
+import { topArtist } from "../lib/collections";
+import { playlistCovers } from "../lib/playlistCover";
+import { useFailedCovers } from "../stores/coverErrors";
+import { playCollection, playlistHeaderItems, toSong } from "../lib/collectionActions";
+import { dropTracksOnTarget, QUEUE_TARGET } from "../lib/trackDrop";
+import { selectionMenuItems } from "../lib/selectionMenu";
+import { useTrackSelection } from "../lib/useTrackSelection";
+import { downloadAll } from "../lib/downloads";
 import { fmtTotal } from "../lib/format";
 import { plural } from "../lib/plural";
 import { sortKeys } from "../lib/sortable";
@@ -21,11 +28,10 @@ import type { SearchSong } from "../lib/searchParse";
 import { useNavigation } from "../stores/navigation";
 import { playFromRow, usePlayer } from "../stores/player";
 import { type MenuItem, useUI } from "../stores/ui";
-
-function searchForSongs() {
-  useNavigation.getState().navigate({ name: "home" });
-  window.setTimeout(() => document.getElementById("global-search")?.focus(), 80);
-}
+import { prefetchFirst } from "../lib/prefetch";
+import { FINDER_MAX_SONGS, PlaylistFinder } from "../components/PlaylistFinder";
+import { PlaylistRecommendations } from "../components/PlaylistRecommendations";
+import { usePlaylistEdit } from "../stores/playlistEdit";
 
 function phoneRowMenu(playlist: Playlist, index: number, song: SearchSong): MenuItem[] {
   const liked = useLibrary.getState().liked.some((item) => item.id === song.id);
@@ -33,7 +39,7 @@ function phoneRowMenu(playlist: Playlist, index: number, song: SearchSong): Menu
     ...playlistTrackMenuItems(playlist, index),
     {
       label: liked ? "Remove from Liked Songs" : "Add to Liked Songs",
-      icon: FavouriteIcon,
+      icon: Heart,
       separatorBefore: true,
       onSelect: () => useLibrary.getState().toggleLike(song),
     },
@@ -43,31 +49,72 @@ function phoneRowMenu(playlist: Playlist, index: number, song: SearchSong): Menu
 export function PlaylistView() {
   const id = useNavigation((state) => state.view.param);
   const playlist = useLibrary((state) => state.playlists.find((item) => item.id === id));
-  const navigate = useNavigation((state) => state.navigate);
   const currentId = usePlayer((state) => state.queue[state.index]?.id);
   const playing = usePlayer((state) => state.playing);
   const listRef = useRef<HTMLOListElement>(null);
   const phone = usePhone();
+  const failed = useFailedCovers();
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SortKey>("custom");
   const tracks = playlist?.tracks ?? [];
-  const keys = sortKeys(tracks.map((track) => track.id));
+  const leadIds = tracks.slice(0, 3).map((track) => track.id).join("|");
+  useEffect(() => prefetchFirst(leadIds.split("|")), [leadIds]);
+  const filterable = tracks.length >= FILTER_MIN_TRACKS;
+  const activeQuery = filterable ? query : "";
+  const dragOn = sort === "custom" && activeQuery.trim() === "";
+  const visible = arrangeTracks(tracks, activeQuery, sort);
+  const visibleTracks = visible.map((row) => row.item);
+  const stagger = useFirstLoadStagger(visibleTracks.length > 0);
+  const keys = sortKeys(visibleTracks.map((track) => track.id));
+  const selection = useTrackSelection(`playlist:${id}`, visibleTracks.map((track) => track.id));
   const sortable = useSortable({
     keys,
     listRef,
+    reorder: dragOn,
     onMove: (from, to) => {
       if (playlist) useLibrary.getState().moveInPlaylist(playlist.id, from, to);
     },
     canDropOn: (_key, targetId) =>
-      targetId === "liked" || (targetId.startsWith("playlist:") && targetId !== `playlist:${playlist?.id}`),
-    onDropOn: (key, targetId) => {
-      const track = tracks[keys.indexOf(key)];
-      if (track) dropTrackOnTarget(targetId, track);
+      targetId === "liked" ||
+      targetId === QUEUE_TARGET ||
+      (targetId.startsWith("playlist:") && targetId !== `playlist:${playlist?.id}`),
+    onDropOn: (key, targetId, point) => {
+      const dragged = visibleTracks[keys.indexOf(key)];
+      if (!dragged) return;
+      const group = selection.isSelected(dragged.id)
+        ? visibleTracks.filter((track) => selection.isSelected(track.id))
+        : [dragged];
+      dropTracksOnTarget(targetId, group.map(toSong), point);
     },
   });
+
+  function removeSelected() {
+    if (!playlist) return;
+    const removed = tracks
+      .map((track, index) => ({ track, index }))
+      .filter(({ track }) => selection.isSelected(track.id));
+    if (removed.length === 0) return;
+    const library = useLibrary.getState();
+    removed.forEach(({ track }) => library.removeFromPlaylist(playlist.id, track.id));
+    selection.clear();
+    useUI.getState().toast(`Removed ${plural(removed.length, "song", "songs")} from playlist`, "info", undefined, {
+      label: "Undo",
+      run: () =>
+        removed.forEach(({ track, index }) => useLibrary.getState().restoreTrackInPlaylist(playlist.id, track, index)),
+    });
+  }
+
+  function selectedMenu(): MenuItem[] {
+    const picked = visibleTracks.filter((track) => selection.isSelected(track.id)).map(toSong);
+    return selectionMenuItems(picked, [
+      { label: "Remove from this playlist", icon: Trash, danger: true, separatorBefore: true, onSelect: removeSelected },
+    ]);
+  }
 
   if (!playlist) {
     return (
       <EmptyState
-        icon={PlayListIcon}
+        icon={PlaylistIcon}
         title="This playlist no longer exists"
         message="It may have been deleted. Head back to your playlists to find the rest."
       />
@@ -91,7 +138,7 @@ export function PlaylistView() {
   const headerMenu: MenuItem[] = [
     {
       label: "Add all to queue",
-      icon: PlayListAddIcon,
+      icon: ListPlus,
       onSelect: () => {
         usePlayer.getState().addToQueue(tracks);
         useUI.getState().toast("Playlist added to queue");
@@ -99,78 +146,125 @@ export function PlaylistView() {
     },
     ...playlistHeaderItems(playlist),
   ];
+  const footer = phone ? undefined : (
+    <div className="flex flex-wrap items-center justify-between gap-4">
+      <CollectionActions
+        playLabel={`Play ${playlist.name}`}
+        disabled={empty}
+        onPlay={() => playCollection(tracks, playlist.id, false)}
+        onShuffle={() => playCollection(tracks, playlist.id, true)}
+        onDownload={() => downloadAll(tracks, playlist.name)}
+        menu={headerMenu}
+      />
+      {!empty && (
+        <TrackTools query={activeQuery} onQuery={setQuery} sort={sort} onSort={setSort} options={ALL_SORTS} filterable={filterable} />
+      )}
+    </div>
+  );
 
   return (
     <div className="pb-14">
       <CollectionHero
-        ambient
         title={playlist.name}
-        covers={coversOf(tracks)}
+        covers={playlistCovers(playlist, Number.POSITIVE_INFINITY, failed)}
         facts={facts}
-        icon={PlayListIcon}
+        icon={PlaylistIcon}
+        eyebrow="Playlist"
+        footer={footer}
+        description={playlist.description}
+        onEdit={playlist.remote ? undefined : () => usePlaylistEdit.getState().open(playlist.id)}
       >
-        <button
-          type="button"
-          aria-label={`Play ${playlist.name}`}
-          onClick={() => playCollection(tracks, playlist.id, false)}
-          className={phone ? PHONE_PLAY : PILL}
-        >
-          <HeroIcon icon={PlayIcon} />
-          Play
-        </button>
-        <button
-          type="button"
-          aria-label="Shuffle"
-          title="Shuffle"
-          disabled={empty}
-          onClick={() => playCollection(tracks, playlist.id, true)}
-          className={phone ? PHONE_SHUFFLE : ROUND}
-        >
-          <HeroIcon icon={ShuffleIcon} />
-          {phone && "Shuffle"}
-        </button>
-        <ActionMenu items={headerMenu} label="More options" triggerClass={phone ? PHONE_ICON : ROUND} phoneIcon={phone} />
+        {phone && (
+          <>
+            <button
+              type="button"
+              aria-label={`Play ${playlist.name}`}
+              onClick={() => playCollection(tracks, playlist.id, false)}
+              className={PHONE_PLAY}
+            >
+              <HeroIcon icon={Play} />
+              Play
+            </button>
+            <button
+              type="button"
+              aria-label="Shuffle"
+              title="Shuffle"
+              disabled={empty}
+              onClick={() => playCollection(tracks, playlist.id, true)}
+              className={PHONE_SHUFFLE}
+            >
+              <HeroIcon icon={Shuffle} />
+              Shuffle
+            </button>
+            <ActionMenu items={headerMenu} label="More options" triggerClass={PHONE_ICON} phoneIcon />
+          </>
+        )}
       </CollectionHero>
 
       <div className={phone ? (empty ? "" : "pt-5") : "pt-6"}>
         {empty ? (
-          <EmptyState
-            icon={PlayListIcon}
-            title="Let's find something for your playlist"
-            message="Search for songs you love, or browse Explore to discover something new, then right-click any song to add it here."
-            action={{ label: "Search for songs", onClick: searchForSongs }}
-            secondaryAction={{ label: "Browse Explore", onClick: () => navigate({ name: "explore" }) }}
-          />
+          playlist.remote && (
+            <EmptyState icon={PlaylistIcon} title="No songs yet" message="Songs you add here sync with your linked playlist." />
+          )
         ) : (
-          <ol ref={listRef} {...sortable.listProps}>
-            {tracks.map((track, index) =>
-              phone ? (
-                <PhoneSongRow
-                  key={keys[index]}
-                  index={index}
-                  song={toSong(track)}
-                  current={track.id === currentId}
-                  playing={playing}
-                  menu={() => phoneRowMenu(playlist, index, toSong(track))}
-                  onPlay={() => playFromRow(tracks, index, playlist.id)}
-                  rowProps={sortable.bind(keys[index])}
-                />
-              ) : (
-              <TrackRow
-                key={keys[index]}
-                index={index}
-                song={toSong(track)}
-                current={track.id === currentId}
-                playing={playing}
-                menu={() => playlistTrackMenuItems(playlist, index)}
-                onPlay={() => playFromRow(tracks, index, playlist.id)}
-                artwork
-                showAlbum
-                rowProps={sortable.bind(keys[index])}
-              />
-            ))}
-          </ol>
+          <>
+            {!phone && <TrackListHeader showAlbum showAdded />}
+            {phone && <PhoneTrackFilter query={query} onQuery={setQuery} count={tracks.length} />}
+            <ol
+              ref={listRef}
+              className={stagger.className || undefined}
+              onAnimationEnd={stagger.onAnimationEnd}
+              {...(phone && !dragOn ? {} : sortable.listProps)}
+              onKeyDown={phone ? undefined : (event) => selection.onListKeyDown(event, removeSelected)}
+            >
+              {visible.map(({ item: track, index }, position) => {
+                const key = keys[position];
+                if (phone) {
+                  return (
+                    <PhoneSongRow
+                      key={key}
+                      index={index}
+                      song={toSong(track)}
+                      current={track.id === currentId}
+                      playing={playing}
+                      menu={() => phoneRowMenu(playlist, index, toSong(track))}
+                      onPlay={() => playFromRow(tracks, index, playlist.id)}
+                      rowProps={dragOn ? sortable.bind(key) : undefined}
+                    />
+                  );
+                }
+                return (
+                  <TrackRow
+                    key={key}
+                    index={position}
+                    song={toSong(track)}
+                    current={track.id === currentId}
+                    playing={playing}
+                    menu={() =>
+                      selection.isSelected(track.id) && selection.count > 1
+                        ? selectedMenu()
+                        : playlistTrackMenuItems(playlist, index)
+                    }
+                    onPlay={() => playFromRow(visibleTracks, position, playlist.id)}
+                    artwork
+                    showAlbum
+                    showAdded
+                    addedAt={track.addedAt}
+                    selected={selection.isSelected(track.id)}
+                    onSelectClick={(event) => selection.click(event, track.id)}
+                    onContextSelect={() => selection.contextSelect(track.id)}
+                    rowProps={sortable.bind(key)}
+                  />
+                );
+              })}
+            </ol>
+            {visible.length === 0 && (
+              <p className="py-10 text-center text-meta text-ink-2">No songs match this filter.</p>
+            )}
+          </>
         )}
+        {!playlist.remote && tracks.length < FINDER_MAX_SONGS && <PlaylistFinder playlist={playlist} />}
+        {!playlist.remote && !empty && <PlaylistRecommendations key={playlist.id} playlist={playlist} />}
       </div>
     </div>
   );

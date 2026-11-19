@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { FavouriteIcon } from "@hugeicons/core-free-icons";
+import { Heart } from "@phosphor-icons/react";
 import { CollectionHero } from "./CollectionHero";
 import { PHONE_PLAY, PHONE_SHUFFLE } from "./phone/heroButtons";
 
@@ -11,7 +11,7 @@ afterEach(cleanup);
 describe("CollectionHero on phone", () => {
   it("renders Play and Shuffle as a paired row", () => {
     render(
-      <CollectionHero title="Liked Songs" covers={[]} facts="12 songs" icon={FavouriteIcon}>
+      <CollectionHero title="Liked Songs" covers={[]} facts="12 songs" icon={Heart}>
         <button type="button" className={PHONE_PLAY}>
           Play
         </button>
@@ -29,7 +29,7 @@ describe("CollectionHero on phone", () => {
 
   it("shows the icon tile, not a letter, when there is no artwork", () => {
     const { container } = render(
-      <CollectionHero title="Liked Songs" covers={[]} facts="12 songs" icon={FavouriteIcon}>
+      <CollectionHero title="Liked Songs" covers={[]} facts="12 songs" icon={Heart}>
         <span />
       </CollectionHero>,
     );

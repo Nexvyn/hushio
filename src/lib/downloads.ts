@@ -1,4 +1,4 @@
-import { Cancel01Icon, FolderOpenIcon, RefreshIcon } from "@hugeicons/core-free-icons";
+import { X, FolderOpen, ArrowClockwise } from "@phosphor-icons/react";
 import {
   downloadCancel,
   downloadQueue,
@@ -12,11 +12,12 @@ import {
 } from "./bridge";
 import { plural } from "./plural";
 import { resolveStream } from "./resolveStream";
+import { currentNetworkType, subscribeNetworkType, type NetworkType } from "./networkType";
 import { type DownloadItem, type DownloadTrack, useLibrary } from "../stores/library";
 import { type DownloadQuality, useSettings } from "../stores/settings";
 import { type MenuItem, useUI } from "../stores/ui";
 
-export const DOWNLOAD_ALL_CONFIRM = 25;
+const DOWNLOAD_ALL_CONFIRM = 25;
 const GB_PER_SONG = 0.04;
 const PROGRESS_TICK_MS = 500;
 const EXPIRED_MESSAGE = "The link expired. Try again.";
@@ -40,8 +41,8 @@ type SentStream = { dir?: string; itag?: number; clen?: number };
 const retried = new Set<string>();
 const sent = new Map<string, SentStream>();
 
-function notify(message: string, kind: "info" | "success" | "error" = "info") {
-  useUI.getState().toast(message, kind);
+function notify(message: string, kind: "info" | "success" | "error" = "info", art?: string | null) {
+  useUI.getState().toast(message, kind, undefined, undefined, art ? { art } : undefined);
 }
 
 function describe(error: unknown): string {
@@ -54,6 +55,18 @@ function patch(id: string, changes: Partial<DownloadItem>) {
 
 export function isDownloadable(id: string): boolean {
   return !id.startsWith("local:");
+}
+
+export function shouldHoldForWifi(wifiOnly: boolean, network: NetworkType): boolean {
+  return wifiOnly && network === "cellular";
+}
+
+function holding(): boolean {
+  return shouldHoldForWifi(useSettings.getState().downloadWifiOnly, currentNetworkType());
+}
+
+function isPending(status: DownloadItem["status"] | undefined): boolean {
+  return status === "queued" || status === "downloading" || status === "waiting";
 }
 
 export function downloadedPath(id: string): string | null {
@@ -75,14 +88,16 @@ function trackOf(source: DownloadSource): DownloadTrack {
 async function queue(source: DownloadSource, dir?: string, expired?: SentStream): Promise<void> {
   const library = useLibrary.getState();
   const track = trackOf(source);
+  const hold = holding();
   library.setDownload(source.id, {
     track,
     path: library.downloads[source.id]?.path ?? null,
-    status: "queued",
+    status: hold ? "waiting" : "queued",
     progress: 0,
     downloaded: 0,
     total: 0,
   });
+  if (hold) return;
   const { downloadDir, downloadQuality, exportDownloads } = useSettings.getState();
   const target = dir ?? downloadDir ?? undefined;
   try {
@@ -92,15 +107,15 @@ async function queue(source: DownloadSource, dir?: string, expired?: SentStream)
     await downloadStart(track, stream.url, target, exportDownloads, resume);
   } catch (error) {
     patch(source.id, { status: "failed", progress: 0 });
-    notify(`Download failed: ${describe(error)}`, "error");
+    notify(`Download failed: ${describe(error)}`, "error", source.thumb);
   }
 }
 
 export async function startDownload(source: DownloadSource, dir?: string): Promise<void> {
   const existing = useLibrary.getState().downloads[source.id];
-  if (existing?.status === "queued" || existing?.status === "downloading") return;
+  if (isPending(existing?.status)) return;
   if (existing?.status === "done") {
-    notify("Already downloaded — see the Downloads view");
+    notify("Already downloaded — see the Downloads view", "info", source.thumb);
     return;
   }
   retried.delete(source.id);
@@ -112,11 +127,15 @@ const YT_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 export function autoDownloadLiked(source: DownloadSource): void {
   if (!useSettings.getState().autoDownloadLiked || !YT_VIDEO_ID.test(source.id)) return;
   const status = useLibrary.getState().downloads[source.id]?.status;
-  if (status === "queued" || status === "downloading" || status === "done") return;
+  if (status === "done" || isPending(status)) return;
   void startDownload(source);
 }
 
 export async function cancelDownload(id: string): Promise<void> {
+  if (useLibrary.getState().downloads[id]?.status === "waiting") {
+    useLibrary.getState().removeDownload(id);
+    return;
+  }
   try {
     await downloadCancel(id);
     useLibrary.getState().removeDownload(id);
@@ -166,9 +185,7 @@ function applyProgress(id: string, downloaded: number, total: number) {
 const progress = createProgressBuffer(applyProgress, PROGRESS_TICK_MS);
 
 function anyActive(): boolean {
-  return Object.values(useLibrary.getState().downloads).some(
-    (item) => item.status === "queued" || item.status === "downloading",
-  );
+  return Object.values(useLibrary.getState().downloads).some((item) => isPending(item.status));
 }
 
 export function handleDownloadEvent(event: DownloadEvent): void {
@@ -231,9 +248,34 @@ export async function reconcileStaleDownloads(): Promise<void> {
   }
 }
 
+export function releaseWaitingDownloads(): void {
+  if (holding()) return;
+  const waiting = Object.values(useLibrary.getState().downloads).filter((item) => item.status === "waiting");
+  for (const item of waiting) void queue(item.track);
+}
+
+export function autoDownloadAdded(playlistTracks: DownloadSource[], addedIds: readonly string[]): void {
+  if (!useSettings.getState().keepPlaylistsUpdated) return;
+  const downloads = useLibrary.getState().downloads;
+  const added = new Set(addedIds);
+  const existing = playlistTracks.filter((track) => !added.has(track.id) && isDownloadable(track.id));
+  if (existing.length === 0 || !existing.every((track) => downloads[track.id]?.status === "done")) return;
+  for (const track of playlistTracks) {
+    if (!added.has(track.id) || !isDownloadable(track.id) || downloads[track.id]?.status === "done") continue;
+    void startDownload(track);
+  }
+}
+
 export async function listenForDownloadProgress(): Promise<() => void> {
   await reconcileStaleDownloads();
-  return listenDownloadEvents(handleDownloadEvent);
+  const stopNetwork = subscribeNetworkType(releaseWaitingDownloads);
+  const stopSettings = useSettings.subscribe(releaseWaitingDownloads);
+  const unlisten = await listenDownloadEvents(handleDownloadEvent);
+  return () => {
+    stopNetwork();
+    stopSettings();
+    unlisten();
+  };
 }
 
 export function revealDownload(path: string): void {
@@ -263,7 +305,7 @@ export function downloadAll(sources: DownloadSource[], what: string): void {
     if (seen.has(source.id) || !isDownloadable(source.id)) return false;
     seen.add(source.id);
     const status = downloads[source.id]?.status;
-    return status !== "done" && status !== "queued" && status !== "downloading";
+    return status !== "done" && !isPending(status);
   });
   if (pending.length === 0) {
     notify(`Everything in ${what} is already downloaded`);
@@ -286,34 +328,37 @@ export function downloadAll(sources: DownloadSource[], what: string): void {
   });
 }
 
+export function removeDownload(id: string): void {
+  const item = useLibrary.getState().downloads[id];
+  if (item?.path) void downloadDeleteFile(item.path).catch(() => undefined);
+  useLibrary.getState().removeDownload(id);
+}
+
 export function downloadMenuItems(item: DownloadItem): MenuItem[] {
   const { track, status, path } = item;
-  const busy = status === "queued" || status === "downloading";
+  const busy = isPending(status);
   const items: MenuItem[] = [];
   if (status === "failed") {
-    items.push({ label: "Retry download", icon: RefreshIcon, onSelect: () => void startDownload(track) });
+    items.push({ label: "Retry download", icon: ArrowClockwise, onSelect: () => void startDownload(track) });
   }
   if (busy) {
     items.push({
       label: "Cancel download",
-      icon: Cancel01Icon,
+      icon: X,
       danger: true,
       onSelect: () => void cancelDownload(track.id),
     });
   }
   if (status === "done" && path) {
-    items.push({ label: "Show in folder", icon: FolderOpenIcon, onSelect: () => revealDownload(path) });
+    items.push({ label: "Show in folder", icon: FolderOpen, onSelect: () => revealDownload(path) });
   }
   if (!busy) {
     items.push({
       label: "Remove from list",
-      icon: Cancel01Icon,
+      icon: X,
       danger: true,
       separatorBefore: items.length > 0,
-      onSelect: () => {
-        if (path) void downloadDeleteFile(path).catch(() => undefined);
-        useLibrary.getState().removeDownload(track.id);
-      },
+      onSelect: () => removeDownload(track.id),
     });
   }
   return [
