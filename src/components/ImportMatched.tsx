@@ -1,13 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  Download01Icon,
-  PlayIcon,
-  PlayListAddIcon,
-
-  PlusSignIcon,
-  RefreshIcon,
-  ShuffleIcon,
-} from "@hugeicons/core-free-icons";
+import { DownloadSimple, Play, ListPlus, Plus, ArrowClockwise, Shuffle } from "@phosphor-icons/react";
 import { PILL, ROUND } from "./BrowseHero";
 import { ActionMenu } from "./ActionMenu";
 import { Button } from "./Button";
@@ -93,13 +85,13 @@ function MatchedContent({ playlist, prefer, attempt, onRetry }: MatchedContentPr
   const menu: MenuItem[] = [
     {
       label: "Add all to queue",
-      icon: PlayListAddIcon,
+      icon: ListPlus,
       disabled: matched.length === 0,
       onSelect: () => queueAll(matched, "Added to queue"),
     },
     {
       label: "Download all",
-      icon: Download01Icon,
+      icon: DownloadSimple,
       disabled: matched.length === 0,
       onSelect: () => downloadAll(matched, playlist.name),
     },
@@ -132,7 +124,7 @@ function MatchedContent({ playlist, prefer, attempt, onRetry }: MatchedContentPr
           onClick={() => playAt(0)}
           className={PILL}
         >
-          <Icon icon={PlayIcon} />
+          <Icon icon={Play} />
           Play
         </button>
         <button
@@ -143,7 +135,7 @@ function MatchedContent({ playlist, prefer, attempt, onRetry }: MatchedContentPr
           onClick={shuffle}
           className={ROUND}
         >
-          <Icon icon={ShuffleIcon} />
+          <Icon icon={Shuffle} />
         </button>
         <button
           type="button"
@@ -152,25 +144,26 @@ function MatchedContent({ playlist, prefer, attempt, onRetry }: MatchedContentPr
           onClick={save}
           className={PILL}
         >
-          <Icon icon={PlusSignIcon} />
+          <Icon icon={Plus} />
           Save to library
         </button>
         <ActionMenu items={menu} label="More options" triggerClass={ROUND} />
       </CollectionHero>
 
       <div className="pt-6">
-        <p aria-live="polite" className="px-3 pb-2 text-[13px] text-ink-2">
+        {playlist.warning && <p role="alert" className="px-3 pb-2 text-meta text-ink-2">{playlist.warning}</p>}
+        <p aria-live="polite" className="px-3 pb-2 text-meta text-ink-2">
           {total === 0 ? "" : progressLine(done, total, finding, matched.length, missing, failed)}
         </p>
 
         {playlist.total > songs.length && (
-          <p className="px-3 pb-2 text-[13px] text-ink-2">
+          <p className="px-3 pb-2 text-meta text-ink-2">
             {`The playlist has ${playlist.total} songs; ${APP_NAME} could read the first ${songs.length}.`}
           </p>
         )}
 
         {(playlist.malformed ?? 0) > 0 && (
-          <p className="px-3 pb-2 text-[13px] text-ink-2">
+          <p className="px-3 pb-2 text-meta text-ink-2">
             {`${plural(playlist.malformed ?? 0, "row", "rows")} could not be read because a quote is never closed.`}
           </p>
         )}
@@ -178,14 +171,14 @@ function MatchedContent({ playlist, prefer, attempt, onRetry }: MatchedContentPr
         {done && failed > 0 && (
           <div className="px-3 pb-2">
             <Button variant="secondary" onClick={onRetry}>
-              <Icon icon={RefreshIcon} />
+              <Icon icon={ArrowClockwise} />
               Try again
             </Button>
           </div>
         )}
 
         {total === 0 ? (
-          <p className="px-3 py-6 text-[14px] text-ink-2">This playlist has no songs yet.</p>
+          <p className="px-3 py-6 text-body text-ink-2">This playlist has no songs yet.</p>
         ) : (
           <ol>
             {songs.map((song, index) => {
@@ -210,7 +203,7 @@ function MatchedContent({ playlist, prefer, attempt, onRetry }: MatchedContentPr
         )}
 
         {prefer && (
-          <p className="max-w-[672px] px-3 pt-6 text-[12px] text-ink-2">
+          <p className="max-w-[672px] px-3 pt-6 text-meta text-ink-2">
             {`Prefers ${matchLanguageLabel(prefer)} versions of a song where several are available (Settings › Connected services).`}
           </p>
         )}
@@ -243,12 +236,12 @@ function statusText(state: MatchState | undefined): string {
 function SourceRow({ song, state, index }: { song: ImportSong; state: MatchState | undefined; index: number }) {
   return (
     <li className="flex h-16 items-center gap-3 px-3 opacity-45">
-      <span className="w-7 shrink-0 text-center text-[13px] tabular-nums text-ink-2">{index + 1}</span>
+      <span className="w-7 shrink-0 text-center text-meta tabular-nums text-ink-2">{index + 1}</span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[14px] text-ink-1">{song.title}</p>
-        {song.artist && <p className="truncate text-[12px] text-ink-2">{song.artist}</p>}
+        <p className="truncate text-body text-ink-1">{song.title}</p>
+        {song.artist && <p className="truncate text-meta text-ink-2">{song.artist}</p>}
       </div>
-      <span className="shrink-0 text-[12px] text-ink-2">{statusText(state)}</span>
+      <span className="shrink-0 text-meta text-ink-2">{statusText(state)}</span>
     </li>
   );
 }

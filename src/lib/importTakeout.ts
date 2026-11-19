@@ -6,9 +6,9 @@ const LIBRARY_ARTIST = /^artist name \d+$/;
 const HEADER_SCAN_ROWS = 15;
 
 export type TakeoutSong = { id: string; title: string; artist: string; album?: string };
-export type TakeoutIndex = { kind: "index"; titles: Map<string, string> };
-export type TakeoutLibrary = { kind: "library"; songs: TakeoutSong[]; skipped: number };
-export type TakeoutList = { kind: "playlist" | "liked"; name: string; ids: string[]; skipped: number };
+type TakeoutIndex = { kind: "index"; titles: Map<string, string> };
+type TakeoutLibrary = { kind: "library"; songs: TakeoutSong[]; skipped: number };
+type TakeoutList = { kind: "playlist" | "liked"; name: string; ids: string[]; skipped: number };
 export type TakeoutFile = TakeoutIndex | TakeoutLibrary | TakeoutList;
 
 export function takeoutName(fileName: string): string {

@@ -43,6 +43,7 @@ export type StagedImport = {
   songs: ImportSong[];
   total: number;
   malformed?: number;
+  warning?: string;
   fromSpotify: boolean;
 };
 
@@ -134,7 +135,11 @@ async function importYouTubePlaylist(listId: string): Promise<string | null> {
   }
   const name = page.title || DEFAULT_NAME;
   const id = saveImportedPlaylist(name, songs);
-  toast(`Saved “${name}” to your library`, "success");
+  if (page.incomplete || page.tracks.length > MAX_SONGS) {
+    toast(`Saved ${songs.length} songs from "${name}". This import is incomplete; try importing again to read the remaining songs.`, "info");
+  } else {
+    toast(`Saved “${name}” to your library`, "success");
+  }
   return id;
 }
 
@@ -241,7 +246,7 @@ function extensionOf(fileName: string): string {
   return fileName.split(".").pop()?.toLowerCase() ?? "";
 }
 
-export function listNameOf(fileName: string): string {
+function listNameOf(fileName: string): string {
   const base = fileName.replace(/\.[^.]+$/, "").trim();
   if (/^liked[ _]songs$/i.test(base)) return "Liked Songs";
   return base || DEFAULT_NAME;

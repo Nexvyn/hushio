@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+vi.mock("../lib/bridge", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/bridge")>();
+  return { ...actual, spotifyStatus: vi.fn(actual.spotifyStatus) };
+});
 vi.mock("../lib/persist", () => ({
   persistStorage: () => ({
     getItem: async () => null,
@@ -31,6 +35,14 @@ Blob.prototype.text ??= function readText(this: Blob) {
 };
 
 import { ImportPage } from "./ImportPage";
+vi.mock("../lib/importBackup", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/importBackup")>();
+  return { ...actual, exportBackup: vi.fn(async () => {}) };
+});
+vi.mock("../lib/collectionActions", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/collectionActions")>();
+  return { ...actual, exportPlaylist: vi.fn() };
+});
 vi.mock("../lib/importStage", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/importStage")>();
   return { ...actual, importFromText: vi.fn(actual.importFromText) };
@@ -40,6 +52,9 @@ import { importFromText, pendingImport, stageImport } from "../lib/importStage";
 import { useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
 import { useUI } from "../stores/ui";
+import { exportBackup } from "../lib/importBackup";
+import { exportPlaylist } from "../lib/collectionActions";
+import { spotifyStatus } from "../lib/bridge";
 
 const initialLibrary = useLibrary.getState();
 
@@ -50,19 +65,41 @@ beforeEach(() => {
   useUI.setState({ toasts: [], pendingToasts: [] });
 });
 
+async function openPaste(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "Paste" }));
+  return within(screen.getByRole("dialog"));
+}
+
 describe("ImportPage", () => {
-  it("shows the heading, the link label and a disabled Import button until there is text", () => {
+  it("lists the six import and export rows and shows no paste field until Paste is clicked", async () => {
+    const user = userEvent.setup();
     render(<ImportPage />);
+    expect(screen.getByRole("heading", { name: "Import & export" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Import" })).toBeTruthy();
-    expect(screen.getByLabelText("Playlist link")).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Import" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("heading", { name: "Export" })).toBeTruthy();
+    for (const title of [
+      "Paste a link or list",
+      "Import a file",
+      "Spotify",
+      "YouTube",
+      "Back up your library",
+      "Export a playlist",
+    ]) {
+      expect(screen.getByRole("heading", { name: title, level: 3 })).toBeTruthy();
+    }
+    expect(screen.queryByLabelText("Playlist or songs")).toBeNull();
+
+    const dialog = await openPaste(user);
+    expect(dialog.getByLabelText("Playlist or songs")).toBeTruthy();
+    expect((dialog.getByRole("button", { name: "Import" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("imports pasted songs and opens the matched list", async () => {
     const user = userEvent.setup();
     render(<ImportPage />);
-    await user.type(screen.getByLabelText("Playlist link"), "Dua Lipa - Levitating");
-    await user.click(screen.getByRole("button", { name: "Import" }));
+    const dialog = await openPaste(user);
+    await user.type(dialog.getByLabelText("Playlist or songs"), "Dua Lipa - Levitating");
+    await user.click(dialog.getByRole("button", { name: "Import" }));
 
     const view = useNavigation.getState().view;
     expect(view.name).toBe("import");
@@ -73,7 +110,8 @@ describe("ImportPage", () => {
   it("submits with Ctrl+Enter from the text box", async () => {
     const user = userEvent.setup();
     render(<ImportPage />);
-    await user.type(screen.getByLabelText("Playlist link"), "Artist - Song");
+    const dialog = await openPaste(user);
+    await user.type(dialog.getByLabelText("Playlist or songs"), "Artist - Song");
     await user.keyboard("{Control>}{Enter}{/Control}");
     expect(useNavigation.getState().view.name).toBe("import");
     expect(useNavigation.getState().view.param).toBeTruthy();
@@ -82,12 +120,28 @@ describe("ImportPage", () => {
   it("explains when the text has no songs", async () => {
     const user = userEvent.setup();
     render(<ImportPage />);
-    await user.type(screen.getByLabelText("Playlist link"), "# just a note");
-    await user.click(screen.getByRole("button", { name: "Import" }));
+    const dialog = await openPaste(user);
+    await user.type(dialog.getByLabelText("Playlist or songs"), "# just a note");
+    await user.click(dialog.getByRole("button", { name: "Import" }));
     expect(useUI.getState().toasts.map((toast) => toast.message)).toContain(
       "No songs found. Paste a playlist link, or one song per line (Artist - Title).",
     );
     expect(useNavigation.getState().view.param).toBeUndefined();
+  });
+
+  it("closes the paste dialog with Escape", async () => {
+    const user = userEvent.setup();
+    render(<ImportPage />);
+    await openPaste(user);
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("explains the one-song-per-line format inside the paste dialog", async () => {
+    const user = userEvent.setup();
+    render(<ImportPage />);
+    const dialog = await openPaste(user);
+    expect(dialog.getByText(/one song per line as Artist - Title/)).toBeTruthy();
   });
 
   it("imports a text file under its name", async () => {
@@ -122,8 +176,9 @@ describe("ImportPage", () => {
     const stagedId = stageImport({ name: "Staged", songs: [], total: 0, fromSpotify: false });
     vi.mocked(importFromText).mockResolvedValueOnce(stagedId);
     render(<ImportPage />);
-    await user.type(screen.getByLabelText("Playlist link"), "Artist - Song");
-    await user.click(screen.getByRole("button", { name: "Import" }));
+    const dialog = await openPaste(user);
+    await user.type(dialog.getByLabelText("Playlist or songs"), "Artist - Song");
+    await user.click(dialog.getByRole("button", { name: "Import" }));
 
     await waitFor(() => expect(useNavigation.getState().view.param).toBe(stagedId));
     expect(useNavigation.getState().view.name).toBe("import");
@@ -134,8 +189,9 @@ describe("ImportPage", () => {
     const savedId = useLibrary.getState().createPlaylist("From YouTube");
     vi.mocked(importFromText).mockResolvedValueOnce(savedId);
     render(<ImportPage />);
-    await user.type(screen.getByLabelText("Playlist link"), "https://www.youtube.com/playlist?list=PL1");
-    await user.click(screen.getByRole("button", { name: "Import" }));
+    const dialog = await openPaste(user);
+    await user.type(dialog.getByLabelText("Playlist or songs"), "https://www.youtube.com/playlist?list=PL1");
+    await user.click(dialog.getByRole("button", { name: "Import" }));
 
     await waitFor(() => expect(useNavigation.getState().view.param).toBe(savedId));
     expect(useNavigation.getState().view.name).toBe("playlist");
@@ -162,5 +218,43 @@ describe("ImportPage", () => {
     await waitFor(() => expect(useNavigation.getState().view.name).toBe("playlist"));
     expect(useLibrary.getState().playlists.map((item) => item.name).sort()).toEqual(["First", "Second"]);
     expect(useUI.getState().toasts.map((item) => item.message)).toContain("Imported 2 playlists");
+  });
+
+  it("offers Connect for Spotify when the status check fails", async () => {
+    vi.mocked(spotifyStatus).mockRejectedValueOnce(new Error("offline"));
+    render(<ImportPage />);
+    expect(await screen.findByRole("button", { name: "Connect" })).toBeTruthy();
+  });
+
+  it("imports a file dropped anywhere on the page", async () => {
+    const { container } = render(<ImportPage />);
+    const root = container.firstElementChild as HTMLElement;
+    const file = new File(["Artist - One"], "Dropped.txt", { type: "text/plain" });
+    fireEvent.drop(root, { dataTransfer: { files: [file], types: ["Files"] } });
+
+    await waitFor(() => expect(useNavigation.getState().view.param).toBeTruthy());
+    expect(pendingImport(useNavigation.getState().view.param ?? "")?.name).toBe("Dropped");
+  });
+
+  it("saves the library backup from the Back up row without opening a dialog", async () => {
+    const user = userEvent.setup();
+    render(<ImportPage />);
+
+    await user.click(screen.getByRole("button", { name: "Back up" }));
+    expect(exportBackup).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("exports the picked playlist in the picked format from the export dialog", async () => {
+    const user = userEvent.setup();
+    const playlist = { id: "p1", name: "Road trip", folderId: null, pinned: false, tracks: [] };
+    useLibrary.setState({ playlists: [playlist] });
+    render(<ImportPage />);
+
+    await user.click(screen.getByRole("button", { name: "Export" }));
+    const dialog = within(screen.getByRole("dialog"));
+    await user.click(dialog.getByRole("radio", { name: "JSON" }));
+    await user.click(dialog.getByRole("button", { name: "Export" }));
+    expect(exportPlaylist).toHaveBeenCalledWith(expect.objectContaining({ id: "p1" }), "json");
   });
 });

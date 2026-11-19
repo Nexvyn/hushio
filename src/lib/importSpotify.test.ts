@@ -180,6 +180,20 @@ describe("embed page", () => {
 });
 
 describe("readSpotifyLink", () => {
+  it("keeps completed pages and reports an incomplete import when a later page fails", async () => {
+    httpFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (!url.includes("pathfinder")) return respond(url, init);
+      const { offset } = JSON.parse(String(init?.body)).variables;
+      if (offset > 0) return new Response("unavailable", { status: 503 });
+      return Response.json({ data: { playlistV2: { ...pathfinderPage.data.playlistV2, content: {
+        ...pathfinderPage.data.playlistV2.content, totalCount: 150,
+      } } } });
+    });
+    const playlist = await readSpotifyLink(`spotify:playlist:${ID}`);
+    expect(playlist.total).toBe(150);
+    expect(playlist.songs[0]).toMatchObject({ spotifyId: "t1", album: "Album" });
+    expect(playlist.warning).toContain("incomplete");
+  });
   it("reads every page of the playlist with the anonymous token", async () => {
     const playlist = await readSpotifyLink(`https://open.spotify.com/playlist/${ID}`);
     expect(playlist.name).toBe("Morning mix");
@@ -205,6 +219,7 @@ describe("readSpotifyLink", () => {
     expect(playlist.songs).toHaveLength(2);
     expect(playlist.songs[0]).toMatchObject({ spotifyId: "t1", title: "One" });
     expect(warn).toHaveBeenCalled();
+    expect(playlist.warning).toContain("preview");
   });
 
   it("uses the embed alone when the page has no token", async () => {
@@ -213,6 +228,7 @@ describe("readSpotifyLink", () => {
     const playlist = await readSpotifyLink(`spotify:playlist:${ID}`);
     expect(playlist.songs).toHaveLength(2);
     expect(httpFetch).toHaveBeenCalledTimes(1);
+    expect(playlist.warning).toContain("preview");
   });
 
   it("reports a missing playlist and other HTTP failures", async () => {

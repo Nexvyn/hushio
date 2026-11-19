@@ -14,13 +14,15 @@ let loading: Promise<void> | null = null;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 function isEntry(value: unknown): value is Entry {
-  return typeof value === "object" && value !== null && "at" in value && typeof value.at === "number";
+  if (typeof value !== "object" || value === null || !("at" in value) || typeof value.at !== "number" || !Number.isFinite(value.at) || !("t" in value)) return false;
+  const track = value.t;
+  return track === null || (typeof track === "object" && "id" in track && typeof track.id === "string" && track.id.length > 0 && "title" in track && typeof track.title === "string" && "artist" in track && typeof track.artist === "string");
 }
 
 export function loadMatchCache(): Promise<void> {
   loading ??= persistRead<Record<string, unknown>>(STORE, "guest")
     .then((saved) => {
-      for (const [key, entry] of Object.entries(saved ?? {})) {
+      for (const [key, entry] of Object.entries(saved ?? {}).slice(-MAX_REMEMBERED)) {
         if (isEntry(entry) && !entries.has(key)) entries.set(key, entry);
       }
     })

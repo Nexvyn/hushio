@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from "react";
-import { Button } from "./Button";
+import { ImportButton as Button } from "./importControls";
 import { useAuth } from "../stores/auth";
 import { newId, useLibrary, type LikeInput } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
@@ -95,8 +95,8 @@ export function YouTubePlaylists() {
   function renderBody() {
     if (!signedIn) {
       return (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-separator pt-4">
-          <p className="text-[14px] text-ink-2">Sign in with Google to bring in your YouTube playlists</p>
+        <div className="mt-0 flex flex-col items-start gap-4">
+          <p className="text-body text-ink-2">Sign in with Google to bring in your YouTube playlists</p>
           <Button onClick={() => void signIn()} disabled={signingIn}>
             Sign in
           </Button>
@@ -105,51 +105,52 @@ export function YouTubePlaylists() {
     }
     if (list.status === "loading") {
       return (
-        <p role="status" className="mt-4 text-[14px] text-ink-2">
+        <p role="status" className="mt-2 text-body text-ink-2">
           Loading your playlists…
         </p>
       );
     }
     if (list.status === "error") {
       return (
-        <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-separator pt-4">
-          <p className="text-[14px] text-ink-2">{list.message}</p>
-          <Button onClick={() => setAttempt((count) => count + 1)}>Try again</Button>
+        <div role="alert" className="mt-2 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-body text-ink-2">{list.message}</p>
+          <Button variant="secondary" onClick={() => setAttempt((count) => count + 1)}>Try again</Button>
         </div>
       );
     }
     if (list.playlists.length === 0) {
-      return <p className="mt-4 text-[14px] text-ink-2">No playlists on your YouTube account yet.</p>;
+      return <p className="mt-2 text-body text-ink-2">No playlists on your YouTube account yet.</p>;
     }
     return (
-      <ul className="mt-4 border-t border-separator">
+      <ul className="mt-2">
         {list.playlists.map((playlist) => {
           const localId = linked.get(playlist.id);
           const busy = pending.has(playlist.id);
           return (
-            <li key={playlist.id} className="flex items-center gap-3 border-b border-separator py-3">
+            <li key={playlist.id} className="flex items-center gap-3 py-3">
               {playlist.thumbnail ? (
-                <img
+                <img loading="lazy" decoding="async"
                   src={playlist.thumbnail}
                   alt=""
                   className="size-10 shrink-0 rounded-[10px] object-cover [corner-shape:squircle]"
                 />
               ) : (
-                <span aria-hidden="true" className="size-10 shrink-0 rounded-[10px] bg-wash [corner-shape:squircle]" />
+                <span aria-hidden="true" className="size-10 shrink-0 rounded-[10px] bg-accent/10 [corner-shape:squircle]" />
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[14px] text-ink-1">{playlist.title}</p>
-                <p className="text-[12.5px] tabular-nums text-ink-2">{plural(playlist.count, "song", "songs")}</p>
+                <p className="truncate text-body text-ink-1">{playlist.title}</p>
+                <p className="text-meta tabular-nums text-ink-2">{plural(playlist.count, "song", "songs")}</p>
               </div>
               {localId ? (
                 <div className="flex shrink-0 items-center gap-2">
-                  <span className="text-[13px] text-ink-2">Imported</span>
+                  <span className="text-meta text-ink-2">Imported</span>
                   <Button variant="ghost" onClick={() => navigate({ name: "playlist", param: localId })}>
                     Open
                   </Button>
                 </div>
               ) : (
                 <Button
+                  variant="secondary"
                   className="shrink-0"
                   disabled={busy || importingAll}
                   onClick={() => void importOne(playlist)}
@@ -168,11 +169,11 @@ export function YouTubePlaylists() {
   const remaining = ready?.filter((playlist) => !linked.has(playlist.id)) ?? [];
 
   return (
-    <section aria-labelledby={headingId} className="mt-10 max-w-[672px]">
+    <section aria-labelledby={headingId} className="w-full">
       <div className="flex items-center justify-between gap-4">
-        <h2 id={headingId} className="text-[18px] font-semibold text-ink-1">
+        <h3 id={headingId} className="sr-only">
           YouTube playlists
-        </h2>
+        </h3>
         {signedIn && ready && ready.length > 0 && (
           <Button
             disabled={remaining.length === 0 || importingAll}

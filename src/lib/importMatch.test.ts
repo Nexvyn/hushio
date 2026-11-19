@@ -95,6 +95,13 @@ describe("search queries", () => {
 });
 
 describe("matchScore gates", () => {
+  it("rejects a music video even when its metadata exactly matches the album", () => {
+    const video = { ...candidate("video", "Blinding Lights", "The Weeknd"), isVideo: true };
+    const album = candidate("audio", "Blinding Lights", "The Weeknd");
+    expect(matchScore(target(), video, "")).toBeNull();
+    expect(bestMatch(target(), [video, album], "")?.id).toBe("audio");
+  });
+
   it("rejects a candidate whose version marks differ", () => {
     expect(matchScore(target({ title: "Song (Remix)" }), candidate("1", "Song", "The Weeknd"), "")).toBeNull();
   });

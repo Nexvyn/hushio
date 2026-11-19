@@ -1,22 +1,103 @@
+import { Archive, ClipboardText } from "@phosphor-icons/react";
+import { AnimatePresence } from "motion/react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { PageHeader } from "./PageHeader";
-import { useId, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from "react";
-import { Button } from "./Button";
+import { ExportPanel } from "./ExportPanel";
+import { Icon } from "./Icon";
+import { ImportButton, ImportModal } from "./importControls";
+import { ImportGlyph } from "./importGlyphs";
+import { PhoneIcon } from "./phone/PhoneIcon";
+import { SpotifyLibrary } from "./SpotifyLibrary";
 import { YouTubePlaylists } from "./YouTubePlaylists";
+import { spotifyStatus } from "../lib/bridge";
+import { exportBackup } from "../lib/importBackup";
 import { importFiles, importFromText, pendingImport } from "../lib/importStage";
+import { usePhone } from "../lib/usePhone";
+import { useAuth } from "../stores/auth";
 import { useNavigation } from "../stores/navigation";
 
 const FILE_TYPES = ".csv,.txt,.m3u8,.m3u,.json";
-const HOW_TO_SUMMARY = "rounded-[6px] text-[14px] font-medium text-ink-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
-const HOW_TO_BODY = "mt-2 text-[13px] leading-relaxed text-ink-2";
-const HOW_TO_PANEL = "rounded-[12px] border border-separator bg-panel px-4 py-3";
+const MAX_LINES = 6;
+
+type Modal = "paste" | "spotify" | "youtube" | "export";
+
+const TITLES: Record<Modal, string> = {
+  paste: "Paste a link or list",
+  spotify: "Spotify",
+  youtube: "YouTube",
+  export: "Export a playlist",
+};
+
+function fitHeight(field: HTMLTextAreaElement) {
+  const style = getComputedStyle(field);
+  const frame = field.offsetHeight - field.clientHeight;
+  field.style.height = "auto";
+  const natural = field.scrollHeight + frame;
+  const limit =
+    parseFloat(style.lineHeight) * MAX_LINES + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + frame;
+  field.style.height = `${Math.min(natural, limit)}px`;
+  field.style.overflowY = natural > limit ? "auto" : "hidden";
+}
+
+type ActionRowProps = {
+  glyph: (playing: boolean) => ReactNode;
+  title: string;
+  description: string;
+  action: ReactNode;
+};
+
+function ActionRow({ glyph, title, description, action }: ActionRowProps) {
+  const phone = usePhone();
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      className="flex min-h-[64px] items-center gap-4"
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
+    >
+      <span className="relative grid w-6 shrink-0 place-items-center text-accent">{glyph(!phone && hovered)}</span>
+      <div className="min-w-0 flex-1">
+        <h3 className="text-body font-medium text-ink-1">{title}</h3>
+        <p className="truncate text-meta text-ink-2">{description}</p>
+      </div>
+      <div className="shrink-0">{action}</div>
+    </div>
+  );
+}
 
 export function ImportPage() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [modal, setModal] = useState<Modal | null>(null);
+  const [spotifyConnected, setSpotifyConnected] = useState(false);
+  const youtubeConnected = useAuth((state) => state.account.mode === "google");
   const fileInput = useRef<HTMLInputElement>(null);
+  const field = useRef<HTMLTextAreaElement>(null);
   const navigate = useNavigation((state) => state.navigate);
+  const phone = usePhone();
   const labelId = useId();
   const hintId = useId();
+  const importHeading = useId();
+  const exportHeading = useId();
+
+  useEffect(() => {
+    let live = true;
+    spotifyStatus()
+      .then((next) => {
+        if (live) setSpotifyConnected(next.signedIn);
+      })
+      .catch(() => {
+        if (live) setSpotifyConnected(false);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    if (field.current) fitHeight(field.current);
+  }, [text, modal]);
 
   function openResult(id: string) {
     if (pendingImport(id)) navigate({ name: "import", param: id });
@@ -28,7 +109,10 @@ export function ImportPage() {
     setBusy(true);
     const id = await importFromText(text);
     setBusy(false);
-    if (id) openResult(id);
+    if (id) {
+      setModal(null);
+      openResult(id);
+    }
   }
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -43,9 +127,7 @@ export function ImportPage() {
     }
   }
 
-  async function onFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const picked = Array.from(event.target.files ?? []);
-    event.target.value = "";
+  async function readFiles(picked: File[]) {
     if (picked.length === 0 || busy) return;
     setBusy(true);
     const files = await Promise.all(picked.map(async (file) => ({ name: file.name, text: await file.text() })));
@@ -54,70 +136,181 @@ export function ImportPage() {
     if (id) openResult(id);
   }
 
-  return (
-    <div className="pb-16">
-      <div>
-        <PageHeader title="Import" />
-        <p className="mt-2 max-w-prose text-body text-ink-2">
-          Bring in a playlist or a list of songs. Each song is matched before you save it.
-        </p>
-      </div>
+  function onFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    void readFiles(picked);
+  }
 
-      <form onSubmit={onSubmit} className="mt-8 max-w-[672px]">
-        <label htmlFor={labelId} className="text-[13px] font-medium text-ink-1">
-          Playlist link
+  function onDragOver(event: DragEvent<HTMLDivElement>) {
+    if (modal !== null || !event.dataTransfer.types.includes("Files")) return;
+    event.preventDefault();
+    setDragOver(true);
+  }
+
+  function onDragLeave(event: DragEvent<HTMLDivElement>) {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragOver(false);
+  }
+
+  function onDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setDragOver(false);
+    void readFiles(Array.from(event.dataTransfer.files));
+  }
+
+  const pasteForm = (
+    <form onSubmit={onSubmit}>
+      <div className="relative">
+        <span className="pointer-events-none absolute left-3 top-[11px] text-ink-2">
+          {phone ? <PhoneIcon icon={ClipboardText} /> : <Icon icon={ClipboardText} />}
+        </span>
+        <label htmlFor={labelId} className="sr-only">
+          Playlist or songs
         </label>
         <textarea
           id={labelId}
+          ref={field}
+          rows={1}
           aria-describedby={hintId}
           value={text}
-          rows={8}
           spellCheck={false}
           autoComplete="off"
           onChange={(event) => setText(event.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Paste a playlist link, or one song per line as Artist - Title"
-          className="mt-2 w-full resize-none rounded-[12px] border border-separator bg-panel p-3 text-[16px] leading-relaxed text-ink-1 placeholder:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          placeholder="Paste a playlist link or a list of songs"
+          className="block w-full resize-none rounded-[10px] border border-separator bg-surface py-2.5 pl-10 pr-3 text-body leading-relaxed text-ink-1 placeholder:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
         />
-        <p id={hintId} className="mt-2 text-[12px] text-ink-2">
-          Paste a playlist or album link from Spotify or Apple Music, a Spotify song link, or one song per line as
-          Artist - Title. Up to 5000 songs.
-        </p>
+      </div>
+      <p id={hintId} className="mt-2 text-meta text-ink-2">
+        Spotify or Apple Music links, or one song per line as Artist - Title. Up to 5000 songs.
+      </p>
+      <div className="mt-4 flex justify-end">
+        <ImportButton type="submit" disabled={!text.trim() || busy}>
+          {busy ? "Reading…" : "Import"}
+        </ImportButton>
+      </div>
+    </form>
+  );
 
-        <div className="mt-4 flex flex-wrap items-center gap-2.5">
-          <Button type="submit" variant="primary" disabled={!text.trim() || busy}>
-            {busy ? "Reading…" : "Import"}
-          </Button>
-          <Button type="button" onClick={() => fileInput.current?.click()}>
-            Open file
-          </Button>
-          <input
-            ref={fileInput}
-            type="file"
-            multiple
-            accept={FILE_TYPES}
-            aria-label="Choose a playlist file"
-            className="hidden"
-            onChange={(event) => void onFileChange(event)}
+  return (
+    <div
+      className={`max-w-[680px] rounded-[12px] pb-16 motion-safe:transition-shadow motion-safe:duration-quick ${dragOver ? "ring-2 ring-accent" : ""}`}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      <PageHeader title="Import & export" />
+      <p className="mt-2 text-body text-ink-2">Bring playlists in from other apps, or save yours out.</p>
+
+      <section aria-labelledby={importHeading} className="mt-10">
+        <h2 id={importHeading} className="text-meta font-semibold text-ink-2">
+          Import
+        </h2>
+        {dragOver && (
+          <p role="status" className="mt-4 text-meta text-ink-2">
+            Drop to import
+          </p>
+        )}
+        <div className="mt-4 flex flex-col gap-4">
+          <ActionRow
+            glyph={(playing) => <ImportGlyph kind="paste" phone={phone} playing={playing} loop={!phone} />}
+            title="Paste a link or list"
+            description="Spotify or Apple Music links, or one song per line as Artist - Title."
+            action={<ImportButton onClick={() => setModal("paste")}>Paste</ImportButton>}
+          />
+          <ActionRow
+            glyph={(playing) => <ImportGlyph kind="file-in" phone={phone} playing={playing} loop={!phone} />}
+            title="Import a file"
+            description="CSV, M3U8, TXT or JSON. Export from exportify.app or takeout.google.com."
+            action={
+              <ImportButton variant="secondary" onClick={() => fileInput.current?.click()}>
+                Choose file
+              </ImportButton>
+            }
+          />
+          <ActionRow
+            glyph={(playing) => <ImportGlyph kind="stream" phone={phone} playing={playing} loop={!phone} />}
+            title="Spotify"
+            description={
+              spotifyConnected
+                ? "Connected. Pick playlists or Liked Songs to bring in."
+                : "Your playlists and Liked Songs."
+            }
+            action={
+              <ImportButton variant="secondary" onClick={() => setModal("spotify")}>
+                {spotifyConnected ? "Choose playlists" : "Connect"}
+              </ImportButton>
+            }
+          />
+          <ActionRow
+            glyph={(playing) => <ImportGlyph kind="youtube" phone={phone} playing={playing} loop={!phone} />}
+            title="YouTube"
+            description={
+              youtubeConnected
+                ? "Pick playlists to bring in and keep in sync."
+                : "Sign in with Google to bring in your playlists."
+            }
+            action={
+              <ImportButton variant="secondary" onClick={() => setModal("youtube")}>
+                {youtubeConnected ? "Choose playlists" : "Sign in"}
+              </ImportButton>
+            }
           />
         </div>
-      </form>
-
-      <div className="mt-6 flex max-w-[672px] flex-col gap-2">
-        <details className={HOW_TO_PANEL}>
-          <summary className={HOW_TO_SUMMARY}>From YouTube Music</summary>
-          <p className={HOW_TO_BODY}>
-            Export at takeout.google.com (choose YouTube and YouTube Music), unzip, pick the CSV files in the playlists
-            folder.
+        {busy && (
+          <p role="status" className="mt-4 text-meta text-ink-2">
+            Reading your list…
           </p>
-        </details>
-        <details className={HOW_TO_PANEL}>
-          <summary className={HOW_TO_SUMMARY}>From Spotify</summary>
-          <p className={HOW_TO_BODY}>Export at exportify.app, pick the CSV files.</p>
-        </details>
-      </div>
+        )}
+        <input
+          ref={fileInput}
+          type="file"
+          multiple
+          accept={FILE_TYPES}
+          aria-label="Choose a playlist file"
+          className="hidden"
+          onChange={onFileChange}
+        />
+      </section>
 
-      <YouTubePlaylists />
+      <section aria-labelledby={exportHeading} className="mt-10">
+        <h2 id={exportHeading} className="text-meta font-semibold text-ink-2">
+          Export
+        </h2>
+        <div className="mt-4 flex flex-col gap-4">
+          <ActionRow
+            glyph={() => (phone ? <PhoneIcon icon={Archive} /> : <Icon icon={Archive} />)}
+            title="Back up your library"
+            description="Playlists, liked songs, folders and settings in one file."
+            action={
+              <ImportButton variant="secondary" onClick={() => void exportBackup()}>
+                Back up
+              </ImportButton>
+            }
+          />
+          <ActionRow
+            glyph={(playing) => <ImportGlyph kind="file-out" phone={phone} playing={playing} loop={!phone} />}
+            title="Export a playlist"
+            description="Save one playlist as M3U8 or JSON."
+            action={
+              <ImportButton variant="secondary" onClick={() => setModal("export")}>
+                Export
+              </ImportButton>
+            }
+          />
+        </div>
+      </section>
+
+      <AnimatePresence>
+        {modal && (
+          <ImportModal key={modal} title={TITLES[modal]} onClose={() => setModal(null)}>
+            {modal === "paste" && pasteForm}
+            {modal === "spotify" && <SpotifyLibrary />}
+            {modal === "youtube" && <YouTubePlaylists />}
+            {modal === "export" && <ExportPanel />}
+          </ImportModal>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

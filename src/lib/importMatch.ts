@@ -78,6 +78,7 @@ export function searchQueries(target: ImportSong): string[] {
 }
 
 export function matchScore(target: ImportSong, song: SearchSong, prefer: MatchLanguage): number | null {
+  if (song.isVideo) return null;
   if (versionMarks(target.title) !== versionMarks(song.title)) return null;
 
   const sim = similarity(titleWords(target.title), titleWords(song.title));
@@ -134,7 +135,7 @@ export async function matchSong(song: ImportSong, preferred: string): Promise<Se
   await loadMatchCache();
   const key = matchCacheKey(song, prefer);
   const remembered = readMatch(key);
-  if (remembered !== undefined) return remembered;
+  if (remembered !== undefined && !remembered?.isVideo) return remembered;
 
   for (const query of searchQueries(song)) {
     const page = await searchPage(query, "songs");

@@ -2,6 +2,7 @@ import { APP_NAME, APP_SLUG } from "./app";
 import { replayExport, replayImport } from "./bridge";
 import { downloadText } from "./downloadText";
 import { isMatchLanguage } from "./importLanguage";
+import { importedAddonSources, parseAddonSources } from "./addons/registry";
 import type { Track } from "../types";
 import { DEFAULT_PINS, LIBRARY_VERSION, useLibrary, type LibraryValues } from "../stores/library";
 import { usePlayer, type PlayerState } from "../stores/player";
@@ -28,10 +29,10 @@ const NEWER = `That backup was written by a newer version of ${APP_NAME}`;
 const OTHER_APP = "That backup is from another app";
 const TOO_LARGE = "That backup file is too large to import";
 
-const LIBRARY_KEYS = ["liked", "history", "followedArtists", "pinnedSingles", "playlists", "folders", "libraryOrder"] as const;
+const LIBRARY_KEYS = ["liked", "history", "followedArtists", "savedAlbums", "pinnedSingles", "playlists", "folders", "libraryOrder"] as const;
 const PLAYER_KEYS = ["queue", "index", "volume", "muted", "shuffle", "repeat", "unshuffled", "playingFrom", "autoplayCount"] as const;
 const LISTENING_VERSION = 1;
-const LIBRARY_LIST_KEYS = ["liked", "history", "followedArtists", "playlists", "folders"] as const;
+const LIBRARY_LIST_KEYS = ["liked", "history", "followedArtists", "savedAlbums", "playlists", "folders"] as const;
 
 type Envelope = { state: Record<string, unknown>; version: number };
 
@@ -141,6 +142,7 @@ function validSetting(key: string, value: unknown, current: unknown): boolean {
     case "theme":
       return value === "dark" || value === "light" || value === "system";
     case "streamingQuality":
+    case "mobileStreamingQuality":
       return (STREAMING_QUALITIES as readonly unknown[]).includes(value);
     case "loudnessLevel":
       return (LOUDNESS_LEVELS as readonly unknown[]).includes(value);
@@ -152,6 +154,8 @@ function validSetting(key: string, value: unknown, current: unknown): boolean {
       return typeof value === "number" && value >= 0 && value <= CROSSFADE_LIMIT;
     case "playbackSpeed":
       return typeof value === "number" && value >= PLAYBACK_SPEED_RANGE[0] && value <= PLAYBACK_SPEED_RANGE[1];
+    case "addonSources":
+      return parseAddonSources(value) !== null;
     default:
       return typeof value === typeof current;
   }
@@ -162,7 +166,8 @@ function settingsPatch(input: Json, current: SettingsState): Partial<SettingsVal
   const patch: Json = {};
   for (const [key, value] of Object.entries(input)) {
     if (!(key in values) || typeof values[key] === "function" || isDeviceKey(key)) continue;
-    if (validSetting(key, value, values[key])) patch[key] = value;
+    if (!validSetting(key, value, values[key])) continue;
+    patch[key] = key === "addonSources" ? importedAddonSources(parseAddonSources(value) ?? []) : value;
   }
   return patch as Partial<SettingsValues>;
 }
@@ -229,7 +234,7 @@ function pickBackupFile(): Promise<File | null> {
   });
 }
 
-export async function importBackupFromPicker(): Promise<void> {
+async function importBackupFromPicker(): Promise<void> {
   const toast = useUI.getState().toast;
   try {
     const file = await pickBackupFile();

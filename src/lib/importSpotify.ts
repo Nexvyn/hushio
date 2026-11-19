@@ -25,6 +25,7 @@ export type PublicPlaylist = {
   thumb: string | null;
   songs: ImportSong[];
   total: number;
+  warning?: string;
 };
 
 export type SpotifyKind = "playlist" | "album" | "track";
@@ -313,29 +314,36 @@ async function readAllSongs(id: string, token: string): Promise<PublicPlaylist> 
   const first = await fetchPage(id, token, 0);
   const songs = [...first.items];
   const limit = Math.min(first.total, MAX_SONGS);
+  let warning: string | undefined;
   for (let offset = PAGE_SIZE; offset < limit; offset += PAGE_SIZE) {
-    const page = await fetchPage(id, token, offset);
-    if (page.items.length === 0) break;
-    songs.push(...page.items);
+    try {
+      const page = await fetchPage(id, token, offset);
+      songs.push(...page.items);
+    } catch {
+      warning = `Only ${songs.length} songs could be read before Spotify stopped responding. This import is incomplete. Try again or import a CSV export.`;
+      break;
+    }
   }
   return {
     name: first.name,
     owner: first.owner,
     thumb: first.thumb,
     songs: songs.slice(0, MAX_SONGS),
-    total: limit,
+    total: first.total,
+    ...(warning ? { warning } : {}),
   };
 }
 
 async function readPlaylist(id: string): Promise<PublicPlaylist> {
   const { token, ...embed } = parseEmbedPage(await fetchEmbed("playlist", id));
-  if (!token) return embed;
+  const warning = "Only Spotify's preview could be read. This may omit songs. Try again or import a CSV export for the complete list.";
+  if (!token) return { ...embed, warning };
   try {
     const full = await readAllSongs(id, token);
     return { ...full, thumb: full.thumb ?? embed.thumb };
   } catch (error) {
     console.warn(`[hushio] full playlist read failed, keeping the embed songs: ${String(error)}`);
-    return embed;
+    return { ...embed, warning };
   }
 }
 
