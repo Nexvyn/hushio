@@ -29,19 +29,19 @@ export function AboutText({ heading, text }: AboutTextProps) {
 
   return (
     <section>
-      <h2 className="mb-2 text-[17px] font-semibold text-ink-1">{heading}</h2>
+      <h2 className="mb-2 text-card-title font-semibold text-ink-1">{heading}</h2>
       <p
         ref={body}
         style={expanded ? undefined : { WebkitLineClamp: 3 }}
         onClick={() => {
           if (showToggle) toggle();
         }}
-        className={`whitespace-pre-line text-[14.5px] leading-relaxed text-ink-2 ${expanded ? "" : "overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical]"}`}
+        className={`whitespace-pre-line text-body leading-relaxed text-ink-2 ${expanded ? "" : "overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical]"}`}
       >
         {text}
       </p>
       {showToggle && (
-        <button type="button" onClick={toggle} className="mt-1 text-[13px] font-semibold text-accent">
+        <button type="button" onClick={toggle} className="mt-1 text-meta font-semibold text-accent">
           {expanded ? "Less" : "More"}
         </button>
       )}

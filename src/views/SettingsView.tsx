@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
-import { ArrowRight01Icon, Cancel01Icon, Download01Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { CaretRight, X, DownloadSimple, MagnifyingGlass } from "@phosphor-icons/react";
 import { Icon } from "../components/Icon";
 import { PhoneIcon } from "../components/phone/PhoneIcon";
 import { SectionHeader } from "../components/SectionHeader";
 import { appVersion, platform, type GoogleAccount } from "../lib/bridge";
-import { shellFor, useViewportWidth } from "../lib/layoutTier";
+import { usePhone } from "../lib/usePhone";
 import { useAuth } from "../stores/auth";
 import { useDiscord } from "../stores/discord";
 import { useScrobble } from "../stores/scrobble";
@@ -23,6 +23,7 @@ import { AccountAvatar } from "../components/phone/PhoneProfileButton";
 import { GroupView, PageHeader } from "./settings/SettingsLayout";
 import { HomeSectionsSettings } from "./settings/HomeSectionsSettings";
 import { NetworkServersSettings } from "./settings/NetworkServersSettings";
+import { AddonSourcesSettings } from "./settings/AddonSourcesSettings";
 import { CrashLogs } from "./settings/CrashLogs";
 import { filterCategories } from "./settings/search";
 
@@ -59,7 +60,7 @@ function SearchBox({ value, onChange, phone = false }: { value: string; onChange
   return (
     <div className="relative">
       <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-2">
-        <Icon icon={Search01Icon} />
+        <Icon icon={MagnifyingGlass} />
       </span>
       <input
         id="settings-filter"
@@ -83,7 +84,7 @@ function SearchBox({ value, onChange, phone = false }: { value: string; onChange
           onClick={() => onChange("")}
           className="hit-area absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-[12px] [corner-shape:squircle] text-ink-2 motion-safe:transition-colors hover:text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
         >
-          <Icon icon={Cancel01Icon} />
+          <Icon icon={X} />
         </button>
       )}
     </div>
@@ -165,7 +166,8 @@ const PHONE_GROUPS: CategoryId[][] = [
   ["about"],
 ];
 
-const PHONE_ROW = "flex w-full items-center gap-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+const PHONE_BOX = "divide-y divide-separator rounded-[12px] [corner-shape:squircle] bg-elevated px-4";
+const PHONE_ROW = "-mx-4 flex w-[calc(100%+2rem)] items-center gap-4 px-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
 function backOr(fallback: View) {
   const nav = useNavigation.getState();
@@ -217,75 +219,75 @@ function PhoneSettings({
 
   return (
     <div className="pb-6">
-      <PhoneHeader title="Profile" onBack={() => backOr({ name: "home" })} backLabel="Back" />
-      <button type="button" onClick={() => onOpen("account")} className={`${PHONE_ROW} h-[72px]`}>
-        <AccountAvatar size={48} />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate font-title text-[17px] font-semibold leading-[22px] tracking-[-0.02em] text-ink-1">{name}</span>
-          <span className="block truncate text-[13.5px] leading-[18px] text-ink-2">
-            {signedIn ? "Signed in with Google" : "Sign in to sync playlists and likes"}
-          </span>
-        </span>
-        <span aria-hidden="true" className="shrink-0 text-ink-2">
-          <Icon icon={ArrowRight01Icon} />
-        </span>
-      </button>
-      <button type="button" onClick={onDownloads} className={`${PHONE_ROW} mt-5 h-[52px]`}>
-        <span className="shrink-0 text-ink-1">
-          <PhoneIcon icon={Download01Icon} />
-        </span>
-        <span className="min-w-0 flex-1 truncate text-[16px] leading-[22px] text-ink-1">Downloads</span>
-        <span aria-hidden="true" className="shrink-0 text-ink-2">
-          <Icon icon={ArrowRight01Icon} />
-        </span>
-      </button>
-
-      <div className="mt-5">
-        <h2 className="mb-2 text-[13.5px] font-semibold leading-[18px] text-ink-2">Settings</h2>
+      <PhoneHeader title="Settings" onBack={() => backOr({ name: "home" })} />
+      <div className="mb-6">
         <SearchBox value={query} onChange={onQueryChange} phone />
       </div>
       {searching && results.length === 0 && (
         <p className="pt-4 text-body text-ink-2">No settings match “{query.trim()}”</p>
       )}
-      {searching
-        ? results.map((category) => (
-            <section key={category.id} className="mt-7 first:mt-0">
-              <SectionHeader title={category.label} />
-              <div className="space-y-5">
-                {category.groups.map((group, index) => (
-                  <GroupView key={group.title ?? index} group={group} phone />
-                ))}
-              </div>
-            </section>
-          ))
-        : (
-            <div className="mt-5 space-y-5">
-              {groups.map((items) => (
-                <ul key={items[0].id} className="flex flex-col">
-                  {items.map((category) => (
-                    <li key={category.id}>
-                      <button
-                        type="button"
-                        data-cat={category.id}
-                        onClick={() => onOpen(category.id)}
-                        className={`${PHONE_ROW} h-[52px] motion-safe:transition-opacity active:opacity-70`}
-                      >
-                        <span className="shrink-0 text-ink-1">
-                          <PhoneIcon icon={category.icon} />
-                        </span>
-                        <span className="min-w-0 flex-1 truncate text-[16px] leading-[22px] text-ink-1">
-                          {category.label}
-                        </span>
-                        <span aria-hidden="true" className="shrink-0 text-ink-2">
-                          <Icon icon={ArrowRight01Icon} />
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+      {searching ? (
+        results.map((category) => (
+          <section key={category.id} className="mt-7 first:mt-0">
+            <SectionHeader title={category.label} />
+            <div className="space-y-5">
+              {category.groups.map((group, index) => (
+                <GroupView key={group.title ?? index} group={group} phone />
               ))}
             </div>
-          )}
+          </section>
+        ))
+      ) : (
+        <div className="space-y-6">
+          <div className={PHONE_BOX}>
+            <button type="button" onClick={() => onOpen("account")} className={`${PHONE_ROW} h-[64px]`}>
+              <span className="grid w-8 shrink-0 place-items-center">
+                <AccountAvatar size={32} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-title text-card-title font-semibold leading-[22px] tracking-[-0.02em] text-ink-1">{name}</span>
+                <span className="block truncate text-meta leading-[18px] text-ink-2">
+                  {signedIn ? "Signed in with Google" : "Sign in to sync playlists and likes"}
+                </span>
+              </span>
+              <span aria-hidden="true" className="shrink-0 text-ink-2">
+                <Icon icon={CaretRight} />
+              </span>
+            </button>
+            <button type="button" onClick={onDownloads} className={`${PHONE_ROW} h-[52px]`}>
+              <span className="grid w-8 shrink-0 place-items-center text-ink-1">
+                <PhoneIcon icon={DownloadSimple} />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-body leading-[22px] text-ink-1">Downloads</span>
+              <span aria-hidden="true" className="shrink-0 text-ink-2">
+                <Icon icon={CaretRight} />
+              </span>
+            </button>
+          </div>
+          {groups.map((items) => (
+            <ul key={items[0].id} className={PHONE_BOX}>
+              {items.map((category) => (
+                <li key={category.id}>
+                  <button
+                    type="button"
+                    data-cat={category.id}
+                    onClick={() => onOpen(category.id)}
+                    className={`${PHONE_ROW} h-[52px] motion-safe:transition-opacity active:opacity-70`}
+                  >
+                    <span className="grid w-8 shrink-0 place-items-center text-ink-1">
+                      <PhoneIcon icon={category.icon} />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-body leading-[22px] text-ink-1">{category.label}</span>
+                    <span aria-hidden="true" className="shrink-0 text-ink-2">
+                      <Icon icon={CaretRight} />
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -315,7 +317,6 @@ export function SettingsView() {
   const scrobbleBusy = useScrobble((state) => state.busy);
   const discordStatus = useDiscord((state) => state.status);
   const [query, setQuery] = useState("");
-  const viewportWidth = useViewportWidth();
 
   const active = resolveCategory(view.param);
   const loadScrobble = useScrobble((state) => state.load);
@@ -377,7 +378,7 @@ export function SettingsView() {
   const searching = query.trim() !== "";
   const results = filterCategories(categories, query);
   const current = categories.find((category) => category.id === active);
-  const phone = platform === "android" && shellFor(viewportWidth) === "phone";
+  const phone = usePhone();
 
   if (view.param === "home-sections") {
     return <HomeSectionsSettings />;
@@ -389,6 +390,10 @@ export function SettingsView() {
 
   if (view.param === "network-servers") {
     return <NetworkServersSettings />;
+  }
+
+  if (view.param === "add-on-sources") {
+    return <AddonSourcesSettings />;
   }
 
   function select(id: CategoryId) {
@@ -425,7 +430,7 @@ export function SettingsView() {
               {results.map((category) => (
                 <section key={category.id}>
                   <SectionHeader title={category.label} />
-                  <div className="space-y-7">
+                  <div className="space-y-10">
                     {category.groups.map((group, index) => (
                       <GroupView key={group.title ?? index} group={group} />
                     ))}
@@ -438,9 +443,9 @@ export function SettingsView() {
           )
         ) : (
           current && (
-            <div key={current.id}>
+            <div key={current.id} className="animate-fade-in">
               <PageHeader title={current.label} />
-              <div className="space-y-7">
+              <div className="space-y-10">
                 {current.groups.map((group, index) => (
                   <GroupView key={group.title ?? index} group={group} />
                 ))}

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Delete02Icon, Link01Icon } from "@hugeicons/core-free-icons";
+import { Trash, LinkSimple } from "@phosphor-icons/react";
 import { Button } from "../../components/Button";
 import { Icon } from "../../components/Icon";
 import { RadioGroup, type RadioOption } from "../../components/RadioGroup";
-import type { NetworkServer, NetworkServerInput, NetworkServerKind } from "../../lib/bridge";
+import { platform, type NetworkServer, type NetworkServerInput, type NetworkServerKind } from "../../lib/bridge";
+import { deviceNoun } from "../../lib/desktopPlatform";
 import { useNavigation } from "../../stores/navigation";
 import { useNetwork } from "../../stores/network";
 import { useUI } from "../../stores/ui";
@@ -52,7 +53,7 @@ export function NetworkServersSettings() {
     setDraft(EMPTY);
     useUI.getState().openDialog({
       title: "Add a network server",
-      body: "Give it a name and the address. The password stays on this computer.",
+      body: `Give it a name and the address. The password stays on this ${deviceNoun(platform)}.`,
       initialValue: "",
       placeholder: "Server name",
       confirmLabel: "Add",
@@ -73,7 +74,7 @@ export function NetworkServersSettings() {
     <div className="max-w-[680px] pb-8">
       <PageHeader
         title="Network folders"
-        note="Play the music on a WebDAV or SMB server. The password stays on this computer."
+        note={`Play the music on a WebDAV or SMB server. The password stays on this ${deviceNoun(platform)}.`}
         onBack={() => navigate({ name: "settings", param: "library" })}
       />
 
@@ -95,7 +96,7 @@ export function NetworkServersSettings() {
                   onClick={() => void remove(server.id)}
                   className="hit-area flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] [corner-shape:squircle] text-ink-2 motion-safe:transition-colors hover:bg-wash hover:text-danger-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                 >
-                  <Icon icon={Delete02Icon} />
+                  <Icon icon={Trash} />
                 </button>
               </li>
             ))}
@@ -189,7 +190,7 @@ export function NetworkServersSettings() {
 
         <div>
           <Button onClick={startNew} className="gap-2">
-            <Icon icon={Link01Icon} />
+            <Icon icon={LinkSimple} />
             Add a server
           </Button>
         </div>

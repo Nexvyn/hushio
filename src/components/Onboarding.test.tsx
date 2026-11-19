@@ -53,6 +53,7 @@ function expectNamedControlsAndSizedIcons() {
   const icons = Array.from(document.querySelectorAll("svg"));
   expect(icons.length).toBeGreaterThan(0);
   for (const icon of icons) {
+    if (icon.closest(".app-logo")) continue;
     expect(icon.getAttribute("width")).toBe("20");
     expect(icon.getAttribute("height")).toBe("20");
   }

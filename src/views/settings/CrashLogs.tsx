@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { Copy01Icon, Delete02Icon } from "@hugeicons/core-free-icons";
+import { Copy, Trash } from "@phosphor-icons/react";
 import { Button } from "../../components/Button";
 import { Icon } from "../../components/Icon";
 import { useCrashes, type CrashLog } from "../../stores/crashes";
 import { useNavigation } from "../../stores/navigation";
 import { PageHeader } from "./SettingsLayout";
 
-export function formatCrashTime(at: number): string {
+function formatCrashTime(at: number): string {
   return new Date(at * 1000).toLocaleString();
 }
 
@@ -59,7 +59,7 @@ export function CrashLogs() {
                   onClick={() => void copy(index, log)}
                   aria-label={`Copy crash from ${formatCrashTime(log.at)}`}
                 >
-                  <Icon icon={Copy01Icon} />
+                  <Icon icon={Copy} />
                   {copied === index ? "Copied" : "Copy"}
                 </Button>
               </div>
@@ -72,7 +72,7 @@ export function CrashLogs() {
       {logs.length > 0 && (
         <div className="mt-6">
           <Button className="gap-2" onClick={() => void clearCrashes()}>
-            <Icon icon={Delete02Icon} />
+            <Icon icon={Trash} />
             Clear all logs
           </Button>
         </div>

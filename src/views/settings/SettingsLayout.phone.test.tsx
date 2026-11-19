@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { Wifi01Icon, VolumeHighIcon } from "@hugeicons/core-free-icons";
+import { WifiHigh, SpeakerHigh } from "@phosphor-icons/react";
 import { RadioGroup } from "../../components/RadioGroup";
 import { Button } from "../../components/Button";
 import { GroupView } from "./SettingsLayout";
@@ -19,7 +19,7 @@ describe("GroupView on phone", () => {
       rows: [
         {
           id: "font",
-          icon: Wifi01Icon,
+          icon: WifiHigh,
           title: "App font",
           note: "Pick the font for the app",
           control: <RadioGroup label="App font" options={options} value="a" onChange={() => {}} />,
@@ -27,9 +27,9 @@ describe("GroupView on phone", () => {
       ],
     };
     const { container } = render(<GroupView group={group} phone />);
-    const row = container.querySelector("section > div") as HTMLElement;
+    const row = container.querySelector("section > div > div") as HTMLElement;
     expect(row.className).toContain("flex-col");
-    expect(row.className).toContain("py-3");
+    expect(row.className).toContain("min-h-[52px]");
     const radios = screen.getByRole("radiogroup");
     expect(radios.parentElement?.className).toContain("w-full");
     expect(radios.parentElement?.className).toContain("[&_[role=radio]]:flex-1");
@@ -40,15 +40,15 @@ describe("GroupView on phone", () => {
       rows: [
         {
           id: "volume",
-          icon: VolumeHighIcon,
+          icon: SpeakerHigh,
           title: "Volume leveling",
           control: <Button onClick={() => {}}>Open</Button>,
         },
       ],
     };
     const { container } = render(<GroupView group={group} phone />);
-    const row = container.querySelector("section > div") as HTMLElement;
+    const row = container.querySelector("section > div > div") as HTMLElement;
     expect(row.className).not.toContain("flex-col");
-    expect(row.className).toContain("items-start");
+    expect(row.className).toContain("items-center");
   });
 });

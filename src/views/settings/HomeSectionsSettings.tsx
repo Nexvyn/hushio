@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { DragDropIcon } from "@hugeicons/core-free-icons";
+import { DotsSixVertical } from "@phosphor-icons/react";
 import { Icon } from "../../components/Icon";
 import { Switch } from "../../components/Switch";
 import { HOME_SECTION_KEYS, moveHomeSection, toggleHiddenSection } from "../../lib/homeSections";
@@ -58,7 +58,7 @@ export function HomeSectionsSettings() {
           return (
             <li key={key} {...bound} className="flex min-h-[52px] items-center gap-3 py-2">
               <span aria-hidden="true" className="flex h-8 w-6 shrink-0 cursor-grab items-center justify-center text-ink-2">
-                <Icon icon={DragDropIcon} />
+                <Icon icon={DotsSixVertical} />
               </span>
               <span className="min-w-0 flex-1 truncate text-body font-medium text-ink-1">{labelOf(key)}</span>
               <span data-no-drag>

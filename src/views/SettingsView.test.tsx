@@ -23,6 +23,9 @@ vi.mock("../lib/bridge", () => ({
   persistWrite: async () => true,
   scrobbleStatus: async () => null,
   discordStatus: async () => null,
+  cacheSize: async () => ({ bytes: 0, files: 0 }),
+  cacheClear: async () => ({ bytes: 0, files: 0 }),
+  cacheSetLimit: async () => ({ bytes: 0, files: 0 }),
 }));
 
 import { SettingsView } from "./SettingsView";
@@ -51,7 +54,7 @@ describe("settings categories", () => {
     render(<SettingsView />);
 
     expect(screen.getByRole("heading", { name: "Account" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Sync now" })).toBeTruthy();
+    expect(screen.getByText(/as a guest/)).toBeTruthy();
 
     await openCategory("Playback");
 
@@ -70,6 +73,16 @@ describe("settings categories", () => {
     expect(useNavigation.getState().view).toEqual({ name: "settings", param: "about" });
     expect(useNavigation.getState().navPast).toHaveLength(0);
   });
+
+  it("shows the maker section and a GitHub button on About", async () => {
+    render(<SettingsView />);
+    await openCategory("About");
+
+    expect(screen.getByText("About the maker")).toBeTruthy();
+    expect(screen.getByText(/Made by Nexvyn\./)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "GitHub" })).toBeTruthy();
+    expect(await screen.findByText("Version 1.1.1")).toBeTruthy();
+  });
 });
 
 describe("settings search", () => {
@@ -81,7 +94,7 @@ describe("settings search", () => {
     await user.type(search, "Streaming");
 
     expect(screen.getByRole("heading", { name: "Sound" })).toBeTruthy();
-    expect(screen.getByText("Streaming quality")).toBeTruthy();
+    expect(screen.getByText("Wi-Fi quality")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Account" })).toBeNull();
 
     await user.keyboard("{Escape}");

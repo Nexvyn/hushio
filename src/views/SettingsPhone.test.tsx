@@ -31,9 +31,9 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("phone settings", () => {
-  it("opens as the profile page with a back arrow and a Downloads row", () => {
+  it("opens as the settings root with a back arrow and a Downloads row", () => {
     render(<SettingsView />);
-    expect(screen.getByRole("heading", { name: "Profile" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Settings" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Back" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Downloads" }));
     expect(useNavigation.getState().view).toEqual({ name: "downloads" });
@@ -67,7 +67,9 @@ describe("phone settings", () => {
     expect(screen.getByRole("heading", { name: "Playback" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Back to settings" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Lyrics/ })).toBeNull();
-    expect(screen.getAllByText("Coming in a later version")).toHaveLength(2);
+    expect(screen.queryByText("Coming in a later version")).toBeNull();
+    expect(screen.queryByText("Crossfade")).toBeNull();
+    expect(screen.queryByText("Automix")).toBeNull();
   });
 
   it("goes back to the list", async () => {
@@ -90,7 +92,7 @@ describe("phone settings", () => {
 });
 
 describe("phone settings groups", () => {
-  it("groups the root categories into four plain lists without containers", () => {
+  it("groups the root categories into four inset lists", () => {
     const { container } = render(<SettingsView />);
     const groups = Array.from(container.querySelectorAll("ul")).map((list) =>
       Array.from(list.querySelectorAll("button[data-cat]")).map((button) => button.textContent),

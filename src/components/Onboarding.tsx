@@ -1,18 +1,12 @@
 import { useEffect, useReducer, type ReactNode } from "react";
 import { motion } from "motion/react";
-import type { IconSvgElement } from "@hugeicons/react";
-import {
-  Album01Icon,
-  ArrowRight01Icon,
-  GoogleIcon,
-  HardDriveIcon,
-  Loading03Icon,
-} from "@hugeicons/core-free-icons";
+import { CaretRight, GoogleLogo, HardDrive, CircleNotch, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { CaptionButtons } from "./CaptionButtons";
 import { CoverDrum } from "./CoverDrum";
 import { Icon } from "./Icon";
+import { AppLogo } from "./AppLogo";
 import { googleSignIn, platform, type GoogleAccount } from "../lib/bridge";
-import { hasCaptionButtons } from "../lib/desktopPlatform";
+import { deviceNoun, hasCaptionButtons } from "../lib/desktopPlatform";
 import { glide } from "../lib/motion";
 import {
   initialOnboarding,
@@ -80,10 +74,8 @@ export function Onboarding({ initial }: OnboardingProps) {
       </div>
       <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-2">
         <section className="flex min-h-0 flex-col justify-center gap-6 px-10 pb-10">
-          <div className="flex items-center gap-3 text-[15px] font-semibold">
-            <span aria-hidden="true" className="inline-flex rounded-xl bg-wash p-2 text-ink-1">
-              <Icon icon={Album01Icon} />
-            </span>
+          <div className="flex items-center gap-3 text-body font-semibold">
+            <AppLogo size={40} />
             Hushio
           </div>
           <motion.div
@@ -123,20 +115,20 @@ function Heading({ children }: { children: ReactNode }) {
 }
 
 function Lede({ children }: { children: ReactNode }) {
-  return <p className="text-[14px] text-ink-2">{children}</p>;
+  return <p className="text-body text-ink-2">{children}</p>;
 }
 
 function ErrorLine({ message }: { message: string | null }) {
   if (!message) return null;
   return (
-    <p role="alert" className="text-[13px] text-danger-text">
+    <p role="alert" className="text-meta text-danger-text">
       {message}
     </p>
   );
 }
 
 type WayProps = {
-  icon: IconSvgElement;
+  icon: PhosphorIcon;
   title: string;
   note: string;
   busy?: boolean;
@@ -156,11 +148,11 @@ function Way({ icon, title, note, busy = false, disabled, onClick }: WayProps) {
         <Icon icon={icon} />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="text-[14px] font-semibold">{title}</span>
-        <span className="truncate text-[12.5px] text-ink-2">{note}</span>
+        <span className="text-body font-semibold">{title}</span>
+        <span className="truncate text-meta text-ink-2">{note}</span>
       </span>
       <span aria-hidden="true" className={`inline-flex text-ink-2 ${busy ? "bt-spin" : ""}`}>
-        <Icon icon={busy ? Loading03Icon : ArrowRight01Icon} />
+        <Icon icon={busy ? CircleNotch : CaretRight} />
       </span>
     </button>
   );
@@ -185,7 +177,7 @@ function ChooseStep({
       <ul className="flex flex-col gap-2">
         <li>
           <Way
-            icon={GoogleIcon}
+            icon={GoogleLogo}
             title="Continue with Google"
             note={state.busy ? "Finish in your browser" : "Sync your playlists and liked songs with your YouTube account"}
             busy={state.busy}
@@ -195,9 +187,9 @@ function ChooseStep({
         </li>
         <li>
           <Way
-            icon={HardDriveIcon}
+            icon={HardDrive}
             title="Continue as guest"
-            note="Everything stays on this computer"
+            note={`Everything stays on this ${deviceNoun(platform)}`}
             disabled={state.busy}
             onClick={onGuest}
           />
@@ -220,13 +212,13 @@ function ResumeStep({
   return (
     <>
       <Heading>Your guest library is still here</Heading>
-      <Lede>We found it on this computer, from an earlier install.</Lede>
+      <Lede>We found it on this {deviceNoun(platform)}, from an earlier install.</Lede>
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
           disabled={state.busy}
           onClick={onGuest}
-          className="inline-flex h-10 items-center rounded-xl bg-primary px-4 text-[14px] font-medium text-on-primary disabled:opacity-[var(--disabled-opacity)]"
+          className="inline-flex h-10 items-center rounded-xl bg-primary px-4 text-body font-medium text-on-primary disabled:opacity-[var(--disabled-opacity)]"
         >
           {state.busy ? "Starting…" : "Continue as guest"}
         </button>
@@ -234,13 +226,13 @@ function ResumeStep({
           type="button"
           disabled={state.busy}
           onClick={onGoogle}
-          className="inline-flex h-10 items-center rounded-xl bg-wash px-4 text-[14px] font-medium text-ink-1 hover:bg-hover disabled:opacity-[var(--disabled-opacity)]"
+          className="inline-flex h-10 items-center rounded-xl bg-wash px-4 text-body font-medium text-ink-1 hover:bg-hover disabled:opacity-[var(--disabled-opacity)]"
         >
           Continue with Google
         </button>
       </div>
       <ErrorLine message={state.error} />
-      <p className="text-[12.5px] text-ink-3">Signing in later carries it over. Nothing is deleted.</p>
+      <p className="text-meta text-ink-3">Signing in later carries it over. Nothing is deleted.</p>
     </>
   );
 }
@@ -258,15 +250,15 @@ function RestoringStep({
     <>
       <Heading>Syncing your library</Heading>
       <Lede>
-        Your YouTube playlists and liked music are coming to this computer.
+        Your YouTube playlists and liked music are coming to this {deviceNoun(platform)}.
       </Lede>
-      <p role="status" className="flex items-center gap-2 text-[13px] text-ink-2">
+      <p role="status" className="flex items-center gap-2 text-meta text-ink-2">
         {state.syncDone ? (
           state.syncError ?? "Synced"
         ) : (
           <>
             <span aria-hidden="true" className="bt-spin inline-flex">
-              <Icon icon={Loading03Icon} />
+              <Icon icon={CircleNotch} />
             </span>
             {progressText ?? "Syncing"}
           </>
@@ -276,7 +268,7 @@ function RestoringStep({
         type="button"
         disabled={!state.syncDone}
         onClick={onContinue}
-        className="inline-flex h-10 w-fit items-center rounded-xl bg-primary px-4 text-[14px] font-medium text-on-primary disabled:opacity-[var(--disabled-opacity)]"
+        className="inline-flex h-10 w-fit items-center rounded-xl bg-primary px-4 text-body font-medium text-on-primary disabled:opacity-[var(--disabled-opacity)]"
       >
         Continue
       </button>

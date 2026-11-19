@@ -85,7 +85,7 @@ describe("Sound rows on Windows", () => {
   it("lists the output picker after volume leveling, then the equalizer and prevent clipping", () => {
     const titles = soundRows("windows").map((candidate) => candidate.title);
     expect(titles).toEqual([
-      "Streaming quality",
+      "Wi-Fi quality",
       "Volume leveling",
       "Output device",
       "Equalizer",
@@ -150,15 +150,13 @@ describe("Android rows", () => {
     expect(ids("linux")).toEqual(expect.arrayContaining(["reduce-transparency", "hide-volume-bar", "download-folder"]));
   });
 
-  it("shows crossfade and Automix as later and disabled", () => {
-    for (const id of ["crossfade", "automix"]) {
-      const found = soundOrPlayback("android", id);
-      expect(found.note).toBe("Coming in a later version");
-      expect(found.disabled).toBe(true);
-      expect(found.control).toBeUndefined();
-      expect(found.toggle).toBeUndefined();
+  it("hides crossfade, Automix and stats for nerds on Android", () => {
+    for (const id of ["crossfade", "automix", "stats-for-nerds"]) {
+      const ids = buildCategories(context("android")).flatMap((category) => category.groups.flatMap((group) => group.rows.map((row) => row.id)));
+      expect(ids).not.toContain(id);
     }
     expect(soundOrPlayback("linux", "automix").toggle).toBeDefined();
+    expect(soundOrPlayback("linux", "crossfade").control).toBeDefined();
   });
 
   it("keeps the other playback rows active", () => {

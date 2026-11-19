@@ -1,4 +1,4 @@
-import { CheckmarkCircle01Icon, Link01Icon, Logout01Icon } from "@hugeicons/core-free-icons";
+import { CheckCircle, LinkSimple, SignOut } from "@phosphor-icons/react";
 import { Button } from "../../components/Button";
 import type { SettingRowProps } from "../../components/SettingRow";
 import { useUI } from "../../stores/ui";
@@ -30,14 +30,14 @@ function lastfmRows(context: ScrobbleContext): ScrobbleRowSpec[] {
     return [
       {
         id: "lastfm-account",
-        icon: CheckmarkCircle01Icon,
+        icon: CheckCircle,
         title: "Last.fm",
         note: `Signed in as ${status.lastfm.username ?? "you"}`,
         value: status.lastfm.enabled ? "On" : "Off",
       },
       {
         id: "lastfm-enabled",
-        icon: CheckmarkCircle01Icon,
+        icon: CheckCircle,
         title: "Send scrobbles to Last.fm",
         note: "Turn off to keep listening without sending anything.",
         toggle: {
@@ -47,7 +47,7 @@ function lastfmRows(context: ScrobbleContext): ScrobbleRowSpec[] {
       },
       {
         id: "lastfm-disconnect",
-        icon: Logout01Icon,
+        icon: SignOut,
         title: "Disconnect Last.fm",
         control: <Button onClick={context.disconnectLastfm}>Disconnect</Button>,
       },
@@ -57,7 +57,7 @@ function lastfmRows(context: ScrobbleContext): ScrobbleRowSpec[] {
     return [
       {
         id: "lastfm-approve",
-        icon: Link01Icon,
+        icon: LinkSimple,
         title: "Last.fm",
         note: "Allow access on the Last.fm page, then finish connecting.",
         control: (
@@ -71,7 +71,7 @@ function lastfmRows(context: ScrobbleContext): ScrobbleRowSpec[] {
   return [
     {
       id: "lastfm-connect",
-      icon: Link01Icon,
+      icon: LinkSimple,
       title: "Last.fm",
       note: status.lastfm.available
         ? "Opens a browser page where you allow access."
@@ -92,14 +92,14 @@ function listenbrainzRows(context: ScrobbleContext): ScrobbleRowSpec[] {
     return [
       {
         id: "listenbrainz-account",
-        icon: CheckmarkCircle01Icon,
+        icon: CheckCircle,
         title: "ListenBrainz",
         note: `Signed in as ${status.listenbrainz.username ?? "you"}`,
         value: status.listenbrainz.enabled ? "On" : "Off",
       },
       {
         id: "listenbrainz-enabled",
-        icon: CheckmarkCircle01Icon,
+        icon: CheckCircle,
         title: "Send scrobbles to ListenBrainz",
         note: "Turn off to keep listening without sending anything.",
         toggle: {
@@ -109,7 +109,7 @@ function listenbrainzRows(context: ScrobbleContext): ScrobbleRowSpec[] {
       },
       {
         id: "listenbrainz-disconnect",
-        icon: Logout01Icon,
+        icon: SignOut,
         title: "Disconnect ListenBrainz",
         control: <Button onClick={context.disconnectListenbrainz}>Disconnect</Button>,
       },
@@ -118,7 +118,7 @@ function listenbrainzRows(context: ScrobbleContext): ScrobbleRowSpec[] {
   return [
     {
       id: "listenbrainz-connect",
-      icon: Link01Icon,
+      icon: LinkSimple,
       title: "ListenBrainz",
       note: "Paste the user token from your ListenBrainz settings page.",
       disabled: busy,

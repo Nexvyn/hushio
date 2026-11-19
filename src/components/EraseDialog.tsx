@@ -1,8 +1,10 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { APP_NAME } from "../lib/app";
+import { platform } from "../lib/bridge";
+import { deviceNoun } from "../lib/desktopPlatform";
 import { runErase, type EraseOptions, type EraseStage, type EraseSteps } from "../lib/disconnect";
 import { bridgeSteps, resetStoresAfterErase, useErase, type EraseMode } from "../stores/erase";
-import { useSession } from "../stores/session";
+import { useAuth } from "../stores/auth";
 import { useUI } from "../stores/ui";
 
 type Props = {
@@ -12,26 +14,28 @@ type Props = {
 
 type Phase = "confirm" | "working" | "remote-failed" | "local-failed";
 
-const COPY: Record<EraseMode, { title: string; body: string; confirm: string; done: string }> = {
-  google: {
-    title: `Disconnect and erase ${APP_NAME} data?`,
-    body: `This signs ${APP_NAME} out of your Google account and erases ${APP_NAME}'s data on this computer. Your YouTube playlists stay unless you tick the first box. Downloaded songs stay on this computer unless you tick the second box.`,
-    confirm: "Disconnect & erase",
-    done: `Your ${APP_NAME} data was erased from this computer and your Google account.`,
-  },
-  guest: {
-    title: "Erase all local data?",
-    body: "This erases your library, settings, listening history and stats from this computer. It can't be undone.",
-    confirm: "Erase all local data",
-    done: `Your ${APP_NAME} data was erased from this computer.`,
-  },
-  reset: {
-    title: "Reset app data on this computer?",
-    body: "This erases your library, playlists, listening history and settings on this computer. Downloads and YouTube data are kept.",
-    confirm: "Reset app data",
-    done: "App data was reset on this computer.",
-  },
-};
+function copyFor(device: string): Record<EraseMode, { title: string; body: string; confirm: string; done: string }> {
+  return {
+    google: {
+      title: `Disconnect and erase ${APP_NAME} data?`,
+      body: `This signs ${APP_NAME} out of your Google account and erases ${APP_NAME}'s data on this ${device}. Your YouTube playlists stay unless you tick the first box. Downloaded songs stay on this ${device} unless you tick the second box.`,
+      confirm: "Disconnect & erase",
+      done: `Your ${APP_NAME} data was erased from this ${device} and your Google account.`,
+    },
+    guest: {
+      title: "Erase all local data?",
+      body: `This erases your library, settings, listening history and stats from this ${device}. It can't be undone.`,
+      confirm: "Erase all local data",
+      done: `Your ${APP_NAME} data was erased from this ${device}.`,
+    },
+    reset: {
+      title: `Reset app data on this ${device}?`,
+      body: `This erases your library, playlists, listening history and settings on this ${device}. Downloads and YouTube data are kept.`,
+      confirm: "Reset app data",
+      done: `App data was reset on this ${device}.`,
+    },
+  };
+}
 
 function optionsFor(mode: EraseMode, youtube: boolean, downloads: boolean): EraseOptions {
   if (mode === "google") return { scope: "account", deleteYoutubePlaylists: youtube, deleteDownloads: downloads };
@@ -46,16 +50,17 @@ function remoteText(message: string) {
 }
 
 const BUTTON =
-  "hit-area h-9 rounded-xl px-4 text-[13px] font-medium transition-[filter,colors] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-[var(--disabled-opacity)]";
+  "hit-area h-9 rounded-xl px-4 text-meta font-medium transition-[opacity,colors] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-[var(--disabled-opacity)]";
 const SECONDARY = `${BUTTON} text-ink-2 hover:bg-hover hover:text-ink-1`;
-const DANGER = `${BUTTON} bg-danger text-white hover:brightness-110`;
+const DANGER = `${BUTTON} bg-danger text-white hover:opacity-90`;
 const CHECKBOX = "hit-area h-4 w-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
 
 type PanelProps = { mode: EraseMode; steps: EraseSteps; onErased: () => void };
 
 function ErasePanel({ mode, steps, onErased }: PanelProps) {
   const close = useErase((state) => state.close);
-  const copy = COPY[mode];
+  const device = deviceNoun(platform);
+  const copy = copyFor(device)[mode];
   const titleId = useId();
   const bodyId = useId();
   const [phase, setPhase] = useState<Phase>("confirm");
@@ -152,14 +157,14 @@ function ErasePanel({ mode, steps, onErased }: PanelProps) {
         <h2 id={titleId} className="font-display text-lg font-bold text-danger-text">
           {working ? "Erasing…" : copy.title}
         </h2>
-        <p id={bodyId} className="mt-1.5 text-[13px] leading-relaxed text-ink-2">
+        <p id={bodyId} className="mt-1.5 text-meta leading-relaxed text-ink-2">
           {working ? `Keep ${APP_NAME} open. This takes a moment.` : copy.body}
         </p>
 
         {phase === "confirm" && mode !== "reset" && (
           <div className="mt-4 space-y-2.5">
             {mode === "google" && (
-              <label className="flex items-center gap-2.5 text-[13px] text-ink-1">
+              <label className="flex items-center gap-2.5 text-meta text-ink-1">
                 <input
                   type="checkbox"
                   checked={youtube}
@@ -169,7 +174,7 @@ function ErasePanel({ mode, steps, onErased }: PanelProps) {
                 Also delete playlists {APP_NAME} created on YouTube
               </label>
             )}
-            <label className="flex items-center gap-2.5 text-[13px] text-ink-1">
+            <label className="flex items-center gap-2.5 text-meta text-ink-1">
               <input
                 type="checkbox"
                 checked={downloads}
@@ -182,13 +187,13 @@ function ErasePanel({ mode, steps, onErased }: PanelProps) {
         )}
 
         {working && step && (
-          <p role="status" aria-live="polite" className="mt-4 text-[13px] text-ink-2">
+          <p role="status" aria-live="polite" className="mt-4 text-meta text-ink-2">
             {step}
           </p>
         )}
 
         {(phase === "remote-failed" || phase === "local-failed") && (
-          <p role="alert" className="mt-4 text-[13px] text-danger-text">
+          <p role="alert" className="mt-4 text-meta text-danger-text">
             {phase === "local-failed"
               ? "Disconnected, but some local data could not be removed."
               : remoteText(message)}
@@ -204,7 +209,7 @@ function ErasePanel({ mode, steps, onErased }: PanelProps) {
               type="button"
               onClick={() => {
                 close();
-                useSession.getState().openOnboarding("choose");
+                void useAuth.getState().signIn();
               }}
               className={SECONDARY}
             >
@@ -227,7 +232,7 @@ function ErasePanel({ mode, steps, onErased }: PanelProps) {
               onClick={() => void run({ ...options, scope: "computer" }, "remote")}
               className={SECONDARY}
             >
-              Erase this computer only
+              {`Erase this ${device} only`}
             </button>
           )}
           {phase === "remote-failed" && (
