@@ -4,6 +4,8 @@ import type { Track } from "../types";
 
 type Session = { track: Track; duration: number; since: number | null };
 
+const PROGRESS_EVERY_MS = 5000;
+
 let session: Session | null = null;
 
 function wire(track: Track, duration: number): WireTrack {
@@ -57,6 +59,8 @@ export function resumeListen(now = Date.now()) {
 }
 
 export function tick(now = Date.now()) {
+  const current = session;
+  if (!current || current.since === null || now - current.since < PROGRESS_EVERY_MS) return;
   accrue(now, "progress");
 }
 

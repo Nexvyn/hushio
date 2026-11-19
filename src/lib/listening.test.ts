@@ -51,6 +51,28 @@ describe("listening events", () => {
     ]);
   });
 
+  it("sends no progress for ticks less than 5 seconds apart", () => {
+    startListen(song("a"), T0);
+    resumeListen(T0);
+    tick(T0 + 2_000);
+    tick(T0 + 4_000);
+    expect(sent().map((event) => event.type)).toEqual(["start", "resume"]);
+  });
+
+  it("sends the whole delta on pause after several short ticks", () => {
+    startListen(song("a"), T0);
+    resumeListen(T0);
+    tick(T0 + 1_000);
+    tick(T0 + 2_000);
+    tick(T0 + 3_000);
+    pauseListen(T0 + 4_000);
+    expect(sent().map((event) => [event.type, event.deltaMs])).toEqual([
+      ["start", undefined],
+      ["resume", undefined],
+      ["pause", 4_000],
+    ]);
+  });
+
   it("does not count the time between start and the first resume", () => {
     startListen(song("a"), T0);
     tick(T0 + 8_000);
