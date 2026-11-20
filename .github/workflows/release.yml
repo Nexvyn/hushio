@@ -6,13 +6,18 @@ on:
         description: "Tag to build (empty = current ref)"
         required: false
         default: ""
+      only:
+        description: "Platforms to build"
+        type: choice
+        options: [all, linux-android]
+        default: all
   push:
     tags: ["v*"]
 permissions:
   contents: write
 env:
   PNPM_VERSION: 10.34.5
-  LINUX_DEPS: build-essential curl wget file libxdo-dev libssl-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libsecret-1-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav xvfb dbus-x11 gnome-keyring
+  LINUX_DEPS: build-essential curl wget file libxdo-dev libssl-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libsecret-1-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav xvfb dbus-x11 gnome-keyring libasound2-dev
 jobs:
   test:
     strategy:
@@ -42,6 +47,7 @@ jobs:
       - run: pnpm test
       - run: cargo test --manifest-path src-tauri/Cargo.toml
   build:
+    if: inputs.only != 'linux-android'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4.4.0
@@ -93,6 +99,7 @@ jobs:
           gh release upload "$TAG" "$WORK/latest.json" --clobber
   build-macos:
     needs: build
+    if: inputs.only != 'linux-android'
     runs-on: macos-latest
     strategy:
       fail-fast: false
@@ -296,9 +303,9 @@ jobs:
           check_app "$WORK/archive/Hushio.app"
   linux:
     needs: [build, build-macos]
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-22.04
     env:
-      APPIMAGE_EXTRACT_AND_RUN: "1"
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
@@ -317,7 +324,8 @@ jobs:
         with:
           workspaces: src-tauri
       - name: Install Linux build dependencies
-        run: sudo apt-get update && sudo apt-get install -y $LINUX_DEPS
+        timeout-minutes: 15
+        run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y $LINUX_DEPS
       - run: pnpm install --frozen-lockfile
       - uses: tauri-apps/tauri-action@v0.6.2
         env:
@@ -326,18 +334,17 @@ jobs:
           tagName: ${{ inputs.tag || github.ref_name }}
           releaseName: "Hushio ${{ inputs.tag || github.ref_name }}"
           releaseDraft: false
-          includeUpdaterJson: true
-          args: --bundles appimage,deb,rpm
+          includeUpdaterJson: false
+          args: --bundles deb,rpm --config '{"bundle":{"createUpdaterArtifacts":false}}'
       - name: Verify Linux bundles
         shell: bash
         run: |
           set -euo pipefail
           BUNDLE=src-tauri/target/release/bundle
-          ls "$BUNDLE"/appimage/*.AppImage "$BUNDLE"/appimage/*.AppImage.sig
           dpkg-deb --info "$BUNDLE"/deb/*.deb | grep -E 'Depends|Package'
           sudo apt-get install -y rpm
           rpm -qpR "$BUNDLE"/rpm/*.rpm | grep -E 'webkit2gtk4.1|gstreamer1-libav'
-          sha256sum "$BUNDLE"/appimage/*.AppImage "$BUNDLE"/deb/*.deb "$BUNDLE"/rpm/*.rpm
+          sha256sum "$BUNDLE"/deb/*.deb "$BUNDLE"/rpm/*.rpm
       - name: Rename Linux release files and update latest.json
         shell: bash
         env:
@@ -352,14 +359,12 @@ jobs:
           mkdir -p "$WORK"
           new_name() {
             case "$1" in
-              *.AppImage.sig) echo "Hushio-${VERSION}-linux-x86_64.AppImage.sig" ;;
-              *.AppImage) echo "Hushio-${VERSION}-linux-x86_64.AppImage" ;;
               *.deb) echo "Hushio-${VERSION}-linux-amd64.deb" ;;
               *.rpm) echo "Hushio-${VERSION}-linux-x86_64.rpm" ;;
             esac
           }
           gh release download "$TAG" --pattern latest.json --dir "$WORK" --clobber
-          for old in "$BUNDLE"/appimage/*.AppImage "$BUNDLE"/appimage/*.AppImage.sig "$BUNDLE"/deb/*.deb "$BUNDLE"/rpm/*.rpm; do
+          for old in "$BUNDLE"/deb/*.deb "$BUNDLE"/rpm/*.rpm; do
             name=$(basename "$old")
             new=$(new_name "$name")
             cp "$old" "$WORK/$new"
@@ -374,7 +379,7 @@ jobs:
           path: src-tauri/target/release/bundle/**
   android:
     needs: [build, linux]
-    if: startsWith(inputs.tag || github.ref_name, 'v')
+    if: ${{ !failure() && !cancelled() && startsWith(inputs.tag || github.ref_name, 'v') }}
     runs-on: ubuntu-22.04
     permissions:
       contents: write
