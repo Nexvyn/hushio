@@ -92,3 +92,7 @@ Rust tests: `cargo test` inside `src-tauri`.
 ## Privacy
 
 Hushio has no analytics and no servers. Settings, library and listening stats are stored in the app's data folder. If you sign in with Google, the app talks to Google directly with your own account, and you can disconnect and erase everything from Settings.
+
+## License
+
+GPL-3.0. See [LICENSE](LICENSE).
