@@ -70,7 +70,7 @@ Download the latest build from the [Releases page](https://github.com/Nexvyn/hus
 | Windows 10 and 11 | `Hushio-<version>-x64-setup.exe` |
 | macOS, Apple silicon | `Hushio-<version>-arm64.dmg` |
 | macOS, Intel | `Hushio-<version>-x64.dmg` |
-| Linux | `Hushio-<version>-linux-amd64.deb`, `Hushio-<version>-linux-x86_64.rpm` or `Hushio-<version>-linux-x86_64.AppImage` |
+| Linux | `Hushio-<version>-linux-amd64.deb` or `Hushio-<version>-linux-x86_64.rpm` |
 | Android 8 and later | `hushio-<version>-universal.apk` |
 
 The builds are not signed by Apple or Microsoft yet, so the first launch needs one extra step:
