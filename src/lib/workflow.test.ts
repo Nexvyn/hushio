@@ -9,6 +9,7 @@ type Step = {
   run?: string;
   if?: string;
   shell?: string;
+  "timeout-minutes"?: number;
   env?: Record<string, string>;
   with?: Record<string, unknown>;
 };
@@ -25,7 +26,12 @@ type Job = {
   steps: Step[];
 };
 
-const parsed = parse(releaseYaml) as { env?: Record<string, string>; jobs: Record<string, Job> };
+type DispatchInput = { type?: string; default?: string; options?: string[] };
+const parsed = parse(releaseYaml) as {
+  env?: Record<string, string>;
+  on: { workflow_dispatch: { inputs: Record<string, DispatchInput> } };
+  jobs: Record<string, Job>;
+};
 const jobs = parsed.jobs;
 const needsOf = (job: Job): string[] =>
   typeof job.needs === "string" ? [job.needs] : (job.needs ?? []);
@@ -59,11 +65,30 @@ describe("release workflow", () => {
     expect(jobs.test.strategy?.matrix?.os).toEqual(["windows-latest", "ubuntu-22.04"]);
   });
 
-  it("gates both build jobs on test and builds Linux after the Windows and macOS releases", () => {
-    expect(needsOf(jobs.build)).toContain("test");
-    expect(needsOf(jobs.linux)).toEqual(expect.arrayContaining(["build", "build-macos"]));
+  it("runs the Windows build without waiting for the tests and builds Linux after the Windows and macOS releases", () => {
+    expect(needsOf(jobs.build)).toEqual([]);
+    expect(jobs.build.if).toBe("inputs.only != 'linux-android' && inputs.only != 'android'");
+    expect(needsOf(jobs.linux).sort()).toEqual(["build", "build-macos"]);
+    expect(jobs.linux.if).toBe("${{ !failure() && !cancelled() && inputs.only != 'android' }}");
     expect(jobs.linux["runs-on"]).toBe("ubuntu-22.04");
     expect(jobs.build["runs-on"]).toBe("windows-latest");
+  });
+
+  it("takes tag, ref and only as manual inputs, with only offering all, linux-android and android", () => {
+    const inputs = parsed.on.workflow_dispatch.inputs;
+    expect(Object.keys(inputs).sort()).toEqual(["only", "ref", "tag"]);
+    expect(inputs.only).toEqual({
+      description: "Platforms to build",
+      type: "choice",
+      options: ["all", "linux-android", "android"],
+      default: "all",
+    });
+  });
+
+  it("checks out the requested tag or ref in every job", () => {
+    const checkouts = allSteps.filter((step) => step.uses?.startsWith("actions/checkout@"));
+    expect(checkouts).toHaveLength(5);
+    for (const step of checkouts) expect(step.with?.ref).toBe("${{ inputs.ref || inputs.tag || github.ref }}");
   });
 
   it("chains the macOS build behind the Windows build and the verify job behind the macOS build", () => {
@@ -149,22 +174,40 @@ describe("release workflow", () => {
     expect(download?.with?.name).toBe("mac-bundles-${{ matrix.arch }}");
   });
 
-  it("names the macOS release files by arch and writes darwin entries into latest.json", () => {
+  it("names the macOS release files by arch, deletes the arch-named uploads and writes both darwin keys into latest.json", () => {
     const rename = stepNamed(jobs["build-macos"], "Rename macOS archive and update latest.json");
     expect(rename.run).toContain('NAME="Hushio-${VERSION}-${ARCH}.app.tar.gz"');
     expect(rename.run).toContain("latest.json");
     expect(rename.run).toContain("$WORK/$NAME.sig");
-    expect(rename.run).toContain('[key]: { signature: fs.readFileSync(sig, "utf8").trim(), url }');
+    expect(rename.run).toContain('"Hushio_${UPLOADED}.app.tar.gz"');
+    expect(rename.run).toContain('"Hushio_${UPLOADED}.app.tar.gz.sig"');
+    expect(rename.run).toContain('gh release delete-asset "$TAG" "$old" --yes');
+    expect(rename.run).toContain("const entry = { signature: fs.readFileSync(sig, \"utf8\").trim(), url };");
+    expect(rename.run).toContain("[key]: entry, [`${key}-app`]: entry");
     expect(stepNamed(jobs["build-macos"], "Publish DMG (best effort)").run).toContain('NAME="Hushio-${VERSION}-${ARCH}.dmg"');
     expect(rename.env?.PLATFORM).toBe("${{ matrix.platform }}");
   });
 
-  it("uploads latest.json for the Windows, macOS and Linux updater entries", () => {
+  it("uploads latest.json for the Windows, macOS and Linux updater entries, with the signed setup exe for Windows and no AppImage or nsis.zip", () => {
     expect(jobs.build.steps.some((step) => step.run?.includes("latest.json"))).toBe(true);
     expect(jobs["build-macos"].steps.some((step) => step.run?.includes("latest.json"))).toBe(true);
     expect(jobs.linux.steps.some((step) => step.run?.includes("latest.json"))).toBe(true);
-    expect(releaseYaml).toContain("Hushio-${VERSION}-linux-x86_64.AppImage");
-    expect(releaseYaml).toContain('Hushio_"$VERSION"_x64-setup.nsis.zip');
+    expect(releaseYaml).toContain('Hushio_"$VERSION"_x64-setup.exe.sig');
+    expect(releaseYaml).not.toContain("nsis.zip");
+    expect(releaseYaml).not.toContain("AppImage");
+  });
+
+  it("builds only the deb and rpm Linux bundles with updater artifacts and updater JSON turned off", () => {
+    const tauri = jobs.linux.steps.find((step) => step.uses?.startsWith("tauri-apps/tauri-action@"));
+    expect(tauri?.with?.includeUpdaterJson).toBe(false);
+    expect(tauri?.with?.args).toBe(`--bundles deb,rpm --config '{"bundle":{"createUpdaterArtifacts":false}}'`);
+  });
+
+  it("installs the Linux packages non-interactively with a 15 minute cap and includes libasound2-dev", () => {
+    const install = stepNamed(jobs.linux, "Install Linux build dependencies");
+    expect(install["timeout-minutes"]).toBe(15);
+    expect(install.run).toContain("DEBIAN_FRONTEND=noninteractive apt-get install -y $LINUX_DEPS");
+    expect(parsed.env?.LINUX_DEPS).toContain("libasound2-dev");
   });
 
   it("verifies the DMG, the archive, the signature and the minimum macOS version", () => {
@@ -207,18 +250,22 @@ describe("android release job", () => {
   const usesStep = (prefix: string): Step | undefined => androidSteps.find((step) => step.uses?.startsWith(prefix));
   const ndkVersion = /ndkVersion = "([\d.]+)"/.exec(gradleKts)?.[1];
 
-  it("runs after the test and build jobs, only for version tags, on Ubuntu", () => {
-    expect(needsOf(android).sort()).toEqual(["build", "test"]);
+  it("runs after the build and linux jobs, only for version tags, on Ubuntu", () => {
+    expect(needsOf(android).sort()).toEqual(["build", "linux"]);
     expect(android["runs-on"]).toBe("ubuntu-22.04");
-    expect(android.if).toBe("startsWith(inputs.tag || github.ref_name, 'v')");
+    expect(android.if).toBe("${{ !failure() && !cancelled() && startsWith(inputs.tag || github.ref_name, 'v') }}");
   });
 
-  it("installs JDK 17 and the NDK version pinned in the Gradle build", () => {
+  it("installs JDK 17 with setup-java and the NDK version pinned in the Gradle build with the preinstalled sdkmanager", () => {
     expect(usesStep("actions/setup-java@")?.with?.["java-version"]).toBe("17");
-    expect(usesStep("android-actions/setup-android@")).toBeDefined();
+    expect(usesStep("android-actions/setup-android@")).toBeUndefined();
     expect(ndkVersion).toBeDefined();
     expect(android.env?.ANDROID_NDK_VERSION).toBe(ndkVersion);
-    expect(androidRuns).toContain('sdkmanager "ndk;${ANDROID_NDK_VERSION}"');
+    const ndk = stepNamed(android, "Install the pinned NDK").run ?? "";
+    expect(ndk).toContain('SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"');
+    expect(ndk).toContain("--licenses");
+    expect(ndk).toContain('"$SDKMANAGER" "ndk;${ANDROID_NDK_VERSION}"');
+    expect(ndk).toContain("NDK_HOME=$ANDROID_HOME/ndk/${ANDROID_NDK_VERSION}");
   });
 
   it("installs the Rust Android targets without i686", () => {
@@ -254,10 +301,11 @@ describe("android release job", () => {
     expect(remove.run).toContain("$RUNNER_TEMP/hushio-release.jks");
   });
 
-  it("names the APKs, verifies them, writes SHA256SUMS.txt and uploads them to the tag's release", () => {
+  it("copies the APKs from their flavor folders, verifies them, writes SHA256SUMS.txt and uploads them to the tag's release", () => {
     const names = stepNamed(android, "Name the APKs, verify the signature and write SHA256SUMS.txt").run ?? "";
     for (const expected of [
-      "for abi in arm64-v8a armeabi-v7a x86_64",
+      "for pair in arm64:arm64-v8a arm:armeabi-v7a x86_64:x86_64",
+      'cp "$BUILD/$flavor/release/app-$flavor-release.apk" "$APK_DIR/hushio-$VERSION-$abi.apk"',
       "hushio-$VERSION-$abi.apk",
       "hushio-$VERSION-universal.apk",
       '"$APKSIGNER" verify --verbose',
