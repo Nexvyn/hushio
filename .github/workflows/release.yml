@@ -182,8 +182,12 @@ jobs:
           cp "$ARCHIVE.sig" "$WORK/$NAME.sig"
           gh release download "$TAG" --pattern latest.json --dir "$WORK" --clobber
           gh release upload "$TAG" "$WORK/$NAME" "$WORK/$NAME.sig" --clobber
-          gh release delete-asset "$TAG" "$ORIG" --yes
-          gh release delete-asset "$TAG" "$ORIG.sig" --yes
+          case "$ARCH" in arm64) UPLOADED=aarch64 ;; *) UPLOADED=x64 ;; esac
+          for old in "Hushio_${UPLOADED}.app.tar.gz" "Hushio_${UPLOADED}.app.tar.gz.sig" "$ORIG" "$ORIG.sig"; do
+            if gh release view "$TAG" --json assets --jq '.assets[].name' | grep -qxF "$old"; then
+              gh release delete-asset "$TAG" "$old" --yes
+            fi
+          done
           node -e '
             const fs = require("node:fs");
             const [file, key, url, sig] = process.argv.slice(1);
