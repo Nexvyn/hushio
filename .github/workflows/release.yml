@@ -442,8 +442,10 @@ jobs:
           VERSION="${TAG#v}"
           BUILD=src-tauri/gen/android/app/build/outputs/apk
           mkdir -p "$APK_DIR"
-          for abi in arm64-v8a armeabi-v7a x86_64; do
-            cp "$BUILD/$abi/release/app-$abi-release.apk" "$APK_DIR/hushio-$VERSION-$abi.apk"
+          for pair in arm64:arm64-v8a arm:armeabi-v7a x86_64:x86_64; do
+            flavor=${pair%%:*}
+            abi=${pair#*:}
+            cp "$BUILD/$flavor/release/app-$flavor-release.apk" "$APK_DIR/hushio-$VERSION-$abi.apk"
           done
           cp "$BUILD/universal/release/app-universal-release.apk" "$APK_DIR/hushio-$VERSION-universal.apk"
           APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n1)/apksigner
