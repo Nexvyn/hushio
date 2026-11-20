@@ -9,7 +9,7 @@ on:
       only:
         description: "Platforms to build"
         type: choice
-        options: [all, linux-android]
+        options: [all, linux-android, android]
         default: all
   push:
     tags: ["v*"]
@@ -47,7 +47,7 @@ jobs:
       - run: pnpm test
       - run: cargo test --manifest-path src-tauri/Cargo.toml
   build:
-    if: inputs.only != 'linux-android'
+    if: inputs.only != 'linux-android' && inputs.only != 'android'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4.4.0
@@ -99,7 +99,7 @@ jobs:
           gh release upload "$TAG" "$WORK/latest.json" --clobber
   build-macos:
     needs: build
-    if: inputs.only != 'linux-android'
+    if: inputs.only != 'linux-android' && inputs.only != 'android'
     runs-on: macos-latest
     strategy:
       fail-fast: false
@@ -303,7 +303,7 @@ jobs:
           check_app "$WORK/archive/Hushio.app"
   linux:
     needs: [build, build-macos]
-    if: ${{ !failure() && !cancelled() }}
+    if: ${{ !failure() && !cancelled() && inputs.only != 'android' }}
     runs-on: ubuntu-22.04
     env:
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -402,9 +402,12 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - uses: android-actions/setup-android@v3.2.2
       - name: Install the pinned NDK
-        run: sdkmanager "ndk;${ANDROID_NDK_VERSION}"
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "ndk;${ANDROID_NDK_VERSION}"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
       - uses: actions-rust-lang/setup-rust-toolchain@v1.17.0
         with:
           target: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
