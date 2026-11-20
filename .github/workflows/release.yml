@@ -192,10 +192,8 @@ jobs:
             const fs = require("node:fs");
             const [file, key, url, sig] = process.argv.slice(1);
             const manifest = JSON.parse(fs.readFileSync(file, "utf8"));
-            manifest.platforms = {
-              ...(manifest.platforms ?? {}),
-              [key]: { signature: fs.readFileSync(sig, "utf8").trim(), url },
-            };
+            const entry = { signature: fs.readFileSync(sig, "utf8").trim(), url };
+            manifest.platforms = { ...(manifest.platforms ?? {}), [key]: entry, [`${key}-app`]: entry };
             fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + "\n");
           ' "$WORK/latest.json" "$PLATFORM" "https://github.com/$GH_REPO/releases/download/$TAG/$NAME" "$WORK/$NAME.sig"
           gh release upload "$TAG" "$WORK/latest.json" --clobber
