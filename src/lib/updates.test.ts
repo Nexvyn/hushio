@@ -70,7 +70,7 @@ describe("updateCopy", () => {
       note: "You have version 1.1.1. It installs right here.",
     });
     expect(updateCopy(state({ status: "available", version: "1.2.0", route: "website" })).note).toBe(
-      "You have version 1.1.1. Get it from hushio.space.",
+      "You have version 1.1.1. Get it from hushio.nexvyn.dev.",
     );
     expect(updateCopy(state({ status: "available", version: "1.2.0", route: "releases" })).note).toBe(
       "Update with your package manager, or download it from GitHub Releases.",

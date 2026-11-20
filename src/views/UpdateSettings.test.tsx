@@ -94,10 +94,10 @@ describe("About update rows", () => {
     setUpdate({ status: "available", version: "1.2.0", route: "website" });
     render(<SettingsView />);
 
-    expect(screen.getByText("You have version 1.1.1. Get it from hushio.space.")).toBeTruthy();
+    expect(screen.getByText("You have version 1.1.1. Get it from hushio.nexvyn.dev.")).toBeTruthy();
     await userEvent.setup().click(screen.getByRole("button", { name: "Download" }));
 
-    expect(bridgeMock.openExternal).toHaveBeenCalledWith("https://hushio.space");
+    expect(bridgeMock.openExternal).toHaveBeenCalledWith("https://hushio.nexvyn.dev/download");
     expect(bridgeMock.updatesInstall).not.toHaveBeenCalled();
   });
 
@@ -121,12 +121,12 @@ describe("About update rows", () => {
     setUpdate({
       status: "error",
       version: "1.2.0",
-      error: "The update couldn't download. Download it from hushio.space instead.",
+      error: "The update couldn't download. Download it from hushio.nexvyn.dev instead.",
       errorFrom: "install",
     });
     render(<SettingsView />);
 
     expect(screen.getByText("Couldn't update")).toBeTruthy();
-    expect(screen.getByText("The update couldn't download. Download it from hushio.space instead.")).toBeTruthy();
+    expect(screen.getByText("The update couldn't download. Download it from hushio.nexvyn.dev instead.")).toBeTruthy();
   });
 });

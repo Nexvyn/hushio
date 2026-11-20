@@ -1,4 +1,4 @@
-import { APP_NAME, APP_SLUG } from "./app";
+import { APP_NAME } from "./app";
 
 type UpdateStatus = "idle" | "checking" | "current" | "available" | "downloading" | "ready" | "error";
 export type UpdateRoute = "inApp" | "website" | "releases" | "flathub";
@@ -24,7 +24,7 @@ export const INITIAL_UPDATE_STATE: UpdateState = {
   route: "inApp",
 };
 
-export const DOWNLOAD_PAGE = `https://${APP_SLUG}.space`;
+export const DOWNLOAD_PAGE = "https://hushio.nexvyn.dev/download";
 export const RELEASES_PAGE = "https://github.com/Nexvyn/hushio/releases/latest";
 
 export function shouldNotify(state: UpdateState, notified: string | null): boolean {
@@ -92,7 +92,7 @@ function availableNote(state: UpdateState): string {
     return "Update with your package manager, or download it from GitHub Releases.";
   }
   if (state.route === "website") {
-    return `You have version ${state.current}. Get it from ${APP_SLUG}.space.`;
+    return `You have version ${state.current}. Get it from hushio.nexvyn.dev.`;
   }
   return `You have version ${state.current}. It installs right here.`;
 }

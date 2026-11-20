@@ -84,7 +84,7 @@ describe("install routing", () => {
     await useUpdates.getState().install();
 
     expect(bridgeMock.updatesInstall).not.toHaveBeenCalled();
-    expect(bridgeMock.openExternal).toHaveBeenCalledWith("https://hushio.space");
+    expect(bridgeMock.openExternal).toHaveBeenCalledWith("https://hushio.nexvyn.dev/download");
   });
 
   it("opens the releases page on the releases route", async () => {

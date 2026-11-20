@@ -15,7 +15,7 @@ const EVENT: &str = "updates:changed";
 const DEV_ONLY: &str = "Updates are checked in the installed app.";
 const NO_UPDATE: &str = "the release has no update for this app yet";
 const NOTHING_TO_INSTALL: &str = "No update is ready to install.";
-const DOWNLOAD_FAILED: &str = "The update couldn't download. Download it from hushio.space instead.";
+const DOWNLOAD_FAILED: &str = "The update couldn't download. Download it from hushio.nexvyn.dev instead.";
 
 #[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
