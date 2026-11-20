@@ -46,7 +46,7 @@ describe("ChartsView cache", () => {
 
     expect(skeleton()).toBeTruthy();
     expect(await screen.findByText("Chart Song")).toBeTruthy();
-    expect(skeleton()).toBeNull();
+    await waitFor(() => expect(skeleton()).toBeNull());
   });
 
   it("shows the loaded charts at once on a revisit inside ten minutes without refetching", async () => {
