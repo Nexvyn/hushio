@@ -256,6 +256,7 @@ fn scan_reuses_cached_tracks_whose_file_is_unchanged() {
 }
 
 #[test]
+#[cfg(windows)]
 fn remove_folder_drops_only_its_tracks() {
     let mut lib = LocalLibrary {
         folders: vec![
@@ -310,6 +311,7 @@ fn remove_folder_drops_only_its_tracks() {
 }
 
 #[test]
+#[cfg(windows)]
 fn rename_folder_trims_caps_and_clears() {
     let mut lib = LocalLibrary {
         folders: vec![folder_entry(Path::new("C:\\Music"))],
