@@ -1,6 +1,6 @@
 # Hushio
 
-A free music player for Windows, macOS and Android, with Linux builds from source. No ads, no account needed, and no servers of its own: your library, playlists and settings live on your device.
+A free music player for Windows, macOS, Linux and Android. No ads, no account needed, and no servers of its own: your library, playlists and settings live on your device.
 
 ## Features
 
@@ -63,17 +63,21 @@ A free music player for Windows, macOS and Android, with Linux builds from sourc
 
 ## Install
 
-Download the latest build from the Releases page:
+Download the latest build from the [Releases page](https://github.com/Nexvyn/hushio/releases/latest):
 
 | Platform | File |
 |---|---|
-| Windows 10 and 11 | `Hushio_<version>_x64-setup.exe` |
-| macOS | `Hushio_<version>_aarch64.dmg` |
-| Android 8 and later | `app-universal-release.apk` |
+| Windows 10 and 11 | `Hushio-<version>-x64-setup.exe` |
+| macOS, Apple silicon | `Hushio-<version>-arm64.dmg` |
+| macOS, Intel | `Hushio-<version>-x64.dmg` |
+| Linux | `Hushio-<version>-linux-amd64.deb`, `Hushio-<version>-linux-x86_64.rpm` or `Hushio-<version>-linux-x86_64.AppImage` |
+| Android 8 and later | `hushio-<version>-universal.apk` |
 
-Linux has no ready-made download yet; build it from source.
+The builds are not signed by Apple or Microsoft yet, so the first launch needs one extra step:
 
-On Android, allow "Install unknown apps" for your browser or file manager when asked.
+- Windows: if SmartScreen appears, choose More info, then Run anyway.
+- macOS: open the app once, then go to System Settings, Privacy & Security, and choose Open Anyway.
+- Android: allow "Install unknown apps" for your browser or file manager when asked.
 
 ## Build from source
 
