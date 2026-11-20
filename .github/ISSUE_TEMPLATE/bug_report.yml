@@ -1,0 +1,59 @@
+name: Bug report
+description: Something in Hushio doesn't work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Describe the problem. Add screenshots or a screen recording if you can.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open an album
+        2. Tap Shuffle
+        3. Skip two songs
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Hushio version
+      description: Settings shows it under About.
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows
+        - macOS, Apple silicon
+        - macOS, Intel
+        - Linux (.deb)
+        - Linux (.rpm)
+        - Android
+        - Built from source
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: System version and device
+      placeholder: Windows 11 23H2, or Android 14 on a Pixel 7
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Song or playlist links, error messages, or logs.
