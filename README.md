@@ -1,6 +1,54 @@
-# Hushio
+<p align="center">
+  <img src="public/hushio.svg" width="96" alt="Hushio logo">
+</p>
 
-A free music player for Windows, macOS, Linux and Android. No ads, no account needed, and no servers of its own: your library, playlists and settings live on your device.
+<h1 align="center">Hushio</h1>
+
+<p align="center">
+  A free music player for Windows, macOS, Linux and Android.<br>
+  No ads, no account, and your library stays on your device.
+</p>
+
+<p align="center">
+  <a href="https://github.com/Nexvyn/hushio/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Nexvyn/hushio?color=d54120"></a>
+  <a href="https://github.com/Nexvyn/hushio/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/Nexvyn/hushio/total?color=d54120"></a>
+  <a href="https://github.com/Nexvyn/hushio/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Nexvyn/hushio/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="License GPL-3.0" src="https://img.shields.io/github/license/Nexvyn/hushio?color=d54120"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Nexvyn/hushio/releases/latest"><b>Download</b></a> ·
+  <a href="https://hushio.nexvyn.dev">Website</a> ·
+  <a href="CONTRIBUTING.md">Contribute</a> ·
+  <a href="https://github.com/Nexvyn/hushio/issues/new/choose">Report a bug</a>
+</p>
+
+![Hushio on desktop](.github/assets/desktop.jpg)
+
+![Hushio on Android](.github/assets/phone.jpg)
+
+## Download
+
+Get the latest version from the [Releases page](https://github.com/Nexvyn/hushio/releases/latest).
+
+| Platform | File |
+|---|---|
+| Windows 10 and 11 | `Hushio-<version>-x64-setup.exe` |
+| macOS 13 or later, Apple silicon | `Hushio-<version>-arm64.dmg` |
+| macOS 13 or later, Intel | `Hushio-<version>-x64.dmg` |
+| Linux, Debian and Ubuntu 22.04 or later | `Hushio-<version>-linux-amd64.deb` |
+| Linux, Fedora and openSUSE | `Hushio-<version>-linux-x86_64.rpm` |
+| Android 8 or later | `hushio-<version>-universal.apk` |
+
+On Android, the universal APK works on every phone. The `arm64-v8a` APK is smaller and fits almost every phone made since 2017.
+
+The builds are not signed by Apple or Microsoft yet, so the first launch needs one extra step:
+
+- Windows: if SmartScreen appears, choose More info, then Run anyway.
+- macOS: open the app once, then go to System Settings, Privacy & Security, and choose Open Anyway.
+- Android: allow "Install unknown apps" for your browser or file manager when asked.
+
+The Windows app updates itself. On macOS, Linux and Android, Hushio tells you when a new version is out and links to the download. Each release has a `SHA256SUMS.txt` file to check your download against.
 
 ## Features
 
@@ -22,7 +70,7 @@ A free music player for Windows, macOS, Linux and Android. No ads, no account ne
 ### Library
 - Liked Songs, playlists and followed artists, shown as a grid or a list.
 - Create, rename, reorder and pin playlists. Filter long playlists and albums by title or artist.
-- Import from a text list, CSV, a playlist link, Apple Music or Spotify (matched to Hushio's own catalogue). Export a playlist as M3U8 or JSON.
+- Import from a text list, CSV, a playlist link, Apple Music or Spotify. Songs are matched to Hushio's catalogue. Export a playlist as M3U8 or JSON.
 - Downloads for offline listening, with Wi-Fi only downloads and downloaded playlists kept up to date.
 - Your own music folders, and music on network shares.
 
@@ -41,7 +89,7 @@ A free music player for Windows, macOS, Linux and Android. No ads, no account ne
 - Equaliser with presets, loudness levelling and skip silence.
 
 ### Desktop
-- Spotify-style layout with a library sidebar, a right panel with the current song and the queue, and a player bar.
+- Your library on the left, the current song and the queue on the right, and a player bar along the bottom.
 - Media keys, a mini player, a tray icon and keyboard shortcuts.
 - Discord status (optional).
 
@@ -57,27 +105,17 @@ A free music player for Windows, macOS, Linux and Android. No ads, no account ne
 - Scrobbling to Last.fm and ListenBrainz.
 - Backup export and import.
 
+Google sign-in, connecting a Spotify account, Last.fm and Discord status need API keys that the 1.0.0 downloads do not include yet. They work in your own build once you add keys, as [CONTRIBUTING.md](CONTRIBUTING.md#optional-api-keys) explains.
+
 ### Look and feel
 - Light, dark or system theme, with a calm white design and one accent colour.
 - Every animation respects the system Reduce Motion setting.
 
-## Install
+## How it works
 
-Download the latest build from the [Releases page](https://github.com/Nexvyn/hushio/releases/latest):
+Hushio has no servers of its own. The app searches and plays music from YouTube Music's public catalogue, talking to YouTube straight from your device in the same way the YouTube Music website does. Lyrics come from public lyrics services such as LRCLIB, LyricsPlus and Genius.
 
-| Platform | File |
-|---|---|
-| Windows 10 and 11 | `Hushio-<version>-x64-setup.exe` |
-| macOS, Apple silicon | `Hushio-<version>-arm64.dmg` |
-| macOS, Intel | `Hushio-<version>-x64.dmg` |
-| Linux | `Hushio-<version>-linux-amd64.deb` or `Hushio-<version>-linux-x86_64.rpm` |
-| Android 8 and later | `hushio-<version>-universal.apk` |
-
-The builds are not signed by Apple or Microsoft yet, so the first launch needs one extra step:
-
-- Windows: if SmartScreen appears, choose More info, then Run anyway.
-- macOS: open the app once, then go to System Settings, Privacy & Security, and choose Open Anyway.
-- Android: allow "Install unknown apps" for your browser or file manager when asked.
+Your library, playlists, listening history and settings live in the app's data folder on your device. Hushio has no analytics. If you sign in with Google, the app talks to Google directly with your own account, and Settings has a button to disconnect and erase everything.
 
 ## Build from source
 
@@ -93,9 +131,13 @@ pnpm android:apk    # Android APKs
 
 Rust tests: `cargo test` inside `src-tauri`.
 
-## Privacy
+## Contributing
 
-Hushio has no analytics and no servers. Settings, library and listening stats are stored in the app's data folder. If you sign in with Google, the app talks to Google directly with your own account, and you can disconnect and erase everything from Settings.
+Bug reports, ideas and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) to set up the project and see how changes get merged. Please follow the [code of conduct](CODE_OF_CONDUCT.md). To report a security problem, see [SECURITY.md](SECURITY.md).
+
+## Disclaimer
+
+Hushio is an independent project. It is not affiliated with, endorsed by or connected to YouTube, Google, Spotify, Apple or any lyrics service. All trademarks belong to their owners. Use Hushio in line with the terms of the services it connects to.
 
 ## License
 
