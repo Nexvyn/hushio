@@ -1,0 +1,78 @@
+name: ci
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md", "LICENSE"]
+  pull_request:
+  workflow_call:
+permissions:
+  contents: read
+concurrency:
+  group: "ci-${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+env:
+  PNPM_VERSION: 10.34.5
+  LINUX_DEPS: build-essential curl wget file libxdo-dev libssl-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libsecret-1-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav xvfb dbus-x11 gnome-keyring libasound2-dev
+jobs:
+  web:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4.4.0
+      - uses: pnpm/action-setup@v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+  rust:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4.4.0
+      - uses: actions-rust-lang/setup-rust-toolchain@v1.17.0
+        with:
+          cache: false
+          rustflags: ""
+      - uses: swatinem/rust-cache@v2.9.3
+        with:
+          workspaces: src-tauri
+          shared-key: ci-${{ matrix.os }}
+          cache-on-failure: true
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        timeout-minutes: 15
+        run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y $LINUX_DEPS
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+  android:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4.4.0
+      - uses: actions-rust-lang/setup-rust-toolchain@v1.17.0
+        with:
+          target: aarch64-linux-android
+          cache: false
+          rustflags: ""
+      - uses: swatinem/rust-cache@v2.9.3
+        with:
+          workspaces: src-tauri
+          shared-key: ci-android
+          cache-on-failure: true
+      - name: Check the Rust code for Android
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          export CC_aarch64_linux_android="$BIN/aarch64-linux-android26-clang"
+          export AR_aarch64_linux_android="$BIN/llvm-ar"
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$BIN/aarch64-linux-android26-clang"
+          cargo check --manifest-path src-tauri/Cargo.toml --target aarch64-linux-android --lib
