@@ -3,126 +3,138 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to build (empty = current ref)"
-        required: false
-        default: ""
-      ref:
-        description: "Commit or branch to build (empty = the tag)"
-        required: false
-        default: ""
-      only:
-        description: "Platforms to build"
-        type: choice
-        options: [all, linux-android, android]
-        default: all
+        description: "Release tag, for example v1.0.1"
+        required: true
+        type: string
+      publish:
+        description: "Publish when every job passes (off = keep it as a draft)"
+        type: boolean
+        default: true
   push:
     tags: ["v*"]
 permissions:
   contents: write
+concurrency:
+  group: "release-${{ inputs.tag || github.ref_name }}"
+  cancel-in-progress: true
 env:
   PNPM_VERSION: 10.34.5
   LINUX_DEPS: build-essential curl wget file libxdo-dev libssl-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libsecret-1-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav xvfb dbus-x11 gnome-keyring libasound2-dev
+  TAG: ${{ inputs.tag || github.ref_name }}
 jobs:
-  test:
-    strategy:
-      matrix:
-        os: [windows-latest, ubuntu-22.04]
-    runs-on: ${{ matrix.os }}
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.check.outputs.version }}
     steps:
       - uses: actions/checkout@v4.4.0
-        with:
-          ref: ${{ inputs.ref || inputs.tag || github.ref }}
-      - uses: pnpm/action-setup@v4.4.0
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4.4.0
-        with:
-          node-version: "22"
-          cache: pnpm
-      - uses: actions-rust-lang/setup-rust-toolchain@v1.17.0
-      - uses: swatinem/rust-cache@v2.9.3
-        with:
-          workspaces: src-tauri
-      - name: Install Linux build dependencies
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y $LINUX_DEPS
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm test
-      - run: cargo test --manifest-path src-tauri/Cargo.toml
-  build:
-    if: inputs.only != 'linux-android' && inputs.only != 'android'
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4.4.0
-        with:
-          ref: ${{ inputs.ref || inputs.tag || github.ref }}
-      - uses: pnpm/action-setup@v4.4.0
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4.4.0
-        with:
-          node-version: "22"
-          cache: pnpm
-      - uses: actions-rust-lang/setup-rust-toolchain@v1.17.0
-      - uses: swatinem/rust-cache@v2.9.3
-        with:
-          workspaces: src-tauri
-      - run: pnpm install --frozen-lockfile
-      - uses: tauri-apps/tauri-action@v0.6.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          tagName: ${{ inputs.tag || github.ref_name }}
-          releaseName: "Hushio ${{ inputs.tag || github.ref_name }}"
-          releaseDraft: false
-          includeUpdaterJson: true
-      - name: Rename Windows release files and update latest.json
+      - name: Check the version, secrets and release
+        id: check
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          TAG: ${{ inputs.tag || github.ref_name }}
+          PUBLISH: ${{ github.event_name == 'push' || inputs.publish }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          VERSION="${TAG#v}"
-          NSIS=src-tauri/target/release/bundle/nsis
-          WORK="$RUNNER_TEMP/rename"
-          mkdir -p "$WORK"
-          gh release download "$TAG" --pattern latest.json --dir "$WORK" --clobber
-          for old in "$NSIS"/Hushio_"$VERSION"_x64-setup.exe "$NSIS"/Hushio_"$VERSION"_x64-setup.exe.sig; do
-            name=$(basename "$old")
-            new=${name/Hushio_${VERSION}_/Hushio-${VERSION}-}
-            cp "$old" "$WORK/$new"
-            gh release upload "$TAG" "$WORK/$new" --clobber
-            gh release delete-asset "$TAG" "$name" --yes
-            sed -i "s|/${name}\"|/${new}\"|" "$WORK/latest.json"
+          VERSION=$(node -p "require('./package.json').version")
+          CONF=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          CARGO=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -n1)
+          if [ "$VERSION" != "$CONF" ] || [ "$VERSION" != "$CARGO" ]; then
+            echo "::error::Versions differ: package.json $VERSION, tauri.conf.json $CONF, Cargo.toml $CARGO"
+            exit 1
+          fi
+          if [ "$PUBLISH" = "true" ] && [ "$TAG" != "v$VERSION" ]; then
+            echo "::error::The tag $TAG does not match the app version $VERSION. Bump the version first."
+            exit 1
+          fi
+          MISSING=()
+          for name in TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              MISSING+=("$name")
+            fi
           done
-          gh release upload "$TAG" "$WORK/latest.json" --clobber
-  build-macos:
-    needs: build
-    if: inputs.only != 'linux-android' && inputs.only != 'android'
+          if [ "${#MISSING[@]}" -gt 0 ]; then
+            echo "::error::Missing secrets: ${MISSING[*]}"
+            exit 1
+          fi
+          if DRAFT=$(gh release view "$TAG" --json isDraft --jq .isDraft); then
+            if [ "$DRAFT" = "false" ]; then
+              echo "::error::$TAG is already published."
+              exit 1
+            fi
+          else
+            gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "Hushio $TAG" --generate-notes
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+  tests:
+    uses: ./.github/workflows/ci.yml
+  windows:
+    needs: prepare
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4.4.0
+      - uses: pnpm/action-setup@v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4.4.0
+        with:
+          node-version: "22"
+          cache: pnpm
+      - uses: actions-rust-lang/setup-rust-toolchain@v1.17.0
+        with:
+          cache: false
+          rustflags: ""
+      - uses: swatinem/rust-cache@v2.9.3
+        with:
+          workspaces: src-tauri
+          shared-key: release-windows
+          cache-on-failure: true
+      - run: pnpm install --frozen-lockfile
+      - name: Build the installer
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: pnpm tauri build --bundles nsis
+      - name: Upload the installer
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          NSIS=src-tauri/target/release/bundle/nsis
+          OUT="$RUNNER_TEMP/out"
+          mkdir -p "$OUT"
+          cp "$NSIS/Hushio_${VERSION}_x64-setup.exe" "$OUT/Hushio-${VERSION}-x64-setup.exe"
+          cp "$NSIS/Hushio_${VERSION}_x64-setup.exe.sig" "$OUT/Hushio-${VERSION}-x64-setup.exe.sig"
+          gh release upload "$TAG" "$OUT"/* --clobber
+  macos:
+    needs: prepare
     runs-on: macos-latest
+    timeout-minutes: 60
     strategy:
       fail-fast: false
-      max-parallel: 1
       matrix:
         include:
           - arch: arm64
             target: aarch64-apple-darwin
-            platform: darwin-aarch64
           - arch: x64
             target: x86_64-apple-darwin
-            platform: darwin-x86_64
     env:
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4.4.0
-        with:
-          ref: ${{ inputs.ref || inputs.tag || github.ref }}
       - uses: pnpm/action-setup@v4.4.0
         with:
           version: ${{ env.PNPM_VERSION }}
@@ -133,9 +145,13 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1.17.0
         with:
           target: ${{ matrix.target }}
+          cache: false
+          rustflags: ""
       - uses: swatinem/rust-cache@v2.9.3
         with:
           workspaces: src-tauri
+          shared-key: release-macos-${{ matrix.arch }}
+          cache-on-failure: true
       - run: pnpm install --frozen-lockfile
       - name: Select macOS signing mode
         shell: bash
@@ -163,77 +179,43 @@ jobs:
           } >> "$GITHUB_ENV"
       - name: Turn off Spotlight
         run: sudo mdutil -a -i off
-      - uses: tauri-apps/tauri-action@v0.6.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ inputs.tag || github.ref_name }}
-          releaseName: "Hushio ${{ inputs.tag || github.ref_name }}"
-          releaseDraft: false
-          includeUpdaterJson: true
-          args: --target ${{ matrix.target }} --bundles app
-      - name: Rename macOS archive and update latest.json
+      - name: Build the app
+        run: pnpm tauri build --target ${{ matrix.target }} --bundles app
+      - name: Build the DMG
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            pnpm tauri bundle --target ${{ matrix.target }} --bundles dmg && exit 0
+            echo "::warning::DMG attempt $attempt failed"
+            sleep 15
+          done
+          exit 1
+      - name: Upload the app archive and DMG
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          TAG: ${{ inputs.tag || github.ref_name }}
+          VERSION: ${{ needs.prepare.outputs.version }}
           ARCH: ${{ matrix.arch }}
-          PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
-          VERSION="${TAG#v}"
           BUNDLE="src-tauri/target/${{ matrix.target }}/release/bundle"
           ARCHIVE=$(ls "$BUNDLE"/macos/*.app.tar.gz)
-          ORIG=$(basename "$ARCHIVE")
-          NAME="Hushio-${VERSION}-${ARCH}.app.tar.gz"
-          WORK="$RUNNER_TEMP/rename"
-          mkdir -p "$WORK"
-          cp "$ARCHIVE" "$WORK/$NAME"
-          cp "$ARCHIVE.sig" "$WORK/$NAME.sig"
-          gh release download "$TAG" --pattern latest.json --dir "$WORK" --clobber
-          gh release upload "$TAG" "$WORK/$NAME" "$WORK/$NAME.sig" --clobber
-          case "$ARCH" in arm64) UPLOADED=aarch64 ;; *) UPLOADED=x64 ;; esac
-          for old in "Hushio_${UPLOADED}.app.tar.gz" "Hushio_${UPLOADED}.app.tar.gz.sig" "$ORIG" "$ORIG.sig"; do
-            if gh release view "$TAG" --json assets --jq '.assets[].name' | grep -qxF "$old"; then
-              gh release delete-asset "$TAG" "$old" --yes
-            fi
-          done
-          node -e '
-            const fs = require("node:fs");
-            const [file, key, url, sig] = process.argv.slice(1);
-            const manifest = JSON.parse(fs.readFileSync(file, "utf8"));
-            const entry = { signature: fs.readFileSync(sig, "utf8").trim(), url };
-            manifest.platforms = { ...(manifest.platforms ?? {}), [key]: entry, [`${key}-app`]: entry };
-            fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + "\n");
-          ' "$WORK/latest.json" "$PLATFORM" "https://github.com/$GH_REPO/releases/download/$TAG/$NAME" "$WORK/$NAME.sig"
-          gh release upload "$TAG" "$WORK/latest.json" --clobber
-      - name: Build DMG (best effort)
-        shell: bash
-        run: pnpm tauri build --target ${{ matrix.target }} --bundles dmg || true
-      - name: Publish DMG (best effort)
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ inputs.tag || github.ref_name }}
-          ARCH: ${{ matrix.arch }}
-        run: |
-          VERSION="${TAG#v}"
-          DMG=$(find "src-tauri/target/${{ matrix.target }}/release/bundle/dmg" -name "*.dmg" 2>/dev/null | head -n1)
-          if [ -z "$DMG" ]; then
-            echo "::warning::No DMG was produced for $ARCH"
-            exit 0
-          fi
-          NAME="Hushio-${VERSION}-${ARCH}.dmg"
-          cp "$DMG" "$RUNNER_TEMP/$NAME"
-          gh release upload "$TAG" "$RUNNER_TEMP/$NAME" --clobber || echo "::warning::DMG upload failed for $ARCH"
+          DMG=$(ls "$BUNDLE"/dmg/*.dmg | head -n1)
+          OUT="$RUNNER_TEMP/out"
+          mkdir -p "$OUT"
+          cp "$ARCHIVE" "$OUT/Hushio-${VERSION}-${ARCH}.app.tar.gz"
+          cp "$ARCHIVE.sig" "$OUT/Hushio-${VERSION}-${ARCH}.app.tar.gz.sig"
+          cp "$DMG" "$OUT/Hushio-${VERSION}-${ARCH}.dmg"
+          gh release upload "$TAG" "$OUT"/* --clobber
       - uses: actions/upload-artifact@v4.6.2
         with:
           name: mac-bundles-${{ matrix.arch }}
           path: src-tauri/target/**/bundle/**
   verify-macos:
-    needs: build-macos
+    needs: macos
     runs-on: macos-latest
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -306,16 +288,11 @@ jobs:
           tar -xzf "$ARCHIVE" -C "$WORK/archive"
           check_app "$WORK/archive/Hushio.app"
   linux:
-    needs: [build, build-macos]
-    if: ${{ !failure() && !cancelled() && inputs.only != 'android' }}
+    needs: prepare
     runs-on: ubuntu-22.04
-    env:
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4.4.0
-        with:
-          ref: ${{ inputs.ref || inputs.tag || github.ref }}
       - uses: pnpm/action-setup@v4.4.0
         with:
           version: ${{ env.PNPM_VERSION }}
@@ -324,22 +301,20 @@ jobs:
           node-version: "22"
           cache: pnpm
       - uses: actions-rust-lang/setup-rust-toolchain@v1.17.0
+        with:
+          cache: false
+          rustflags: ""
       - uses: swatinem/rust-cache@v2.9.3
         with:
           workspaces: src-tauri
+          shared-key: release-linux
+          cache-on-failure: true
       - name: Install Linux build dependencies
         timeout-minutes: 15
         run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y $LINUX_DEPS
       - run: pnpm install --frozen-lockfile
-      - uses: tauri-apps/tauri-action@v0.6.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ inputs.tag || github.ref_name }}
-          releaseName: "Hushio ${{ inputs.tag || github.ref_name }}"
-          releaseDraft: false
-          includeUpdaterJson: false
-          args: --bundles deb,rpm --config '{"bundle":{"createUpdaterArtifacts":false}}'
+      - name: Build the deb and rpm
+        run: pnpm tauri build --bundles deb,rpm --config '{"bundle":{"createUpdaterArtifacts":false}}'
       - name: Verify Linux bundles
         shell: bash
         run: |
@@ -349,52 +324,32 @@ jobs:
           sudo apt-get install -y rpm
           rpm -qpR "$BUNDLE"/rpm/*.rpm | grep -E 'webkit2gtk4.1|gstreamer1-libav'
           sha256sum "$BUNDLE"/deb/*.deb "$BUNDLE"/rpm/*.rpm
-      - name: Rename Linux release files and update latest.json
+      - name: Upload the deb and rpm
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          TAG: ${{ inputs.tag || github.ref_name }}
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
-          VERSION="${TAG#v}"
           BUNDLE=src-tauri/target/release/bundle
-          WORK="$RUNNER_TEMP/rename"
-          mkdir -p "$WORK"
-          new_name() {
-            case "$1" in
-              *.deb) echo "Hushio-${VERSION}-linux-amd64.deb" ;;
-              *.rpm) echo "Hushio-${VERSION}-linux-x86_64.rpm" ;;
-            esac
-          }
-          gh release download "$TAG" --pattern latest.json --dir "$WORK" --clobber
-          for old in "$BUNDLE"/deb/*.deb "$BUNDLE"/rpm/*.rpm; do
-            name=$(basename "$old")
-            new=$(new_name "$name")
-            cp "$old" "$WORK/$new"
-            gh release upload "$TAG" "$WORK/$new" --clobber
-            gh release delete-asset "$TAG" "$name" --yes
-            sed -i "s|/${name}\"|/${new}\"|" "$WORK/latest.json"
-          done
-          gh release upload "$TAG" "$WORK/latest.json" --clobber
-      - uses: actions/upload-artifact@v4.6.2
-        with:
-          name: linux-bundles
-          path: src-tauri/target/release/bundle/**
+          OUT="$RUNNER_TEMP/out"
+          mkdir -p "$OUT"
+          DEB=$(ls "$BUNDLE"/deb/*.deb | head -n1)
+          RPM=$(ls "$BUNDLE"/rpm/*.rpm | head -n1)
+          cp "$DEB" "$OUT/Hushio-${VERSION}-linux-amd64.deb"
+          cp "$RPM" "$OUT/Hushio-${VERSION}-linux-x86_64.rpm"
+          gh release upload "$TAG" "$OUT"/* --clobber
   android:
-    needs: [build, linux]
-    if: ${{ !failure() && !cancelled() && startsWith(inputs.tag || github.ref_name, 'v') }}
+    needs: prepare
     runs-on: ubuntu-22.04
-    permissions:
-      contents: write
+    timeout-minutes: 60
     env:
       ANDROID_NDK_VERSION: 27.0.12077973
       APK_DIR: dist-apk
-      TAG: ${{ inputs.tag || github.ref_name }}
+      VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v4.4.0
-        with:
-          ref: ${{ inputs.ref || inputs.tag || github.ref }}
       - uses: pnpm/action-setup@v4.4.0
         with:
           version: ${{ env.PNPM_VERSION }}
@@ -406,6 +361,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
       - name: Install the pinned NDK
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
@@ -415,9 +371,13 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1.17.0
         with:
           target: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+          cache: false
+          rustflags: ""
       - uses: swatinem/rust-cache@v2.9.3
         with:
           workspaces: src-tauri
+          shared-key: release-android
+          cache-on-failure: true
       - run: pnpm install --frozen-lockfile
       - name: Decode the release keystore
         env:
@@ -433,13 +393,14 @@ jobs:
           HUSHIO_SPOTIFY_CLIENT_ID: ${{ secrets.HUSHIO_SPOTIFY_CLIENT_ID }}
         run: |
           set -euo pipefail
-          pnpm tauri android build --apk --split-per-abi --target aarch64 armv7 x86_64
-          pnpm tauri android build --apk --target aarch64 armv7 x86_64
-      - name: Name the APKs, verify the signature and write SHA256SUMS.txt
+          pnpm build:web
+          NO_WEB='{"build":{"beforeBuildCommand":null}}'
+          pnpm tauri android build --apk --split-per-abi --target aarch64 armv7 x86_64 --config "$NO_WEB"
+          pnpm tauri android build --apk --target aarch64 armv7 x86_64 --config "$NO_WEB"
+      - name: Name and verify the APKs
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="${TAG#v}"
           BUILD=src-tauri/gen/android/app/build/outputs/apk
           mkdir -p "$APK_DIR"
           for pair in arm64:arm64-v8a arm:armeabi-v7a x86_64:x86_64; do
@@ -452,17 +413,46 @@ jobs:
           for apk in "$APK_DIR"/hushio-*.apk; do
             "$APKSIGNER" verify --verbose "$apk"
           done
-          cd "$APK_DIR"
-          sha256sum hushio-*.apk > SHA256SUMS.txt
-          cat SHA256SUMS.txt
-      - name: Upload the files to the GitHub Release
+      - name: Upload the APKs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          gh release view "$TAG" > /dev/null
-          gh release upload "$TAG" "$APK_DIR"/* --clobber
+        run: gh release upload "$TAG" "$APK_DIR"/*.apk --clobber
       - name: Delete the keystore
         if: always()
         run: rm -f "$RUNNER_TEMP/hushio-release.jks"
+  publish:
+    needs: [prepare, tests, windows, macos, verify-macos, linux, android]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Write latest.json and SHA256SUMS.txt
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          WORK="$RUNNER_TEMP/assets"
+          mkdir -p "$WORK"
+          cd "$WORK"
+          gh release download "$TAG" --pattern "Hushio-*" --pattern "hushio-*" --clobber
+          sha256sum $(ls | grep -v '\.sig$') > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          node -e '
+            const fs = require("node:fs");
+            const [version, base] = process.argv.slice(1);
+            const entry = (file) => ({ signature: fs.readFileSync(file + ".sig", "utf8").trim(), url: base + file });
+            const win = entry(`Hushio-${version}-x64-setup.exe`);
+            const arm = entry(`Hushio-${version}-arm64.app.tar.gz`);
+            const x64 = entry(`Hushio-${version}-x64.app.tar.gz`);
+            fs.writeFileSync("latest.json", JSON.stringify({ version, notes: "", pub_date: new Date().toISOString(), platforms: { "windows-x86_64": win, "windows-x86_64-nsis": win, "darwin-aarch64": arm, "darwin-aarch64-app": arm, "darwin-x86_64": x64, "darwin-x86_64-app": x64 } }, null, 2) + "\n");
+          ' "$VERSION" "https://github.com/$GH_REPO/releases/download/$TAG/"
+          gh release upload "$TAG" SHA256SUMS.txt latest.json --clobber
+      - name: Publish the release
+        if: github.event_name == 'push' || inputs.publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release edit "$TAG" --draft=false --latest
