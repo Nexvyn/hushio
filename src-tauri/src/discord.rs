@@ -17,6 +17,7 @@ const STORE: &str = "discord";
 const VERSION: u64 = 1;
 const HANDSHAKE_OP: u32 = 0;
 const FRAME_OP: u32 = 1;
+#[cfg_attr(any(target_os = "android", target_os = "ios"), allow(dead_code))]
 const PIPE_ATTEMPTS: u8 = 10;
 const TICK: Duration = Duration::from_millis(250);
 const RECONNECT_WAIT: Duration = Duration::from_secs(5);
@@ -111,6 +112,7 @@ enum Writer {
 }
 
 #[cfg(unix)]
+#[cfg_attr(any(target_os = "android", target_os = "ios"), allow(dead_code))]
 enum Writer {
     Socket(std::os::unix::net::UnixStream),
 }
