@@ -42,7 +42,6 @@ jobs:
       - run: pnpm test
       - run: cargo test --manifest-path src-tauri/Cargo.toml
   build:
-    needs: test
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4.4.0
@@ -373,7 +372,7 @@ jobs:
           name: linux-bundles
           path: src-tauri/target/release/bundle/**
   android:
-    needs: [test, build]
+    needs: [build, linux]
     if: startsWith(inputs.tag || github.ref_name, 'v')
     runs-on: ubuntu-22.04
     permissions:
