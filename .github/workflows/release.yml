@@ -82,7 +82,7 @@ jobs:
           WORK="$RUNNER_TEMP/rename"
           mkdir -p "$WORK"
           gh release download "$TAG" --pattern latest.json --dir "$WORK" --clobber
-          for old in "$NSIS"/Hushio_"$VERSION"_x64-setup.exe "$NSIS"/Hushio_"$VERSION"_x64-setup.nsis.zip "$NSIS"/Hushio_"$VERSION"_x64-setup.nsis.zip.sig; do
+          for old in "$NSIS"/Hushio_"$VERSION"_x64-setup.exe "$NSIS"/Hushio_"$VERSION"_x64-setup.exe.sig; do
             name=$(basename "$old")
             new=${name/Hushio_${VERSION}_/Hushio-${VERSION}-}
             cp "$old" "$WORK/$new"
@@ -331,7 +331,7 @@ jobs:
         run: |
           set -euo pipefail
           BUNDLE=src-tauri/target/release/bundle
-          ls "$BUNDLE"/appimage/*.AppImage "$BUNDLE"/appimage/*.AppImage.tar.gz "$BUNDLE"/appimage/*.AppImage.tar.gz.sig
+          ls "$BUNDLE"/appimage/*.AppImage "$BUNDLE"/appimage/*.AppImage.sig
           dpkg-deb --info "$BUNDLE"/deb/*.deb | grep -E 'Depends|Package'
           sudo apt-get install -y rpm
           rpm -qpR "$BUNDLE"/rpm/*.rpm | grep -E 'webkit2gtk4.1|gstreamer1-libav'
@@ -350,15 +350,14 @@ jobs:
           mkdir -p "$WORK"
           new_name() {
             case "$1" in
-              *.AppImage.tar.gz.sig) echo "Hushio-${VERSION}-linux-x86_64.AppImage.tar.gz.sig" ;;
-              *.AppImage.tar.gz) echo "Hushio-${VERSION}-linux-x86_64.AppImage.tar.gz" ;;
+              *.AppImage.sig) echo "Hushio-${VERSION}-linux-x86_64.AppImage.sig" ;;
               *.AppImage) echo "Hushio-${VERSION}-linux-x86_64.AppImage" ;;
               *.deb) echo "Hushio-${VERSION}-linux-amd64.deb" ;;
               *.rpm) echo "Hushio-${VERSION}-linux-x86_64.rpm" ;;
             esac
           }
           gh release download "$TAG" --pattern latest.json --dir "$WORK" --clobber
-          for old in "$BUNDLE"/appimage/*.AppImage "$BUNDLE"/appimage/*.AppImage.tar.gz "$BUNDLE"/appimage/*.AppImage.tar.gz.sig "$BUNDLE"/deb/*.deb "$BUNDLE"/rpm/*.rpm; do
+          for old in "$BUNDLE"/appimage/*.AppImage "$BUNDLE"/appimage/*.AppImage.sig "$BUNDLE"/deb/*.deb "$BUNDLE"/rpm/*.rpm; do
             name=$(basename "$old")
             new=$(new_name "$name")
             cp "$old" "$WORK/$new"
