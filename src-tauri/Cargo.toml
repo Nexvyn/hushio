@@ -1,6 +1,6 @@
 [package]
 name = "hushio-desktop"
-version = "1.1.1"
+version = "1.0.0"
 description = "Hushio, a free music player"
 authors = ["Nexvyn"]
 license = "GPL-3.0-only"
