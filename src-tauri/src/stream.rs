@@ -1,21 +1,25 @@
 use std::collections::{HashMap, VecDeque};
 use std::future::Future;
 use std::io;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use axum::Router;
 use axum::body::Body;
 use axum::extract::{Query, State};
-use axum::http::{HeaderMap, StatusCode, Uri, header};
+use axum::http::{HeaderMap, Method, StatusCode, Uri, header};
 use axum::response::Response;
 use axum::routing::get;
 use serde::Deserialize;
 use tokio::sync::OnceCell;
+use tokio::io::{AsyncReadExt, AsyncSeekExt, SeekFrom};
+use tokio_util::io::ReaderStream;
 
 pub const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 const UPSTREAM_TIMEOUT: Duration = Duration::from_secs(20);
 const SERVED_CAP: usize = 500;
+const LOCAL_FILE_CAP: usize = 500;
 const APP_ORIGINS: [&str; 3] = [
     "tauri://localhost",
     "http://tauri.localhost",
@@ -68,6 +72,8 @@ impl Upstream for Registry {
 
 pub struct StreamProxy<R> {
     upstream: Arc<R>,
+    local_files: Arc<Mutex<LocalFiles>>,
+    network: Arc<Mutex<Option<Arc<crate::network::Service>>>>,
     port: OnceCell<u16>,
 }
 
@@ -75,8 +81,29 @@ impl<R: Upstream> StreamProxy<R> {
     pub fn new(upstream: R) -> Self {
         Self {
             upstream: Arc::new(upstream),
+            local_files: Arc::new(Mutex::new(LocalFiles::default())),
+            network: Arc::new(Mutex::new(None)),
             port: OnceCell::new(),
         }
+    }
+
+    pub fn set_network(&self, network: Arc<crate::network::Service>) {
+        *self.network.lock().expect("network proxy lock") = Some(network);
+    }
+
+    pub fn register_local_file(&self, id: &str, path: &Path) -> Result<(), String> {
+        if !is_local_id(id) {
+            return Err("invalid local track id".to_owned());
+        }
+        let path = std::fs::canonicalize(path).map_err(|error| error.to_string())?;
+        if !path.is_file() {
+            return Err("local track path is not a file".to_owned());
+        }
+        self.local_files
+            .lock()
+            .expect("local files lock")
+            .set(id.to_owned(), path);
+        Ok(())
     }
 
     pub async fn start(&self) -> io::Result<u16> {
@@ -88,6 +115,8 @@ impl<R: Upstream> StreamProxy<R> {
                     upstream: Arc::clone(&self.upstream),
                     client: upstream_client()?,
                     served: Mutex::new(Served::default()),
+                    local_files: Arc::clone(&self.local_files),
+                    network: Arc::clone(&self.network),
                 });
                 tokio::spawn(async move {
                     if let Err(error) = axum::serve(listener, router(state)).await {
@@ -106,6 +135,31 @@ struct ProxyState<R> {
     upstream: Arc<R>,
     client: reqwest::Client,
     served: Mutex<Served>,
+    local_files: Arc<Mutex<LocalFiles>>,
+    network: Arc<Mutex<Option<Arc<crate::network::Service>>>>,
+}
+
+#[derive(Default)]
+struct LocalFiles {
+    paths: HashMap<String, PathBuf>,
+    order: VecDeque<String>,
+}
+
+impl LocalFiles {
+    fn get(&self, id: &str) -> Option<&Path> {
+        self.paths.get(id).map(PathBuf::as_path)
+    }
+
+    fn set(&mut self, id: String, path: PathBuf) {
+        if self.paths.insert(id.clone(), path).is_none() {
+            self.order.push_back(id);
+        }
+        while self.order.len() > LOCAL_FILE_CAP {
+            if let Some(oldest) = self.order.pop_front() {
+                self.paths.remove(&oldest);
+            }
+        }
+    }
 }
 
 #[derive(Default)]
@@ -153,6 +207,7 @@ fn upstream_client() -> io::Result<reqwest::Client> {
 
 async fn serve<R: Upstream>(
     State(state): State<Arc<ProxyState<R>>>,
+    method: Method,
     uri: Uri,
     headers: HeaderMap,
     Query(params): Query<Params>,
@@ -163,12 +218,121 @@ async fn serve<R: Upstream>(
     let Some(id) = params.id.filter(|id| !id.is_empty()) else {
         return text(StatusCode::BAD_REQUEST, "missing id");
     };
+    if id.starts_with("net:") {
+        let network = state.network.lock().expect("network proxy lock").clone();
+        let Some(network) = network else { return status_only(StatusCode::NOT_FOUND) };
+        let encoded: String = url::form_urlencoded::byte_serialize(id.as_bytes()).collect();
+        let mut request = axum::http::Request::builder().method(method).uri(format!("/{encoded}"));
+        if let Some(range) = headers.get(header::RANGE) { request = request.header(header::RANGE, range); }
+        let Ok(request) = request.body(Vec::new()) else { return status_only(StatusCode::BAD_REQUEST) };
+        let response = crate::network::serve_track(&network, &request).await;
+        let (mut parts, bytes) = response.into_parts();
+        parts.headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, axum::http::HeaderValue::from_static("*"));
+        return Response::from_parts(parts, Body::from(bytes));
+    }
     let max_kbps = params.kbps.as_deref().and_then(parse_kbps);
     let range = headers
         .get(header::RANGE)
         .and_then(|value| value.to_str().ok())
         .map(str::to_owned);
+    let local_path = state
+        .local_files
+        .lock()
+        .expect("local files lock")
+        .get(&id)
+        .map(Path::to_path_buf);
+    if let Some(path) = local_path {
+        return serve_local_file(&path, &method, range.as_deref()).await;
+    }
+    if id.starts_with("local:") {
+        return status_only(StatusCode::NOT_FOUND);
+    }
     play(&state, &id, &uri.to_string(), range.as_deref(), max_kbps).await
+}
+
+fn is_local_id(id: &str) -> bool {
+    id.strip_prefix("local:").is_some_and(|hash| {
+        hash.len() == 16 && hash.bytes().all(|byte| byte.is_ascii_hexdigit())
+    })
+}
+
+fn parse_byte_range(value: &str, len: u64) -> Option<(u64, u64)> {
+    let range = value.strip_prefix("bytes=")?;
+    if range.contains(',') || len == 0 {
+        return None;
+    }
+    let (start, end) = range.split_once('-')?;
+    if start.is_empty() {
+        let suffix = end.parse::<u64>().ok()?;
+        if suffix == 0 {
+            return None;
+        }
+        return Some((len.saturating_sub(suffix), len - 1));
+    }
+    let start = start.parse::<u64>().ok()?;
+    if start >= len {
+        return None;
+    }
+    let end = if end.is_empty() {
+        len - 1
+    } else {
+        end.parse::<u64>().ok()?.min(len - 1)
+    };
+    (end >= start).then_some((start, end))
+}
+
+async fn serve_local_file(path: &Path, method: &Method, range: Option<&str>) -> Response {
+    let mut file = match tokio::fs::File::open(path).await {
+        Ok(file) => file,
+        Err(_) => return status_only(StatusCode::NOT_FOUND),
+    };
+    let len = match file.metadata().await {
+        Ok(metadata) => metadata.len(),
+        Err(_) => return status_only(StatusCode::NOT_FOUND),
+    };
+    let content_type = mime_guess::from_path(path)
+        .first_or_octet_stream()
+        .essence_str()
+        .to_owned();
+    let mut response = Response::builder()
+        .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+        .header(header::CACHE_CONTROL, "no-store")
+        .header(header::ACCEPT_RANGES, "bytes")
+        .header(header::CONTENT_TYPE, content_type);
+
+    if let Some(range) = range {
+        let Some((start, end)) = parse_byte_range(range, len) else {
+            return Response::builder()
+                .status(StatusCode::RANGE_NOT_SATISFIABLE)
+                .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+                .header(header::CONTENT_RANGE, format!("bytes */{len}"))
+                .header(header::CONTENT_LENGTH, "0")
+                .body(Body::empty())
+                .expect("static response parts are valid");
+        };
+        let bytes = end - start + 1;
+        if file.seek(SeekFrom::Start(start)).await.is_err() {
+            return status_only(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+        response = response
+            .status(StatusCode::PARTIAL_CONTENT)
+            .header(header::CONTENT_RANGE, format!("bytes {start}-{end}/{len}"))
+            .header(header::CONTENT_LENGTH, bytes);
+        let body = if *method == Method::HEAD {
+            Body::empty()
+        } else {
+            Body::from_stream(ReaderStream::new(file.take(bytes)))
+        };
+        return response.body(body).unwrap_or_else(|_| status_only(StatusCode::INTERNAL_SERVER_ERROR));
+    }
+
+    response = response.header(header::CONTENT_LENGTH, len);
+    let body = if *method == Method::HEAD {
+        Body::empty()
+    } else {
+        Body::from_stream(ReaderStream::new(file))
+    };
+    response.body(body).unwrap_or_else(|_| status_only(StatusCode::INTERNAL_SERVER_ERROR))
 }
 
 async fn play<R: Upstream>(
@@ -656,6 +820,8 @@ mod tests {
             upstream: Arc::new(Fixed::new(&format!("{upstream}?itag=140"))),
             client: upstream_client().unwrap(),
             served: Mutex::new(Served::default()),
+            local_files: Arc::new(Mutex::new(LocalFiles::default())),
+            network: Arc::new(Mutex::new(None)),
         };
         let key = "/?id=abc";
         state
@@ -707,6 +873,47 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
         assert_eq!(response.bytes().await.unwrap().len(), 101);
+    }
+
+    #[tokio::test]
+    async fn registered_local_audio_serves_full_and_range_requests() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("song.mp3");
+        tokio::fs::write(&path, b"0123456789").await.unwrap();
+        let proxy = StreamProxy::new(Registry::default());
+        proxy
+            .register_local_file("local:0123456789abcdef", &path)
+            .unwrap();
+        let address = SocketAddr::from(([127, 0, 0, 1], proxy.start().await.unwrap()));
+        let url = format!("http://{address}/?id=local:0123456789abcdef");
+
+        let full = client().get(&url).send().await.unwrap();
+        assert_eq!(full.status(), StatusCode::OK);
+        assert_eq!(full.headers()[header::CONTENT_TYPE], "audio/mpeg");
+        assert_eq!(full.bytes().await.unwrap().as_ref(), b"0123456789");
+
+        let range = client()
+            .get(&url)
+            .header(header::RANGE, "bytes=3-6")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(range.status(), StatusCode::PARTIAL_CONTENT);
+        assert_eq!(range.headers()[header::CONTENT_RANGE], "bytes 3-6/10");
+        assert_eq!(range.bytes().await.unwrap().as_ref(), b"3456");
+    }
+
+    #[tokio::test]
+    async fn local_proxy_refuses_unregistered_local_ids() {
+        let address = start_proxy(Registry::default()).await;
+
+        let response = client()
+            .get(format!("http://{address}/?id=local:unknown"))
+            .send()
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

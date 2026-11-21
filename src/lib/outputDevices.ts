@@ -1,3 +1,5 @@
+import { invoke, isTauri } from "@tauri-apps/api/core";
+
 export type RawDevice = Pick<MediaDeviceInfo, "kind" | "deviceId" | "groupId" | "label">;
 export type OutputDevice = { deviceId: string; groupId: string; label: string };
 export type OutputChoice = { deviceId: string; label: string; isDefault: boolean; activeDefault: boolean };
@@ -27,11 +29,18 @@ export function outputsOf(devices: readonly RawDevice[]): OutputDevice[] {
 }
 
 export async function readOutputDevices(): Promise<OutputDevice[]> {
+  if (isTauri() && !/Android/.test(navigator.userAgent)) {
+    const devices = await invoke<{ name: string; description: string }[]>("desktop_playback_devices");
+    return devices.filter((device) => device.name !== "auto").map((device) => ({
+      deviceId: device.name, groupId: device.name, label: device.description,
+    }));
+  }
   if (!navigator.mediaDevices) return [];
   return outputsOf(await navigator.mediaDevices.enumerateDevices());
 }
 
 export async function listOutputDevices(): Promise<OutputDevice[]> {
+  if (isTauri() && !/Android/.test(navigator.userAgent)) return readOutputDevices();
   if (!navigator.mediaDevices) return [];
   const raw = await navigator.mediaDevices.enumerateDevices();
   const unnamed = raw.some((device) => device.kind === "audiooutput" && (device.deviceId === "" || device.label === ""));

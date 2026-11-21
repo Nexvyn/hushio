@@ -19,6 +19,8 @@ mod macos_window;
 mod media_controls;
 mod menu;
 mod network;
+#[cfg(desktop)]
+mod playback;
 mod persist;
 mod reveal;
 mod scrobble;
@@ -226,17 +228,31 @@ fn stream_register(
 #[tauri::command]
 async fn track_analysis(
     folders: State<'_, reveal::Folders>,
+    local: State<'_, local_library::Service>,
     source: String,
 ) -> Result<analysis::Analysis, String> {
+    if source.starts_with("local:") {
+        let path = local
+            .track_path(&source)
+            .await
+            .ok_or_else(|| "Local track is not in the library".to_owned())?;
+        return analysis::analyse_source(path, &folders).await;
+    }
     analysis::analyse_source(source, &folders).await
 }
 
 #[tauri::command]
 async fn lyrics_get(
     state: State<'_, lyrics::Service>,
+    local: State<'_, local_library::Service>,
     meta: lyrics::LyricsMeta,
 ) -> Result<Option<lyrics::LyricsResult>, String> {
-    Ok(state.get(meta).await)
+    let local_path = if meta.id.starts_with("local:") {
+        local.track_path(&meta.id).await
+    } else {
+        None
+    };
+    Ok(state.get_with_local_path(meta, local_path.as_deref()).await)
 }
 
 #[tauri::command]
@@ -604,6 +620,37 @@ async fn local_library_track_path(
     Ok(state.track_path(&id).await)
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LocalPlaybackSource {
+    url: String,
+    mime: String,
+}
+
+#[tauri::command]
+async fn local_playback_source(
+    proxy: State<'_, stream::StreamProxy<stream::Registry>>,
+    local: State<'_, local_library::Service>,
+    folders: State<'_, reveal::Folders>,
+    id: String,
+) -> Result<LocalPlaybackSource, String> {
+    let path = local
+        .track_path(&id)
+        .await
+        .ok_or_else(|| "Local track is not in the library".to_owned())?;
+    folders.check(Path::new(&path))?;
+    proxy.register_local_file(&id, Path::new(&path))?;
+    let port = proxy.start().await.map_err(|error| error.to_string())?;
+    let mime = mime_guess::from_path(&path)
+        .first_or_octet_stream()
+        .essence_str()
+        .to_owned();
+    Ok(LocalPlaybackSource {
+        url: format!("http://127.0.0.1:{port}/?id={id}"),
+        mime,
+    })
+}
+
 fn install_panic_hook() {
     let previous = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
@@ -688,6 +735,8 @@ pub fn run() {
         })
         .setup(|app| {
             android::init(app.handle());
+            #[cfg(desktop)]
+            app.manage(playback::Engine::new(app.handle().clone()));
             let root = prepare_data_dir(app.handle())?;
             let default_dir = if cfg!(target_os = "android") {
                 app.path().app_cache_dir()?.join(format!("{APP_SLUG}-downloads"))
@@ -773,6 +822,7 @@ pub fn run() {
                 network_root,
                 vault,
             )));
+            app.state::<stream::StreamProxy<stream::Registry>>().set_network(network.clone());
             app.manage(network);
             crash::set_crash_root(crash_root.clone());
             let crashes = Arc::new(tauri::async_runtime::block_on(crash::Service::load(crash_root.clone())));
@@ -820,6 +870,12 @@ pub fn run() {
             menu::menu_set_playback_state,
             stream_proxy_port,
             stream_register,
+            #[cfg(desktop)]
+            playback::desktop_playback_load,
+            #[cfg(desktop)]
+            playback::desktop_playback_control,
+            #[cfg(desktop)]
+            playback::desktop_playback_devices,
             lyrics_get,
             lyrics_search,
             lyrics_pick,
@@ -848,6 +904,7 @@ pub fn run() {
             local_library_forget_opened,
             local_library_open_files,
             local_library_track_path,
+            local_playback_source,
             playback_event,
             replay_summary,
             replay_journal,
@@ -934,6 +991,8 @@ pub fn run() {
 
     app.run(|app, event| match event {
         RunEvent::ExitRequested { .. } => {
+            #[cfg(desktop)]
+            tauri::async_runtime::block_on(app.state::<playback::Engine>().shutdown());
             macos_window::mark_quitting();
             app.state::<downloads::Downloads<AppHandle>>().abandon();
             tauri::async_runtime::block_on(app.state::<Arc<stats::Service>>().flush());
