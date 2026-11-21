@@ -1,12 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { registerStreamUrl, streamProxyPort, resolveStream, pathExists, localLibraryTrackPath, trackAnalysis } =
-  vi.hoisted(() => ({
+const {
+  registerStreamUrl,
+  streamProxyPort,
+  resolveStream,
+  pathExists,
+  localLibraryTrackPath,
+  playbackDiagnostic,
+  trackAnalysis,
+} = vi.hoisted(() => ({
     registerStreamUrl: vi.fn(),
     streamProxyPort: vi.fn(),
     resolveStream: vi.fn(),
     pathExists: vi.fn(),
     localLibraryTrackPath: vi.fn(),
+    playbackDiagnostic: vi.fn(),
     trackAnalysis: vi.fn(),
   }));
 
@@ -15,6 +23,11 @@ vi.mock("./bridge", () => ({
   streamProxyPort,
   pathExists,
   localLibraryTrackPath,
+  localPlaybackSource: async (id: string) => {
+    const path: string = await localLibraryTrackPath(id);
+    return { url: `asset://${path}`, mime: "audio/mpeg" };
+  },
+  playbackDiagnostic,
   trackAnalysis,
   fileSrc: (path: string) => `asset://${path}`,
   platform: "windows",
@@ -32,9 +45,10 @@ vi.mock("./persist", () => ({
 
 type Timing = { duration: number; currentTime: number; ended: boolean };
 
-const timings = new Map<HTMLAudioElement, Timing>();
+type TestDeck = ReturnType<typeof import("./audio").activeDeck>;
+const timings = new Map<TestDeck, Timing>();
 
-function timed(deck: HTMLAudioElement, duration: number): Timing {
+function timed(deck: TestDeck, duration: number): Timing {
   const state: Timing = { duration, currentTime: 0, ended: false };
   timings.set(deck, state);
   Object.defineProperty(deck, "duration", { configurable: true, get: () => state.duration });

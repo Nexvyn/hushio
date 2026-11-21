@@ -35,6 +35,7 @@
   },
   "bundle": {
     "active": true,
+    "resources": { "resources/mpv/": "mpv/" },
     "targets": ["nsis", "dmg", "app"],
     "category": "Music",
     "shortDescription": "Hushio — desktop music player for Windows & macOS",

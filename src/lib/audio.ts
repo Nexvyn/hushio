@@ -1,6 +1,6 @@
 import {
   fileSrc,
-  localLibraryTrackPath,
+  localPlaybackSource,
   pathExists,
   registerStreamUrl,
   streamProxyPort,
@@ -16,7 +16,7 @@ import { resolveStream } from "./resolveStream";
 import { traceMark } from "./streamTrace";
 import { addonStreamFor, addonsEnabled } from "./addons/resolve";
 import { isJioSaavnId } from "./jiosaavn";
-import { fileDetails, streamDetails, type StreamDetails } from "./streamStats";
+import { fileDetails, fileDetailsWithMime, streamDetails, type StreamDetails } from "./streamStats";
 import { useNowStream } from "../stores/nowStream";
 import { currentStreamBitrate } from "./streamingQuality";
 import {
@@ -36,6 +36,7 @@ import { ANDROID, type PlayMeta } from "./androidPlayback";
 import { clampCrossfadeSeconds, useSettings, type SettingsValues } from "../stores/settings";
 import { playFailedMessage } from "./playFailed";
 import { useUI } from "../stores/ui";
+import { NativeAudioDeck, usesNativeAudio } from "./nativeAudioDeck";
 
 export { TEST_SONG_ID, TEST_SONG_TITLE } from "./devSong";
 
@@ -95,14 +96,15 @@ type Fade = {
   timer: ReturnType<typeof setInterval>;
 };
 
-function createDeck(): HTMLAudioElement {
+function createDeck(index: number): HTMLAudioElement | NativeAudioDeck {
+  if (usesNativeAudio) return new NativeAudioDeck(index);
   const deck = new Audio();
   deck.preload = "auto";
   deck.crossOrigin = "anonymous";
   return deck;
 }
 
-const decks = [createDeck(), createDeck()];
+const decks = [createDeck(0), createDeck(1)];
 let mainIndex = 0;
 let song: Song | null = null;
 let wantPlaying = false;
@@ -131,11 +133,11 @@ const analysing = new Set<string>();
 let levelTimer: ReturnType<typeof setInterval> | null = null;
 let silenceTimer: ReturnType<typeof setInterval> | null = null;
 
-export function activeDeck(): HTMLAudioElement {
+export function activeDeck() {
   return decks[mainIndex];
 }
 
-export function standbyDeck(): HTMLAudioElement {
+export function standbyDeck() {
   return decks[1 - mainIndex];
 }
 
@@ -231,7 +233,9 @@ function buildGraph(): Graph {
   limiter.release.value = LIMIT_RELEASE_S;
   const makeup = ctx.createGain();
   makeup.gain.value = dbToGain(-compressorMakeupDb(LIMIT_THRESHOLD_DB, LIMIT_RATIO));
-  for (const deck of decks) ctx.createMediaElementSource(deck).connect(bands[0]);
+  for (const deck of decks) {
+    if (deck instanceof HTMLAudioElement) ctx.createMediaElementSource(deck).connect(bands[0]);
+  }
   const chain: AudioNode[] = [...bands, preGain, limiter, makeup, ctx.destination];
   for (let i = 0; i < chain.length - 1; i++) chain[i].connect(chain[i + 1]);
   return { ctx, bands, preGain };
@@ -241,6 +245,12 @@ export function applyEq(next: EqSettings): void {
   eqState = next;
   if (ANDROID) {
     androidSetEq(next.enabled, next.gains);
+    return;
+  }
+  if (usesNativeAudio) {
+    for (const deck of decks) {
+      if (deck instanceof NativeAudioDeck) deck.setEqualizer(next.enabled, next.gains, next.autoHeadroom);
+    }
     return;
   }
   if (!graph && next.enabled) graph = buildGraph();
@@ -416,18 +426,17 @@ async function savedSource(id: string): Promise<Source | null> {
   const path = downloadedPath(id);
   if (!path) return null;
   const exists = await pathExists(path).catch(() => false);
-  return exists ? { src: fileSrc(path), analysis: path, lufs: null, details: fileDetails(path, "Download") } : null;
+  return exists ? { src: usesNativeAudio ? path : fileSrc(path), analysis: path, lufs: null, details: fileDetails(path, "Download") } : null;
 }
 
 async function localSource(id: string): Promise<Source> {
-  const path = await localLibraryTrackPath(id);
-  if (!path) throw new Error(`Local file is not in the library: ${id}`);
-  return { src: fileSrc(path), analysis: path, lufs: null, details: fileDetails(path, "Local file") };
+  const source = await localPlaybackSource(id);
+  return { src: usesNativeAudio ? id : source.url, analysis: id, lufs: null, details: fileDetailsWithMime(source.mime, "Local file") };
 }
 
 function networkSource(id: string): Source {
   const url = networkTrackUrl(id);
-  return { src: url, analysis: url, lufs: null, details: fileDetails(url, "Network folder") };
+  return { src: usesNativeAudio ? id : url, analysis: url, lufs: null, details: fileDetails(url, "Network folder") };
 }
 
 async function sourceFor(id: string, refresh: boolean): Promise<Source> {
@@ -469,7 +478,8 @@ async function loadStream(id: string, refresh: boolean, seq: number): Promise<vo
   deckStreams[mainIndex] = source.stream;
   deckDetails[mainIndex] = source.details;
   useNowStream.getState().publish(id, source.details);
-  activeDeck().src = source.src;
+  await loadDeckSource(activeDeck(), source.src);
+  if (seq !== loadSeq) return;
   applySpeed();
   if (source.lufs !== null) noteLoudness(id, source.lufs);
   else refreshVolumes();
@@ -477,6 +487,11 @@ async function loadStream(id: string, refresh: boolean, seq: number): Promise<vo
   else trimHead(id);
   pendingSeek = 0;
   armSilence();
+}
+
+async function loadDeckSource(deck: ReturnType<typeof activeDeck>, source: string): Promise<void> {
+  if (deck instanceof NativeAudioDeck) await deck.loadSource(source);
+  else deck.src = source;
 }
 
 function isAbort(error: unknown): boolean {
@@ -514,6 +529,7 @@ async function startPlayback(seq: number): Promise<void> {
     await activeDeck().play();
   } catch (error) {
     if (isAbort(error)) return;
+    console.warn("[hushio] audio playback failed", error);
     await onFailure(seq);
   }
 }
@@ -680,10 +696,11 @@ function arm(fromId: string, next: BlendTarget, fadeMs: number, remainingMs: num
     toId: next.id,
     fadeMs,
     ready: sourceFor(next.id, false).then(
-      (source) => {
+      async (source) => {
         if (armed === pending) {
           const standby = 1 - mainIndex;
-          standbyDeck().src = source.src;
+          await loadDeckSource(standbyDeck(), source.src);
+          if (armed !== pending) return null;
           deckIds[standby] = next.id;
           deckSources[standby] = source.analysis;
           deckStreams[standby] = source.stream;

@@ -6,6 +6,12 @@ mod parse;
 mod providers;
 
 use std::collections::HashMap;
+#[cfg(not(target_os = "android"))]
+use std::fs;
+#[cfg(not(target_os = "android"))]
+use std::io::Read;
+#[cfg(not(target_os = "android"))]
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
@@ -23,6 +29,8 @@ use crate::{APP_NAME, APP_SLUG};
 const CACHE_CAP: usize = 400;
 const MISS_TTL: Duration = Duration::from_secs(600);
 const SWEEP_CEILING: Duration = Duration::from_secs(12);
+#[cfg(not(target_os = "android"))]
+const MAX_LOCAL_LRC_BYTES: u64 = 1024 * 1024;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -365,11 +373,23 @@ impl Service {
             .map(|result| LyricsResult { custom: true, ..result.clone() })
     }
 
+    #[cfg(test)]
     pub async fn get(&self, meta: LyricsMeta) -> Option<LyricsResult> {
+        self.get_with_local_path(meta, None).await
+    }
+
+    pub async fn get_with_local_path(
+        &self,
+        meta: LyricsMeta,
+        local_path: Option<&str>,
+    ) -> Option<LyricsResult> {
         let enabled = meta.providers.clone();
         let query = Query::from(meta);
         if let Some(chosen) = self.chosen(&query.id) {
             return Some(chosen);
+        }
+        if let Some(local) = local_result(local_path).await {
+            return Some(local);
         }
         if let Some(cached) = self.cached(&query.id) {
             return cached;
@@ -477,6 +497,104 @@ impl Service {
         }
         fallback
     }
+}
+
+async fn local_result(path: Option<&str>) -> Option<LyricsResult> {
+    let path = path?.to_owned();
+    let text = tokio::task::spawn_blocking(move || {
+        read_local_lrc(&path).or_else(|| read_embedded_lyrics(&path))
+    })
+        .await
+        .ok()
+        .flatten()?;
+    match parse::parse_provider_any(&text)? {
+        parse::Parsed::Timed(lines) => parse::timed_result("Local file", lines),
+        parse::Parsed::Plain(text) => Some(parse::plain_result("Local file", text)),
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+fn read_local_lrc(audio_path: &str) -> Option<String> {
+    let audio = Path::new(audio_path);
+    let parent = audio.parent()?;
+    let stem = audio.file_stem()?.to_string_lossy();
+    let sidecar = fs::read_dir(parent)
+        .ok()?
+        .flatten()
+        .map(|entry| entry.path())
+        .find(|path| {
+            path.extension()
+                .is_some_and(|extension| extension.to_string_lossy().eq_ignore_ascii_case("lrc"))
+                && path.file_stem().is_some_and(|candidate| {
+                    candidate.to_string_lossy().eq_ignore_ascii_case(&stem)
+                })
+        })?;
+    let mut bytes = Vec::new();
+    fs::File::open(sidecar)
+        .ok()?
+        .take(MAX_LOCAL_LRC_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .ok()?;
+    (bytes.len() as u64 <= MAX_LOCAL_LRC_BYTES)
+        .then(|| String::from_utf8(bytes).ok())
+        .flatten()
+}
+
+#[cfg(not(target_os = "android"))]
+fn read_embedded_lyrics(audio_path: &str) -> Option<String> {
+    use lofty::file::TaggedFileExt;
+    use lofty::id3::v2::{FrameFlags, SynchronizedTextFrame};
+    use lofty::tag::{ItemKey, ItemValue, TagType};
+
+    let tagged = lofty::read_from_path(audio_path).ok()?;
+    let tag = tagged.tag(TagType::Id3v2)
+        .or_else(|| tagged.primary_tag())
+        .or_else(|| tagged.first_tag())?;
+
+    if let Some(plain) = tag.get_string(&ItemKey::Lyrics).filter(|text| !text.trim().is_empty()) {
+        return (plain.len() <= MAX_LOCAL_LRC_BYTES as usize).then(|| plain.to_owned());
+    }
+
+    let bytes = tag.items().find_map(|item| {
+        matches!(item.key(), ItemKey::Unknown(key) if key == "SYLT")
+            .then(|| match item.value() {
+                ItemValue::Binary(bytes) if bytes.len() <= MAX_LOCAL_LRC_BYTES as usize => Some(bytes.as_slice()),
+                _ => None,
+            })
+            .flatten()
+    })?;
+    let frame = SynchronizedTextFrame::parse(bytes, FrameFlags::default()).ok()?;
+    sylt_to_lrc(frame.timestamp_format, &frame.content)
+}
+
+#[cfg(not(target_os = "android"))]
+fn sylt_to_lrc(
+    timestamp_format: lofty::id3::v2::TimestampFormat,
+    content: &[(u32, String)],
+) -> Option<String> {
+    use lofty::id3::v2::TimestampFormat;
+
+    if timestamp_format != TimestampFormat::MS {
+        return None;
+    }
+    let text = content.iter().filter_map(|(milliseconds, line)| {
+        let line = line.trim();
+        if line.is_empty() { return None; }
+        let minutes = milliseconds / 60_000;
+        let seconds = milliseconds % 60_000;
+        Some(format!("[{minutes:02}:{:02}.{:02}]{line}", seconds / 1000, (seconds % 1000) / 10))
+    }).collect::<Vec<_>>().join("\n");
+    (!text.is_empty()).then_some(text)
+}
+
+#[cfg(target_os = "android")]
+fn read_local_lrc(_audio_path: &str) -> Option<String> {
+    None
+}
+
+#[cfg(target_os = "android")]
+fn read_embedded_lyrics(_audio_path: &str) -> Option<String> {
+    None
 }
 
 fn abort_all(jobs: &[Option<JoinHandle<Option<LyricsResult>>>]) {
@@ -595,6 +713,19 @@ mod tests {
         assert!(!is_fresh(&entry(Duration::from_secs(601), Some(timed(false))), now));
         assert!(is_fresh(&entry(Duration::from_secs(60), None), now));
         assert!(!is_fresh(&entry(Duration::from_secs(601), None), now));
+    }
+
+    #[cfg(not(target_os = "android"))]
+    #[test]
+    fn embedded_sylt_milliseconds_are_converted_to_lrc_timestamps() {
+        use lofty::id3::v2::TimestampFormat;
+
+        let content = vec![(65_430, " First line ".to_owned()), (121_000, "Second line".to_owned())];
+        assert_eq!(
+            sylt_to_lrc(TimestampFormat::MS, &content).as_deref(),
+            Some("[01:05.43]First line\n[02:01.00]Second line"),
+        );
+        assert!(sylt_to_lrc(TimestampFormat::MPEG, &content).is_none());
     }
 
     #[test]
@@ -776,5 +907,58 @@ mod tests {
 
         let restarted = local_service(&base, root.path()).await;
         assert!(!restarted.get(meta("song-1")).await.expect("automatic").custom);
+    }
+
+    #[tokio::test]
+    async fn local_lrc_precedes_providers_and_keeps_word_timing() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let audio = root.path().join("Song.mp3");
+        std::fs::write(
+            root.path().join("Song.lrc"),
+            "[00:01.20]<00:01.20>hel<00:01.55>lo\n[00:02.00]world",
+        )
+        .expect("write LRC");
+        let provider_hits = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let provider_gate = provider_hits.clone();
+        let base = test_support::serve(move |_| {
+            Router::new().route(
+                "/api/get",
+                get(move || {
+                    provider_gate.fetch_add(1, Ordering::SeqCst);
+                    async { AUTOMATIC_RECORD }
+                }),
+            )
+        })
+        .await;
+        let service = Service::with_hosts(test_support::local_hosts(&base), SWEEP_CEILING).expect("client");
+
+        let result = service
+            .get_with_local_path(meta("local:song"), Some(audio.to_string_lossy().as_ref()))
+            .await
+            .expect("local lyrics");
+
+        assert_eq!(result.source, "Local file");
+        assert_eq!(provider_hits.load(Ordering::SeqCst), 0);
+        let lines = result.synced.expect("timed lyrics");
+        assert_eq!(lines[0].time, 1.2);
+        assert_eq!(lines[0].text, "hello");
+        let words = lines[0].words.as_ref().expect("word timings");
+        assert_eq!(words.iter().map(|word| word.text.as_str()).collect::<Vec<_>>(), ["hel", "lo"]);
+        assert_eq!((words[0].start, words[0].end), (1.2, 1.55));
+    }
+
+    #[tokio::test]
+    async fn missing_local_lrc_falls_back_to_online_lyrics() {
+        let root = tempfile::tempdir().expect("temp dir");
+        let audio = root.path().join("Song.mp3");
+        let base = test_support::serve(|_| Router::new().route("/api/get", get(|| async { AUTOMATIC_RECORD }))).await;
+        let service = Service::with_hosts(test_support::local_hosts(&base), SWEEP_CEILING).expect("client");
+
+        let result = service
+            .get_with_local_path(meta("local:song"), Some(audio.to_string_lossy().as_ref()))
+            .await
+            .expect("online lyrics");
+
+        assert_eq!(result.source, "LRCLIB");
     }
 }
