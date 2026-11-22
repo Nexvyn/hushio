@@ -63,20 +63,6 @@ case "$target_os:$architecture" in
     cp "$work/unpacked/mpv.app/Contents/MacOS/mpv" "$root/mpv"
     cp -R "$work/unpacked/mpv.app/Contents/MacOS/lib" "$root/lib"
     ;;
-  linux:x64)
-    archive="$work/mpv.AppImage"
-    download \
-      "https://github.com/pkgforge-dev/mpv-AppImage/releases/download/nightly/mpv-v0.42.0-169-gb7339522c-anylinux-x86_64.AppImage" \
-      "706975a1a696447ea80e181394b8e52a99667af3ec6d75c813e4cd7d0de52cbd" \
-      "$archive"
-    chmod +x "$archive"
-    (cd "$work" && "$archive" --appimage-extract >/dev/null)
-    cp "$work/squashfs-root/shared/bin/mpv" "$root/mpv"
-    cp -RL "$work/squashfs-root/shared/lib" "$root/lib"
-    cp -R "$work/squashfs-root/lib/alsa-lib" "$root/alsa-lib"
-    cp -R "$work/squashfs-root/lib/pulseaudio" "$root/pulseaudio"
-    cp -R "$work/squashfs-root/share/licenses" "$root/licenses"
-    ;;
   *)
     echo "Unsupported mpv runtime target: $target_os:$architecture" >&2
     exit 2

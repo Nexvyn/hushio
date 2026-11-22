@@ -876,6 +876,8 @@ pub fn run() {
             playback::desktop_playback_control,
             #[cfg(desktop)]
             playback::desktop_playback_devices,
+            #[cfg(desktop)]
+            playback::desktop_playback_available,
             lyrics_get,
             lyrics_search,
             lyrics_pick,

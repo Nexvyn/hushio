@@ -78,6 +78,7 @@ The Windows app updates itself. On macOS, Linux and Android, Hushio tells you wh
 - Synced lyrics from several sources, with word-by-word highlighting.
 - Translations when the lyrics include them, and romanised text for other scripts.
 - Lyrics timing adjustment per song.
+- Lyrics from a `.lrc` file next to a local song, or from the song's own tags, are used before online sources, on desktop.
 
 ### Now Playing
 - Swipe the cover to skip, double-tap to like, swipe up for lyrics and swipe down to close.
@@ -134,6 +135,10 @@ Rust tests: `cargo test` inside `src-tauri`.
 ## Contributing
 
 Bug reports, ideas and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) to set up the project and see how changes get merged. Please follow the [code of conduct](CODE_OF_CONDUCT.md). To report a security problem, see [SECURITY.md](SECURITY.md).
+
+## Third-party software
+
+The Windows and macOS desktop downloads include mpv (https://mpv.io), which is licensed under GPL-2.0-or-later and LGPL-2.1-or-later. The license files are inside the app's `mpv` resource folder. On Linux, Hushio plays through mpv when it is installed (`sudo apt install mpv` or `sudo dnf install mpv`) and uses its built-in player otherwise. Android uses Media3.
 
 ## Disclaimer
 

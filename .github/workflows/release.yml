@@ -319,9 +319,6 @@ jobs:
         timeout-minutes: 15
         run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y $LINUX_DEPS
       - run: pnpm install --frozen-lockfile
-      - name: Prepare the pinned mpv runtime
-        shell: bash
-        run: bash scripts/prepare-mpv-runtime.sh linux x64
       - name: Build the deb and rpm
         run: pnpm tauri build --bundles deb,rpm --config '{"bundle":{"createUpdaterArtifacts":false}}'
       - name: Verify Linux bundles

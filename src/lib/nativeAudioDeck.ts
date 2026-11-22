@@ -23,8 +23,16 @@ type PlaybackSnapshot = {
 
 type NativeEvent = { deck: number; generation: number; event: unknown };
 
-/** Desktop decoding uses mpv; ordinary browser previews keep their HTML media adapter. */
-export const usesNativeAudio = isTauri() && !/Android/.test(navigator.userAgent);
+async function probeNativeAudio(): Promise<boolean> {
+  if (!isTauri() || /Android/.test(navigator.userAgent)) return false;
+  try {
+    return (await invoke<boolean>("desktop_playback_available")) === true;
+  } catch {
+    return false;
+  }
+}
+
+export const usesNativeAudio = await probeNativeAudio();
 
 function objectValue(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;

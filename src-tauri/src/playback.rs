@@ -39,7 +39,6 @@ const OBSERVED_PROPERTIES: [(u64, &str); 8] = [
 
 pub const EVENT: &str = "desktop-playback-event";
 
-/// Only these playback operations cross the renderer/native boundary.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum Control {
@@ -94,7 +93,13 @@ fn validate_stream_url(source: &str, proxy_port: u16) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::validate_stream_url;
+    use super::{binary_runs, validate_stream_url};
+
+    #[test]
+    fn missing_binary_is_not_available() {
+        let missing = std::path::Path::new("/nonexistent/hushio-mpv-test");
+        assert!(!tauri::async_runtime::block_on(binary_runs(missing)));
+    }
 
     #[test]
     fn accepts_only_the_local_stream_proxy() {
@@ -134,6 +139,22 @@ pub async fn desktop_playback_control(
 #[tauri::command]
 pub async fn desktop_playback_devices(engine: tauri::State<'_, Engine>) -> Result<Value, String> {
     engine.devices().await
+}
+
+#[tauri::command]
+pub async fn desktop_playback_available(app: AppHandle) -> bool {
+    binary_runs(&mpv_binary(&app)).await
+}
+
+async fn binary_runs(binary: &Path) -> bool {
+    let mut command = tokio::process::Command::new(binary);
+    command
+        .arg("--version")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .kill_on_drop(true);
+    matches!(timeout(Duration::from_secs(3), command.status()).await, Ok(Ok(status)) if status.success())
 }
 
 #[derive(Debug, Clone, Serialize)]
