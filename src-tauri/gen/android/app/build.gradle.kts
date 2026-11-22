@@ -62,6 +62,9 @@ android {
                 storePassword = signingValue("storePassword", "ANDROID_KEYSTORE_PASSWORD")
                 keyAlias = signingValue("keyAlias", "ANDROID_KEY_ALIAS")
                 keyPassword = signingValue("keyPassword", "ANDROID_KEY_PASSWORD")
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
             }
         }
     }
