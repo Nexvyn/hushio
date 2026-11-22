@@ -27,6 +27,9 @@ const CACHE_CAP: usize = 400;
 const MISS_TTL: Duration = Duration::from_secs(600);
 const SWEEP_CEILING: Duration = Duration::from_secs(12);
 const MAX_LOCAL_LRC_BYTES: u64 = 1024 * 1024;
+const SONG_END_SLACK: f64 = 15.0;
+const EARLY_END_MIN_SONG: f64 = 90.0;
+const EARLY_END_RATIO: f64 = 0.3;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -455,6 +458,10 @@ impl Service {
                 continue;
             };
             if found.has_lines() {
+                if !fits_duration(&found, query.duration) {
+                    log_misfit(*source, &found, query.duration);
+                    continue;
+                }
                 abort_all(&jobs);
                 info!("[lyrics] WINNER: {}", found.source);
                 return Some(found);
@@ -481,6 +488,10 @@ impl Service {
                 continue;
             };
             if found.has_lines() {
+                if !fits_duration(&found, query.duration) {
+                    log_misfit(*source, &found, query.duration);
+                    continue;
+                }
                 abort_all(&jobs);
                 info!("[lyrics] WINNER: {}", found.source);
                 return Some(found);
@@ -493,6 +504,31 @@ impl Service {
         }
         fallback
     }
+}
+
+fn fits_duration(result: &LyricsResult, duration: f64) -> bool {
+    let last = match result.synced.as_ref().and_then(|lines| lines.last()) {
+        Some(line) if duration > 0.0 => line.time,
+        _ => return true,
+    };
+    if last > duration + SONG_END_SLACK {
+        return false;
+    }
+    !(duration >= EARLY_END_MIN_SONG && last < duration * EARLY_END_RATIO)
+}
+
+fn log_misfit(source: Source, result: &LyricsResult, duration: f64) {
+    let last = result
+        .synced
+        .as_ref()
+        .and_then(|lines| lines.last())
+        .map_or(0.0, |line| line.time);
+    info!(
+        "[lyrics] {}: skipped, last line {:.2}s does not fit a {:.2}s song",
+        source.name(),
+        last,
+        duration
+    );
 }
 
 async fn local_result(path: Option<&str>) -> Option<LyricsResult> {
@@ -837,8 +873,66 @@ mod tests {
         assert_eq!(SWEEP_CEILING, Duration::from_secs(12));
     }
 
+    fn synced_ending_at(last: f64) -> LyricsResult {
+        LyricsResult {
+            synced: Some(vec![SyncedLyricLine::at(1.0, "first"), SyncedLyricLine::at(last, "last")]),
+            plain: None,
+            source: "Test".to_owned(),
+            word_synced: false,
+            custom: false,
+        }
+    }
+
+    #[test]
+    fn fits_duration_accepts_lyrics_that_end_within_the_song() {
+        assert!(fits_duration(&synced_ending_at(195.0), 200.0));
+    }
+
+    #[test]
+    fn fits_duration_rejects_lyrics_running_past_the_end_by_more_than_fifteen_seconds() {
+        assert!(!fits_duration(&synced_ending_at(216.0), 200.0));
+    }
+
+    #[test]
+    fn fits_duration_accepts_lyrics_exactly_fifteen_seconds_past_the_end() {
+        assert!(fits_duration(&synced_ending_at(215.0), 200.0));
+    }
+
+    #[test]
+    fn fits_duration_rejects_lyrics_stopping_before_thirty_percent_of_a_long_song() {
+        assert!(!fits_duration(&synced_ending_at(58.0), 200.0));
+    }
+
+    #[test]
+    fn fits_duration_accepts_lyrics_stopping_after_thirty_percent_of_a_long_song() {
+        assert!(fits_duration(&synced_ending_at(62.0), 200.0));
+    }
+
+    #[test]
+    fn fits_duration_never_rejects_an_early_end_on_a_short_song() {
+        assert!(fits_duration(&synced_ending_at(5.0), 60.0));
+    }
+
+    #[test]
+    fn fits_duration_accepts_everything_when_the_duration_is_unknown() {
+        assert!(fits_duration(&synced_ending_at(900.0), 0.0));
+        assert!(fits_duration(&synced_ending_at(1.0), 0.0));
+    }
+
+    #[test]
+    fn fits_duration_accepts_plain_text_results() {
+        let plain = LyricsResult {
+            synced: None,
+            plain: Some("a long story\nthat is not timed".to_owned()),
+            source: "Test".to_owned(),
+            word_synced: false,
+            custom: false,
+        };
+        assert!(fits_duration(&plain, 200.0));
+    }
+
     const CHOSEN_RECORD: &str = r#"{"id":7,"trackName":"Song","artistName":"Singer","duration":200,"syncedLyrics":"[00:01.00]chosen one\n[00:02.00]chosen two\n[00:03.00]chosen three"}"#;
-    const AUTOMATIC_RECORD: &str = r#"{"id":3,"trackName":"Song","artistName":"Singer","duration":200,"syncedLyrics":"[00:01.00]auto one\n[00:02.00]auto two\n[00:03.00]auto three"}"#;
+    const AUTOMATIC_RECORD: &str = r#"{"id":3,"trackName":"Song","artistName":"Singer","duration":200,"syncedLyrics":"[00:01.00]auto one\n[00:02.00]auto two\n[03:00.00]auto three"}"#;
 
     fn meta(id: &str) -> LyricsMeta {
         LyricsMeta {
@@ -964,5 +1058,39 @@ mod tests {
             .expect("online lyrics");
 
         assert_eq!(result.source, "LRCLIB");
+    }
+
+    const MISFIT_RECORD: &str = r#"{"trackName":"Song","artistName":"Singer","duration":200,"syncedLyrics":"[00:01.00]far\n[01:00.00]far\n[02:30.00]far\n[03:50.00]far"}"#;
+    const FITTING_SIMPMUSIC: &str = r#"{"data":[{"songTitle":"Song","artistName":"Singer","durationSeconds":200,"syncedLyrics":"[00:01.00]good one\n[00:50.00]good two\n[01:40.00]good three\n[03:10.00]good four"}]}"#;
+
+    #[tokio::test]
+    async fn sweep_skips_synced_lyrics_that_run_past_the_song_and_takes_the_next_source() {
+        let base = test_support::serve(|_| {
+            Router::new()
+                .route("/api/get", get(|| async { MISFIT_RECORD }))
+                .route("/v1/song-1", get(|| async { FITTING_SIMPMUSIC }))
+        })
+        .await;
+        let service = Service::with_hosts(test_support::local_hosts(&base), SWEEP_CEILING).expect("client");
+        let enabled = vec!["lrclib".to_owned(), "simpmusic".to_owned()];
+
+        let found = service
+            .sweep(&Query::from(meta("song-1")), Some(enabled.as_slice()))
+            .await
+            .expect("fitting lyrics");
+
+        assert_eq!(found.synced.expect("synced")[0].text, "good one");
+    }
+
+    #[tokio::test]
+    async fn sweep_returns_nothing_when_every_synced_result_misfits() {
+        let base = test_support::serve(|_| Router::new().route("/api/get", get(|| async { MISFIT_RECORD })))
+            .await;
+        let service = Service::with_hosts(test_support::local_hosts(&base), SWEEP_CEILING).expect("client");
+        let enabled = vec!["lrclib".to_owned(), "simpmusic".to_owned()];
+
+        let found = service.sweep(&Query::from(meta("song-1")), Some(enabled.as_slice())).await;
+
+        assert!(found.is_none());
     }
 }

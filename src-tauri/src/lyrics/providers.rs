@@ -568,9 +568,9 @@ mod tests {
     use crate::lyrics::test_support::{local_hosts, serve};
     use crate::lyrics::{LyricsMeta, SWEEP_CEILING, Service};
 
-    const BETTER_BODY: &str = r#"{"ttml":"<tt><body><div><p begin=\"1s\" end=\"2s\">Hello there</p><p begin=\"3s\" end=\"4s\">second line</p></div></body></tt>"}"#;
+    const BETTER_BODY: &str = r#"{"ttml":"<tt><body><div><p begin=\"1s\" end=\"2s\">Hello there</p><p begin=\"180s\" end=\"182s\">second line</p></div></body></tt>"}"#;
     const PORTATO_PLAIN: &str = "plain portato words";
-    const LRCLIB_RECORD: &str = r#"{"trackName":"Song","artistName":"Singer","duration":200,"syncedLyrics":"[00:01.00]one\n[00:02.00]two\n[00:03.00]three","plainLyrics":"one\ntwo\nthree"}"#;
+    const LRCLIB_RECORD: &str = r#"{"trackName":"Song","artistName":"Singer","duration":200,"syncedLyrics":"[00:01.00]one\n[00:02.00]two\n[03:00.00]three","plainLyrics":"one\ntwo\nthree"}"#;
     const LRCLIB_SEARCH: &str = r#"[{"trackName":"Song","artistName":"Singer","duration":240,"syncedLyrics":"[00:01.00]far"},{"trackName":"Song","artistName":"Singer","duration":201,"syncedLyrics":"[00:01.00]near"}]"#;
     const GENIUS_SEARCH: &str = r#"{"response":{"sections":[{"type":"song","hits":[{"result":{"url":"BASE/song","path":"/other-song-lyrics","title":"Other Song","artist_names":"Singer"}},{"result":{"url":"BASE/song","path":"/singer-song-lyrics","title":"Song","artist_names":"Singer"}}]}]}}"#;
     const GENIUS_PAGE: &str = r#"<html><body><div data-lyrics-container="true">Line one<br/>Line two<p>Stanza</p>You might also like<button>Share</button>123Embed</div></body></html>"#;
@@ -948,7 +948,7 @@ mod tests {
                 Router::new().route(
                     "/api/get",
                     get(|| async {
-                        r#"{"trackName":"Another Song","artistName":"Singer","duration":200,"syncedLyrics":"[00:01.00]x\n[00:02.00]y\n[00:03.00]z"}"#
+                        r#"{"trackName":"Another Song","artistName":"Singer","duration":200,"syncedLyrics":"[00:01.00]x\n[00:02.00]y\n[03:00.00]z"}"#
                     }),
                 )
             },
