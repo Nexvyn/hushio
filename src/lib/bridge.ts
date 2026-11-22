@@ -495,6 +495,23 @@ export interface LocalTrack {
   mtime: number;
   art?: string;
   codec?: string;
+  albumArtist?: string;
+  year?: number;
+  trackNumber?: number;
+  discNumber?: number;
+}
+
+export type LocalNumberEdit = number | string;
+
+export interface LocalTagEdits {
+  title?: string;
+  artist?: string;
+  album?: string;
+  albumArtist?: string;
+  genre?: string;
+  year?: LocalNumberEdit;
+  trackNumber?: LocalNumberEdit;
+  discNumber?: LocalNumberEdit;
 }
 
 export interface LocalUnplayable {
@@ -568,6 +585,10 @@ export function localLibraryOpenFiles(paths: string[]): Promise<LocalOpenResult>
 
 export function localLibraryTrackPath(id: string): Promise<string | null> {
   return call<string | null>("local_library_track_path", { id });
+}
+
+export function localLibraryEditTags(id: string, edits: LocalTagEdits): Promise<LocalTrack> {
+  return call<LocalTrack>("local_library_edit_tags", { id, edits });
 }
 
 export interface LocalPlaybackSource {

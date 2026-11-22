@@ -620,6 +620,17 @@ async fn local_library_track_path(
     Ok(state.track_path(&id).await)
 }
 
+#[cfg(desktop)]
+#[tauri::command]
+async fn local_library_edit_tags(
+    state: State<'_, local_library::Service>,
+    folders: State<'_, reveal::Folders>,
+    id: String,
+    edits: local_library::TagEdits,
+) -> Result<local_library::LocalTrack, String> {
+    state.edit_tags(&id, edits, &folders).await
+}
+
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct LocalPlaybackSource {
@@ -906,6 +917,8 @@ pub fn run() {
             local_library_forget_opened,
             local_library_open_files,
             local_library_track_path,
+            #[cfg(desktop)]
+            local_library_edit_tags,
             local_playback_source,
             playback_event,
             replay_summary,

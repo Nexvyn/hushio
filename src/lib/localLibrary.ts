@@ -19,6 +19,13 @@ export function isNetworkId(id: string): boolean {
   return id.startsWith(NETWORK_ID_PREFIX);
 }
 
+export const UNKNOWN_ARTIST = "Unknown artist";
+export const UNKNOWN_ALBUM = "Unknown album";
+
+export function canEditTags(os: string = platform): boolean {
+  return os !== "android";
+}
+
 export function artUrl(art: string | undefined, os: string = platform): string | null {
   if (!art) return null;
   if (/^https?:\/\//.test(art)) return art;
@@ -77,7 +84,7 @@ export function deviceTracks(tracks: LocalTrack[], downloads: DownloadItem[]): L
       path: item.path,
       title: item.track.title,
       artist: item.track.artist,
-      album: item.track.album || "Unknown album",
+      album: item.track.album || UNKNOWN_ALBUM,
       duration: item.track.duration,
       size: 0,
       mtime: 0,

@@ -17,8 +17,10 @@ import {
   albumGroups,
   artistGroups,
   artUrl,
+  canEditTags,
   childPath,
   deviceTracks,
+  isLocalId,
   type DeviceFilter,
   filterDevice,
   folderListing,
@@ -43,7 +45,8 @@ import { useLocalLibrary } from "../stores/localLibrary";
 import { useNavigation } from "../stores/navigation";
 import { useNetwork } from "../stores/network";
 import { usePlayer } from "../stores/player";
-import { useUI } from "../stores/ui";
+import { useTrackEdit } from "../stores/trackEdit";
+import { type MenuItem, useUI } from "../stores/ui";
 import type { Track } from "../types";
 
 const ALL = "all";
@@ -123,6 +126,10 @@ function shuffleNetworkTracks(tracks: Track[], from: string) {
 function LocalTrackRow({ track, onPlay, onRemove }: { track: LocalTrack; onPlay: () => void; onRemove?: () => void }) {
   const phone = usePhone();
   const downloaded = isDownloadedTrack(track);
+  const menu: MenuItem[] = [
+    ...(canEditTags() && isLocalId(track.id) ? [{ label: "Edit info", icon: PencilSimple, onSelect: () => useTrackEdit.getState().open(track.id) }] : []),
+    ...(downloaded ? [{ label: "Remove download", icon: Trash, danger: true, onSelect: () => removeDownload(track.id) }] : []),
+  ];
   return (
     <div className={phone ? "flex items-center gap-2" : "flex items-center gap-2"}>
       <button
@@ -146,9 +153,9 @@ function LocalTrackRow({ track, onPlay, onRemove }: { track: LocalTrack; onPlay:
         </span>
         {!phone && <span className="tabular-nums text-meta text-ink-3">{fmtTime(track.duration)}</span>}
       </button>
-      {downloaded && (
+      {menu.length > 0 && (
         <ActionMenu
-          items={[{ label: "Remove download", icon: Trash, danger: true, onSelect: () => removeDownload(track.id) }]}
+          items={menu}
           label={`More options for ${track.title}`}
           triggerClass={phone ? PHONE_ICON : `${ROUND} hit-area h-9 w-9 shrink-0`}
         />

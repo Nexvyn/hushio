@@ -21,6 +21,9 @@ const MAX_DEPTH: usize = 8;
 const MAX_TAG_CHARS: usize = 200;
 const MAX_NAME_CHARS: usize = 80;
 const MAX_ART_BYTES: usize = 8 * 1024 * 1024;
+const TAG_VERSION: u8 = 2;
+#[cfg(desktop)]
+const NETWORK_PREFIX: &str = "net:";
 const OWNER: &str = "local";
 const LIBRARY_STORE: &str = "local-library";
 const OPENED_STORE: &str = "opened-files";
@@ -56,7 +59,7 @@ pub struct LocalFolderEntry {
     pub added_at: u64,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalTrack {
     pub id: String,
@@ -73,6 +76,16 @@ pub struct LocalTrack {
     pub art: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub codec: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub album_artist: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub year: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub track_number: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disc_number: Option<u32>,
+    #[serde(default)]
+    pub tag_version: u8,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -126,6 +139,9 @@ struct Parsed {
     album_artist: Option<String>,
     album: Option<String>,
     genre: Option<String>,
+    year: Option<u32>,
+    track_number: Option<u32>,
+    disc_number: Option<u32>,
     duration: f64,
     codec: Option<String>,
     picture: Option<(Vec<u8>, bool)>,
@@ -439,6 +455,9 @@ fn parse(path: &Path) -> Option<Parsed> {
         parsed.album_artist = tag.get_string(&ItemKey::AlbumArtist).and_then(clean);
         parsed.album = tag.album().and_then(|value| clean(&value));
         parsed.genre = tag.genre().and_then(|value| clean(&value));
+        parsed.year = tag.year();
+        parsed.track_number = tag.track();
+        parsed.disc_number = tag.disk();
         parsed.picture = tag
             .pictures()
             .first()
@@ -485,6 +504,11 @@ pub fn read_track(path: &Path, size: u64, mtime: i64, art_dir: &Path) -> LocalTr
         mtime,
         art: None,
         codec: None,
+        album_artist: None,
+        year: None,
+        track_number: None,
+        disc_number: None,
+        tag_version: TAG_VERSION,
     };
     let Some(parsed) = parse(path) else {
         return track;
@@ -492,6 +516,10 @@ pub fn read_track(path: &Path, size: u64, mtime: i64, art_dir: &Path) -> LocalTr
     if let Some(title) = parsed.title {
         track.title = title;
     }
+    track.album_artist = parsed.album_artist.clone();
+    track.year = parsed.year;
+    track.track_number = parsed.track_number;
+    track.disc_number = parsed.disc_number;
     if let Some(artist) = parsed.artist.or(parsed.album_artist) {
         track.artist = artist;
     }
@@ -532,7 +560,7 @@ pub fn scan(
         let mtime = mtime_ms(&meta);
 
         if let Some(cached) = cache.get(path.as_str()) {
-            if cached.mtime == mtime && cached.codec.is_some() {
+            if cached.mtime == mtime && cached.codec.is_some() && cached.tag_version == TAG_VERSION {
                 match codec_format(cached.codec.as_deref()) {
                     Some(format) => *counts.entry(format).or_default() += 1,
                     None => tracks.push((*cached).clone()),
@@ -720,12 +748,48 @@ impl Service {
     }
 
     pub async fn track_path(&self, id: &str) -> Option<String> {
+        self.find_track(id).await.map(|track| track.path)
+    }
+
+    async fn find_track(&self, id: &str) -> Option<LocalTrack> {
         let found = self.library.lock().await.tracks.iter().find(|track| track.id == id).cloned();
-        let found = match found {
+        match found {
             Some(track) => Some(track),
             None => self.opened.lock().await.iter().find(|track| track.id == id).cloned(),
-        };
-        found.map(|track| track.path)
+        }
+    }
+
+    #[cfg(desktop)]
+    pub async fn edit_tags(&self, id: &str, edits: TagEdits, approvals: &Folders) -> Result<LocalTrack, String> {
+        if id.starts_with(NETWORK_PREFIX) {
+            return Err("Network tracks cannot be edited.".to_owned());
+        }
+        let current = self
+            .find_track(id)
+            .await
+            .ok_or_else(|| "This song is not in your library.".to_owned())?;
+        approvals.check(Path::new(&current.path))?;
+        let path = PathBuf::from(&current.path);
+        let art_dir = self.art_dir();
+        let track = tokio::task::spawn_blocking(move || -> Result<LocalTrack, String> {
+            tags::write_tags(&path, &edits)?;
+            tags::read_back(&path, &art_dir)
+        })
+        .await
+        .map_err(|error| error.to_string())??;
+
+        let mut lib = self.library.lock().await;
+        if let Some(slot) = lib.tracks.iter_mut().find(|item| item.id == id) {
+            *slot = track.clone();
+            self.save_library(&lib).await?;
+        }
+        drop(lib);
+        let mut opened = self.opened.lock().await;
+        if let Some(slot) = opened.iter_mut().find(|item| item.id == id) {
+            *slot = track.clone();
+            write_store(&self.root, OPENED_STORE, &*opened).await?;
+        }
+        Ok(track)
     }
 }
 
@@ -767,6 +831,10 @@ async fn write_store<T: Serialize + ?Sized>(root: &Path, name: &str, value: &T) 
     persist::write(root, OWNER, name, &json).await
 }
 
+#[cfg(desktop)]
+mod tags;
+#[cfg(desktop)]
+pub use tags::TagEdits;
 #[cfg(desktop)]
 mod watch;
 #[cfg(desktop)]

@@ -28,10 +28,15 @@ const PAGE_SESSION_ACTIONS: MediaSessionAction[] = [
 
 type Shown = {
   id: string;
+  label: string;
   duration: number;
   playing: boolean | null;
   position: number;
 };
+
+function labelOf(track: Track): string {
+  return [track.title, track.artist, track.thumb ?? ""].join("\n");
+}
 
 export function trackPayload(track: Track, duration: number): MediaTrackPayload {
   return {
@@ -94,8 +99,8 @@ export function startSmtc(): () => void {
       return;
     }
     const duration = Number.isFinite(state.duration) && state.duration > 0 ? state.duration : 0;
-    if (!shown || shown.id !== track.id || shown.duration !== duration) {
-      shown = { id: track.id, duration, playing: null, position: Number.NEGATIVE_INFINITY };
+    if (!shown || shown.id !== track.id || shown.label !== labelOf(track) || shown.duration !== duration) {
+      shown = { id: track.id, label: labelOf(track), duration, playing: null, position: Number.NEGATIVE_INFINITY };
       void setMediaTrack(trackPayload(track, duration)).catch(ignore);
     }
     if (shown.playing !== state.playing) {

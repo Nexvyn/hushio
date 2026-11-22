@@ -55,6 +55,7 @@ pub fn to_track(item: TreeItem) -> LocalTrack {
         mtime: item.mtime,
         art: None,
         codec: None,
+        ..LocalTrack::default()
     }
 }
 

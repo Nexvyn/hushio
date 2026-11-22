@@ -286,6 +286,7 @@ fn remove_folder_drops_only_its_tracks() {
                 mtime: 1,
                 art: None,
                 codec: None,
+                ..LocalTrack::default()
             },
             LocalTrack {
                 id: "local:b".into(),
@@ -299,6 +300,7 @@ fn remove_folder_drops_only_its_tracks() {
                 mtime: 1,
                 art: None,
                 codec: None,
+                ..LocalTrack::default()
             },
         ],
         ..LocalLibrary::default()
@@ -371,6 +373,7 @@ fn prepend_opened_puts_fresh_tracks_first_and_caps_the_list() {
         mtime: 0,
         art: None,
         codec: None,
+        ..LocalTrack::default()
     };
     let opened: Vec<LocalTrack> = (0..MAX_OPENED).map(|index| track(&format!("old{index}"))).collect();
     let next = prepend_opened(&opened, &[track("new"), track("old3")]);
@@ -802,4 +805,226 @@ fn non_audio_files_are_neither_listed_nor_counted() {
 
     assert!(tracks.is_empty());
     assert!(unplayable.is_empty());
+}
+
+#[cfg(desktop)]
+mod tag_edits {
+    use super::*;
+    use lofty::file::TaggedFileExt;
+    use lofty::tag::Accessor;
+    use std::io;
+
+    fn song(dir: &Path, name: &str) -> std::path::PathBuf {
+        let path = dir.join(name);
+        write_bytes(&path, &mp3_bytes("Old Song", "Old Artist", "Old Album", None));
+        path
+    }
+
+    fn read_back(path: &Path) -> LocalTrack {
+        tags::read_back(path, &path.parent().expect("parent").join(ART_DIR)).expect("read back")
+    }
+
+    #[test]
+    fn edited_fields_read_back_and_the_audio_is_unchanged() {
+        let temp = tempfile::tempdir().expect("temp");
+        let path = song(temp.path(), "song.mp3");
+        let before = fs::read(&path).expect("read");
+        let edits = tags::TagEdits {
+            title: Some("New Song".into()),
+            artist: Some("New Artist".into()),
+            album: Some("New Album".into()),
+            album_artist: Some("Various".into()),
+            genre: Some("Pop".into()),
+            year: Some(tags::NumberEdit::Number(2001)),
+            track_number: Some(tags::NumberEdit::Number(3)),
+            disc_number: Some(tags::NumberEdit::Number(2)),
+        };
+        tags::write_tags(&path, &edits).expect("edit");
+        let track = read_back(&path);
+        assert_eq!(track.title, "New Song");
+        assert_eq!(track.artist, "New Artist");
+        assert_eq!(track.album, "New Album");
+        assert_eq!(track.album_artist.as_deref(), Some("Various"));
+        assert_eq!(track.genre.as_deref(), Some("Pop"));
+        assert_eq!((track.year, track.track_number, track.disc_number), (Some(2001), Some(3), Some(2)));
+        assert_eq!(track.tag_version, TAG_VERSION);
+        let tagged = lofty::read_from_path(&path).expect("lofty read");
+        assert_eq!(tagged.primary_tag().and_then(|tag| tag.title()).as_deref(), Some("New Song"));
+        let after = fs::read(&path).expect("read");
+        let audio = &before[before.len() - MP3_FRAMES * 417..];
+        assert!(after.ends_with(audio));
+        assert!(!temp.path().join(".song.mp3.hushio-tags.tmp").exists());
+    }
+
+    #[test]
+    fn absent_fields_stay_unchanged() {
+        let temp = tempfile::tempdir().expect("temp");
+        let path = song(temp.path(), "song.mp3");
+        let edits = tags::TagEdits {
+            title: Some("Only Title".into()),
+            ..tags::TagEdits::default()
+        };
+        tags::write_tags(&path, &edits).expect("edit");
+        let track = read_back(&path);
+        assert_eq!(track.title, "Only Title");
+        assert_eq!(track.artist, "Old Artist");
+        assert_eq!(track.album, "Old Album");
+    }
+
+    #[test]
+    fn empty_text_and_numbers_clear_the_field() {
+        let temp = tempfile::tempdir().expect("temp");
+        let path = song(temp.path(), "song.mp3");
+        let set = tags::TagEdits {
+            genre: Some("Rock".into()),
+            year: Some(tags::NumberEdit::Number(1999)),
+            ..tags::TagEdits::default()
+        };
+        tags::write_tags(&path, &set).expect("set");
+        let clear = tags::TagEdits {
+            artist: Some("  ".into()),
+            genre: Some(String::new()),
+            year: Some(tags::NumberEdit::Text(String::new())),
+            ..tags::TagEdits::default()
+        };
+        tags::write_tags(&path, &clear).expect("clear");
+        let tagged = lofty::read_from_path(&path).expect("lofty read");
+        let tag = tagged.primary_tag().expect("tag");
+        assert_eq!(tag.artist(), None);
+        assert_eq!(tag.genre(), None);
+        assert_eq!(tag.year(), None);
+        assert_eq!(read_back(&path).artist, UNKNOWN_ARTIST);
+    }
+
+    #[test]
+    fn numbers_out_of_range_or_not_numbers_are_refused() {
+        let temp = tempfile::tempdir().expect("temp");
+        let path = song(temp.path(), "song.mp3");
+        let before = fs::read(&path).expect("read");
+        let negative = tags::TagEdits {
+            year: Some(tags::NumberEdit::Number(-4)),
+            ..tags::TagEdits::default()
+        };
+        assert_eq!(tags::write_tags(&path, &negative), Err("Year must be a number up to 9999.".to_string()));
+        let words = tags::TagEdits {
+            track_number: Some(tags::NumberEdit::Text("third".into())),
+            ..tags::TagEdits::default()
+        };
+        assert_eq!(tags::write_tags(&path, &words), Err("Track number must be a number.".to_string()));
+        assert_eq!(fs::read(&path).expect("read"), before);
+    }
+
+    #[test]
+    fn read_only_files_are_refused_and_left_alone() {
+        let temp = tempfile::tempdir().expect("temp");
+        let path = song(temp.path(), "song.mp3");
+        let before = fs::read(&path).expect("read");
+        let mut perms = fs::metadata(&path).expect("meta").permissions();
+        perms.set_readonly(true);
+        fs::set_permissions(&path, perms).expect("readonly");
+        let edits = tags::TagEdits {
+            title: Some("Nope".into()),
+            ..tags::TagEdits::default()
+        };
+        assert_eq!(tags::write_tags(&path, &edits), Err(tags::READ_ONLY.to_string()));
+        assert_eq!(fs::read(&path).expect("read"), before);
+        let mut perms = fs::metadata(&path).expect("meta").permissions();
+        perms.set_readonly(false);
+        fs::set_permissions(&path, perms).expect("writable");
+    }
+
+    #[test]
+    fn unsupported_files_return_the_plain_error() {
+        let temp = tempfile::tempdir().expect("temp");
+        let path = temp.path().join("notes.txt");
+        write_bytes(&path, b"hello there");
+        let edits = tags::TagEdits {
+            title: Some("Nope".into()),
+            ..tags::TagEdits::default()
+        };
+        assert_eq!(tags::write_tags(&path, &edits), Err(tags::UNSUPPORTED.to_string()));
+        assert_eq!(fs::read(&path).expect("read"), b"hello there");
+    }
+
+    #[test]
+    fn a_failed_replace_keeps_the_original_and_removes_the_copy() {
+        let temp = tempfile::tempdir().expect("temp");
+        let path = song(temp.path(), "song.mp3");
+        let before = fs::read(&path).expect("read");
+        let edits = tags::TagEdits {
+            title: Some("Changed".into()),
+            ..tags::TagEdits::default()
+        };
+        let result = tags::write_with(&path, &edits, |_, _| Err(io::Error::other("forced")));
+        assert_eq!(result, Err("Could not replace the file. Your song was not changed.".to_string()));
+        assert_eq!(fs::read(&path).expect("read"), before);
+        assert_eq!(fs::read_dir(temp.path()).expect("dir").count(), 1);
+    }
+
+    #[test]
+    fn records_from_an_older_tag_reader_are_read_again() {
+        let temp = tempfile::tempdir().expect("temp");
+        let path = song(temp.path(), "old.mp3");
+        let edits = tags::TagEdits {
+            year: Some(tags::NumberEdit::Number(1999)),
+            ..tags::TagEdits::default()
+        };
+        tags::write_tags(&path, &edits).expect("edit");
+        let mut stale = read_back(&path);
+        stale.year = None;
+        stale.tag_version = 0;
+        let art = temp.path().join(ART_DIR);
+        let (tracks, _) = scan(&[folder_entry(temp.path())], &[stale], false, &art);
+        assert_eq!(tracks[0].year, Some(1999));
+    }
+
+    #[tokio::test]
+    async fn files_outside_the_approved_folders_cannot_be_edited() {
+        let temp = tempfile::tempdir().expect("temp");
+        let outside = temp.path().join("Outside").join("far.mp3");
+        write_bytes(&outside, &mp3_bytes("Far", "Artist", "Album", None));
+        let service = Service::load(temp.path().join("data")).await;
+        service.open_files(vec![outside.to_string_lossy().into_owned()]).await.expect("open");
+        let id = format!("local:{}", hash_path(&outside.to_string_lossy()));
+        let approvals = approvals_for(temp.path(), &[]).await;
+        let edits = tags::TagEdits {
+            title: Some("Nope".into()),
+            ..tags::TagEdits::default()
+        };
+        let error = service.edit_tags(&id, edits, &approvals).await.expect_err("refused");
+        assert!(error.contains("approved folder"));
+        assert_eq!(read_back(&outside).title, "Far");
+    }
+
+    #[tokio::test]
+    async fn edit_updates_the_library_record_and_survives_a_restart() {
+        let root = tempfile::tempdir().expect("temp");
+        let music = root.path().join("Music");
+        let path = music.join("Keeper.mp3");
+        write_bytes(&path, &mp3_bytes("Keeper", "Artist", "Album", None));
+        {
+            let service = Service::load(root.path().to_path_buf()).await;
+            service
+                .add_folders(vec![music.to_string_lossy().into_owned()])
+                .await
+                .expect("add");
+            let approvals = approvals_for(root.path(), &[music.clone()]).await;
+            let lib = service.scan(true, &approvals).await.expect("scan");
+            let id = lib.tracks[0].id.clone();
+            let edits = tags::TagEdits {
+                title: Some("Renamed".into()),
+                album: Some("New Album".into()),
+                ..tags::TagEdits::default()
+            };
+            let edited = service.edit_tags(&id, edits, &approvals).await.expect("edit");
+            assert_eq!(edited.id, id);
+            assert_eq!(edited.title, "Renamed");
+            assert_eq!(edited.size, fs::metadata(&path).expect("meta").len());
+        }
+        let reloaded = Service::load(root.path().to_path_buf()).await;
+        let lib = reloaded.library().await;
+        assert_eq!(lib.tracks.len(), 1);
+        assert_eq!(lib.tracks[0].title, "Renamed");
+        assert_eq!(lib.tracks[0].album, "New Album");
+    }
 }

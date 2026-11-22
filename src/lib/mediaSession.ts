@@ -110,14 +110,14 @@ export function startMediaSession(): () => void {
     ],
   ];
 
-  let shownId: string | null = null;
+  let shownKey: string | null = null;
   let lastPosition = Number.NEGATIVE_INFINITY;
 
   const sync = (state: PlayerState) => {
     const track = currentTrack(state);
-    const id = track?.id ?? null;
-    if (id !== shownId) {
-      shownId = id;
+    const key = track ? [track.id, track.title, track.artist, track.album ?? "", track.thumb ?? ""].join("\n") : null;
+    if (key !== shownKey) {
+      shownKey = key;
       lastPosition = Number.NEGATIVE_INFINITY;
       session.metadata = track ? new MediaMetadata(metadataFor(track)) : null;
     }
@@ -125,7 +125,7 @@ export function startMediaSession(): () => void {
   };
 
   const syncPosition = () => {
-    if (shownId === null) return;
+    if (shownKey === null) return;
     const { duration, currentTime } = audio;
     if (!Number.isFinite(duration) || duration <= 0) return;
     if (Math.abs(currentTime - lastPosition) < POSITION_MIN_DELTA_S) return;

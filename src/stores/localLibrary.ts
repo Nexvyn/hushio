@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import {
   localLibraryAddFolders,
+  localLibraryEditTags,
   localLibraryFolderStatuses,
   localLibraryForgetOpened,
   localLibraryGet,
@@ -13,10 +14,12 @@ import {
   pickFolder,
   type LocalLibrary,
   type LocalOpenResult,
+  type LocalTagEdits,
   type LocalTrack,
 } from "../lib/bridge";
 import { APP_NAME } from "../lib/app";
-import { unplayableToast } from "../lib/localLibrary";
+import { toTrack, unplayableToast } from "../lib/localLibrary";
+import { usePlayer } from "./player";
 import { useSettings } from "./settings";
 import { useUI } from "./ui";
 
@@ -41,6 +44,7 @@ type LocalLibraryState = {
   rename: (path: string, displayName: string) => Promise<void>;
   forgetOpened: (id: string) => Promise<void>;
   openFiles: (paths: string[]) => Promise<LocalOpenResult>;
+  editTags: (id: string, edits: LocalTagEdits) => Promise<LocalTrack>;
 };
 
 function toast(message: string, kind: "info" | "success" | "error" | "warning" = "info") {
@@ -180,5 +184,20 @@ export const useLocalLibrary = create<LocalLibraryState>()((set, get) => ({
     if (result.tracks.length > 0) set({ opened: await localLibraryOpened() });
     if (result.unplayable.length > 0) toast(unplayableToast([...new Set(result.unplayable)]), "warning");
     return result;
+  },
+
+  editTags: async (id, edits) => {
+    const track = await localLibraryEditTags(id, edits);
+    const swap = (list: LocalTrack[]) => list.map((item) => (item.id === id ? track : item));
+    set((state) => ({
+      library: { ...state.library, tracks: swap(state.library.tracks) },
+      opened: swap(state.opened),
+    }));
+    usePlayer.setState((state) => ({
+      queue: state.queue.map((item) =>
+        item.id === id ? { ...item, ...toTrack(track), album: track.album } : item,
+      ),
+    }));
+    return track;
   },
 }));
