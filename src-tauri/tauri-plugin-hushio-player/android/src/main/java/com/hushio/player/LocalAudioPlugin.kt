@@ -9,6 +9,7 @@ import app.tauri.annotation.Command
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
+import java.io.ByteArrayOutputStream
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -53,6 +54,34 @@ class LocalAudioPlugin(private val activity: Activity) : Plugin(activity) {
                 invoke.reject("scan_failed")
             }
         }.start()
+    }
+
+    @Command
+    fun read_sidecar_lrc(invoke: Invoke) {
+        val uri = invoke.getArgs().optString("uri")
+        Thread {
+            val text = AudioRules.sidecarLrcUris(uri).asSequence().mapNotNull { readText(it) }.firstOrNull()
+            invoke.resolve(JSObject().put("text", text ?: JSONObject.NULL))
+        }.start()
+    }
+
+    private fun readText(uri: String): String? = try {
+        activity.contentResolver.openInputStream(Uri.parse(uri))?.use { stream ->
+            val output = ByteArrayOutputStream()
+            val buffer = ByteArray(8192)
+            while (output.size() < MAX_LRC_BYTES) {
+                val read = stream.read(buffer, 0, minOf(buffer.size, MAX_LRC_BYTES - output.size()))
+                if (read < 0) break
+                output.write(buffer, 0, read)
+            }
+            String(output.toByteArray(), Charsets.UTF_8)
+        }
+    } catch (error: Exception) {
+        null
+    }
+
+    private companion object {
+        const val MAX_LRC_BYTES = 1048576
     }
 
 }

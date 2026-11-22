@@ -41,6 +41,11 @@ mod bridge {
     }
 
     #[derive(Deserialize)]
+    struct SidecarText {
+        text: Option<String>,
+    }
+
+    #[derive(Deserialize)]
     struct PublishedUri {
         uri: String,
     }
@@ -113,6 +118,12 @@ mod bridge {
         Ok(reply.items)
     }
 
+    pub fn read_sidecar_lrc(uri: &str) -> Option<String> {
+        call::<SidecarText>(Bridge::Audio, "read_sidecar_lrc", json!({ "uri": uri }))
+            .ok()?
+            .text
+    }
+
     pub fn media_delete(uri: &str) -> Result<(), String> {
         call::<Value>(Bridge::Media, "media_store_delete", json!({ "uri": uri })).map(drop)
     }
@@ -167,6 +178,10 @@ mod bridge {
 
     pub fn scan_tree(_uri: &str) -> Result<Vec<crate::tree_library::TreeItem>, String> {
         Err(NOT_ANDROID.to_owned())
+    }
+
+    pub fn read_sidecar_lrc(_uri: &str) -> Option<String> {
+        None
     }
 
     pub fn media_delete(_uri: &str) -> Result<(), String> {
@@ -270,4 +285,12 @@ pub async fn notification_request() -> Result<String, String> {
 #[cfg(not(target_os = "android"))]
 pub fn notification_settings() -> Result<(), String> {
     Ok(())
+}
+
+#[cfg(all(test, not(target_os = "android")))]
+mod tests {
+    #[test]
+    fn sidecar_lrc_is_never_read_off_android() {
+        assert_eq!(super::read_sidecar_lrc("content://x/document/primary%3AMusic%2FSong.mp3"), None);
+    }
 }

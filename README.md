@@ -78,7 +78,7 @@ The Windows app updates itself. On macOS, Linux and Android, Hushio tells you wh
 - Synced lyrics from several sources, with word-by-word highlighting.
 - Translations when the lyrics include them, and romanised text for other scripts.
 - Lyrics timing adjustment per song.
-- Lyrics from a `.lrc` file next to a local song, or from the song's own tags, are used before online sources, on desktop.
+- A `.lrc` file next to a local song is used before online sources, on desktop and Android, with word timings if the file has them. On desktop, lyrics stored in the song's own tags are used too.
 
 ### Now Playing
 - Swipe the cover to skip, double-tap to like, swipe up for lyrics and swipe down to close.

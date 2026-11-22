@@ -6,11 +6,8 @@ mod parse;
 mod providers;
 
 use std::collections::HashMap;
-#[cfg(not(target_os = "android"))]
 use std::fs;
-#[cfg(not(target_os = "android"))]
 use std::io::Read;
-#[cfg(not(target_os = "android"))]
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
@@ -29,7 +26,6 @@ use crate::{APP_NAME, APP_SLUG};
 const CACHE_CAP: usize = 400;
 const MISS_TTL: Duration = Duration::from_secs(600);
 const SWEEP_CEILING: Duration = Duration::from_secs(12);
-#[cfg(not(target_os = "android"))]
 const MAX_LOCAL_LRC_BYTES: u64 = 1024 * 1024;
 
 #[derive(Deserialize)]
@@ -513,8 +509,21 @@ async fn local_result(path: Option<&str>) -> Option<LyricsResult> {
     }
 }
 
+#[cfg(target_os = "android")]
+fn read_local_lrc(audio_path: &str) -> Option<String> {
+    if audio_path.starts_with("content://") {
+        crate::android::read_sidecar_lrc(audio_path)
+    } else {
+        read_file_lrc(audio_path)
+    }
+}
+
 #[cfg(not(target_os = "android"))]
 fn read_local_lrc(audio_path: &str) -> Option<String> {
+    read_file_lrc(audio_path)
+}
+
+fn read_file_lrc(audio_path: &str) -> Option<String> {
     let audio = Path::new(audio_path);
     let parent = audio.parent()?;
     let stem = audio.file_stem()?.to_string_lossy();
@@ -585,11 +594,6 @@ fn sylt_to_lrc(
         Some(format!("[{minutes:02}:{:02}.{:02}]{line}", seconds / 1000, (seconds % 1000) / 10))
     }).collect::<Vec<_>>().join("\n");
     (!text.is_empty()).then_some(text)
-}
-
-#[cfg(target_os = "android")]
-fn read_local_lrc(_audio_path: &str) -> Option<String> {
-    None
 }
 
 #[cfg(target_os = "android")]

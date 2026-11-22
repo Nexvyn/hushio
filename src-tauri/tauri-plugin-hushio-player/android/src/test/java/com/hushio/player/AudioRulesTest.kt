@@ -15,6 +15,55 @@ class AudioRulesTest {
         assertFalse(AudioRules.isTreeUri("file:///storage/emulated/0/tree/x"))
     }
 
+    private val tree = "content://com.android.externalstorage.documents/tree/primary%3AMusic"
+
+    @Test
+    fun sidecarLrcSitsNextToTheSongInBothCases() {
+        assertEquals(
+            listOf("$tree/document/primary%3AMusic%2FHushio%2FSong.lrc", "$tree/document/primary%3AMusic%2FHushio%2FSong.LRC"),
+            AudioRules.sidecarLrcUris("$tree/document/primary%3AMusic%2FHushio%2FSong.mp3"),
+        )
+    }
+
+    @Test
+    fun sidecarLrcReplacesOnlyTheLastExtension() {
+        assertEquals(
+            "$tree/document/primary%3AMusic%2Fa.b.lrc",
+            AudioRules.sidecarLrcUris("$tree/document/primary%3AMusic%2Fa.b.mp3")[0],
+        )
+    }
+
+    @Test
+    fun sidecarLrcAppendsWhenThereIsNoExtension() {
+        assertEquals(
+            "$tree/document/primary%3AMusic%2FSong.lrc",
+            AudioRules.sidecarLrcUris("$tree/document/primary%3AMusic%2FSong")[0],
+        )
+    }
+
+    @Test
+    fun sidecarLrcEncodesSpacesAndPercentSigns() {
+        assertEquals(
+            "$tree/document/primary%3AMusic%2FMy%20Song%20100%25.lrc",
+            AudioRules.sidecarLrcUris("$tree/document/primary%3AMusic%2FMy%20Song%20100%25.mp3")[0],
+        )
+    }
+
+    @Test
+    fun sidecarLrcKeepsPlusSignsInTheName() {
+        assertEquals(
+            "$tree/document/primary%3AMusic%2FA%2BB.lrc",
+            AudioRules.sidecarLrcUris("$tree/document/primary%3AMusic%2FA%2BB.mp3")[0],
+        )
+    }
+
+    @Test
+    fun sidecarLrcIsEmptyForNonDocumentUris() {
+        assertTrue(AudioRules.sidecarLrcUris("file:///storage/emulated/0/Music/Song.mp3").isEmpty())
+        assertTrue(AudioRules.sidecarLrcUris(tree).isEmpty())
+        assertTrue(AudioRules.sidecarLrcUris("$tree/document/primary%3AMusic%2F").isEmpty())
+    }
+
     @Test
     fun audioFilterUsesMimeOrExtension() {
         assertTrue(AudioRules.isAudio("song.bin", "audio/flac"))
