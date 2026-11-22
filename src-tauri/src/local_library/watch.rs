@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher as _};
 use tauri::{AppHandle, Emitter, Manager};
 
-use super::{is_known_audio, is_under_path, LocalFolderEntry, Service};
+use super::{cue, is_known_audio, is_under_path, LocalFolderEntry, Service};
 use crate::reveal::Folders;
 use crate::tree_library;
 
@@ -43,7 +43,7 @@ pub fn is_relevant(root: &Path, path: &Path, kind: &EventKind) -> bool {
     if is_temp_name(&name) {
         return false;
     }
-    if is_known_audio(&name) {
+    if is_known_audio(&name) || cue::is_cue_name(&name) {
         return true;
     }
     matches!(kind, EventKind::Create(_)) && path.extension().is_none()

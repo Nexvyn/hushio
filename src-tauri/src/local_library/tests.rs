@@ -1028,3 +1028,96 @@ mod tag_edits {
         assert_eq!(lib.tracks[0].album, "New Album");
     }
 }
+
+mod cue_sheets {
+    use super::*;
+
+    const THREE: &str = "TRACK 01 AUDIO\nTITLE \"One\"\nINDEX 01 00:00:00\nTRACK 02 AUDIO\nTITLE \"Two\"\nINDEX 01 00:20:00\nTRACK 03 AUDIO\nINDEX 01 00:40:00\n";
+
+    fn album_cue(file: &str, tracks: &str) -> String {
+        format!("TITLE \"Long Album\"\nPERFORMER \"Lena\"\nREM DATE 2012\nFILE \"{file}\" WAVE\n{tracks}")
+    }
+
+    fn album_folder() -> tempfile::TempDir {
+        let temp = tempfile::tempdir().expect("temp");
+        write_wav(&temp.path().join("Long Album.wav"), 60);
+        fs::write(temp.path().join("Long Album.cue"), album_cue("long album.WAV", THREE)).expect("cue");
+        temp
+    }
+
+    #[test]
+    fn each_cue_track_is_listed_and_the_whole_file_is_not() {
+        let temp = album_folder();
+        let (tracks, _) = scan_root(temp.path(), true);
+        assert_eq!(tracks.len(), 3);
+        let titles: Vec<&str> = tracks.iter().map(|track| track.title.as_str()).collect();
+        assert_eq!(titles, ["One", "Two", "Track 03"]);
+        assert_eq!(tracks.iter().map(|track| track.cue_start).collect::<Vec<_>>(), [Some(0.0), Some(20.0), Some(40.0)]);
+        assert_eq!(tracks.iter().map(|track| track.cue_end).collect::<Vec<_>>(), [Some(20.0), Some(40.0), Some(60.0)]);
+        assert!(tracks.iter().all(|track| (track.duration - 20.0).abs() < 1e-6));
+        assert!(tracks.iter().all(|track| track.album == "Long Album" && track.year == Some(2012)));
+        assert!(tracks.iter().all(|track| track.album_artist.as_deref() == Some("Lena") && track.artist == "Lena"));
+        assert_eq!(tracks.iter().map(|track| track.track_number).collect::<Vec<_>>(), [Some(1), Some(2), Some(3)]);
+        assert!(tracks.iter().all(|track| track.path == temp.path().join("Long Album.wav").to_string_lossy()));
+        let ids: HashSet<&str> = tracks.iter().map(|track| track.id.as_str()).collect();
+        assert_eq!(ids.len(), 3);
+        assert!(!ids.contains(format!("local:{}", hash_path(&tracks[0].path)).as_str()));
+    }
+
+    #[test]
+    fn track_ids_stay_the_same_across_scans() {
+        let temp = album_folder();
+        let folders = [folder_entry(temp.path())];
+        let art = temp.path().join(ART_DIR);
+        let (first, _) = scan(&folders, &[], true, &art);
+        let (second, _) = scan(&folders, &first, true, &art);
+        let ids = |tracks: &[LocalTrack]| tracks.iter().map(|track| track.id.clone()).collect::<Vec<_>>();
+        assert_eq!(ids(&first), ids(&second));
+        assert_eq!(second.len(), 3);
+    }
+
+    #[test]
+    fn a_cue_naming_a_missing_file_leaves_the_plain_song() {
+        let temp = tempfile::tempdir().expect("temp");
+        write_wav(&temp.path().join("Solo.wav"), 40);
+        fs::write(temp.path().join("Solo.cue"), album_cue("Missing.wav", THREE)).expect("cue");
+        let (tracks, _) = scan_root(temp.path(), true);
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0].title, "Solo");
+        assert_eq!(tracks[0].cue_start, None);
+    }
+
+    #[test]
+    fn a_sheet_with_two_file_lines_leaves_the_plain_song() {
+        let temp = tempfile::tempdir().expect("temp");
+        write_wav(&temp.path().join("Solo.wav"), 40);
+        let text = album_cue("Solo.wav", THREE).replace("TRACK 01", "FILE \"Other.wav\" WAVE\nTRACK 01");
+        fs::write(temp.path().join("Solo.cue"), text).expect("cue");
+        let (tracks, _) = scan_root(temp.path(), true);
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0].cue_start, None);
+    }
+
+    #[test]
+    fn removing_the_cue_sheet_brings_back_the_plain_song() {
+        let temp = album_folder();
+        let folders = [folder_entry(temp.path())];
+        let art = temp.path().join(ART_DIR);
+        let (cued, _) = scan(&folders, &[], true, &art);
+        assert_eq!(cued.len(), 3);
+        fs::remove_file(temp.path().join("Long Album.cue")).expect("remove cue");
+        let (plain, _) = scan(&folders, &cued, true, &art);
+        assert_eq!(plain.len(), 1);
+        assert_eq!(plain[0].cue_start, None);
+        assert_eq!(plain[0].id, format!("local:{}", hash_path(&plain[0].path)));
+    }
+
+    #[test]
+    fn libraries_saved_before_cue_support_load_with_no_clip() {
+        let json = r#"{"id":"local:1","path":"a.flac","title":"A","artist":"x","album":"y","duration":40.0,"size":1,"mtime":1}"#;
+        let track: LocalTrack = serde_json::from_str(json).expect("track");
+        assert_eq!(track.cue_start, None);
+        assert_eq!(track.cue_end, None);
+        assert_eq!(track.tag_version, 0);
+    }
+}

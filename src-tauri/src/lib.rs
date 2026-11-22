@@ -636,6 +636,10 @@ async fn local_library_edit_tags(
 struct LocalPlaybackSource {
     url: String,
     mime: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cue_start: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cue_end: Option<f64>,
 }
 
 #[tauri::command]
@@ -645,10 +649,11 @@ async fn local_playback_source(
     folders: State<'_, reveal::Folders>,
     id: String,
 ) -> Result<LocalPlaybackSource, String> {
-    let path = local
-        .track_path(&id)
+    let track = local
+        .find_track(&id)
         .await
         .ok_or_else(|| "Local track is not in the library".to_owned())?;
+    let path = track.path;
     folders.check(Path::new(&path))?;
     proxy.register_local_file(&id, Path::new(&path))?;
     let port = proxy.start().await.map_err(|error| error.to_string())?;
@@ -659,6 +664,8 @@ async fn local_playback_source(
     Ok(LocalPlaybackSource {
         url: format!("http://127.0.0.1:{port}/?id={id}"),
         mime,
+        cue_start: track.cue_start,
+        cue_end: track.cue_end,
     })
 }
 

@@ -499,6 +499,8 @@ export interface LocalTrack {
   year?: number;
   trackNumber?: number;
   discNumber?: number;
+  cueStart?: number;
+  cueEnd?: number;
 }
 
 export type LocalNumberEdit = number | string;
@@ -594,6 +596,8 @@ export function localLibraryEditTags(id: string, edits: LocalTagEdits): Promise<
 export interface LocalPlaybackSource {
   url: string;
   mime: string;
+  cueStart?: number;
+  cueEnd?: number;
 }
 
 /** Resolves a registered local track to its loopback playback URL. */

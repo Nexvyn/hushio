@@ -21,7 +21,7 @@ const MAX_DEPTH: usize = 8;
 const MAX_TAG_CHARS: usize = 200;
 const MAX_NAME_CHARS: usize = 80;
 const MAX_ART_BYTES: usize = 8 * 1024 * 1024;
-const TAG_VERSION: u8 = 2;
+const TAG_VERSION: u8 = 3;
 #[cfg(desktop)]
 const NETWORK_PREFIX: &str = "net:";
 const OWNER: &str = "local";
@@ -86,6 +86,10 @@ pub struct LocalTrack {
     pub disc_number: Option<u32>,
     #[serde(default)]
     pub tag_version: u8,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cue_start: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cue_end: Option<f64>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -290,7 +294,7 @@ fn is_hidden(name: &str) -> bool {
     name.starts_with('.')
 }
 
-fn collect(dir: &Path, base: &Path, depth: usize, seen: &mut HashSet<String>, out: &mut Vec<Candidate>) {
+fn collect(dir: &Path, base: &Path, depth: usize, seen: &mut HashSet<String>, out: &mut Vec<Candidate>, cues: &mut Vec<PathBuf>) {
     if depth > MAX_DEPTH {
         return;
     }
@@ -307,7 +311,9 @@ fn collect(dir: &Path, base: &Path, depth: usize, seen: &mut HashSet<String>, ou
         };
         let path = entry.path();
         if kind.is_dir() {
-            collect(&path, base, depth + 1, seen, out);
+            collect(&path, base, depth + 1, seen, out, cues);
+        } else if kind.is_file() && cue::is_cue_name(&name) {
+            cues.push(path);
         } else if kind.is_file() && is_known_audio(&name) && seen.insert(path.to_string_lossy().to_lowercase()) {
             let rel = path.strip_prefix(base).unwrap_or(&path).to_string_lossy().into_owned();
             out.push(Candidate { abs: path, rel });
@@ -509,6 +515,8 @@ pub fn read_track(path: &Path, size: u64, mtime: i64, art_dir: &Path) -> LocalTr
         track_number: None,
         disc_number: None,
         tag_version: TAG_VERSION,
+        cue_start: None,
+        cue_end: None,
     };
     let Some(parsed) = parse(path) else {
         return track;
@@ -543,12 +551,18 @@ pub fn scan(
 ) -> (Vec<LocalTrack>, Vec<Unplayable>) {
     let mut seen = HashSet::new();
     let mut candidates = Vec::new();
+    let mut cues = Vec::new();
     for folder in folders {
         let root = Path::new(&folder.path);
-        collect(root, root, 0, &mut seen, &mut candidates);
+        collect(root, root, 0, &mut seen, &mut candidates, &mut cues);
     }
 
-    let cache: HashMap<&str, &LocalTrack> = previous.iter().map(|track| (track.path.as_str(), track)).collect();
+    let claims = claim_cue_sheets(&candidates, &cues, filter_non_music, art_dir);
+    let cache: HashMap<&str, &LocalTrack> = previous
+        .iter()
+        .filter(|track| track.cue_start.is_none())
+        .map(|track| (track.path.as_str(), track))
+        .collect();
     let mut tracks = Vec::new();
     let mut counts: BTreeMap<&'static str, u32> = BTreeMap::new();
     for candidate in candidates {
@@ -557,6 +571,10 @@ pub fn scan(
         };
         let name = base_name(&candidate.abs.to_string_lossy());
         let path = candidate.abs.to_string_lossy().into_owned();
+        if let Some(cue_tracks) = claims.get(&path) {
+            tracks.extend(cue_tracks.iter().cloned());
+            continue;
+        }
         let mtime = mtime_ms(&meta);
 
         if let Some(cached) = cache.get(path.as_str()) {
@@ -594,6 +612,103 @@ pub fn scan(
         })
         .collect();
     (tracks, unplayable)
+}
+
+#[cfg(desktop)]
+fn claim_cue_sheets(candidates: &[Candidate], cues: &[PathBuf], filter_non_music: bool, art_dir: &Path) -> HashMap<String, Vec<LocalTrack>> {
+    let mut claims = HashMap::new();
+    for cue_path in cues {
+        let Some(sheet) = cue::read_sheet(cue_path) else {
+            continue;
+        };
+        let Some(audio) = candidates.iter().find(|candidate| {
+            candidate.abs.parent() == cue_path.parent()
+                && base_name(&candidate.abs.to_string_lossy()).eq_ignore_ascii_case(&sheet.file)
+        }) else {
+            continue;
+        };
+        let key = audio.abs.to_string_lossy().into_owned();
+        if claims.contains_key(&key) {
+            continue;
+        }
+        if filter_non_music && is_non_music(&audio.rel, &base_name(&key)) {
+            continue;
+        }
+        let Ok(meta) = fs::metadata(&audio.abs) else {
+            continue;
+        };
+        let Some(parsed) = parse(&audio.abs) else {
+            continue;
+        };
+        if codec_format(parsed.codec.as_deref()).is_some() || parsed.duration <= 0.0 {
+            continue;
+        }
+        if sheet.tracks.last().is_some_and(|track| track.start >= parsed.duration) {
+            continue;
+        }
+        let tracks = cue_tracks(&sheet, &audio.abs, &parsed, meta.len(), mtime_ms(&meta), art_dir);
+        claims.insert(key, tracks);
+    }
+    claims
+}
+
+#[cfg(not(desktop))]
+fn claim_cue_sheets(_: &[Candidate], _: &[PathBuf], _: bool, _: &Path) -> HashMap<String, Vec<LocalTrack>> {
+    HashMap::new()
+}
+
+#[cfg(desktop)]
+fn cue_tracks(sheet: &cue::Sheet, audio: &Path, parsed: &Parsed, size: u64, mtime: i64, art_dir: &Path) -> Vec<LocalTrack> {
+    let path = audio.to_string_lossy().into_owned();
+    let hash = hash_path(&path);
+    let art = parsed
+        .picture
+        .as_ref()
+        .and_then(|(data, png)| save_art(art_dir, &hash, data, *png));
+    let album = sheet.title.clone().or_else(|| parsed.album.clone()).unwrap_or_else(|| UNKNOWN_ALBUM.to_string());
+    let album_artist = sheet.performer.clone();
+    let year = sheet.date.as_deref().and_then(leading_year);
+    sheet
+        .tracks
+        .iter()
+        .enumerate()
+        .map(|(index, cue_track)| {
+            let end = sheet.tracks.get(index + 1).map_or(parsed.duration, |next| next.start);
+            LocalTrack {
+                id: format!("local:{hash}-{:02}", cue_track.number),
+                path: path.clone(),
+                title: cue_track
+                    .title
+                    .clone()
+                    .unwrap_or_else(|| format!("Track {:02}", cue_track.number)),
+                artist: cue_track
+                    .performer
+                    .clone()
+                    .or_else(|| album_artist.clone())
+                    .unwrap_or_else(|| UNKNOWN_ARTIST.to_string()),
+                album: album.clone(),
+                genre: sheet.genre.clone(),
+                duration: end - cue_track.start,
+                size,
+                mtime,
+                art: art.clone(),
+                codec: parsed.codec.clone(),
+                album_artist: album_artist.clone(),
+                year,
+                track_number: Some(cue_track.number),
+                disc_number: None,
+                tag_version: TAG_VERSION,
+                cue_start: Some(cue_track.start),
+                cue_end: Some(end),
+            }
+        })
+        .collect()
+}
+
+#[cfg(desktop)]
+fn leading_year(text: &str) -> Option<u32> {
+    let head = text.get(..4)?;
+    head.bytes().all(|byte| byte.is_ascii_digit()).then(|| head.parse().ok()).flatten()
 }
 
 fn open_paths(paths: &[String], art_dir: &Path) -> OpenResult {
@@ -751,7 +866,7 @@ impl Service {
         self.find_track(id).await.map(|track| track.path)
     }
 
-    async fn find_track(&self, id: &str) -> Option<LocalTrack> {
+    pub async fn find_track(&self, id: &str) -> Option<LocalTrack> {
         let found = self.library.lock().await.tracks.iter().find(|track| track.id == id).cloned();
         match found {
             Some(track) => Some(track),
@@ -768,6 +883,9 @@ impl Service {
             .find_track(id)
             .await
             .ok_or_else(|| "This song is not in your library.".to_owned())?;
+        if current.cue_start.is_some() {
+            return Err("Tags of tracks from a cue sheet cannot be edited.".to_owned());
+        }
         approvals.check(Path::new(&current.path))?;
         let path = PathBuf::from(&current.path);
         let art_dir = self.art_dir();
@@ -831,6 +949,8 @@ async fn write_store<T: Serialize + ?Sized>(root: &Path, name: &str, value: &T) 
     persist::write(root, OWNER, name, &json).await
 }
 
+#[cfg_attr(not(desktop), allow(dead_code))]
+mod cue;
 #[cfg(desktop)]
 mod tags;
 #[cfg(desktop)]

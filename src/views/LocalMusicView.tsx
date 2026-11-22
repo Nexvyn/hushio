@@ -12,6 +12,7 @@ import { PageHeader } from "../components/PageHeader";
 import { PHONE_ICON, PHONE_PLAY, PHONE_SHUFFLE } from "../components/phone/heroButtons";
 import { APP_NAME } from "../lib/app";
 import { removeDownload } from "../lib/downloads";
+import { isCueTrackId } from "../lib/clip";
 import { fmtTime, fmtTotal } from "../lib/format";
 import {
   albumGroups,
@@ -127,7 +128,7 @@ function LocalTrackRow({ track, onPlay, onRemove }: { track: LocalTrack; onPlay:
   const phone = usePhone();
   const downloaded = isDownloadedTrack(track);
   const menu: MenuItem[] = [
-    ...(canEditTags() && isLocalId(track.id) ? [{ label: "Edit info", icon: PencilSimple, onSelect: () => useTrackEdit.getState().open(track.id) }] : []),
+    ...(canEditTags() && isLocalId(track.id) && !isCueTrackId(track.id) ? [{ label: "Edit info", icon: PencilSimple, onSelect: () => useTrackEdit.getState().open(track.id) }] : []),
     ...(downloaded ? [{ label: "Remove download", icon: Trash, danger: true, onSelect: () => removeDownload(track.id) }] : []),
   ];
   return (

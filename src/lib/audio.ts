@@ -39,6 +39,7 @@ import { useUI } from "../stores/ui";
 import { NativeAudioDeck, onExclusiveRejected, usesNativeAudio } from "./nativeAudioDeck";
 import { appVolume, blendForOutput, EXCLUSIVE_UNAVAILABLE, eqForOutput, exclusiveActive, levelGain } from "./exclusive";
 import { gaplessEligible, keepsPrepared, shouldPrepareGapless } from "./gapless";
+import { type Clip, clipDeckTime, clipDuration, clipEnded, clipFrom, clipPosition, isCueTrackId } from "./clip";
 
 export { TEST_SONG_ID, TEST_SONG_TITLE } from "./devSong";
 
@@ -58,6 +59,7 @@ const PEAK_MIN_HZ = 20;
 const PEAK_MAX_HZ = 20000;
 const NO_GAINS = EQ_BANDS_HZ.map(() => 0);
 const AUTOMIX_FALLBACK_S = 6;
+const CLIP_POLL_MS = 100;
 const MIN_BLEND_MS = 500;
 const ARM_LEAD_MS = 4000;
 const ARM_FLOOR_MS = 250;
@@ -79,7 +81,7 @@ export type BlendHooks = {
 
 type Song = { id: string; title: string };
 type StreamInfo = { reloadAt: number | null };
-type Source = { src: string; analysis: string; lufs: number | null; stream?: StreamInfo; details: StreamDetails };
+type Source = { src: string; analysis: string; lufs: number | null; stream?: StreamInfo; details: StreamDetails; clip?: Clip };
 type Stall = { mark: number; timer: ReturnType<typeof setTimeout> };
 type Graph = { ctx: AudioContext; bands: BiquadFilterNode[]; preGain: GainNode };
 type Armed = {
@@ -136,6 +138,8 @@ const analyses = new Lru<TrackAnalysis>(ANALYSIS_LIMIT);
 const analysing = new Set<string>();
 let levelTimer: ReturnType<typeof setInterval> | null = null;
 let silenceTimer: ReturnType<typeof setInterval> | null = null;
+let clipTimer: ReturnType<typeof setInterval> | null = null;
+const deckClips: (Clip | undefined)[] = [undefined, undefined];
 
 export function activeDeck() {
   return decks[mainIndex];
@@ -147,11 +151,11 @@ export function standbyDeck() {
 
 class Playback extends EventTarget {
   get currentTime(): number {
-    return ANDROID ? androidPosition() : activeDeck().currentTime;
+    return ANDROID ? androidPosition() : clipPosition(activeDeck().currentTime, deckClips[mainIndex]);
   }
 
   get duration(): number {
-    return ANDROID ? androidDuration() : activeDeck().duration;
+    return ANDROID ? androidDuration() : clipDuration(activeDeck().duration, deckClips[mainIndex]);
   }
 
   get playbackRate(): number {
@@ -419,7 +423,7 @@ function trimHead(id: string | undefined): void {
 
 function armSilence(): void {
   disarmSilence();
-  if (!useSettings.getState().skipSilence) return;
+  if (!useSettings.getState().skipSilence || deckClips[mainIndex]) return;
   if (!((analysisOf(deckIds[mainIndex])?.tail ?? 0) > TRIM_MIN_S)) return;
   silenceTimer = setInterval(checkTail, SILENCE_POLL_MS);
 }
@@ -447,7 +451,13 @@ async function savedSource(id: string): Promise<Source | null> {
 
 async function localSource(id: string): Promise<Source> {
   const source = await localPlaybackSource(id);
-  return { src: usesNativeAudio ? id : source.url, analysis: id, lufs: null, details: fileDetailsWithMime(source.mime, "Local file") };
+  return {
+    src: usesNativeAudio ? id : source.url,
+    analysis: id,
+    lufs: null,
+    details: fileDetailsWithMime(source.mime, "Local file"),
+    clip: clipFrom(source.cueStart, source.cueEnd),
+  };
 }
 
 function networkSource(id: string): Source {
@@ -493,13 +503,15 @@ async function loadStream(id: string, refresh: boolean, seq: number): Promise<vo
   deckSources[mainIndex] = source.analysis;
   deckStreams[mainIndex] = source.stream;
   deckDetails[mainIndex] = source.details;
+  deckClips[mainIndex] = source.clip;
   useNowStream.getState().publish(id, source.details);
   await loadDeckSource(activeDeck(), source.src);
   if (seq !== loadSeq) return;
   applySpeed();
   if (source.lufs !== null) noteLoudness(id, source.lufs);
   else refreshVolumes();
-  if (pendingSeek > 0) activeDeck().currentTime = pendingSeek;
+  if (source.clip) activeDeck().currentTime = clipDeckTime(pendingSeek, source.clip);
+  else if (pendingSeek > 0) activeDeck().currentTime = pendingSeek;
   else trimHead(id);
   pendingSeek = 0;
   armSilence();
@@ -540,8 +552,11 @@ async function startPlayback(seq: number): Promise<void> {
   if (seq !== loadSeq || !wantPlaying) return;
   disarmStall();
   armStall();
+  armClipEnd();
   try {
     traceMark("player start");
+    const clip = deckClips[mainIndex];
+    if (clip && clipEnded(activeDeck().currentTime, clip)) activeDeck().currentTime = clip.start;
     await activeDeck().play();
   } catch (error) {
     if (isAbort(error)) return;
@@ -553,7 +568,8 @@ async function startPlayback(seq: number): Promise<void> {
 async function onFailure(seq: number): Promise<void> {
   const current = song;
   if (!current || !wantPlaying || seq !== loadSeq) return;
-  const at = activeDeck().currentTime > 1 ? activeDeck().currentTime : pendingSeek;
+  const position = clipPosition(activeDeck().currentTime, deckClips[mainIndex]);
+  const at = position > 1 ? position : pendingSeek;
   if (retryCount === 0 || at - retriedAt > RETRY_WINDOW_S) {
     retryCount += 1;
     retriedAt = at;
@@ -583,7 +599,7 @@ function isStale(pausedFor: number): boolean {
 }
 
 async function reloadMain(current: Song): Promise<void> {
-  const at = activeDeck().currentTime;
+  const at = clipPosition(activeDeck().currentTime, deckClips[mainIndex]);
   pendingSeek = Number.isFinite(at) && at > 0 ? at : 0;
   const seq = ++loadSeq;
   try {
@@ -603,6 +619,7 @@ export async function playStream(id: string, title: string, fromSeconds = 0, met
   abortGapless();
   disarmSilence();
   disarmStall();
+  disarmClipEnd();
   song = { id, title };
   wantPlaying = true;
   pausedAt = null;
@@ -643,6 +660,7 @@ export function pause(): void {
   if (wantPlaying) pausedAt = Date.now();
   wantPlaying = false;
   disarmStall();
+  disarmClipEnd();
   if (fade) freezeFade(fade);
   else abortBlend();
   abortGapless();
@@ -650,7 +668,7 @@ export function pause(): void {
 }
 
 export function getPlaybackPosition(): number {
-  return ANDROID ? androidPosition() : activeDeck().currentTime;
+  return ANDROID ? androidPosition() : clipPosition(activeDeck().currentTime, deckClips[mainIndex]);
 }
 
 export function seekTo(seconds: number): void {
@@ -663,9 +681,40 @@ export function seekTo(seconds: number): void {
   abortGapless();
   disarmSilence();
   const deck = activeDeck();
-  const end = Number.isFinite(deck.duration) && deck.duration > 0 ? deck.duration : seconds;
-  deck.currentTime = Math.max(0, Math.min(seconds, end));
+  const clip = deckClips[mainIndex];
+  if (clip) {
+    deck.currentTime = clipDeckTime(seconds, clip);
+    armClipEnd();
+  } else {
+    const end = Number.isFinite(deck.duration) && deck.duration > 0 ? deck.duration : seconds;
+    deck.currentTime = Math.max(0, Math.min(seconds, end));
+  }
   armSilence();
+}
+
+function armClipEnd(): void {
+  if (clipTimer !== null || !deckClips[mainIndex] || !wantPlaying) return;
+  clipTimer = setInterval(checkClipEnd, CLIP_POLL_MS);
+}
+
+function disarmClipEnd(): void {
+  if (clipTimer === null) return;
+  clearInterval(clipTimer);
+  clipTimer = null;
+}
+
+function checkClipEnd(): void {
+  const clip = deckClips[mainIndex];
+  if (!clip || !wantPlaying) {
+    disarmClipEnd();
+    return;
+  }
+  if (!clipEnded(activeDeck().currentTime, clip)) return;
+  disarmClipEnd();
+  wantPlaying = false;
+  disarmStall();
+  activeDeck().pause();
+  emitEnded();
 }
 
 export function setBlendHooks(hooks: BlendHooks): void {
@@ -688,6 +737,7 @@ function maybeArm(): void {
   const current = song;
   const next = blendHooks?.upNext() ?? null;
   if (!current || !next || next.id === current.id) return;
+  if (isCueTrackId(current.id) || isCueTrackId(next.id)) return;
   if (failedBlend?.fromId !== current.id) failedBlend = null;
   if (failedBlend?.toId === next.id) return;
   const deck = activeDeck();
@@ -842,7 +892,7 @@ function gaplessWanted(): boolean {
 function maybeArmGapless(): void {
   const current = song;
   const next = blendHooks?.upNext() ?? null;
-  const eligible = wantPlaying && !armed && !fade && gaplessWanted();
+  const eligible = wantPlaying && !armed && !fade && gaplessWanted() && !isCueTrackId(current?.id) && !isCueTrackId(next?.id);
   if (gapless && !keepsPrepared(gapless, current?.id, next?.id, eligible)) abortGapless();
   if (!current || !next || !eligible || gapless) return;
   const deck = activeDeck();
