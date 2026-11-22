@@ -27,3 +27,6 @@ src-tauri/target
 
 *.jks
 *.keystore
+
+src-tauri/resources/mpv/*
+!src-tauri/resources/mpv/.gitkeep
