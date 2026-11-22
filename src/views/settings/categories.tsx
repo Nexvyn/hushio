@@ -1,4 +1,4 @@
-import { VinylRecord, Warning, ChartBar, Waveform, ChartLine, CloudArrowDown, Cloud, Copy, Gauge, Database, Trash, DownloadSimple, Drop, Export, FileArrowDown, FunnelSimple, Flashlight, FolderPlus, FolderSimple, FolderOpen, CornersOut, GameController, Globe, Infinity, Info, LinkSimple, SignOut, ArrowsOut, DeviceMobile, List, Microphone, MusicNote, PaintBrush, PlayCircle, Radio, ArrowClockwise, Repeat, SidebarSimple, SlidersHorizontal, Sparkle, SpeakerHigh, TextT, Timer, Translate, User, VideoCamera, SpeakerX, WifiHigh, CircleHalf, type Icon as PhosphorIcon } from "@phosphor-icons/react";
+import { VinylRecord, Warning, ChartBar, Waveform, ChartLine, CloudArrowDown, Cloud, Copy, Gauge, Database, Trash, DownloadSimple, Drop, Export, FileArrowDown, FunnelSimple, Flashlight, Lightning, FolderPlus, FolderSimple, FolderOpen, CornersOut, GameController, Globe, Infinity, Info, LinkSimple, SignOut, ArrowsOut, DeviceMobile, List, Microphone, MusicNote, PaintBrush, PlayCircle, Radio, ArrowClockwise, Repeat, SidebarSimple, SlidersHorizontal, Sparkle, SpeakerHigh, TextT, Timer, Translate, User, VideoCamera, SpeakerX, WifiHigh, CircleHalf, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import type { ThemeMode } from "../../lib/theme";
 import { Button } from "../../components/Button";
@@ -108,6 +108,7 @@ export type BuildContext = {
   sync: SyncContext;
   scrobble?: ScrobbleContext;
   discord?: DiscordContext;
+  nativeAudio?: boolean;
 };
 
 type BooleanKey = {
@@ -550,6 +551,17 @@ function soundCategory(context: BuildContext): SettingsCategory {
             ),
           },
           outputRow(context),
+          ...(context.nativeAudio
+            ? [
+                {
+                  id: "exclusive-output",
+                  icon: Lightning,
+                  title: "Exclusive output",
+                  note: "Sends audio straight to the device. The equalizer, volume leveling and crossfade are off while it is on.",
+                  toggle: flag(s, "exclusiveOutput"),
+                },
+              ]
+            : []),
         ],
       },
       {

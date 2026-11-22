@@ -1,5 +1,6 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { EXCLUSIVE_UNAVAILABLE } from "./exclusive";
 
 type PlaybackControl =
   | { kind: "pause"; paused: boolean }
@@ -9,6 +10,7 @@ type PlaybackControl =
   | { kind: "speed"; speed: number }
   | { kind: "outputDevice"; id: string }
   | { kind: "equalizer"; enabled: boolean; gains: readonly number[]; autoHeadroom: boolean }
+  | { kind: "exclusive"; enabled: boolean }
   | { kind: "stop" };
 
 type PlaybackSnapshot = {
@@ -38,6 +40,12 @@ function objectValue(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+let exclusiveRejected: () => void = () => {};
+
+export function onExclusiveRejected(handler: () => void): void {
+  exclusiveRejected = handler;
+}
+
 /** A single mpv deck. Source replacement invalidates queued commands and old native events. */
 export class NativeAudioDeck extends EventTarget {
   src = "";
@@ -56,6 +64,7 @@ export class NativeAudioDeck extends EventTarget {
   private level = 1;
   private rate = 1;
   private silence = false;
+  private exclusive = false;
   private queue: Promise<unknown> = Promise.resolve();
   private eq: Extract<PlaybackControl, { kind: "equalizer" }> = {
     kind: "equalizer", enabled: false, gains: Array.from({ length: 10 }, () => 0), autoHeadroom: true,
@@ -109,7 +118,13 @@ export class NativeAudioDeck extends EventTarget {
     const operation = this.queue.catch(() => {}).then(async () => {
       await this.listening;
       if (generation !== this.generation) throw new DOMException("Source replaced", "AbortError");
-      const snapshot = await invoke<PlaybackSnapshot>("desktop_playback_load", { deck: this.deck, generation, source });
+      const load = () => invoke<PlaybackSnapshot>("desktop_playback_load", { deck: this.deck, generation, source });
+      const snapshot = await load().catch((error: unknown) => {
+        if (!this.exclusive || error !== EXCLUSIVE_UNAVAILABLE) throw error;
+        this.exclusive = false;
+        exclusiveRejected();
+        return load();
+      });
       if (generation !== this.generation) throw new DOMException("Source replaced", "AbortError");
       this.loaded = true;
       this.duration = snapshot.duration ?? Number.NaN;
@@ -122,6 +137,7 @@ export class NativeAudioDeck extends EventTarget {
         { kind: "speed", speed: this.rate },
         { kind: "outputDevice", id: this.sinkId },
         this.eq,
+        ...(this.exclusive ? [{ kind: "exclusive" as const, enabled: true }] : []),
       ] satisfies PlaybackControl[]) {
         await this.control(control, generation);
       }
@@ -181,7 +197,14 @@ export class NativeAudioDeck extends EventTarget {
   }
 
   private control(control: PlaybackControl, generation: number): Promise<void> {
-    return invoke("desktop_playback_control", { deck: this.deck, generation, control });
+    const request = invoke<void>("desktop_playback_control", { deck: this.deck, generation, control });
+    if (control.kind !== "exclusive") return request;
+    return request.then(() => {}, () => { exclusiveRejected(); });
+  }
+
+  setExclusive(enabled: boolean): void {
+    this.exclusive = enabled;
+    if (this.loaded) void this.enqueue({ kind: "exclusive", enabled });
   }
 
   private enqueue(control: PlaybackControl): Promise<void> {

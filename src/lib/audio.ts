@@ -36,7 +36,8 @@ import { ANDROID, type PlayMeta } from "./androidPlayback";
 import { clampCrossfadeSeconds, useSettings, type SettingsValues } from "../stores/settings";
 import { playFailedMessage } from "./playFailed";
 import { useUI } from "../stores/ui";
-import { NativeAudioDeck, usesNativeAudio } from "./nativeAudioDeck";
+import { NativeAudioDeck, onExclusiveRejected, usesNativeAudio } from "./nativeAudioDeck";
+import { appVolume, blendForOutput, EXCLUSIVE_UNAVAILABLE, eqForOutput, exclusiveActive, levelGain } from "./exclusive";
 
 export { TEST_SONG_ID, TEST_SONG_TITLE } from "./devSong";
 
@@ -266,15 +267,20 @@ export function applyEq(next: EqSettings): void {
 
 function updateHeadroom(now: number): void {
   if (!graph) return;
-  const level = clamp(volume * leveling.gainOf(deckIds[mainIndex], now), 0, 1);
+  const level = clamp(appVolume(volume, exclusiveNow()) * trimOf(deckIds[mainIndex], now), 0, 1);
   const db = eqState.enabled && eqState.autoHeadroom ? headroomDb(eqPeakDb, level) : 0;
   graph.preGain.gain.setTargetAtTime(dbToGain(-db), graph.ctx.currentTime, 0.05);
 }
 
+function trimOf(id: string | undefined, now: number): number {
+  return levelGain(leveling.gainOf(id, now), exclusiveNow());
+}
+
 function refreshVolumes(): void {
   const now = Date.now();
-  activeDeck().volume = clamp(volume * curve.out * leveling.gainOf(deckIds[mainIndex], now), 0, 1);
-  standbyDeck().volume = clamp(volume * curve.incoming * leveling.gainOf(deckIds[1 - mainIndex], now), 0, 1);
+  const master = appVolume(volume, exclusiveNow());
+  activeDeck().volume = clamp(master * curve.out * trimOf(deckIds[mainIndex], now), 0, 1);
+  standbyDeck().volume = clamp(master * curve.incoming * trimOf(deckIds[1 - mainIndex], now), 0, 1);
   updateHeadroom(now);
 }
 
@@ -378,7 +384,12 @@ for (const type of ["pointerdown", "keydown"] as const) {
 }
 
 function eqSettingsOf(state: SettingsValues): EqSettings {
-  return { enabled: state.eqEnabled, gains: state.eqGains, autoHeadroom: state.eqAutoHeadroom };
+  const eq = { enabled: state.eqEnabled, gains: state.eqGains, autoHeadroom: state.eqAutoHeadroom };
+  return eqForOutput(eq, exclusiveActive(state.exclusiveOutput, usesNativeAudio));
+}
+
+function exclusiveNow(): boolean {
+  return exclusiveActive(useSettings.getState().exclusiveOutput, usesNativeAudio);
 }
 
 function analysisOf(id: string | undefined): TrackAnalysis | undefined {
@@ -654,7 +665,8 @@ export function setBlendHooks(hooks: BlendHooks): void {
 }
 
 function fadeMsForNext(): number {
-  const { crossfadeSeconds, smartFade, reduceAnimation } = useSettings.getState();
+  const { reduceAnimation } = useSettings.getState();
+  const { crossfadeSeconds, smartFade } = blendForOutput(useSettings.getState(), exclusiveNow());
   if (reduceAnimation) return 0;
   const seconds = clampCrossfadeSeconds(crossfadeSeconds);
   const fallback = smartFade ? AUTOMIX_FALLBACK_S : 0;
@@ -896,7 +908,28 @@ for (const [index, deck] of decks.entries()) {
   });
 }
 
+function applyExclusive(enabled: boolean): void {
+  if (!usesNativeAudio) return;
+  for (const deck of decks) {
+    if (deck instanceof NativeAudioDeck) deck.setExclusive(enabled);
+  }
+}
+
+onExclusiveRejected(() => {
+  const settings = useSettings.getState();
+  if (!settings.exclusiveOutput) return;
+  settings.setValue("exclusiveOutput", false);
+  useUI.getState().toast(EXCLUSIVE_UNAVAILABLE, "error");
+});
+
 useSettings.subscribe((state, previous) => {
+  if (state.exclusiveOutput !== previous.exclusiveOutput) {
+    abortBlend();
+    leveling.clearGlides();
+    stopLevelTimer();
+    applyExclusive(state.exclusiveOutput);
+    refreshVolumes();
+  }
   if (state.playbackSpeed !== previous.playbackSpeed) applySpeed();
   if (state.loudnessLevel !== previous.loudnessLevel) {
     leveling.clearGlides();
@@ -910,7 +943,8 @@ useSettings.subscribe((state, previous) => {
   if (
     state.eqEnabled !== previous.eqEnabled ||
     state.eqGains !== previous.eqGains ||
-    state.eqAutoHeadroom !== previous.eqAutoHeadroom
+    state.eqAutoHeadroom !== previous.eqAutoHeadroom ||
+    state.exclusiveOutput !== previous.exclusiveOutput
   ) {
     applyEq(eqSettingsOf(state));
   }

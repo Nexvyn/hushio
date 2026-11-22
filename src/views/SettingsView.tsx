@@ -5,6 +5,7 @@ import { PhoneIcon } from "../components/phone/PhoneIcon";
 import { SectionHeader } from "../components/SectionHeader";
 import { appVersion, platform, type GoogleAccount } from "../lib/bridge";
 import { usePhone } from "../lib/usePhone";
+import { usesNativeAudio } from "../lib/nativeAudioDeck";
 import { useAuth } from "../stores/auth";
 import { useDiscord } from "../stores/discord";
 import { useScrobble } from "../stores/scrobble";
@@ -331,6 +332,7 @@ export function SettingsView() {
     settings,
     version,
     platform,
+    nativeAudio: usesNativeAudio,
     navigate,
     updates: {
       state: updateState,

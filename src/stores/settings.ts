@@ -19,6 +19,7 @@ export const DEVICE_SETTINGS_KEYS = [
   "libraryLayout",
   "sidebarLayout",
   "imageCacheMb",
+  "exclusiveOutput",
 ] as const;
 
 export const LIBRARY_LAYOUTS = ["grid", "list"] as const;
@@ -64,6 +65,7 @@ export type SettingsValues = {
   downloadDir: string | null;
   localMusicFolder: string | null;
   audioSinkId: string;
+  exclusiveOutput: boolean;
   lyricsOffset: number;
   closeToTray: boolean;
   libraryLayout: LibraryLayout;
@@ -190,6 +192,7 @@ export const useSettings = create<SettingsState>()(
       downloadDir: null,
       localMusicFolder: null,
       audioSinkId: "",
+      exclusiveOutput: false,
       lyricsOffset: 0,
       closeToTray: true,
       libraryLayout: "grid",

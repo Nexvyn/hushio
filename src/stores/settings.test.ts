@@ -59,13 +59,14 @@ describe("defaults", () => {
     expect(initial.audioSinkId).toBe("");
     expect(initial.lyricsOffset).toBe(0);
     expect(initial.closeToTray).toBe(true);
+    expect(initial.exclusiveOutput).toBe(false);
   });
 });
 
 describe("device settings", () => {
-  it("lists exactly the eight device-only keys", () => {
+  it("lists exactly the nine device-only keys", () => {
     expect([...DEVICE_SETTINGS_KEYS].sort()).toEqual(
-      ["audioSinkId", "closeToTray", "downloadDir", "imageCacheMb", "libraryLayout", "localMusicFolder", "lyricsOffset", "sidebarLayout"].sort(),
+      ["audioSinkId", "closeToTray", "downloadDir", "exclusiveOutput", "imageCacheMb", "libraryLayout", "localMusicFolder", "lyricsOffset", "sidebarLayout"].sort(),
     );
   });
 
@@ -119,6 +120,15 @@ describe("persistence", () => {
     await useSettings.persist.rehydrate();
     expect(useSettings.getState().theme).toBe("system");
     expect(useSettings.getState().reduceAnimation).toBe(true);
+  });
+
+  it("saves exclusive output when it is turned on and restores it on hydrate", async () => {
+    useSettings.getState().setValue("exclusiveOutput", true);
+    expect(storage.value).toMatchObject({ state: { exclusiveOutput: true } });
+
+    storage.value = { state: { exclusiveOutput: true }, version: 5 };
+    await useSettings.persist.rehydrate();
+    expect(useSettings.getState().exclusiveOutput).toBe(true);
   });
 
   it("keeps the default for keys missing from the stored state", async () => {

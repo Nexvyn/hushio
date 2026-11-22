@@ -20,6 +20,8 @@ import { playerAddMenuItems, songOf } from "../lib/trackActions";
 import { useTrackLyrics } from "../lib/useTrackLyrics";
 import { currentTrack, usePlayer } from "../stores/player";
 import { useSettings } from "../stores/settings";
+import { EXCLUSIVE_VOLUME_NOTE, exclusiveActive } from "../lib/exclusive";
+import { usesNativeAudio } from "../lib/nativeAudioDeck";
 import { useSleepTimer } from "../stores/sleepTimer";
 import { type MenuItem, useUI } from "../stores/ui";
 import type { Track } from "../types";
@@ -165,10 +167,11 @@ function VolumeControl() {
   const muted = usePlayer((state) => state.muted);
   const setVolume = usePlayer((state) => state.setVolume);
   const toggleMute = usePlayer((state) => state.toggleMute);
-  const level = muted ? 0 : volume;
+  const exclusive = exclusiveActive(useSettings((state) => state.exclusiveOutput), usesNativeAudio);
+  const level = exclusive ? 1 : muted ? 0 : volume;
   const silent = muted || volume === 0;
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-1" title={exclusive ? EXCLUSIVE_VOLUME_NOTE : undefined}>
       <TransportButton
         label={muted ? "Unmute" : "Mute"}
         hint="M"
@@ -182,8 +185,9 @@ function VolumeControl() {
         max={1}
         step={0.01}
         value={level}
+        disabled={exclusive}
         onChange={(event) => setVolume(Number(event.target.value))}
-        className="hidden w-24 cursor-pointer rounded-full accent-ink-1 min-[1100px]:block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+        className="hidden w-24 cursor-pointer rounded-full accent-ink-1 disabled:cursor-default disabled:opacity-40 min-[1100px]:block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
       />
     </div>
   );

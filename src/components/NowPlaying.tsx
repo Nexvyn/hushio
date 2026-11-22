@@ -31,6 +31,8 @@ import { peekArtistMeta } from "../stores/artistMeta";
 import { useLibrary } from "../stores/library";
 import { currentTrack, usePlayer } from "../stores/player";
 import { useSettings } from "../stores/settings";
+import { EXCLUSIVE_VOLUME_NOTE, exclusiveActive } from "../lib/exclusive";
+import { usesNativeAudio } from "../lib/nativeAudioDeck";
 import { useUI } from "../stores/ui";
 import { topBarLeadingInset } from "../lib/windowChrome";
 
@@ -284,7 +286,8 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
   const muted = usePlayer((state) => state.muted);
   const setVolume = usePlayer((state) => state.setVolume);
   const toggleMute = usePlayer((state) => state.toggleMute);
-  const level = muted ? 0 : volume;
+  const exclusive = exclusiveActive(useSettings((state) => state.exclusiveOutput), usesNativeAudio);
+  const level = exclusive ? 1 : muted ? 0 : volume;
   const silent = muted || volume === 0;
   const toggleLike = useLibrary((state) => state.toggleLike);
   const [mode, setMode] = useState<Mode>("lyrics");
@@ -450,6 +453,8 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
                       max={1}
                       step={0.01}
                       value={level}
+                      disabled={exclusive}
+                      title={exclusive ? EXCLUSIVE_VOLUME_NOTE : undefined}
                       onChange={(event) => setVolume(Number(event.target.value))}
                       onKeyDown={(event) => {
                         const delta = VOLUME_KEY_STEP[event.key];
@@ -463,6 +468,7 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
                     <button
                       type="button"
                       aria-label="Full volume"
+                      disabled={exclusive}
                       onClick={() => setVolume(1)}
                       className={`hit-area -mr-[10px] grid h-10 w-10 shrink-0 place-items-center rounded-full text-art/[0.72] hover:text-art ${FOCUS_RING}`}
                     >
