@@ -91,8 +91,13 @@ export function streamDetails(stream: ResolvedStream, source: StatsSource): Stre
 }
 
 export function fileDetails(path: string, source: StatsSource): StreamDetails {
+  return fileDetailsWithMime(mimeFromPath(path), source);
+}
+
+/** Builds track details from the MIME type returned by the local media server. */
+export function fileDetailsWithMime(mime: string | null, source: StatsSource): StreamDetails {
   return {
-    mime: mimeFromPath(path),
+    mime,
     kbps: null,
     sampleRate: null,
     channels: null,

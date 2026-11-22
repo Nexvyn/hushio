@@ -3,12 +3,14 @@ import { useLibrary } from "../stores/library";
 import { useSettings } from "../stores/settings";
 import { useUI } from "../stores/ui";
 
-const { registerStreamUrl, streamProxyPort, resolveStream, pathExists, localLibraryTrackPath } = vi.hoisted(() => ({
+const { registerStreamUrl, streamProxyPort, resolveStream, pathExists, localLibraryTrackPath, playbackDiagnostic } =
+  vi.hoisted(() => ({
   registerStreamUrl: vi.fn(),
   streamProxyPort: vi.fn(),
   resolveStream: vi.fn(),
   pathExists: vi.fn(),
   localLibraryTrackPath: vi.fn(),
+  playbackDiagnostic: vi.fn(),
 }));
 
 vi.mock("./bridge", () => ({
@@ -16,6 +18,11 @@ vi.mock("./bridge", () => ({
   streamProxyPort,
   pathExists,
   localLibraryTrackPath,
+  localPlaybackSource: async (id: string) => {
+    const path: string = await localLibraryTrackPath(id);
+    return { url: `asset://${path}`, mime: "audio/mpeg" };
+  },
+  playbackDiagnostic,
   fileSrc: (path: string) => `asset://${path}`,
   persistRead: async () => null,
   persistWrite: async () => true,
@@ -590,7 +597,7 @@ describe("deck events", () => {
 describe("crossfade and Automix", () => {
   type DeckState = { duration: number; currentTime: number; ended: boolean };
   const CURRENT = { id: "a", title: "A" };
-  const states = new Map<HTMLAudioElement, DeckState>();
+  const states = new Map<ReturnType<typeof activeDeck>, DeckState>();
 
   let mod: typeof import("./audio");
   let settings: typeof import("../stores/settings");
@@ -599,7 +606,7 @@ describe("crossfade and Automix", () => {
   let upNext: Mock<() => BlendTarget | null>;
   let onComplete: Mock<(target: BlendTarget, end: BlendEnd) => void>;
 
-  function timed(deck: HTMLAudioElement, duration: number): DeckState {
+  function timed(deck: ReturnType<typeof activeDeck>, duration: number): DeckState {
     const state: DeckState = { duration, currentTime: 0, ended: false };
     states.set(deck, state);
     Object.defineProperty(deck, "duration", { configurable: true, get: () => state.duration });
@@ -614,7 +621,7 @@ describe("crossfade and Automix", () => {
     return state;
   }
 
-  function stateOf(deck: HTMLAudioElement): DeckState {
+  function stateOf(deck: ReturnType<typeof activeDeck>): DeckState {
     const state = states.get(deck);
     if (!state) throw new Error("deck has no timing");
     return state;

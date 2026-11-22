@@ -570,6 +570,16 @@ export function localLibraryTrackPath(id: string): Promise<string | null> {
   return call<string | null>("local_library_track_path", { id });
 }
 
+export interface LocalPlaybackSource {
+  url: string;
+  mime: string;
+}
+
+/** Resolves a registered local track to its loopback playback URL. */
+export function localPlaybackSource(id: string): Promise<LocalPlaybackSource> {
+  return call<LocalPlaybackSource>("local_playback_source", { id });
+}
+
 export function onLocalLibraryChanged(onChange: () => void): Promise<UnlistenFn> {
   return listen("local-library-changed", () => onChange());
 }
@@ -1043,4 +1053,3 @@ export function networkServerRemove(id: string): Promise<NetworkServer[]> {
 export function networkTracks(id: string, path: string): Promise<NetworkTrack[]> {
   return call<NetworkTrack[]>("network_tracks", { id, path });
 }
-

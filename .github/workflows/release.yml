@@ -99,6 +99,9 @@ jobs:
           shared-key: release-windows
           cache-on-failure: true
       - run: pnpm install --frozen-lockfile
+      - name: Prepare the pinned mpv runtime
+        shell: bash
+        run: bash scripts/prepare-mpv-runtime.sh windows x64
       - name: Build the installer
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -153,6 +156,9 @@ jobs:
           shared-key: release-macos-${{ matrix.arch }}
           cache-on-failure: true
       - run: pnpm install --frozen-lockfile
+      - name: Prepare the pinned mpv runtime
+        shell: bash
+        run: bash scripts/prepare-mpv-runtime.sh macos ${{ matrix.arch }}
       - name: Select macOS signing mode
         shell: bash
         env:
@@ -313,6 +319,9 @@ jobs:
         timeout-minutes: 15
         run: sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y $LINUX_DEPS
       - run: pnpm install --frozen-lockfile
+      - name: Prepare the pinned mpv runtime
+        shell: bash
+        run: bash scripts/prepare-mpv-runtime.sh linux x64
       - name: Build the deb and rpm
         run: pnpm tauri build --bundles deb,rpm --config '{"bundle":{"createUpdaterArtifacts":false}}'
       - name: Verify Linux bundles
