@@ -73,6 +73,7 @@ export type SettingsValues = {
   crossfadeSeconds: number;
   smartFade: boolean;
   skipSilence: boolean;
+  gaplessPlayback: boolean;
   autoplay: boolean;
   dontRepeatSuggestions: boolean;
   playbackSpeed: number;
@@ -200,6 +201,7 @@ export const useSettings = create<SettingsState>()(
       crossfadeSeconds: 0,
       smartFade: false,
       skipSilence: false,
+      gaplessPlayback: true,
       autoplay: true,
       dontRepeatSuggestions: false,
       playbackSpeed: 1,

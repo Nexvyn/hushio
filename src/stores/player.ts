@@ -29,6 +29,7 @@ import {
   RETRY_AFTER_MS,
 } from "../lib/autoplay";
 import { moveItem } from "../lib/dragReorder";
+import { gaplessNextIndex } from "../lib/gapless";
 import { queuedEnd } from "../lib/queueInsert";
 import {
   hasRecommendationAhead,
@@ -747,14 +748,18 @@ export function resumeQueueAfterHydration(): void {
 
 export function nextBlendTarget(): BlendTarget | null {
   const { queue, index, repeat, shuffle } = usePlayer.getState();
-  if (repeat === "one" || useSleepTimer.getState().endOfSong) return null;
-  const at = index + 1 < queue.length ? index + 1 : repeat === "all" && !shuffle ? 0 : -1;
+  if (useSleepTimer.getState().endOfSong) return null;
+  const at = gaplessNextIndex(queue.length, index, repeat, shuffle);
   const track = queue[at];
   return track ? { id: track.id, title: track.title, index: at } : null;
 }
 
 export function finishBlend(target: BlendTarget, { position, duration, ended }: BlendEnd): void {
-  const { queue, played } = usePlayer.getState();
+  const { queue, played, index, repeat } = usePlayer.getState();
+  if (repeat === "one" && target.index === index) {
+    usePlayer.setState({ playing: true, buffering: false, position, duration });
+    return;
+  }
   const track = queue[target.index];
   loadedId = track.id;
   usePlayer.setState({

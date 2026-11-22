@@ -743,7 +743,7 @@ describe("crossfade and Automix", () => {
   });
 
   it("does not blend when the crossfade and Automix are both off", async () => {
-    settings.useSettings.setState({ crossfadeSeconds: 0, smartFade: false });
+    settings.useSettings.setState({ crossfadeSeconds: 0, smartFade: false, gaplessPlayback: false });
     await startSong();
     playhead(199.5);
     await flush();
@@ -754,7 +754,7 @@ describe("crossfade and Automix", () => {
   });
 
   it("treats a negative crossfade length as off", async () => {
-    settings.useSettings.setState({ crossfadeSeconds: -3, smartFade: false });
+    settings.useSettings.setState({ crossfadeSeconds: -3, smartFade: false, gaplessPlayback: false });
     await startSong();
     playhead(199.5);
     await flush();

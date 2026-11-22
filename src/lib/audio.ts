@@ -38,6 +38,7 @@ import { playFailedMessage } from "./playFailed";
 import { useUI } from "../stores/ui";
 import { NativeAudioDeck, onExclusiveRejected, usesNativeAudio } from "./nativeAudioDeck";
 import { appVolume, blendForOutput, EXCLUSIVE_UNAVAILABLE, eqForOutput, exclusiveActive, levelGain } from "./exclusive";
+import { gaplessEligible, keepsPrepared, shouldPrepareGapless } from "./gapless";
 
 export { TEST_SONG_ID, TEST_SONG_TITLE } from "./devSong";
 
@@ -96,6 +97,7 @@ type Fade = {
   pausedAt: number | null;
   timer: ReturnType<typeof setInterval>;
 };
+type Gapless = { fromId: string; toId: string; ready: boolean };
 
 function createDeck(index: number): HTMLAudioElement | NativeAudioDeck {
   if (usesNativeAudio) return new NativeAudioDeck(index);
@@ -120,6 +122,7 @@ let volume = 1;
 let curve = { out: 1, incoming: 0 };
 let armed: Armed | null = null;
 let fade: Fade | null = null;
+let gapless: Gapless | null = null;
 let failedBlend: { fromId: string; toId: string } | null = null;
 let blendHooks: BlendHooks | null = null;
 let eqState: EqSettings = { enabled: false, gains: NO_GAINS, autoHeadroom: true };
@@ -161,7 +164,9 @@ export const audio = new Playback();
 for (const deck of decks) {
   for (const type of DECK_EVENTS) {
     deck.addEventListener(type, () => {
-      if (deck === activeDeck()) audio.dispatchEvent(new Event(type));
+      if (deck !== activeDeck()) return;
+      if (type === "ended") emitEnded();
+      else audio.dispatchEvent(new Event(type));
     });
   }
 }
@@ -430,7 +435,7 @@ function checkTail(): void {
   const deck = activeDeck();
   if (!tailReached(deck.currentTime, deck.duration, analysisOf(deckIds[mainIndex])?.tail ?? 0)) return;
   disarmSilence();
-  audio.dispatchEvent(new Event("ended"));
+  emitEnded();
 }
 
 async function savedSource(id: string): Promise<Source | null> {
@@ -595,6 +600,7 @@ export async function playStream(id: string, title: string, fromSeconds = 0, met
   traceMark("tap", id);
   if (ANDROID) return androidPlayStream(id, title, fromSeconds, meta);
   abortBlend();
+  abortGapless();
   disarmSilence();
   disarmStall();
   song = { id, title };
@@ -639,6 +645,7 @@ export function pause(): void {
   disarmStall();
   if (fade) freezeFade(fade);
   else abortBlend();
+  abortGapless();
   activeDeck().pause();
 }
 
@@ -653,6 +660,7 @@ export function seekTo(seconds: number): void {
     return;
   }
   abortBlend();
+  abortGapless();
   disarmSilence();
   const deck = activeDeck();
   const end = Number.isFinite(deck.duration) && deck.duration > 0 ? deck.duration : seconds;
@@ -701,32 +709,34 @@ function skipShortIncoming(): void {
   abortBlend();
 }
 
+async function prepareStandby(id: string, current: () => boolean): Promise<Source | null> {
+  try {
+    const source = await sourceFor(id, false);
+    if (current()) {
+      const standby = 1 - mainIndex;
+      await loadDeckSource(standbyDeck(), source.src);
+      if (!current()) return null;
+      deckIds[standby] = id;
+      deckSources[standby] = source.analysis;
+      deckStreams[standby] = source.stream;
+      deckDetails[standby] = source.details;
+      applySpeed();
+      if (source.lufs !== null) noteLoudness(id, source.lufs);
+    }
+    return source;
+  } catch (error) {
+    console.warn(`[hushio] next source failed: ${describeError(error)}`);
+    return null;
+  }
+}
+
 function arm(fromId: string, next: BlendTarget, fadeMs: number, remainingMs: number): void {
   const waitMs = Math.max(0, remainingMs - fadeMs);
   const pending: Armed = {
     fromId,
     toId: next.id,
     fadeMs,
-    ready: sourceFor(next.id, false).then(
-      async (source) => {
-        if (armed === pending) {
-          const standby = 1 - mainIndex;
-          await loadDeckSource(standbyDeck(), source.src);
-          if (armed !== pending) return null;
-          deckIds[standby] = next.id;
-          deckSources[standby] = source.analysis;
-          deckStreams[standby] = source.stream;
-          deckDetails[standby] = source.details;
-          applySpeed();
-          if (source.lufs !== null) noteLoudness(next.id, source.lufs);
-        }
-        return source;
-      },
-      (error: unknown) => {
-        console.warn(`[hushio] blend source failed: ${describeError(error)}`);
-        return null;
-      },
-    ),
+    ready: prepareStandby(next.id, () => armed === pending),
     timer: setTimeout(() => void beginFade(pending, fadeMs), waitMs),
   };
   armed = pending;
@@ -794,6 +804,10 @@ function completeBlend(ended: boolean): void {
   }
   clearInterval(finished.timer);
   fade = null;
+  swapToStandby(target, ended);
+}
+
+function swapToStandby(target: BlendTarget, ended: boolean): void {
   const outgoing = activeDeck();
   const incoming = standbyDeck();
   mainIndex = 1 - mainIndex;
@@ -811,6 +825,69 @@ function completeBlend(ended: boolean): void {
   const limit = duration > 0 ? duration : Number.POSITIVE_INFINITY;
   const position = clamp(Number.isFinite(incoming.currentTime) ? incoming.currentTime : 0, 0, limit);
   blendHooks?.onComplete(target, { position, duration, ended });
+}
+
+function gaplessWanted(): boolean {
+  const state = useSettings.getState();
+  const exclusive = exclusiveNow();
+  const blend = blendForOutput(state, exclusive);
+  return gaplessEligible({
+    enabled: state.gaplessPlayback,
+    crossfadeSeconds: blend.crossfadeSeconds,
+    smartFade: blend.smartFade,
+    exclusive,
+  });
+}
+
+function maybeArmGapless(): void {
+  const current = song;
+  const next = blendHooks?.upNext() ?? null;
+  const eligible = wantPlaying && !armed && !fade && gaplessWanted();
+  if (gapless && !keepsPrepared(gapless, current?.id, next?.id, eligible)) abortGapless();
+  if (!current || !next || !eligible || gapless) return;
+  const deck = activeDeck();
+  const rate = deck.playbackRate || 1;
+  const remainingS = (deck.duration - edgeOf(current.id, "tail") - deck.currentTime) / rate;
+  if (!shouldPrepareGapless(remainingS, deck.duration)) return;
+  prepareGapless(current.id, next);
+}
+
+function prepareGapless(fromId: string, next: BlendTarget): void {
+  const pending: Gapless = { fromId, toId: next.id, ready: false };
+  gapless = pending;
+  void prepareStandby(next.id, () => gapless === pending).then((source) => {
+    if (source !== null && gapless === pending) pending.ready = true;
+  });
+}
+
+function abortGapless(): void {
+  if (gapless === null) return;
+  gapless = null;
+  const standby = standbyDeck();
+  standby.pause();
+  standby.removeAttribute("src");
+  deckIds[1 - mainIndex] = undefined;
+  deckStreams[1 - mainIndex] = undefined;
+}
+
+function completeGapless(): boolean {
+  const pending = gapless;
+  const target = blendHooks?.upNext() ?? null;
+  if (!pending?.ready || !target || target.id !== pending.toId || !gaplessWanted()) {
+    abortGapless();
+    return false;
+  }
+  gapless = null;
+  const head = edgeOf(target.id, "head");
+  if (head > 0) standbyDeck().currentTime = head;
+  swapToStandby(target, false);
+  void startPlayback(loadSeq);
+  return true;
+}
+
+function emitEnded(): void {
+  if (completeGapless()) return;
+  audio.dispatchEvent(new Event("ended"));
 }
 
 function freezeFade(current: Fade): void {
@@ -891,6 +968,7 @@ for (const [index, deck] of decks.entries()) {
   deck.addEventListener("timeupdate", () => {
     if (deck !== activeDeck()) return;
     noteProgress();
+    maybeArmGapless();
     maybeArm();
   });
   for (const type of ["waiting", "stalled"] as const) {
@@ -923,8 +1001,10 @@ onExclusiveRejected(() => {
 });
 
 useSettings.subscribe((state, previous) => {
+  if (state.gaplessPlayback !== previous.gaplessPlayback) abortGapless();
   if (state.exclusiveOutput !== previous.exclusiveOutput) {
     abortBlend();
+    abortGapless();
     leveling.clearGlides();
     stopLevelTimer();
     applyExclusive(state.exclusiveOutput);
@@ -948,7 +1028,10 @@ useSettings.subscribe((state, previous) => {
   ) {
     applyEq(eqSettingsOf(state));
   }
-  if (state.audioSinkId !== previous.audioSinkId) applySink(state.audioSinkId);
+  if (state.audioSinkId !== previous.audioSinkId) {
+    abortGapless();
+    applySink(state.audioSinkId);
+  }
 });
 
 applySpeed();

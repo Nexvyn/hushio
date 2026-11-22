@@ -377,6 +377,14 @@ function playbackCategory(context: BuildContext): SettingsCategory {
       toggle: flag(s, "smartFade"),
     },
     {
+      id: "gapless",
+      icon: Waveform,
+      title: "Gapless playback",
+      note: "Plays the next song without a gap. Turns off when crossfade is on.",
+      disabled: s.crossfadeSeconds > 0,
+      toggle: flag(s, "gaplessPlayback"),
+    },
+    {
       id: "skip-silence",
       icon: SpeakerX,
       title: "Skip silence",
@@ -1108,6 +1116,7 @@ function aboutCategory({ settings: s, version, updates, platform, navigate }: Bu
 const ANDROID_HIDDEN_ROWS = new Set([
   "crossfade",
   "automix",
+  "gapless",
   "stats-for-nerds",
   "close-to-tray",
   "output-device",

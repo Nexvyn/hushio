@@ -127,6 +127,16 @@ describe("Sound rows on Windows", () => {
     expect(useSettings.getState().eqEnabled).toBe(true);
   });
 
+  it("shows gapless playback on by default and disables it while crossfade is on", () => {
+    useSettings.setState({ gaplessPlayback: true, crossfadeSeconds: 0 });
+    expect(soundOrPlayback("windows", "gapless").title).toBe("Gapless playback");
+    expect(soundOrPlayback("windows", "gapless").note).toBe("Plays the next song without a gap. Turns off when crossfade is on.");
+    expect(soundOrPlayback("windows", "gapless").toggle?.checked).toBe(true);
+    expect(soundOrPlayback("windows", "gapless").disabled).toBeFalsy();
+    useSettings.setState({ crossfadeSeconds: 4 });
+    expect(soundOrPlayback("windows", "gapless").disabled).toBe(true);
+  });
+
   it("disables prevent clipping while the equalizer is off and enables it when on", () => {
     expect(row("windows", "prevent-clipping").disabled).toBe(true);
     useSettings.setState({ eqEnabled: true });
