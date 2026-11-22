@@ -64,9 +64,9 @@ describe("defaults", () => {
 });
 
 describe("device settings", () => {
-  it("lists exactly the nine device-only keys", () => {
+  it("lists exactly the ten device-only keys", () => {
     expect([...DEVICE_SETTINGS_KEYS].sort()).toEqual(
-      ["audioSinkId", "closeToTray", "downloadDir", "exclusiveOutput", "imageCacheMb", "libraryLayout", "localMusicFolder", "lyricsOffset", "sidebarLayout"].sort(),
+      ["audioSinkId", "closeToTray", "downloadDir", "exclusiveOutput", "imageCacheMb", "language", "libraryLayout", "localMusicFolder", "lyricsOffset", "sidebarLayout"].sort(),
     );
   });
 

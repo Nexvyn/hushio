@@ -1,3 +1,4 @@
+import { t, useT } from "../lib/i18n";
 import { motion } from "motion/react";
 import { CircleNotch, SkipForward, Pause, Play, SkipBack, Repeat, Shuffle, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { Icon } from "./Icon";
@@ -75,7 +76,8 @@ export function TransportButton({ label, hint, icon, active = false, dot = true,
 }
 
 function PlayButton({ playing, buffering, onArt = false, onClick }: { playing: boolean; buffering: boolean; onArt?: boolean; onClick: () => void }) {
-  const label = playing ? "Pause" : "Play";
+  useT();
+  const label = playing ? t("playback.pause") : t("playback.play");
   const reduced = reducedMotion();
   return (
     <motion.button
@@ -101,8 +103,9 @@ function PlayButton({ playing, buffering, onArt = false, onClick }: { playing: b
 }
 
 export function PlaybackControls({ onArt = false }: { onArt?: boolean }) {
+  useT();
   return (
-    <div role="group" aria-label="Playback" className="flex items-center justify-center gap-3">
+    <div role="group" aria-label={t("playback.group")} className="flex items-center justify-center gap-3">
       <PlaybackButtons onArt={onArt} />
     </div>
   );
@@ -134,9 +137,9 @@ export function PlaybackButtons({ onArt = false }: { onArt?: boolean }) {
         onArt={onArt}
         onClick={cycleShuffle}
       />
-      <TransportButton label="Previous" hint="Shift+Left" icon={SkipBack} disabled={empty} onArt={onArt} onClick={prev} />
+      <TransportButton label={t("playback.previous")} hint="Shift+Left" icon={SkipBack} disabled={empty} onArt={onArt} onClick={prev} />
       <PlayButton playing={playing} buffering={buffering} onArt={onArt} onClick={toggle} />
-      <TransportButton label="Next" hint="Shift+Right" icon={SkipForward} disabled={empty} onArt={onArt} onClick={() => next(true)} />
+      <TransportButton label={t("playback.next")} hint="Shift+Right" icon={SkipForward} disabled={empty} onArt={onArt} onClick={() => next(true)} />
       <TransportButton
         label={REPEAT_LABEL[repeat]}
         hint="R"

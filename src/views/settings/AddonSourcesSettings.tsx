@@ -1,3 +1,4 @@
+import { t } from "../../lib/i18n";
 import { CaretDown, CaretUp, Trash, Plus, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { APP_NAME } from "../../lib/app";
 import { Button } from "../../components/Button";
@@ -94,7 +95,7 @@ export function AddonSourcesSettings() {
       title: "Add this source?",
       body: WARNING,
       confirmLabel: "Add anyway",
-      cancelLabel: "Cancel",
+      cancelLabel: t("dialog.cancel"),
       onConfirm: () => {
         void add(url);
       },
@@ -133,7 +134,7 @@ export function AddonSourcesSettings() {
       title: `Remove ${source.name}?`,
       body: "Hushio stops using this add-on. You can add it again later.",
       confirmLabel: "Remove",
-      cancelLabel: "Cancel",
+      cancelLabel: t("dialog.cancel"),
       danger: true,
       onConfirm: () => {
         save(removeAddonSource(useSettings.getState().addonSources, source.id));

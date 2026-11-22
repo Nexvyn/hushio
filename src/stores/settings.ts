@@ -9,6 +9,7 @@ import { applyTheme, type ThemeMode } from "../lib/theme";
 import { parseAddonSources } from "../lib/addons/registry";
 import type { AddonSource } from "../lib/addons/types";
 import { DEFAULT_IMAGE_CACHE_MB } from "../lib/cacheStats";
+import type { LanguageSetting } from "../lib/i18n";
 
 export const DEVICE_SETTINGS_KEYS = [
   "downloadDir",
@@ -20,6 +21,7 @@ export const DEVICE_SETTINGS_KEYS = [
   "sidebarLayout",
   "imageCacheMb",
   "exclusiveOutput",
+  "language",
 ] as const;
 
 export const LIBRARY_LAYOUTS = ["grid", "list"] as const;
@@ -66,6 +68,7 @@ export type SettingsValues = {
   localMusicFolder: string | null;
   audioSinkId: string;
   exclusiveOutput: boolean;
+  language: LanguageSetting;
   lyricsOffset: number;
   closeToTray: boolean;
   libraryLayout: LibraryLayout;
@@ -180,6 +183,10 @@ function isLibraryLayout(value: unknown): value is LibraryLayout {
   return (LIBRARY_LAYOUTS as readonly unknown[]).includes(value);
 }
 
+function isLanguageSetting(value: unknown): value is LanguageSetting {
+  return value === "system" || value === "en" || value === "hi";
+}
+
 function isSidebarLayout(value: unknown): value is SidebarLayout {
   return (SIDEBAR_LAYOUTS as readonly unknown[]).includes(value);
 }
@@ -194,6 +201,7 @@ export const useSettings = create<SettingsState>()(
       localMusicFolder: null,
       audioSinkId: "",
       exclusiveOutput: false,
+      language: "system",
       lyricsOffset: 0,
       closeToTray: true,
       libraryLayout: "grid",
@@ -279,7 +287,8 @@ export const useSettings = create<SettingsState>()(
         const eqPresets = stored.eqPresets === undefined ? current.eqPresets : normalizeEqPresets(stored.eqPresets);
         const appFont = isAppFont(stored.appFont) ? stored.appFont : current.appFont;
         const addonSources = parseAddonSources(stored.addonSources) ?? current.addonSources;
-        return { ...current, ...stored, theme, libraryLayout, sidebarLayout, eqGains, eqPresets, appFont, addonSources };
+        const language = isLanguageSetting(stored.language) ? stored.language : current.language;
+        return { ...current, ...stored, theme, libraryLayout, sidebarLayout, eqGains, eqPresets, appFont, addonSources, language };
       },
     },
   ),

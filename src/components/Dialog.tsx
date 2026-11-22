@@ -1,3 +1,4 @@
+import { t, useT } from "../lib/i18n";
 import { type MutableRefObject, type RefObject, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { type DialogRequest, useUI } from "../stores/ui";
@@ -106,7 +107,7 @@ function DialogFrame({ request, sheet, failure, panelRef, inputRef, onConfirm, o
               onClick={onDismiss}
               className={`hit-area ${buttonHeight} rounded-xl px-4 text-meta font-medium text-ink-2 transition-colors hover:bg-hover hover:text-ink-1`}
             >
-              {request.cancelLabel ?? "Cancel"}
+              {request.cancelLabel ?? t("dialog.cancel")}
             </button>
           )}
           <button
@@ -127,6 +128,7 @@ function DialogFrame({ request, sheet, failure, panelRef, inputRef, onConfirm, o
 }
 
 export function Dialog({ sheet = false }: { sheet?: boolean }) {
+  useT();
   const request = useUI((state) => state.dialog);
   const closeDialog = useUI((state) => state.closeDialog);
   const [failure, setFailure] = useState<Failure | null>(null);

@@ -1,3 +1,4 @@
+import { LANGUAGES, t } from "../../lib/i18n";
 import { VinylRecord, Warning, ChartBar, Waveform, ChartLine, CloudArrowDown, Cloud, Copy, Gauge, Database, Trash, DownloadSimple, Drop, Export, FileArrowDown, FunnelSimple, Flashlight, Lightning, FolderPlus, FolderSimple, FolderOpen, CornersOut, GameController, Globe, Infinity, Info, LinkSimple, SignOut, ArrowsOut, DeviceMobile, List, Microphone, MusicNote, PaintBrush, PlayCircle, Radio, ArrowClockwise, Repeat, SidebarSimple, SlidersHorizontal, Sparkle, SpeakerHigh, TextT, Timer, Translate, User, VideoCamera, SpeakerX, WifiHigh, CircleHalf, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import type { ThemeMode } from "../../lib/theme";
@@ -353,7 +354,7 @@ function playbackCategory(context: BuildContext): SettingsCategory {
     {
       id: "crossfade",
       icon: ChartLine,
-      title: "Crossfade",
+      title: t("settings.row.crossfade"),
       note: "Blends the end of a track into the next.",
       value: crossfadeValue(s),
       control: (
@@ -370,7 +371,7 @@ function playbackCategory(context: BuildContext): SettingsCategory {
     {
       id: "automix",
       icon: Sparkle,
-      title: "Automix",
+      title: t("settings.row.automix"),
       note: s.smartFade
         ? "Blends where the music really ends and lines up beats when tempos match"
         : "Off: blends use the crossfade length above",
@@ -379,7 +380,7 @@ function playbackCategory(context: BuildContext): SettingsCategory {
     {
       id: "gapless",
       icon: Waveform,
-      title: "Gapless playback",
+      title: t("settings.row.gapless"),
       note: "Plays the next song without a gap. Turns off when crossfade is on.",
       disabled: s.crossfadeSeconds > 0,
       toggle: flag(s, "gaplessPlayback"),
@@ -387,7 +388,7 @@ function playbackCategory(context: BuildContext): SettingsCategory {
     {
       id: "skip-silence",
       icon: SpeakerX,
-      title: "Skip silence",
+      title: t("settings.row.skipSilence"),
       note: "Skips silence at the start and end of songs.",
       toggle: flag(s, "skipSilence"),
     },
@@ -401,35 +402,35 @@ function playbackCategory(context: BuildContext): SettingsCategory {
     {
       id: "autoplay",
       icon: Infinity,
-      title: "Autoplay",
+      title: t("settings.row.autoplay"),
       note: "When songs run out, keep playing similar music.",
       toggle: flag(s, "autoplay"),
     },
     {
       id: "no-repeat-suggestions",
       icon: Repeat,
-      title: "Don't repeat suggestions",
+      title: t("settings.row.noRepeat"),
       note: "Keeps recently played tracks out of the home feed.",
       toggle: flag(s, "dontRepeatSuggestions"),
     },
     {
       id: "no-duplicate-queue",
       icon: Copy,
-      title: "Don't add duplicate songs to the queue",
+      title: t("settings.row.noDuplicates"),
       note: "A song you already have in the queue is left out.",
       toggle: flag(s, "noDuplicateQueue"),
     },
     {
       id: "restore-queue",
       icon: ArrowClockwise,
-      title: "Restore the queue on restart",
+      title: t("settings.row.restoreQueue"),
       note: "Picks up where you left off, with the same song and position.",
       toggle: flag(s, "restoreQueueOnRestart"),
     },
     {
       id: "playback-speed",
       icon: Gauge,
-      title: "Playback speed",
+      title: t("settings.row.speed"),
       note: "Pitch-preserving tempo.",
       value: formatSpeed(s.playbackSpeed),
       control: (
@@ -449,7 +450,7 @@ function playbackCategory(context: BuildContext): SettingsCategory {
     rows.push({
       id: "close-to-tray",
       icon: SidebarSimple,
-      title: "Close to tray (Windows only)",
+      title: t("settings.row.closeToTray"),
       note: "Closing the window pauses music. Quit from the tray icon.",
       toggle: flag(s, "closeToTray"),
     });
@@ -481,7 +482,7 @@ function playbackCategory(context: BuildContext): SettingsCategory {
 
   return {
     id: "playback",
-    label: "Playback",
+    label: t("settings.category.playback"),
     icon: PlayCircle,
     groups: [{ rows }],
   };
@@ -492,22 +493,22 @@ function outputRow({ settings: s, platform }: BuildContext): RowSpec {
     return {
       id: "output-device",
       icon: SpeakerHigh,
-      title: "Output device",
+      title: t("settings.row.outputDevice"),
       note: s.audioSinkId ? "Pinned to this device" : "Following the system default",
       control: <OutputDevicePicker />,
     };
   }
   if (platform === "macos") {
-    return { id: "output-device", icon: SpeakerHigh, title: "Output device", note: "Follows the system output" };
+    return { id: "output-device", icon: SpeakerHigh, title: t("settings.row.outputDevice"), note: "Follows the system output" };
   }
-  return { id: "output-device", icon: SpeakerHigh, title: "Output device", note: "Follows the system output", disabled: true };
+  return { id: "output-device", icon: SpeakerHigh, title: t("settings.row.outputDevice"), note: "Follows the system output", disabled: true };
 }
 
 function soundCategory(context: BuildContext): SettingsCategory {
   const { settings: s } = context;
   return {
     id: "sound",
-    label: "Sound",
+    label: t("settings.category.sound"),
     icon: Waveform,
     groups: [
       {
@@ -515,7 +516,7 @@ function soundCategory(context: BuildContext): SettingsCategory {
           {
             id: "streaming-quality",
             icon: WifiHigh,
-            title: "Wi-Fi quality",
+            title: t("settings.row.wifiQuality"),
             note: "Streaming quality on Wi-Fi.",
             control: (
               <RadioGroup
@@ -531,7 +532,7 @@ function soundCategory(context: BuildContext): SettingsCategory {
                 {
                   id: "mobile-streaming-quality",
                   icon: DeviceMobile,
-                  title: "Mobile data quality",
+                  title: t("settings.row.mobileQuality"),
                   note: "Streaming quality on cellular networks.",
                   control: (
                     <RadioGroup
@@ -547,7 +548,7 @@ function soundCategory(context: BuildContext): SettingsCategory {
           {
             id: "volume-leveling",
             icon: SpeakerHigh,
-            title: "Volume leveling",
+            title: t("settings.row.volumeLeveling"),
             note: "Brings every song to a similar loudness.",
             control: (
               <RadioGroup
@@ -564,7 +565,7 @@ function soundCategory(context: BuildContext): SettingsCategory {
                 {
                   id: "exclusive-output",
                   icon: Lightning,
-                  title: "Exclusive output",
+                  title: t("settings.row.exclusiveOutput"),
                   note: "Sends audio straight to the device. The equalizer, volume leveling and crossfade are off while it is on.",
                   toggle: flag(s, "exclusiveOutput"),
                 },
@@ -577,7 +578,7 @@ function soundCategory(context: BuildContext): SettingsCategory {
           {
             id: "equalizer",
             icon: SlidersHorizontal,
-            title: "Equalizer",
+            title: t("settings.row.equalizer"),
             note: "Shape the sound with 10 bands",
             toggle: flag(s, "eqEnabled"),
           },
@@ -589,7 +590,7 @@ function soundCategory(context: BuildContext): SettingsCategory {
           {
             id: "prevent-clipping",
             icon: Warning,
-            title: "Prevent clipping",
+            title: t("settings.row.preventClipping"),
             note: "Lowers the level only when your boosts would distort at the current volume",
             disabled: !s.eqEnabled,
             toggle: flag(s, "eqAutoHeadroom"),
@@ -604,7 +605,7 @@ function lyricsCategory({ settings: s }: BuildContext): SettingsCategory {
   const syncedOff = !s.syncedLyrics;
   return {
     id: "lyrics",
-    label: "Lyrics",
+    label: t("settings.category.lyrics"),
     icon: Microphone,
     groups: [
       {
@@ -612,7 +613,7 @@ function lyricsCategory({ settings: s }: BuildContext): SettingsCategory {
           {
             id: "synced-lyrics",
             icon: Microphone,
-            title: "Synced lyrics",
+            title: t("settings.row.syncedLyrics"),
             note: "Highlights the current line and auto-scrolls.",
             toggle: flag(s, "syncedLyrics"),
           },
@@ -626,7 +627,7 @@ function lyricsCategory({ settings: s }: BuildContext): SettingsCategory {
           {
             id: "blur-lyrics",
             icon: Drop,
-            title: "Blur unfocused lyrics",
+            title: t("settings.row.blurLyrics"),
             note: "Keeps the spotlight on the current line.",
             toggle: flag(s, "blurUnfocusedLyrics"),
             disabled: syncedOff,
@@ -634,7 +635,7 @@ function lyricsCategory({ settings: s }: BuildContext): SettingsCategory {
           {
             id: "romanized-lyrics",
             icon: Translate,
-            title: "Romanized lyrics",
+            title: t("settings.row.romanized"),
             note: "Shows a Latin-letter reading under lyrics in other scripts (Hindi, Telugu, Korean).",
             toggle: flag(s, "romanizeLyrics"),
             disabled: syncedOff,
@@ -642,7 +643,7 @@ function lyricsCategory({ settings: s }: BuildContext): SettingsCategory {
           {
             id: "lyrics-timing",
             icon: Timer,
-            title: "Lyrics timing",
+            title: t("settings.row.timing"),
             note: "Shifts lyrics for this device.",
             value: formatLyricsShift(s.lyricsOffset),
             disabled: syncedOff,
@@ -661,7 +662,7 @@ function lyricsCategory({ settings: s }: BuildContext): SettingsCategory {
           {
             id: "lyrics-text-size",
             icon: TextT,
-            title: "Lyrics text size",
+            title: t("settings.row.textSize"),
             note: "How big the lyrics are.",
             control: (
               <RadioGroup
@@ -675,7 +676,7 @@ function lyricsCategory({ settings: s }: BuildContext): SettingsCategory {
         ],
       },
       {
-        title: "Lyrics sources",
+        title: t("settings.row.sources"),
         note: "Hushio asks each source in turn and takes the first answer that has timings.",
         rows: LYRICS_PROVIDERS.map((provider) => ({
           id: `lyrics-provider-${provider.id}`,
@@ -696,7 +697,7 @@ function displayCategory(context: BuildContext): SettingsCategory {
   const { settings: s, navigate } = context;
   return {
     id: "display",
-    label: "Display",
+    label: t("settings.category.display"),
     icon: PaintBrush,
     groups: [
       {
@@ -704,7 +705,7 @@ function displayCategory(context: BuildContext): SettingsCategory {
           {
             id: "theme",
             icon: CircleHalf,
-            title: "Theme",
+            title: t("settings.row.theme"),
             note: "System follows your device's light or dark setting.",
             control: (
               <RadioGroup
@@ -716,9 +717,33 @@ function displayCategory(context: BuildContext): SettingsCategory {
             ),
           },
           {
+            id: "language",
+            icon: Translate,
+            title: t("settings.language"),
+            note: t("settings.languageNote"),
+            control: (
+              <select
+                aria-label={t("settings.language")}
+                value={s.language}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (value === "system" || value === "en" || value === "hi") s.setValue("language", value);
+                }}
+                className="hit-area h-9 rounded-control border border-separator bg-base px-2.5 text-meta text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              >
+                <option value="system">{t("settings.languageSystem")}</option>
+                {LANGUAGES.map((option) => (
+                  <option key={option.code} value={option.code}>
+                    {option.nativeName}
+                  </option>
+                ))}
+              </select>
+            ),
+          },
+          {
             id: "reduce-animation",
             icon: ArrowsOut,
-            title: "Reduce animation",
+            title: t("settings.row.reduceAnimation"),
             note: "Cuts crossfades and motion through the app.",
             toggle: flag(s, "reduceAnimation"),
           },
@@ -727,7 +752,7 @@ function displayCategory(context: BuildContext): SettingsCategory {
                 {
                   id: "vibration-feedback",
                   icon: DeviceMobile,
-                  title: "Vibration feedback",
+                  title: t("settings.row.vibration"),
                   note: "A light tick on taps, likes and song changes.",
                   toggle: flag(s, "haptics"),
                 },
@@ -736,49 +761,49 @@ function displayCategory(context: BuildContext): SettingsCategory {
           {
             id: "reduce-transparency",
             icon: Drop,
-            title: "Reduce transparency",
+            title: t("settings.row.reduceTransparency"),
             note: "Turns off the light blur on menus and popovers.",
             toggle: flag(s, "reduceDynamicBlur"),
           },
           {
             id: "full-bleed-artwork",
             icon: CornersOut,
-            title: "Full-screen cover art",
+            title: t("settings.row.fullBleed"),
             note: "Lets the artwork bleed behind the status area.",
             toggle: flag(s, "fullBleedArtwork"),
           },
           {
             id: "animated-covers",
             icon: VideoCamera,
-            title: "Animated covers",
+            title: t("settings.row.animatedCovers"),
             note: "Loops a short video over the cover when one exists. Off with data saver or reduced motion.",
             toggle: flag(s, "animatedCovers"),
           },
           {
             id: "hide-volume-bar",
             icon: SpeakerHigh,
-            title: "Hide volume bar",
+            title: t("settings.row.hideVolume"),
             note: "Keeps the player bar free of the volume slider.",
             toggle: flag(s, "hideVolumeBar"),
           },
           {
             id: "keep-screen-awake",
             icon: Flashlight,
-            title: "Keep the screen awake",
+            title: t("settings.row.keepAwake"),
             note: "Stops the screen going dark while Now Playing is open.",
             toggle: flag(s, "keepScreenAwake"),
           },
           {
             id: "data-saver",
             icon: WifiHigh,
-            title: "Data saver",
+            title: t("settings.row.dataSaver"),
             note: "Streams the lowest quality and loads smaller covers.",
             toggle: flag(s, "dataSaver"),
           },
           {
             id: "app-font",
             icon: TextT,
-            title: "App font",
+            title: t("settings.row.appFont"),
             note: "The font used for UI text and lyrics.",
             control: (
               <RadioGroup
@@ -794,7 +819,7 @@ function displayCategory(context: BuildContext): SettingsCategory {
           {
             id: "home-sections",
             icon: List,
-            title: "Home sections",
+            title: t("settings.row.homeSections"),
             note: "Reorder the sections on Home, or hide one.",
             control: <Button onClick={() => navigate({ name: "settings", param: "home-sections" })}>Open</Button>,
           },
@@ -831,7 +856,7 @@ function libraryCategory(context: BuildContext): SettingsCategory {
   const { settings: s, navigate } = context;
   return {
     id: "library",
-    label: "Library",
+    label: t("settings.category.library"),
     icon: VinylRecord,
     groups: [
       {
@@ -839,7 +864,7 @@ function libraryCategory(context: BuildContext): SettingsCategory {
           {
             id: "local-folders",
             icon: FolderOpen,
-            title: "Local music folders",
+            title: t("settings.row.localFolders"),
             note: s.localMusicFolder ? "Your imported collections" : "No folders imported yet",
             control: (
               <Button onClick={() => navigate({ name: "local" })}>Open</Button>
@@ -848,35 +873,35 @@ function libraryCategory(context: BuildContext): SettingsCategory {
           {
             id: "add-folder",
             icon: FolderPlus,
-            title: "Add a folder",
+            title: t("settings.row.addFolder"),
             note: "Import music folders. A parent folder brings its music subfolders along",
             control: <Button onClick={() => void useLocalLibrary.getState().importFromPicker()}>Add folder</Button>,
           },
           {
             id: "rescan-library",
             icon: ArrowClockwise,
-            title: "Rescan library",
+            title: t("settings.row.rescan"),
             note: "Re-read tags and artwork from every imported folder",
             control: <Button onClick={() => void useLocalLibrary.getState().scan()}>Rescan</Button>,
           },
           {
             id: "filter-non-music",
             icon: FunnelSimple,
-            title: "Filter non-music audio",
+            title: t("settings.row.filterNonMusic"),
             note: "Hides clips, recordings and voice notes. Applies on rescan.",
             toggle: flag(s, "filterNonMusicAudio"),
           },
           {
             id: "auto-download-liked",
             icon: CloudArrowDown,
-            title: "Auto-download songs you like",
+            title: t("settings.row.autoDownload"),
             note: "Saves a copy of every song you like.",
             toggle: flag(s, "autoDownloadLiked"),
           },
           {
             id: "keep-playlists-updated",
             icon: ArrowClockwise,
-            title: "Keep downloaded playlists updated",
+            title: t("settings.row.keepPlaylists"),
             note: "Downloads new songs added to a playlist you have fully downloaded.",
             toggle: flag(s, "keepPlaylistsUpdated"),
           },
@@ -887,14 +912,14 @@ function libraryCategory(context: BuildContext): SettingsCategory {
           {
             id: "download-folder",
             icon: FolderSimple,
-            title: "Download folder",
+            title: t("settings.row.downloadFolder"),
             note: s.downloadDir ?? `Default: your system Downloads folder / ${APP_NAME}`,
             control: <Button onClick={() => void chooseDownloadFolder()}>Choose</Button>,
           },
           {
             id: "download-quality",
             icon: DownloadSimple,
-            title: "Download quality",
+            title: t("settings.row.downloadQuality"),
             note: "What a saved track costs on disk",
             control: (
               <RadioGroup
@@ -910,7 +935,7 @@ function libraryCategory(context: BuildContext): SettingsCategory {
                 {
                   id: "download-wifi-only",
                   icon: WifiHigh,
-                  title: "Download over Wi-Fi only",
+                  title: t("settings.row.wifiOnly"),
                   note: "On mobile data, downloads wait in the list until you are on Wi-Fi.",
                   toggle: flag(s, "downloadWifiOnly"),
                 },
@@ -919,7 +944,7 @@ function libraryCategory(context: BuildContext): SettingsCategory {
           {
             id: "export-downloads",
             icon: Export,
-            title: "Export compatible downloads",
+            title: t("settings.row.exportDownloads"),
             note: `Also save them into your Music library (Music/${APP_NAME}), so other players can use the files. Otherwise downloads stay in the folder above`,
             value: s.exportDownloads ? `Music/${APP_NAME}` : undefined,
             toggle: flag(s, "exportDownloads"),

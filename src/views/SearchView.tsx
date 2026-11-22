@@ -1,3 +1,4 @@
+import { t, useT, type TKey } from "../lib/i18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { VinylRecord, X, GridFour, CircleNotch, MusicNote, Play, ListPlus, Playlist, MagnifyingGlass, User, Globe, HardDrives, PuzzlePiece, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { Artwork, BrowseCard, BrowseRow } from "../components/SearchRows";
@@ -45,13 +46,13 @@ const HEADING = "text-section text-ink-1";
 const PHONE_HEADING = "font-title text-card-title leading-[26px] font-bold tracking-[-0.02em] text-ink-1";
 const PHONE_RECENT_LIMIT = 6;
 
-const FILTER_TABS: { filter: SearchFilter; label: string; icon: PhosphorIcon }[] = [
-  { filter: "all", label: "All", icon: GridFour },
-  { filter: "songs", label: "Songs", icon: MusicNote },
-  { filter: "videos", label: "Videos", icon: Play },
-  { filter: "albums", label: "Albums", icon: VinylRecord },
-  { filter: "artists", label: "Artists", icon: User },
-  { filter: "playlists", label: "Playlists", icon: Playlist },
+const FILTER_TABS: { filter: SearchFilter; labelKey: TKey; icon: PhosphorIcon }[] = [
+  { filter: "all", labelKey: "search.filter.all", icon: GridFour },
+  { filter: "songs", labelKey: "search.filter.songs", icon: MusicNote },
+  { filter: "videos", labelKey: "search.filter.videos", icon: Play },
+  { filter: "albums", labelKey: "search.filter.albums", icon: VinylRecord },
+  { filter: "artists", labelKey: "search.filter.artists", icon: User },
+  { filter: "playlists", labelKey: "search.filter.playlists", icon: Playlist },
 ];
 
 const KIND_LABEL: Record<RecentKind, string> = {
@@ -355,10 +356,10 @@ function IdleSearch() {
   );
 }
 
-const SCOPE_TABS: { scope: SearchScope; label: string; icon: PhosphorIcon }[] = [
-  { scope: "online", label: "Online", icon: Globe },
-  { scope: "device", label: "On device", icon: HardDrives },
-  { scope: "addons", label: "Add-ons", icon: PuzzlePiece },
+const SCOPE_TABS: { scope: SearchScope; labelKey: TKey; icon: PhosphorIcon }[] = [
+  { scope: "online", labelKey: "search.scope.online", icon: Globe },
+  { scope: "device", labelKey: "search.scope.device", icon: HardDrives },
+  { scope: "addons", labelKey: "search.scope.addons", icon: PuzzlePiece },
 ];
 
 function ScopeControl({
@@ -386,7 +387,7 @@ function ScopeControl({
               scope === tab.scope ? "bg-accent text-on-accent" : "bg-wash text-ink-2 hover:bg-hover"
             }`}
           >
-            {tab.label}
+            {t(tab.labelKey)}
           </button>
         ))}
       </div>
@@ -405,7 +406,7 @@ function ScopeControl({
           }`}
         >
           <Icon icon={tab.icon} />
-          {tab.label}
+          {t(tab.labelKey)}
         </button>
       ))}
     </div>
@@ -533,7 +534,7 @@ function PhoneFilterChips({ filter, onPick }: { filter: SearchFilter; onPick: (f
             filter === tab.filter ? "bg-accent text-on-accent" : "bg-wash text-ink-2 hover:bg-hover"
           }`}
         >
-          {tab.label}
+          {t(tab.labelKey)}
         </button>
       ))}
     </div>
@@ -572,6 +573,7 @@ function ResultRow({ row, query, phone }: { row: SearchRow; query: string; phone
 }
 
 export function SearchView() {
+  useT();
   const query = useUI((state) => state.searchQuery);
   const filter = useUI((state) => state.searchFilter);
   const setFilter = useUI((state) => state.setSearchFilter);
@@ -667,7 +669,7 @@ export function SearchView() {
               }`}
             >
               <Icon icon={tab.icon} />
-              {tab.label}
+              {t(tab.labelKey)}
             </button>
           ))}
           {loading && (

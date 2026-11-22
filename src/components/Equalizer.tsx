@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { animate } from "motion/react";
 import { CircleNotch, DotsThree, MusicNote, Pause, Play, type Icon as PhosphorIcon } from "@phosphor-icons/react";
@@ -68,7 +69,7 @@ function openSave() {
     title: "Save preset",
     placeholder: "Preset name",
     initialValue: "My preset",
-    confirmLabel: "Save",
+    confirmLabel: t("dialog.save"),
     onConfirm: (value) => {
       const name = validName(value);
       if (name === null) return;

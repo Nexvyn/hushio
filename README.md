@@ -111,6 +111,7 @@ Google sign-in, connecting a Spotify account, Last.fm and Discord status need AP
 ### Look and feel
 - Light, dark or system theme, with a calm white design and one accent colour.
 - Every animation respects the system Reduce Motion setting.
+- The interface is available in English and Hindi, with more languages welcome.
 
 ## How it works
 

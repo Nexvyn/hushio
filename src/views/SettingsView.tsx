@@ -1,3 +1,4 @@
+import { useT } from "../lib/i18n";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { CaretRight, X, DownloadSimple, MagnifyingGlass } from "@phosphor-icons/react";
 import { Icon } from "../components/Icon";
@@ -301,6 +302,7 @@ function backToSettingsList(): void {
 }
 
 export function SettingsView() {
+  useT();
   const view = useNavigation((state) => state.view);
   const replaceView = useNavigation((state) => state.replaceView);
   const navigate = useNavigation((state) => state.navigate);

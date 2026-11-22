@@ -9,6 +9,7 @@ import { SearchSuggestions, optionId, useTypeAhead } from "./SearchSuggestions";
 import { ThemeButton } from "./ThemeButton";
 import { UpdateChip } from "./UpdateChip";
 import { platform } from "../lib/bridge";
+import { t, useT } from "../lib/i18n";
 import { hasCaptionButtons } from "../lib/desktopPlatform";
 import { openSuggestion, submitSearch } from "../lib/searchActions";
 import { topBarLeadingInset } from "../lib/windowChrome";
@@ -28,6 +29,7 @@ const fieldInput =
   "relative z-[60] h-9 w-full rounded-field bg-wash pl-11 text-body text-ink-1 placeholder:text-ink-3 outline-none focus-visible:ring-2 focus-visible:ring-focus data-[open=true]:bg-transparent motion-safe:transition-colors";
 
 export function TopBar() {
+  useT();
   const view = useNavigation((state) => state.view);
   const navPast = useNavigation((state) => state.navPast);
   const navFuture = useNavigation((state) => state.navFuture);
@@ -102,8 +104,8 @@ export function TopBar() {
         </span>
         <button
           type="button"
-          aria-label="Back"
-          title="Back"
+          aria-label={t("nav.back")}
+          title={t("nav.back")}
           disabled={navPast.length === 0}
           onClick={goBack}
           className={squircleButton}
@@ -112,8 +114,8 @@ export function TopBar() {
         </button>
         <button
           type="button"
-          aria-label="Forward"
-          title="Forward"
+          aria-label={t("nav.forward")}
+          title={t("nav.forward")}
           disabled={navFuture.length === 0}
           onClick={goForward}
           className={squircleButton}
@@ -125,8 +127,8 @@ export function TopBar() {
       <div data-tauri-drag-region data-testid="topbar-centre" className="flex min-w-0 items-center justify-center gap-2">
         <button
           type="button"
-          aria-label="Home"
-          title="Home"
+          aria-label={t("nav.home")}
+          title={t("nav.home")}
           aria-current={view.name === "home" ? "page" : undefined}
           onClick={() => navigate({ name: "home" })}
           className={`${liftedButton} ${view.name === "home" ? "lifted-tint text-ink-1" : liftedFill}`}
@@ -143,12 +145,12 @@ export function TopBar() {
             id="global-search"
             type="search"
             role="combobox"
-            aria-label="Search"
+            aria-label={t("nav.search")}
             aria-expanded={open}
             aria-controls={open ? listId : undefined}
             aria-activedescendant={open && activeIndex >= 0 ? optionId(listId, activeIndex) : undefined}
             aria-autocomplete="list"
-            placeholder="What do you want to play?"
+            placeholder={t("topbar.searchPlaceholder")}
             maxLength={200}
             spellCheck={false}
             value={searchQuery}
@@ -168,8 +170,8 @@ export function TopBar() {
           {searchQuery && (
             <button
               type="button"
-              aria-label="Clear search"
-              title="Clear search"
+              aria-label={t("topbar.clearSearch")}
+              title={t("topbar.clearSearch")}
               onMouseDown={(event) => event.preventDefault()}
               onClick={clearSearch}
               className="hit-area absolute right-[44px] top-1/2 z-[60] grid h-7 w-7 -translate-y-1/2 place-items-center rounded-[9px] [corner-shape:squircle] text-ink-2 motion-safe:transition-colors hover:bg-hover hover:text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"

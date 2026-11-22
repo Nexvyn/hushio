@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { CaretDown, CaretLeft, CaretRight, DownloadSimple, Heart, Folder, Books, ListBullets, MusicNote, MusicNotes, Rows, PushPin, Playlist, Plus, MagnifyingGlass, SquaresFour, User, VinylRecord, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { ActionMenu } from "./ActionMenu";
+import { t, useT, type TKey } from "../lib/i18n";
 import { openMenuAtPointer, openMenuFromKey } from "./ContextMenu";
 import { Icon } from "./Icon";
 import type { SidebarMode } from "../lib/layoutTier";
@@ -34,17 +35,17 @@ function SidebarThumb({ src }: { src: string }) {
   return <img loading="lazy" decoding="async" src={src} alt="" onLoad={reveal.onLoad} className={`h-full w-full object-cover ${reveal.className}`} />;
 }
 
-const SINGLE_INFO: Record<SingleRow, { label: string; icon: PhosphorIcon; view: View }> = {
-  liked: { label: "Liked Songs", icon: Heart, view: { name: "library", param: "liked" } },
-  spotify: { label: "Import", icon: MusicNotes, view: { name: "import" } },
-  downloads: { label: "Downloads", icon: DownloadSimple, view: { name: "downloads" } },
-  local: { label: "Local music", icon: MusicNote, view: { name: "local" } },
+const SINGLE_INFO: Record<SingleRow, { labelKey: TKey; icon: PhosphorIcon; view: View }> = {
+  liked: { labelKey: "nav.liked", icon: Heart, view: { name: "library", param: "liked" } },
+  spotify: { labelKey: "nav.import", icon: MusicNotes, view: { name: "import" } },
+  downloads: { labelKey: "nav.downloads", icon: DownloadSimple, view: { name: "downloads" } },
+  local: { labelKey: "nav.local", icon: MusicNote, view: { name: "local" } },
 };
 
-const VIEW_OPTIONS: Record<SidebarLayout, { label: string; icon: PhosphorIcon }> = {
-  compact: { label: "Compact", icon: Rows },
-  list: { label: "List", icon: ListBullets },
-  grid: { label: "Grid", icon: SquaresFour },
+const VIEW_OPTIONS: Record<SidebarLayout, { labelKey: TKey; icon: PhosphorIcon }> = {
+  compact: { labelKey: "view.compact", icon: Rows },
+  list: { labelKey: "view.list", icon: ListBullets },
+  grid: { labelKey: "view.grid", icon: SquaresFour },
 };
 
 const SINGLE_SUBTITLE: Record<SingleRow, string> = {
@@ -69,7 +70,7 @@ function describe(entry: RowEntry, counts: RowCounts, failed: FailedCovers): Row
       let subtitle = SINGLE_SUBTITLE[entry.single];
       if (entry.single === "liked") subtitle = plural(counts.liked, "song", "songs");
       if (entry.single === "downloads") subtitle = `${plural(counts.downloaded, "song", "songs")} · Downloaded`;
-      return { title: info.label, subtitle, view: info.view, icon: info.icon, thumb: null, round: false };
+      return { title: t(info.labelKey), subtitle, view: info.view, icon: info.icon, thumb: null, round: false };
     }
     case "playlist":
       return {
@@ -165,6 +166,7 @@ export function Sidebar({ mode = "full" }: { mode?: SidebarMode }) {
   useRovingKeys(libraryRef, "button:not([disabled])", "vertical");
   const view = useNavigation((state) => state.view);
   const navigate = useNavigation((state) => state.navigate);
+  useT();
   const playlists = useLibrary((state) => state.playlists);
   const folders = useLibrary((state) => state.folders);
   const followedArtists = useLibrary((state) => state.followedArtists);
@@ -225,7 +227,7 @@ export function Sidebar({ mode = "full" }: { mode?: SidebarMode }) {
 
   const sortLabel = LIBRARY_SORTS.find((option) => option.id === sort)?.label ?? "Recents";
   const sortItems: MenuItem[] = [
-    { label: "Sort by", header: true },
+    { label: t("sidebar.sortBy"), header: true },
     ...LIBRARY_SORTS.map((option) => ({
       label: option.label,
       checked: option.id === sort,
@@ -234,9 +236,9 @@ export function Sidebar({ mode = "full" }: { mode?: SidebarMode }) {
   ];
 
   const viewItems: MenuItem[] = [
-    { label: "View as", header: true },
+    { label: t("sidebar.viewAs"), header: true },
     ...SIDEBAR_LAYOUTS.map((id) => ({
-      label: VIEW_OPTIONS[id].label,
+      label: t(VIEW_OPTIONS[id].labelKey),
       checked: id === sidebarLayout,
       onSelect: () => setSetting("sidebarLayout", id),
     })),
@@ -328,18 +330,18 @@ export function Sidebar({ mode = "full" }: { mode?: SidebarMode }) {
       className={`shell-sidebar flex min-h-0 shrink-0 flex-col overflow-hidden rounded-[8px] bg-surface ${rail ? "w-16" : "w-[272px]"}`}
       onContextMenu={(event) => openMenuAtPointer(event, panelMenuItems())}
     >
-      <section aria-label="Your Library" className="flex min-h-0 flex-1 flex-col pt-2">
+      <section aria-label={t("nav.library")} className="flex min-h-0 flex-1 flex-col pt-2">
         <div className={`flex shrink-0 items-center gap-2 ${rail ? "h-auto flex-col px-2 pt-2" : "h-10 pl-4 pr-2.5"}`}>
           <button
             type="button"
             onClick={() => navigate({ name: "library" })}
-            aria-label={rail ? "Your Library" : undefined}
-            title={rail ? "Your Library" : undefined}
+            aria-label={rail ? t("nav.library") : undefined}
+            title={rail ? t("nav.library") : undefined}
             className={`rounded-control focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
               rail ? "flex items-center justify-center p-1 text-ink-2 hover:text-ink-1" : "min-w-0 truncate text-[15px] font-semibold text-ink-1"
             }`}
           >
-            {rail ? <Icon icon={Books} /> : <span className="bt-label-in">Your Library</span>}
+            {rail ? <Icon icon={Books} /> : <span className="bt-label-in">{t("nav.library")}</span>}
           </button>
           <div className={`flex items-center gap-1 ${rail ? "" : "ml-auto"}`}>
             {!rail && (

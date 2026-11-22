@@ -1,3 +1,4 @@
+import { t } from "../../lib/i18n";
 import { useEffect, useState } from "react";
 import { Trash, LinkSimple } from "@phosphor-icons/react";
 import { Button } from "../../components/Button";
@@ -182,7 +183,7 @@ export function NetworkServersSettings() {
                 <Button variant="primary" disabled={busy} onClick={() => void submit()}>
                   Save
                 </Button>
-                <Button onClick={() => setDraft(EMPTY)}>Cancel</Button>
+                <Button onClick={() => setDraft(EMPTY)}>{t("dialog.cancel")}</Button>
               </div>
             </div>
           </section>
