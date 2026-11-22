@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { CUSTOM_SORT, TRACK_FIELDS } from "../lib/trackSort";
 import { PhoneTrackFilter, TrackTools, arrangeTracks, FILTER_MIN_TRACKS } from "./TrackListControls";
 
 afterEach(cleanup);
@@ -13,12 +14,12 @@ const tracks = [
 
 describe("arrangeTracks filter", () => {
   it("matches title or artist without regard to case and keeps the original positions", () => {
-    expect(arrangeTracks(tracks, "NOVA", "custom").map((row) => row.index)).toEqual([0, 2]);
-    expect(arrangeTracks(tracks, "sun", "custom").map((row) => row.index)).toEqual([1]);
+    expect(arrangeTracks(tracks, "NOVA", CUSTOM_SORT).map((row) => row.index)).toEqual([0, 2]);
+    expect(arrangeTracks(tracks, "sun", CUSTOM_SORT).map((row) => row.index)).toEqual([1]);
   });
 
   it("returns every row for a blank filter", () => {
-    expect(arrangeTracks(tracks, "  ", "custom")).toHaveLength(3);
+    expect(arrangeTracks(tracks, "  ", CUSTOM_SORT)).toHaveLength(3);
   });
 });
 
@@ -51,7 +52,7 @@ describe("phone track filter", () => {
 });
 
 describe("desktop track tools", () => {
-  const sortProps = { sort: "custom" as const, onSort: vi.fn() };
+  const sortProps = { sort: CUSTOM_SORT, onSort: vi.fn(), fields: TRACK_FIELDS };
 
   it("shows the filter toggle for filterable lists", () => {
     render(<TrackTools query="" onQuery={vi.fn()} {...sortProps} filterable />);

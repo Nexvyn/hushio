@@ -3,17 +3,22 @@ import { ArrowsDownUp, Check, Plus, X, XCircle, DownloadSimple, Play, Magnifying
 import { ActionMenu } from "./ActionMenu";
 import { Icon } from "./Icon";
 import { PhoneIcon } from "./phone/PhoneIcon";
+import {
+  CUSTOM_SORT,
+  defaultDirection,
+  directionLabel,
+  fieldLabel,
+  sortSummary,
+  trackComparator,
+  type SortField,
+  type SortableTrack,
+  type TrackSort,
+} from "../lib/trackSort";
 import type { MenuItem } from "../stores/ui";
-
-export type SortKey = "custom" | "title" | "artist" | "album" | "duration" | "added";
-
-export type SortableTrack = { title: string; artist: string; album?: string | null; duration?: number; addedAt?: number };
 
 export type Arranged<T> = { item: T; index: number };
 
-export const ALL_SORTS: SortKey[] = ["custom", "title", "artist", "album", "duration", "added"];
 export const FILTER_MIN_TRACKS = 8;
-export const ALBUM_SORTS: SortKey[] = ["custom", "title", "artist", "duration"];
 
 const ICON_BUTTON =
   "grid h-10 w-10 shrink-0 place-items-center rounded-full text-ink-2 hover:text-ink-1 motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-[var(--disabled-opacity)]";
@@ -21,47 +26,16 @@ const PLAY_BUTTON =
   "grid h-14 w-14 shrink-0 place-items-center rounded-full bg-accent text-on-accent shadow-float motion-safe:transition-[transform,opacity] hover:opacity-90 active:scale-[0.97] disabled:opacity-[var(--disabled-opacity)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 const SORT_TRIGGER =
   "flex h-10 items-center gap-2 rounded-full px-3 text-meta font-medium text-ink-2 hover:bg-hover hover:text-ink-1 motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+const PHONE_SORT_TRIGGER =
+  "flex h-11 max-w-full items-center gap-2 rounded-full px-3 text-meta font-medium text-ink-2 active:bg-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
-function sortLabel(key: SortKey, customLabel: string): string {
-  switch (key) {
-    case "custom":
-      return customLabel;
-    case "title":
-      return "Title";
-    case "artist":
-      return "Artist";
-    case "album":
-      return "Album";
-    case "duration":
-      return "Duration";
-    case "added":
-      return "Date added";
-  }
-}
-
-function compareBy(sort: Exclude<SortKey, "custom">, a: SortableTrack, b: SortableTrack): number {
-  const byTitle = a.title.localeCompare(b.title, undefined, { sensitivity: "base", numeric: true });
-  switch (sort) {
-    case "added":
-      return (b.addedAt ?? 0) - (a.addedAt ?? 0) || byTitle;
-    case "title":
-      return byTitle;
-    case "artist":
-      return a.artist.localeCompare(b.artist, undefined, { sensitivity: "base" }) || byTitle;
-    case "album":
-      return (a.album ?? "").localeCompare(b.album ?? "", undefined, { sensitivity: "base" }) || byTitle;
-    case "duration":
-      return (a.duration ?? 0) - (b.duration ?? 0);
-  }
-}
-
-export function arrangeTracks<T extends SortableTrack>(tracks: T[], query: string, sort: SortKey): Arranged<T>[] {
+export function arrangeTracks<T extends SortableTrack>(tracks: T[], query: string, sort: TrackSort): Arranged<T>[] {
   const needle = query.trim().toLowerCase();
+  const compare = trackComparator(sort);
   const rows = tracks
     .map((item, index) => ({ item, index }))
     .filter(({ item }) => !needle || item.title.toLowerCase().includes(needle) || item.artist.toLowerCase().includes(needle));
-  if (sort === "custom") return rows;
-  return rows.sort((a, b) => compareBy(sort, a.item, b.item));
+  return rows.sort((a, b) => compare(a.item, b.item));
 }
 
 type CollectionActionsProps = {
@@ -108,13 +82,73 @@ export function CollectionActions({ playLabel, disabled, onPlay, onShuffle, onDo
   );
 }
 
+type TrackSortMenuProps = {
+  sort: TrackSort;
+  onSort: (sort: TrackSort) => void;
+  fields: SortField[];
+  customLabel?: string;
+  phone?: boolean;
+};
+
+export function TrackSortMenu({ sort, onSort, fields, customLabel = "Custom order", phone = false }: TrackSortMenuProps) {
+  const items: MenuItem[] = [
+    { label: customLabel, checked: sort.field === "custom", onSelect: () => onSort(CUSTOM_SORT) },
+    { label: "Sort by", header: true },
+    ...fields.map<MenuItem>((field) => ({
+      label: fieldLabel(field),
+      checked: sort.field === field,
+      onSelect: () =>
+        onSort({
+          field,
+          direction: sort.field === field ? sort.direction : defaultDirection(field),
+          then: sort.then === field ? null : sort.then,
+        }),
+    })),
+  ];
+  if (sort.field !== "custom") {
+    const field = sort.field;
+    items.push(
+      {
+        label: directionLabel(field, "asc"),
+        checked: sort.direction === "asc",
+        separatorBefore: true,
+        onSelect: () => onSort({ ...sort, direction: "asc" }),
+      },
+      {
+        label: directionLabel(field, "desc"),
+        checked: sort.direction === "desc",
+        onSelect: () => onSort({ ...sort, direction: "desc" }),
+      },
+      { label: "Then by", header: true, separatorBefore: true },
+      { label: "None", checked: sort.then === null, onSelect: () => onSort({ ...sort, then: null }) },
+      ...fields
+        .filter((item) => item !== field)
+        .map<MenuItem>((item) => ({
+          label: fieldLabel(item),
+          checked: sort.then === item,
+          onSelect: () => onSort({ ...sort, then: item }),
+        })),
+    );
+  }
+  return (
+    <ActionMenu
+      items={items}
+      label="Sort songs"
+      icon={ArrowsDownUp}
+      triggerText={sortSummary(sort, customLabel)}
+      triggerClass={phone ? PHONE_SORT_TRIGGER : SORT_TRIGGER}
+      phoneIcon={phone}
+    />
+  );
+}
+
 type TrackToolsProps = {
   query: string;
   onQuery: (value: string) => void;
-  sort: SortKey;
-  onSort: (value: SortKey) => void;
+  sort: TrackSort;
+  onSort: (sort: TrackSort) => void;
   customLabel?: string;
-  options?: SortKey[];
+  fields: SortField[];
   filterable?: boolean;
 };
 
@@ -149,15 +183,7 @@ export function PhoneTrackFilter({ query, onQuery, count }: { query: string; onQ
   );
 }
 
-export function TrackTools({
-  query,
-  onQuery,
-  sort,
-  onSort,
-  customLabel = "Custom order",
-  options = ALL_SORTS,
-  filterable = true,
-}: TrackToolsProps) {
+export function TrackTools({ query, onQuery, sort, onSort, customLabel, fields, filterable = true }: TrackToolsProps) {
   const [open, setOpen] = useState(query.length > 0);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -169,12 +195,6 @@ export function TrackTools({
     onQuery("");
     setOpen(false);
   };
-
-  const sortItems: MenuItem[] = options.map((key) => ({
-    label: sortLabel(key, customLabel),
-    checked: key === sort,
-    onSelect: () => onSort(key),
-  }));
 
   return (
     <div className="flex items-center gap-2">
@@ -224,13 +244,7 @@ export function TrackTools({
           </button>
         </div>
       )}
-      <ActionMenu
-        items={sortItems}
-        label="Sort songs"
-        icon={ArrowsDownUp}
-        triggerText={sortLabel(sort, customLabel)}
-        triggerClass={SORT_TRIGGER}
-      />
+      <TrackSortMenu sort={sort} onSort={onSort} fields={fields} customLabel={customLabel} />
     </div>
   );
 }

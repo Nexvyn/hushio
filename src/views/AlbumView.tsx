@@ -3,7 +3,8 @@ import { VinylRecord, Check, Copy, DownloadSimple, Play, ListPlus, Plus, Shuffle
 import { normalizeCredit } from "../lib/credits";
 import { AboutText } from "../components/AboutText";
 import { ActionMenu } from "../components/ActionMenu";
-import { ALBUM_SORTS, arrangeTracks, CollectionActions, FILTER_MIN_TRACKS, PhoneTrackFilter, type SortKey, TrackTools } from "../components/TrackListControls";
+import { arrangeTracks, CollectionActions, FILTER_MIN_TRACKS, PhoneTrackFilter, TrackTools } from "../components/TrackListControls";
+import { ALBUM_FIELDS, CUSTOM_SORT, type TrackSort } from "../lib/trackSort";
 import { HeroIcon } from "../components/HeroIcon";
 import { HomeShelfView, shelfMenu } from "../components/HomeShelves";
 import { PageHeader } from "../components/PageHeader";
@@ -48,7 +49,7 @@ export function AlbumView() {
       <div className="pt-10">
         <ErrorState
           title="Couldn't load this album"
-          message="Check your connection and try again — the album page will be right here."
+          message="Check your connection and try again. The album page will be right here."
           action={{ label: "Try again", onClick: retry }}
         />
       </div>
@@ -74,7 +75,7 @@ function AlbumContent({ page }: { page: ReleasePage }) {
   const headline = shortTitle(album.title);
   const source = titleSource(album.title);
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<SortKey>("custom");
+  const [sort, setSort] = useState<TrackSort>(CUSTOM_SORT);
   const filterable = tracks.length >= FILTER_MIN_TRACKS;
   const activeQuery = filterable ? query : "";
   const visible = useMemo(() => arrangeTracks(tracks, activeQuery, sort), [tracks, activeQuery, sort]);
@@ -144,7 +145,7 @@ function AlbumContent({ page }: { page: ReleasePage }) {
           sort={sort}
           onSort={setSort}
           customLabel="Album order"
-          options={ALBUM_SORTS}
+          fields={ALBUM_FIELDS}
           filterable={filterable}
         />
       )}

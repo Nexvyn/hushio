@@ -30,9 +30,11 @@ import {
   sortTracks,
   toTrack,
   type LocalScope,
-  type LocalSort,
   type LocalTab,
 } from "../lib/localLibrary";
+import { LOCAL_DEFAULT_SORT, LOCAL_FIELDS, sortTracksBy } from "../lib/trackSort";
+import { TrackSortMenu } from "../components/TrackListControls";
+import { useStoredTrackSort } from "../stores/trackSort";
 import { OPENED_FROM } from "../lib/localDrop";
 import { plural } from "../lib/plural";
 import { usePhone } from "../lib/usePhone";
@@ -510,7 +512,7 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
   const forgetOpened = useLocalLibrary((state) => state.forgetOpened);
   const downloads = useLibrary((state) => state.downloads);
   const [tab, setTab] = useState<LocalTab>("songs");
-  const [sort, setSort] = useState<LocalSort>("title");
+  const [trackSort, setTrackSort] = useStoredTrackSort("local", LOCAL_DEFAULT_SORT);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>(null);
   const [source, setSource] = useState<DeviceFilter>("all");
@@ -532,7 +534,7 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
   const everything = scopeTracks(pool, opened, scope, "");
   const everythingSeconds = everything.reduce((sum, track) => sum + track.duration, 0);
   const scoped = scopeTracks(pool, opened, scope, query);
-  const list = sortTracks(scoped.filter((track) => matchesFilter(track, filter)), sort === "recent" ? "title" : sort);
+  const list = sortTracksBy(scoped.filter((track) => matchesFilter(track, filter)), trackSort);
   const folderTabs = scope.kind === "folder" ? folderListing(library.tracks, rootPath).folders.length : 0;
   const inMissing = scope.kind === "folder" && missing.includes(rootPath);
   const activeFolder = folderAt ?? rootPath;
@@ -544,7 +546,6 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
     { id: "artists", label: "Artists", count: artistGroups(scoped).length },
   ];
   if (folderTabs > 0) tabs.push({ id: "folders", label: "Folders", count: folderTabs });
-  const songsSorted = sort === "artist" ? "artist" : "title";
 
   return (
     <div className="pb-14">
@@ -665,18 +666,9 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
             {item.count > 0 && ` · ${item.count}`}
           </button>
         ))}
-        {tab === "songs" &&
-          (["title", "artist"] as const).map((option) => (
-            <button
-              key={option}
-              type="button"
-              aria-pressed={songsSorted === option}
-              onClick={() => setSort(option)}
-              className={`${TAB} ${songsSorted === option ? "bg-ink-1/15 text-ink-1" : "text-ink-3"}`}
-            >
-              {option === "title" ? "Title" : "Artist"}
-            </button>
-          ))}
+        {tab === "songs" && (
+          <TrackSortMenu sort={trackSort} onSort={setTrackSort} fields={LOCAL_FIELDS} phone={phone} />
+        )}
         <label className="relative ml-auto">
           <span className="sr-only">Search your files</span>
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3">
