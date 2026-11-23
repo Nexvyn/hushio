@@ -18,7 +18,7 @@ class QueueMirrorTest {
     @Test
     fun replaceCapsAtMaxItems() {
         val queue = QueueMirror<Int>()
-        val accepted = queue.replace((1..600).toList(), 0)
+        val accepted = queue.replace((1..6000).toList(), 0)
         assertEquals(QueueMirror.MAX_ITEMS, accepted)
         assertEquals(QueueMirror.MAX_ITEMS, queue.size)
     }

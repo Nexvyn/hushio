@@ -456,7 +456,7 @@ describe("topResult and searchSections", () => {
 
   it("prefers the top song on the All filter and keeps the browse rows in the list", () => {
     const rows: SearchRow[] = [{ kind: "top", song: song("t") }, artist("UC1", true)];
-    expect(topResult(rows, "all")).toEqual({ song: song("t"), browse: null, rest: rows });
+    expect(topResult(rows, "all")).toEqual({ song: song("t"), browse: null, rest: [artist("UC1", true)] });
   });
 
   it("uses the first top browse card that is not a generic item when there is no top song", () => {

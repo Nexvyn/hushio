@@ -29,6 +29,7 @@ import {
   RETRY_AFTER_MS,
 } from "../lib/autoplay";
 import { moveItem } from "../lib/dragReorder";
+import { gaplessNextIndex } from "../lib/gapless";
 import { queuedEnd } from "../lib/queueInsert";
 import {
   hasRecommendationAhead,
@@ -65,7 +66,15 @@ const END_SLACK_S = 1;
 const NEXT_REPEAT: Record<RepeatMode, RepeatMode> = { off: "all", all: "one", one: "off" };
 
 function plainTrack(track: Track): Track {
-  return track.queued === undefined ? track : { ...track, queued: undefined };
+  return track.queued === undefined && track.suggested === undefined
+    ? track
+    : { ...track, queued: undefined, suggested: undefined };
+}
+
+function markRestoredSuggestions(queue: Track[], autoplayCount: number): Track[] {
+  if (autoplayCount <= 0 || queue.some((track) => track.suggested)) return queue;
+  const start = Math.max(0, queue.length - autoplayCount);
+  return queue.map((track, i) => (i >= start ? { ...track, suggested: true as const } : track));
 }
 
 function userQueued(track: Track): Track {
@@ -143,6 +152,7 @@ export type PlayerState = PlayerValues & {
 let loadedId: string | null = null;
 let loadGeneration = 0;
 let resumePosition = 0;
+let resumeTrackId: string | null = null;
 let restoredOnLaunch = false;
 
 function playMetaFor(track: Track): PlayMeta {
@@ -190,12 +200,17 @@ function autoplayEligible(state: PlayerValues): boolean {
   );
 }
 
+function suggestionsAhead(state: PlayerValues): number {
+  return state.queue.slice(state.index + 1).filter((track) => track.suggested).length;
+}
+
 function wantsMore(state: PlayerValues): boolean {
   if (!autoplayEligible(state)) return false;
   if (state.awaitingAutoplay) return true;
   if (!state.playing || Date.now() - failedAt < RETRY_AFTER_MS) return false;
-  const ownLeft = state.queue.length - state.autoplayCount - state.index - 1;
-  return ownLeft <= 1 && state.autoplayCount < LOW_WATER;
+  const ahead = suggestionsAhead(state);
+  const ownLeft = state.queue.length - ahead - state.index - 1;
+  return ownLeft <= 1 && ahead < LOW_WATER;
 }
 
 function giveUp() {
@@ -211,7 +226,7 @@ function giveUp() {
 function appendAutoplay(incoming: Track[]) {
   const { queue, index, autoplayCount, awaitingAutoplay } = usePlayer.getState();
   const upcoming = new Set(queue.slice(index).map((track) => track.id));
-  const fresh = incoming.filter((track) => !upcoming.has(track.id));
+  const fresh = incoming.filter((track) => !upcoming.has(track.id)).map((track) => ({ ...track, suggested: true as const }));
   if (fresh.length === 0) {
     giveUp();
     return;
@@ -233,7 +248,11 @@ function appendAutoplay(incoming: Track[]) {
 
 function settleRefill(context: number, batch: Track[]) {
   refilling = false;
-  if (usePlayer.getState().contextId !== context) return;
+  const state = usePlayer.getState();
+  if (state.contextId !== context) {
+    if (state.awaitingAutoplay) refillIfNeeded();
+    return;
+  }
   if (batch.length === 0) giveUp();
   else appendAutoplay(batch);
 }
@@ -284,7 +303,7 @@ function refillIfNeeded() {
   refilling = true;
   const seeds = [state.queue.at(-1), state.queue[state.index]].flatMap((track) => (track ? [track.id] : []));
   const exclusions = exclusionsNow(state);
-  const limit = MAX_TAIL - state.autoplayCount;
+  const limit = MAX_TAIL - suggestionsAhead(state);
   const context = state.contextId;
   void fetchRefill(seeds, exclusions, limit).then(
     (batch) => settleRefill(context, batch),
@@ -299,8 +318,9 @@ function startCurrent() {
   const { queue, index, played } = usePlayer.getState();
   const track = queue[index];
   if (!track) return;
-  const restored = resumePosition;
+  const restored = track.id === resumeTrackId ? resumePosition : 0;
   resumePosition = 0;
+  resumeTrackId = null;
   usePlayer.setState({
     playing: true,
     position: restored,
@@ -501,7 +521,7 @@ export const usePlayer = create<PlayerState>()(
         if (from <= index || to <= index || from >= count || to >= count || from === to) return;
         const next = moveItem(queue, from, to);
         const landsQueued = to - 1 === index || next[to - 1].queued === true;
-        next[to] = landsQueued ? userQueued(next[to]) : plainTrack(next[to]);
+        next[to] = landsQueued ? userQueued(next[to]) : next[to].suggested ? next[to] : plainTrack(next[to]);
         set({ queue: next });
       },
 
@@ -582,8 +602,13 @@ export const usePlayer = create<PlayerState>()(
       },
 
       prevTrack: () => {
-        const { queue, index } = get();
+        const { queue, index, repeat } = get();
         if (queue.length === 0) return;
+        if (index === 0 && repeat !== "all") {
+          seekTo(0);
+          set({ position: 0 });
+          return;
+        }
         set({ index: index > 0 ? index - 1 : queue.length - 1, position: 0 });
         startCurrent();
       },
@@ -616,6 +641,7 @@ export const usePlayer = create<PlayerState>()(
         const position = Math.max(0, seconds);
         seekTo(position);
         set({ position });
+        if (resumeTrackId !== null) resumePosition = position;
       },
 
       setVolume: (value) => {
@@ -682,11 +708,12 @@ export const usePlayer = create<PlayerState>()(
     }),
     {
       name: "player",
-      version: 3,
+      version: 4,
       migrate: (persisted, version) => {
         let state = persisted as PlayerPersisted;
         if (version < 2) state = { ...state, smartShuffle: false };
         if (version < 3) state = { ...state, queue: state.queue.map(plainTrack) };
+        if (version < 4) state = { ...state, queue: markRestoredSuggestions(state.queue, state.autoplayCount) };
         return state;
       },
       storage,
@@ -709,6 +736,7 @@ export const usePlayer = create<PlayerState>()(
         setAudioVolume(state.volume);
         setMuted(state.muted);
         resumePosition = resumeFrom(state.position, state.duration);
+        resumeTrackId = state.queue[state.index]?.id ?? null;
         restoredOnLaunch = true;
       },    },
   ),
@@ -747,14 +775,18 @@ export function resumeQueueAfterHydration(): void {
 
 export function nextBlendTarget(): BlendTarget | null {
   const { queue, index, repeat, shuffle } = usePlayer.getState();
-  if (repeat === "one" || useSleepTimer.getState().endOfSong) return null;
-  const at = index + 1 < queue.length ? index + 1 : repeat === "all" && !shuffle ? 0 : -1;
+  if (useSleepTimer.getState().endOfSong) return null;
+  const at = gaplessNextIndex(queue.length, index, repeat, shuffle);
   const track = queue[at];
   return track ? { id: track.id, title: track.title, index: at } : null;
 }
 
 export function finishBlend(target: BlendTarget, { position, duration, ended }: BlendEnd): void {
-  const { queue, played } = usePlayer.getState();
+  const { queue, played, index, repeat } = usePlayer.getState();
+  if (repeat === "one" && target.index === index) {
+    usePlayer.setState({ playing: true, buffering: false, position, duration });
+    return;
+  }
   const track = queue[target.index];
   loadedId = track.id;
   usePlayer.setState({
@@ -768,6 +800,8 @@ export function finishBlend(target: BlendTarget, { position, duration, ended }: 
   });
   useLibrary.getState().pushHistory(track);
   startListen(track);
+  resumeListen();
+  setListenDuration(duration);
   prefetchLyrics(track);
   refillIfNeeded();
   if (ended) usePlayer.getState().handleEnded();

@@ -1,3 +1,4 @@
+import { t, useT, type TKey } from "../lib/i18n";
 import { Fragment, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { X, Queue, MusicNote, ThumbsDown, ArrowsOutSimple, Sparkle } from "@phosphor-icons/react";
@@ -48,19 +49,20 @@ function contextName(playingFrom: string | null, playlists: Playlists): string |
 }
 
 function sourceLabel(playingFrom: string | null, playlists: Playlists): string {
-  return contextName(playingFrom, playlists) ?? "Now playing";
+  return contextName(playingFrom, playlists) ?? t("queue.nowPlaying");
 }
 
 type QueueSection = "queued" | "context" | "autoplay";
 
 function sectionHeading(section: QueueSection, playingFrom: string | null, playlists: Playlists): string {
-  if (section === "queued") return "Next in queue";
-  if (section === "autoplay") return "Autoplay";
+  if (section === "queued") return t("queue.nextInQueue");
+  if (section === "autoplay") return t("queue.autoplay");
   const name = contextName(playingFrom, playlists);
-  return name ? `Next from: ${name}` : "Up next";
+  return name ? `Next from: ${name}` : t("queue.upNext");
 }
 
 function NowPanel() {
+  useT();
   const track = usePlayer(currentTrack);
   const playing = usePlayer((state) => state.playing);
   const animatedCovers = useSettings((state) => state.animatedCovers);
@@ -138,7 +140,7 @@ function TrackRow({ track, onPlay, remove, onDontPlay, menu, at, rowProps }: Tra
             <span className="truncate">{normalizeCredit(track.artist)}</span>
             {recommended && (
               <span className="flex shrink-0 items-center gap-1 text-caption">
-                <Icon icon={Sparkle} size={14} />
+                <Icon icon={Sparkle} />
                 Recommended
               </span>
             )}
@@ -170,10 +172,10 @@ function confirmClearHistory() {
 }
 
 function UpcomingQueue({ tab }: { tab?: QueueTab }) {
+  useT();
   const ink = useInk();
   const queue = usePlayer((state) => state.queue);
   const index = usePlayer((state) => state.index);
-  const autoplayCount = usePlayer((state) => state.autoplayCount);
   const jumpTo = usePlayer((state) => state.jumpTo);
   const removeAt = usePlayer((state) => state.removeAt);
   const dontPlay = usePlayer((state) => state.dontPlay);
@@ -182,11 +184,10 @@ function UpcomingQueue({ tab }: { tab?: QueueTab }) {
   const playingFrom = usePlayer((state) => state.playingFrom);
   const playlists = useLibrary((state) => state.playlists);
   const upcoming = queue.slice(index + 1);
-  const autoplayStart = queue.length - autoplayCount;
   const seen = new Map<string, number>();
   const rows = upcoming.map((track, offset) => {
     const at = index + 1 + offset;
-    const section: QueueSection = at >= autoplayStart ? "autoplay" : track.queued ? "queued" : "context";
+    const section: QueueSection = track.suggested ? "autoplay" : track.queued ? "queued" : "context";
     const occurrence = seen.get(track.id) ?? 0;
     seen.set(track.id, occurrence + 1);
     return { track, at, key: `${track.id}:${occurrence}`, section };
@@ -225,7 +226,7 @@ function UpcomingQueue({ tab }: { tab?: QueueTab }) {
 
   return (
     <section
-      aria-label="Queue"
+      aria-label={t("player.queue")}
       data-drop-target={QUEUE_TARGET}
       className="rounded-[8px] motion-safe:transition-shadow motion-safe:duration-fade data-[drop-hover=true]:ring-2 data-[drop-hover=true]:ring-accent"
     >
@@ -236,7 +237,7 @@ function UpcomingQueue({ tab }: { tab?: QueueTab }) {
         </div>
       )}
       {upcoming.length === 0 ? (
-        <EmptyState icon={Queue} title="Nothing queued" message="Use Play next or Add to queue on any song." />
+        <EmptyState icon={Queue} title={t("queue.nothing")} message="Use Play next or Add to queue on any song." />
       ) : (
         <ul ref={listRef} {...sortable.listProps} className="mt-2 flex flex-col">
           {rows.map((row, offset) => (
@@ -267,6 +268,7 @@ function UpcomingQueue({ tab }: { tab?: QueueTab }) {
 }
 
 export function QueuePanel({ tab }: { tab?: QueueTab }) {
+  useT();
   const ink = useInk();
   const queue = usePlayer((state) => state.queue);
   const index = usePlayer((state) => state.index);
@@ -301,7 +303,7 @@ export function QueuePanel({ tab }: { tab?: QueueTab }) {
             {recent.length > 0 && (
               <button
                 type="button"
-                aria-label="Clear recently played"
+                aria-label={t("queue.clearRecent")}
                 onClick={confirmClearHistory}
                 className={`text-meta ${ink.secondary} ${PRESS} ${ink.hoverText}`}
               >
@@ -330,14 +332,15 @@ export function QueuePanel({ tab }: { tab?: QueueTab }) {
   );
 }
 
-const QUEUE_TABS: { id: QueueTab; label: string }[] = [
-  { id: "queue", label: "Queue" },
-  { id: "recent", label: "Recently played" },
+const QUEUE_TABS: { id: QueueTab; labelKey: TKey }[] = [
+  { id: "queue", labelKey: "player.queue" },
+  { id: "recent", labelKey: "queue.recent" },
 ];
 
 function QueueTabs({ value, onChange }: { value: QueueTab; onChange: (tab: QueueTab) => void }) {
+  useT();
   return (
-    <div role="tablist" aria-label="Queue views" className="flex min-w-0 items-center gap-5">
+    <div role="tablist" aria-label={t("queue.views")} className="flex min-w-0 items-center gap-5">
       {QUEUE_TABS.map((item) => {
         const active = value === item.id;
         return (
@@ -351,7 +354,7 @@ function QueueTabs({ value, onChange }: { value: QueueTab; onChange: (tab: Queue
               active ? "text-ink-1" : "text-ink-2 hover:text-ink-1"
             }`}
           >
-            {item.label}
+            {t(item.labelKey)}
             {active && <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-accent" />}
           </button>
         );
@@ -394,7 +397,7 @@ export function RightRail({ mode = "column" }: { mode?: "column" | "sheet" }) {
         <div className="flex shrink-0 items-center gap-1">
           {panel !== "queue" && (
             <>
-              <button type="button" aria-label="Expand" title="Expand" onClick={() => useUI.getState().openNowPlaying()} className={ICON_BUTTON}>
+              <button type="button" aria-label={t("queue.expand")} title={t("queue.expand")} onClick={() => useUI.getState().openNowPlaying()} className={ICON_BUTTON}>
                 <Icon icon={ArrowsOutSimple} />
               </button>
               <ActionMenu
@@ -405,7 +408,7 @@ export function RightRail({ mode = "column" }: { mode?: "column" | "sheet" }) {
               />
             </>
           )}
-          <button type="button" aria-label="Close panel" title="Close panel" onClick={close} className={ICON_BUTTON}>
+          <button type="button" aria-label={t("queue.closePanel")} title={t("queue.closePanel")} onClick={close} className={ICON_BUTTON}>
             <Icon icon={X} />
           </button>
         </div>

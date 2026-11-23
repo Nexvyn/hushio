@@ -1,3 +1,4 @@
+import { useT } from "../lib/i18n";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { CaretRight, X, DownloadSimple, MagnifyingGlass } from "@phosphor-icons/react";
 import { Icon } from "../components/Icon";
@@ -5,6 +6,7 @@ import { PhoneIcon } from "../components/phone/PhoneIcon";
 import { SectionHeader } from "../components/SectionHeader";
 import { appVersion, platform, type GoogleAccount } from "../lib/bridge";
 import { usePhone } from "../lib/usePhone";
+import { usesNativeAudio } from "../lib/nativeAudioDeck";
 import { useAuth } from "../stores/auth";
 import { useDiscord } from "../stores/discord";
 import { useScrobble } from "../stores/scrobble";
@@ -300,6 +302,7 @@ function backToSettingsList(): void {
 }
 
 export function SettingsView() {
+  useT();
   const view = useNavigation((state) => state.view);
   const replaceView = useNavigation((state) => state.replaceView);
   const navigate = useNavigation((state) => state.navigate);
@@ -331,6 +334,7 @@ export function SettingsView() {
     settings,
     version,
     platform,
+    nativeAudio: usesNativeAudio,
     navigate,
     updates: {
       state: updateState,

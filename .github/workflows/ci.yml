@@ -44,6 +44,7 @@ jobs:
           rustflags: ""
       - uses: swatinem/rust-cache@v2.9.3
         with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           workspaces: src-tauri
           shared-key: ci-${{ matrix.os }}
           cache-on-failure: true
@@ -64,6 +65,7 @@ jobs:
           rustflags: ""
       - uses: swatinem/rust-cache@v2.9.3
         with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           workspaces: src-tauri
           shared-key: ci-android
           cache-on-failure: true

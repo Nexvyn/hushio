@@ -4,7 +4,7 @@ import { Heart, Play, ListPlus, Shuffle } from "@phosphor-icons/react";
 import { CollectionHero } from "../components/CollectionHero";
 import { EmptyState } from "../components/EmptyState";
 import { HeroIcon } from "../components/HeroIcon";
-import { ALL_SORTS, arrangeTracks, CollectionActions, type SortKey, TrackTools } from "../components/TrackListControls";
+import { arrangeTracks, CollectionActions, TrackTools } from "../components/TrackListControls";
 import { TrackListHeader, TrackRow } from "../components/TrackRow";
 import { PHONE_PLAY, PHONE_SHUFFLE } from "../components/phone/heroButtons";
 import { PhoneSongRow } from "../components/phone/PhoneTrackRow";
@@ -20,8 +20,10 @@ import { trackMenuItems } from "../lib/trackActions";
 import { fmtTotal } from "../lib/format";
 import { plural } from "../lib/plural";
 import { usePhone } from "../lib/usePhone";
+import { TRACK_FIELDS } from "../lib/trackSort";
 import { useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
+import { useStoredTrackSort } from "../stores/trackSort";
 import { playFromRow, usePlayer } from "../stores/player";
 import { type MenuItem, useUI } from "../stores/ui";
 
@@ -34,7 +36,7 @@ export function LikedView() {
   const navigate = useNavigation((state) => state.navigate);
   const phone = usePhone();
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<SortKey>("custom");
+  const [sort, setSort] = useStoredTrackSort("liked");
   const empty = liked.length === 0;
   const top = topArtist(liked);
   const total = liked.reduce((sum, track) => sum + track.duration, 0);
@@ -87,7 +89,7 @@ export function LikedView() {
       <CollectionActions
         playLabel="Play Liked Songs"
         disabled={empty}
-        onPlay={() => playCollection(liked, LIKED_SOURCE, false)}
+        onPlay={() => playCollection(visibleTracks, LIKED_SOURCE, false)}
         onShuffle={() => playCollection(liked, LIKED_SOURCE, true)}
         onDownload={() => downloadAll(liked, "Liked Songs")}
         menu={[
@@ -102,7 +104,7 @@ export function LikedView() {
           },
         ]}
       />
-      {!empty && <TrackTools query={query} onQuery={setQuery} sort={sort} onSort={setSort} options={ALL_SORTS} />}
+      {!empty && <TrackTools query={query} onQuery={setQuery} sort={sort} onSort={setSort} fields={TRACK_FIELDS} />}
     </div>
   );
 
@@ -115,7 +117,7 @@ export function LikedView() {
               type="button"
               aria-label="Play Liked Songs"
               disabled={empty}
-              onClick={() => playCollection(liked, LIKED_SOURCE, false)}
+              onClick={() => playCollection(visibleTracks, LIKED_SOURCE, false)}
               className={PHONE_PLAY}
             >
               <HeroIcon icon={Play} />

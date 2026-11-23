@@ -72,6 +72,25 @@ class UpdateRulesTest {
     }
 
     @Test
+    fun x86DeviceWithoutItsApkFallsBackToUniversal() {
+        val release = releaseOf("hushio-1.4.2-arm64-v8a.apk", "hushio-1.4.2-universal.apk")
+        assertEquals("hushio-1.4.2-universal.apk", UpdateRules.pickApk(release, "x86_64")?.name)
+    }
+
+    @Test
+    fun arm64DeviceWithItsApkGetsTheArm64Build() {
+        val release = releaseOf("hushio-1.4.2-arm64-v8a.apk", "hushio-1.4.2-universal.apk")
+        assertEquals("hushio-1.4.2-arm64-v8a.apk", UpdateRules.pickApk(release, "arm64-v8a")?.name)
+    }
+
+    @Test
+    fun nullWhenNeitherAbiNorUniversalApkExists() {
+        val release = releaseOf("hushio-1.4.2-arm64-v8a.apk")
+        assertNull(UpdateRules.pickApk(release, "x86_64"))
+        assertNull(UpdateRules.pickApk(release, null))
+    }
+
+    @Test
     fun checksumFileLinesAreParsed() {
         val hash = "a".repeat(64)
         val sums = parse(
@@ -108,4 +127,7 @@ class UpdateRulesTest {
     }
 
     private fun parse(text: String) = UpdateRules.parseSums(text)
+
+    private fun releaseOf(vararg names: String) =
+        LatestRelease("v1.4.2", names.map { ReleaseAsset(it, "https://example.test/$it") })
 }

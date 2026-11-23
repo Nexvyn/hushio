@@ -8,8 +8,9 @@ export default {
       fontFamily: {
         display: [
           "var(--font-app)",
+          "var(--font-devanagari)",
         ],
-        title: ["var(--font-title)"],
+        title: ["var(--font-title)", "var(--font-devanagari)"],
       },
       fontSize: {
         "page-title": ["34px", { lineHeight: "40px", letterSpacing: "-0.02em", fontWeight: "700" }],

@@ -31,6 +31,16 @@ describe("visibleLyricLines", () => {
     ]);
   });
 
+  it("keeps a bracketed first line that is sung later in the song", () => {
+    const lines = [line(12, "(Ooh-ooh)"), line(14, "Next line")];
+    expect(visibleLyricLines(lines).map((item) => item.text)).toEqual(["(Ooh-ooh)", "Next line"]);
+  });
+
+  it("keeps a bracketed opening line at 0:00 that has no credit words", () => {
+    const lines = [line(0, "(Ooh-ooh)"), line(2, "Next line")];
+    expect(visibleLyricLines(lines).map((item) => item.text)).toEqual(["(Ooh-ooh)", "Next line"]);
+  });
+
   it("keeps a bracketed section label that opens the song", () => {
     const lines = [line(0, "[Intro]"), line(2, "Opening words")];
     expect(visibleLyricLines(lines).map((item) => item.text)).toEqual(["[Intro]", "Opening words"]);
@@ -41,7 +51,7 @@ describe("visibleLyricLines", () => {
   });
 
   it("returns an empty list when every line is a credit", () => {
-    expect(visibleLyricLines([line(0, "(Credit)")])).toEqual([]);
+    expect(visibleLyricLines([line(0, "(Written by)")])).toEqual([]);
   });
 });
 

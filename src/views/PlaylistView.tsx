@@ -4,7 +4,7 @@ import { ActionMenu } from "../components/ActionMenu";
 import { CollectionHero } from "../components/CollectionHero";
 import { EmptyState } from "../components/EmptyState";
 import { HeroIcon } from "../components/HeroIcon";
-import { ALL_SORTS, arrangeTracks, CollectionActions, FILTER_MIN_TRACKS, PhoneTrackFilter, type SortKey, TrackTools } from "../components/TrackListControls";
+import { arrangeTracks, CollectionActions, FILTER_MIN_TRACKS, PhoneTrackFilter, TrackSortMenu, TrackTools } from "../components/TrackListControls";
 import { TrackListHeader, TrackRow } from "../components/TrackRow";
 import { PHONE_ICON, PHONE_PLAY, PHONE_SHUFFLE } from "../components/phone/heroButtons";
 import { PhoneSongRow } from "../components/phone/PhoneTrackRow";
@@ -32,6 +32,8 @@ import { prefetchFirst } from "../lib/prefetch";
 import { FINDER_MAX_SONGS, PlaylistFinder } from "../components/PlaylistFinder";
 import { PlaylistRecommendations } from "../components/PlaylistRecommendations";
 import { usePlaylistEdit } from "../stores/playlistEdit";
+import { useStoredTrackSort } from "../stores/trackSort";
+import { TRACK_FIELDS } from "../lib/trackSort";
 
 function phoneRowMenu(playlist: Playlist, index: number, song: SearchSong): MenuItem[] {
   const liked = useLibrary.getState().liked.some((item) => item.id === song.id);
@@ -55,13 +57,13 @@ export function PlaylistView() {
   const phone = usePhone();
   const failed = useFailedCovers();
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<SortKey>("custom");
+  const [sort, setSort] = useStoredTrackSort(`playlist:${id}`);
   const tracks = playlist?.tracks ?? [];
   const leadIds = tracks.slice(0, 3).map((track) => track.id).join("|");
   useEffect(() => prefetchFirst(leadIds.split("|")), [leadIds]);
   const filterable = tracks.length >= FILTER_MIN_TRACKS;
   const activeQuery = filterable ? query : "";
-  const dragOn = sort === "custom" && activeQuery.trim() === "";
+  const dragOn = sort.field === "custom" && activeQuery.trim() === "";
   const visible = arrangeTracks(tracks, activeQuery, sort);
   const visibleTracks = visible.map((row) => row.item);
   const stagger = useFirstLoadStagger(visibleTracks.length > 0);
@@ -151,13 +153,13 @@ export function PlaylistView() {
       <CollectionActions
         playLabel={`Play ${playlist.name}`}
         disabled={empty}
-        onPlay={() => playCollection(tracks, playlist.id, false)}
+        onPlay={() => playCollection(visibleTracks, playlist.id, false)}
         onShuffle={() => playCollection(tracks, playlist.id, true)}
         onDownload={() => downloadAll(tracks, playlist.name)}
         menu={headerMenu}
       />
       {!empty && (
-        <TrackTools query={activeQuery} onQuery={setQuery} sort={sort} onSort={setSort} options={ALL_SORTS} filterable={filterable} />
+        <TrackTools query={activeQuery} onQuery={setQuery} sort={sort} onSort={setSort} fields={TRACK_FIELDS} filterable={filterable} />
       )}
     </div>
   );
@@ -179,7 +181,7 @@ export function PlaylistView() {
             <button
               type="button"
               aria-label={`Play ${playlist.name}`}
-              onClick={() => playCollection(tracks, playlist.id, false)}
+              onClick={() => playCollection(visibleTracks, playlist.id, false)}
               className={PHONE_PLAY}
             >
               <HeroIcon icon={Play} />
@@ -209,6 +211,11 @@ export function PlaylistView() {
         ) : (
           <>
             {!phone && <TrackListHeader showAlbum showAdded />}
+            {phone && (
+              <div className="mb-2 flex justify-end">
+                <TrackSortMenu sort={sort} onSort={setSort} fields={TRACK_FIELDS} phone />
+              </div>
+            )}
             {phone && <PhoneTrackFilter query={query} onQuery={setQuery} count={tracks.length} />}
             <ol
               ref={listRef}
@@ -228,7 +235,7 @@ export function PlaylistView() {
                       current={track.id === currentId}
                       playing={playing}
                       menu={() => phoneRowMenu(playlist, index, toSong(track))}
-                      onPlay={() => playFromRow(tracks, index, playlist.id)}
+                      onPlay={() => playFromRow(visibleTracks, position, playlist.id)}
                       rowProps={dragOn ? sortable.bind(key) : undefined}
                     />
                   );

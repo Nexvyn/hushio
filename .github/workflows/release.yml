@@ -21,6 +21,9 @@ env:
   PNPM_VERSION: 10.34.5
   LINUX_DEPS: build-essential curl wget file libxdo-dev libssl-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libsecret-1-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav xvfb dbus-x11 gnome-keyring libasound2-dev
   TAG: ${{ inputs.tag || github.ref_name }}
+  HUSHIO_GOOGLE_CLIENT_ID: ${{ secrets.HUSHIO_GOOGLE_CLIENT_ID }}
+  HUSHIO_GOOGLE_CLIENT_SECRET: ${{ secrets.HUSHIO_GOOGLE_CLIENT_SECRET }}
+  HUSHIO_SPOTIFY_CLIENT_ID: ${{ secrets.HUSHIO_SPOTIFY_CLIENT_ID }}
 jobs:
   prepare:
     runs-on: ubuntu-latest
@@ -95,6 +98,7 @@ jobs:
           rustflags: ""
       - uses: swatinem/rust-cache@v2.9.3
         with:
+          save-if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
           workspaces: src-tauri
           shared-key: release-windows
           cache-on-failure: true
@@ -152,6 +156,7 @@ jobs:
           rustflags: ""
       - uses: swatinem/rust-cache@v2.9.3
         with:
+          save-if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
           workspaces: src-tauri
           shared-key: release-macos-${{ matrix.arch }}
           cache-on-failure: true
@@ -312,6 +317,7 @@ jobs:
           rustflags: ""
       - uses: swatinem/rust-cache@v2.9.3
         with:
+          save-if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
           workspaces: src-tauri
           shared-key: release-linux
           cache-on-failure: true
@@ -376,11 +382,12 @@ jobs:
           echo "NDK_HOME=$ANDROID_HOME/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
       - uses: actions-rust-lang/setup-rust-toolchain@v1.17.0
         with:
-          target: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+          target: aarch64-linux-android,armv7-linux-androideabi
           cache: false
           rustflags: ""
       - uses: swatinem/rust-cache@v2.9.3
         with:
+          save-if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
           workspaces: src-tauri
           shared-key: release-android
           cache-on-failure: true
@@ -395,21 +402,19 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          HUSHIO_GOOGLE_CLIENT_ID: ${{ secrets.HUSHIO_GOOGLE_CLIENT_ID }}
-          HUSHIO_SPOTIFY_CLIENT_ID: ${{ secrets.HUSHIO_SPOTIFY_CLIENT_ID }}
         run: |
           set -euo pipefail
           pnpm build:web
           NO_WEB='{"build":{"beforeBuildCommand":null}}'
-          pnpm tauri android build --apk --split-per-abi --target aarch64 armv7 x86_64 --config "$NO_WEB"
-          pnpm tauri android build --apk --target aarch64 armv7 x86_64 --config "$NO_WEB"
+          pnpm tauri android build --apk --split-per-abi --target aarch64 armv7 --config "$NO_WEB"
+          pnpm tauri android build --apk --target aarch64 armv7 --config "$NO_WEB"
       - name: Name and verify the APKs
         shell: bash
         run: |
           set -euo pipefail
           BUILD=src-tauri/gen/android/app/build/outputs/apk
           mkdir -p "$APK_DIR"
-          for pair in arm64:arm64-v8a arm:armeabi-v7a x86_64:x86_64; do
+          for pair in arm64:arm64-v8a arm:armeabi-v7a; do
             flavor=${pair%%:*}
             abi=${pair#*:}
             cp "$BUILD/$flavor/release/app-$flavor-release.apk" "$APK_DIR/hushio-$VERSION-$abi.apk"

@@ -15,7 +15,7 @@ vi.mock("../lib/persist", () => ({
 }));
 
 import { flatGains } from "../lib/eq";
-import { syncableSettings, useSettings } from "./settings";
+import { useSettings } from "./settings";
 
 const initial = useSettings.getState();
 
@@ -50,12 +50,5 @@ describe("equalizer settings", () => {
 
     expect(useSettings.getState().eqGains[0]).toBe(12);
     expect(useSettings.getState().eqPresets).toEqual([{ name: "Late", gains: flatGains() }]);
-  });
-
-  it("syncs the equalizer but keeps the output device on this computer", () => {
-    const synced = syncableSettings(useSettings.getState());
-    expect(synced).toHaveProperty("eqGains");
-    expect(synced).toHaveProperty("eqPresets");
-    expect(synced).not.toHaveProperty("audioSinkId");
   });
 });

@@ -17,6 +17,7 @@ const SUNG_OPACITY_FACTOR = 0.7;
 
 const WRAPPED_LINE = /^\(.*\)$/;
 const CREDIT_LINE = /^[^:：]{1,40}[:：]\s*\S/;
+const CREDIT_WORDS = /\b(written|composed|lyrics?|produced|music\s+by)\b|[:：]/i;
 const SECTION_LABEL = /^\[[^\]]+\]$/;
 
 export type WordSpan = { start: number; end: number };
@@ -29,7 +30,8 @@ export type DepthStyle = {
 
 function isOpeningCredit(line: SyncedLyricLine): boolean {
   const text = line.text.trim();
-  return WRAPPED_LINE.test(text) || (line.time === 0 && CREDIT_LINE.test(text));
+  if (WRAPPED_LINE.test(text)) return CREDIT_WORDS.test(text);
+  return line.time === 0 && CREDIT_LINE.test(text);
 }
 
 export function visibleLyricLines(lines: readonly SyncedLyricLine[]): SyncedLyricLine[] {

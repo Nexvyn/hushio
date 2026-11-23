@@ -30,7 +30,7 @@ body:
     attributes:
       label: Hushio version
       description: Settings shows it under About.
-      placeholder: "1.0.0"
+      placeholder: "1.0.1"
     validations:
       required: true
   - type: dropdown

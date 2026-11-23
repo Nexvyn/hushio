@@ -1,12 +1,13 @@
 import type { View } from "../stores/navigation";
+import type { TKey } from "./i18n";
 
 export type TabId = "home" | "search" | "library" | "hotlist";
 
-export const TABS: readonly { id: TabId; label: string; view: View }[] = [
-  { id: "home", label: "Home", view: { name: "home" } },
-  { id: "search", label: "Search", view: { name: "search" } },
-  { id: "library", label: "Library", view: { name: "library" } },
-  { id: "hotlist", label: "Hotlist", view: { name: "charts" } },
+export const TABS: readonly { id: TabId; labelKey: TKey; view: View }[] = [
+  { id: "home", labelKey: "tab.home", view: { name: "home" } },
+  { id: "search", labelKey: "tab.search", view: { name: "search" } },
+  { id: "library", labelKey: "tab.library", view: { name: "library" } },
+  { id: "hotlist", labelKey: "tab.hotlist", view: { name: "charts" } },
 ];
 
 export const TAB_BAR_DP = 64;

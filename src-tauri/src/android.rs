@@ -46,6 +46,11 @@ mod bridge {
     }
 
     #[derive(Deserialize)]
+    struct ImageBytes {
+        base64: String,
+    }
+
+    #[derive(Deserialize)]
     struct PublishedUri {
         uri: String,
     }
@@ -124,6 +129,14 @@ mod bridge {
             .text
     }
 
+    pub fn read_content_bytes(uri: &str) -> Result<Vec<u8>, String> {
+        use base64::Engine as _;
+        let reply: ImageBytes = call(Bridge::Audio, "read_image", json!({ "uri": uri }))?;
+        base64::engine::general_purpose::STANDARD
+            .decode(reply.base64)
+            .map_err(|error| error.to_string())
+    }
+
     pub fn media_delete(uri: &str) -> Result<(), String> {
         call::<Value>(Bridge::Media, "media_store_delete", json!({ "uri": uri })).map(drop)
     }
@@ -182,6 +195,10 @@ mod bridge {
 
     pub fn read_sidecar_lrc(_uri: &str) -> Option<String> {
         None
+    }
+
+    pub fn read_content_bytes(_uri: &str) -> Result<Vec<u8>, String> {
+        Err(NOT_ANDROID.to_owned())
     }
 
     pub fn media_delete(_uri: &str) -> Result<(), String> {

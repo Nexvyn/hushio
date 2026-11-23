@@ -14,7 +14,7 @@ import { analysable, Leveling, Lru } from "./loudness";
 import { headTrimTarget, TRIM_MIN_S, tailReached } from "./playbackEdges";
 import { resolveStream } from "./resolveStream";
 import { traceMark } from "./streamTrace";
-import { addonStreamFor, addonsEnabled } from "./addons/resolve";
+import { addonStreamFor } from "./addons/resolve";
 import { isJioSaavnId } from "./jiosaavn";
 import { fileDetails, fileDetailsWithMime, streamDetails, type StreamDetails } from "./streamStats";
 import { useNowStream } from "../stores/nowStream";
@@ -36,7 +36,11 @@ import { ANDROID, type PlayMeta } from "./androidPlayback";
 import { clampCrossfadeSeconds, useSettings, type SettingsValues } from "../stores/settings";
 import { playFailedMessage } from "./playFailed";
 import { useUI } from "../stores/ui";
-import { NativeAudioDeck, usesNativeAudio } from "./nativeAudioDeck";
+import { castPlayPauseFromApp, castSeekFromApp, castTrackFromApp, isCasting } from "./castState";
+import { NativeAudioDeck, onExclusiveRejected, usesNativeAudio } from "./nativeAudioDeck";
+import { appVolume, blendForOutput, EXCLUSIVE_UNAVAILABLE, eqForOutput, exclusiveActive, levelGain } from "./exclusive";
+import { gaplessEligible, keepsPrepared, shouldPrepareGapless } from "./gapless";
+import { type Clip, clipDeckTime, clipDuration, clipEnded, clipFrom, clipPosition, isCueTrackId } from "./clip";
 
 export { TEST_SONG_ID, TEST_SONG_TITLE } from "./devSong";
 
@@ -56,6 +60,7 @@ const PEAK_MIN_HZ = 20;
 const PEAK_MAX_HZ = 20000;
 const NO_GAINS = EQ_BANDS_HZ.map(() => 0);
 const AUTOMIX_FALLBACK_S = 6;
+const CLIP_POLL_MS = 100;
 const MIN_BLEND_MS = 500;
 const ARM_LEAD_MS = 4000;
 const ARM_FLOOR_MS = 250;
@@ -77,7 +82,7 @@ export type BlendHooks = {
 
 type Song = { id: string; title: string };
 type StreamInfo = { reloadAt: number | null };
-type Source = { src: string; analysis: string; lufs: number | null; stream?: StreamInfo; details: StreamDetails };
+type Source = { src: string; analysis: string; lufs: number | null; stream?: StreamInfo; details: StreamDetails; clip?: Clip };
 type Stall = { mark: number; timer: ReturnType<typeof setTimeout> };
 type Graph = { ctx: AudioContext; bands: BiquadFilterNode[]; preGain: GainNode };
 type Armed = {
@@ -95,6 +100,7 @@ type Fade = {
   pausedAt: number | null;
   timer: ReturnType<typeof setInterval>;
 };
+type Gapless = { fromId: string; toId: string; ready: boolean };
 
 function createDeck(index: number): HTMLAudioElement | NativeAudioDeck {
   if (usesNativeAudio) return new NativeAudioDeck(index);
@@ -116,15 +122,18 @@ let pausedAt: number | null = null;
 let stall: Stall | null = null;
 let graph: Graph | null = null;
 let volume = 1;
+let muted = false;
 let curve = { out: 1, incoming: 0 };
 let armed: Armed | null = null;
 let fade: Fade | null = null;
+let gapless: Gapless | null = null;
 let failedBlend: { fromId: string; toId: string } | null = null;
 let blendHooks: BlendHooks | null = null;
 let eqState: EqSettings = { enabled: false, gains: NO_GAINS, autoHeadroom: true };
 let eqPeakDb = 0;
 const deckIds: (string | undefined)[] = [undefined, undefined];
 const deckSources: (string | undefined)[] = [undefined, undefined];
+const analysisStreams = new Map<string, string>();
 const deckStreams: (StreamInfo | undefined)[] = [undefined, undefined];
 const deckDetails: (StreamDetails | undefined)[] = [undefined, undefined];
 const leveling = new Leveling(() => useSettings.getState().loudnessLevel);
@@ -132,6 +141,8 @@ const analyses = new Lru<TrackAnalysis>(ANALYSIS_LIMIT);
 const analysing = new Set<string>();
 let levelTimer: ReturnType<typeof setInterval> | null = null;
 let silenceTimer: ReturnType<typeof setInterval> | null = null;
+let clipTimer: ReturnType<typeof setInterval> | null = null;
+const deckClips: (Clip | undefined)[] = [undefined, undefined];
 
 export function activeDeck() {
   return decks[mainIndex];
@@ -143,11 +154,11 @@ export function standbyDeck() {
 
 class Playback extends EventTarget {
   get currentTime(): number {
-    return ANDROID ? androidPosition() : activeDeck().currentTime;
+    return ANDROID ? androidPosition() : clipPosition(activeDeck().currentTime, deckClips[mainIndex]);
   }
 
   get duration(): number {
-    return ANDROID ? androidDuration() : activeDeck().duration;
+    return ANDROID ? androidDuration() : clipDuration(activeDeck().duration, deckClips[mainIndex]);
   }
 
   get playbackRate(): number {
@@ -160,7 +171,9 @@ export const audio = new Playback();
 for (const deck of decks) {
   for (const type of DECK_EVENTS) {
     deck.addEventListener(type, () => {
-      if (deck === activeDeck()) audio.dispatchEvent(new Event(type));
+      if (deck !== activeDeck()) return;
+      if (type === "ended") emitEnded();
+      else audio.dispatchEvent(new Event(type));
     });
   }
 }
@@ -266,15 +279,20 @@ export function applyEq(next: EqSettings): void {
 
 function updateHeadroom(now: number): void {
   if (!graph) return;
-  const level = clamp(volume * leveling.gainOf(deckIds[mainIndex], now), 0, 1);
+  const level = clamp(appVolume(volume, exclusiveNow()) * trimOf(deckIds[mainIndex], now), 0, 1);
   const db = eqState.enabled && eqState.autoHeadroom ? headroomDb(eqPeakDb, level) : 0;
   graph.preGain.gain.setTargetAtTime(dbToGain(-db), graph.ctx.currentTime, 0.05);
 }
 
+function trimOf(id: string | undefined, now: number): number {
+  return levelGain(leveling.gainOf(id, now), exclusiveNow());
+}
+
 function refreshVolumes(): void {
   const now = Date.now();
-  activeDeck().volume = clamp(volume * curve.out * leveling.gainOf(deckIds[mainIndex], now), 0, 1);
-  standbyDeck().volume = clamp(volume * curve.incoming * leveling.gainOf(deckIds[1 - mainIndex], now), 0, 1);
+  const master = appVolume(volume, exclusiveNow());
+  activeDeck().volume = clamp(master * curve.out * trimOf(deckIds[mainIndex], now), 0, 1);
+  standbyDeck().volume = clamp(master * curve.incoming * trimOf(deckIds[1 - mainIndex], now), 0, 1);
   updateHeadroom(now);
 }
 
@@ -317,15 +335,16 @@ export function setVolume(value: number): void {
   if (!Number.isFinite(value)) return;
   volume = clamp(value, 0, 1);
   if (ANDROID) {
-    androidSetVolume(volume);
+    androidSetVolume(muted ? 0 : volume);
     return;
   }
   refreshVolumes();
 }
 
 export function setMuted(value: boolean): void {
+  muted = value;
   if (ANDROID) {
-    androidSetVolume(value ? 0 : volume);
+    androidSetVolume(muted ? 0 : volume);
     return;
   }
   for (const deck of decks) deck.muted = value;
@@ -378,7 +397,12 @@ for (const type of ["pointerdown", "keydown"] as const) {
 }
 
 function eqSettingsOf(state: SettingsValues): EqSettings {
-  return { enabled: state.eqEnabled, gains: state.eqGains, autoHeadroom: state.eqAutoHeadroom };
+  const eq = { enabled: state.eqEnabled, gains: state.eqGains, autoHeadroom: state.eqAutoHeadroom };
+  return eqForOutput(eq, exclusiveActive(state.exclusiveOutput, usesNativeAudio));
+}
+
+function exclusiveNow(): boolean {
+  return exclusiveActive(useSettings.getState().exclusiveOutput, usesNativeAudio);
 }
 
 function analysisOf(id: string | undefined): TrackAnalysis | undefined {
@@ -403,7 +427,7 @@ function trimHead(id: string | undefined): void {
 
 function armSilence(): void {
   disarmSilence();
-  if (!useSettings.getState().skipSilence) return;
+  if (!useSettings.getState().skipSilence || deckClips[mainIndex]) return;
   if (!((analysisOf(deckIds[mainIndex])?.tail ?? 0) > TRIM_MIN_S)) return;
   silenceTimer = setInterval(checkTail, SILENCE_POLL_MS);
 }
@@ -419,7 +443,7 @@ function checkTail(): void {
   const deck = activeDeck();
   if (!tailReached(deck.currentTime, deck.duration, analysisOf(deckIds[mainIndex])?.tail ?? 0)) return;
   disarmSilence();
-  audio.dispatchEvent(new Event("ended"));
+  emitEnded();
 }
 
 async function savedSource(id: string): Promise<Source | null> {
@@ -431,7 +455,13 @@ async function savedSource(id: string): Promise<Source | null> {
 
 async function localSource(id: string): Promise<Source> {
   const source = await localPlaybackSource(id);
-  return { src: usesNativeAudio ? id : source.url, analysis: id, lufs: null, details: fileDetailsWithMime(source.mime, "Local file") };
+  return {
+    src: usesNativeAudio ? id : source.url,
+    analysis: id,
+    lufs: null,
+    details: fileDetailsWithMime(source.mime, "Local file"),
+    clip: clipFrom(source.cueStart, source.cueEnd),
+  };
 }
 
 function networkSource(id: string): Source {
@@ -445,9 +475,19 @@ async function sourceFor(id: string, refresh: boolean): Promise<Source> {
   return (await savedSource(id)) ?? streamSource(id, refresh);
 }
 
+async function analysisStreamFor(id: string, stream: { mime: string }, port: number): Promise<string | null> {
+  const { loudnessLevel } = useSettings.getState();
+  if (!stream.mime.includes("webm") || (!blendEdges() && loudnessLevel === "off")) return null;
+  const aac = await resolveStream(id, false, undefined, true).catch(() => null);
+  if (!aac?.mime.includes("mp4")) return null;
+  const key = `${id}#analysis`;
+  await registerStreamUrl(key, aac.url);
+  return `http://127.0.0.1:${port}/?id=${encodeURIComponent(key)}`;
+}
+
 async function streamSource(id: string, refresh: boolean): Promise<Source> {
   const maxKbps = currentStreamBitrate();
-  const addon = addonsEnabled(maxKbps === undefined) ? await addonStreamFor(id) : null;
+  const addon = await addonStreamFor(id, maxKbps === undefined);
   const resolving = addon?.stream
     ? Promise.resolve(addon.stream)
     : maxKbps === undefined
@@ -456,6 +496,11 @@ async function streamSource(id: string, refresh: boolean): Promise<Source> {
   const [stream, port] = await Promise.all([resolving, streamProxyPort()]);
   await registerStreamUrl(id, stream.url);
   const url = `http://127.0.0.1:${port}/?id=${encodeURIComponent(id)}`;
+  void analysisStreamFor(id, stream, port)
+    .catch(() => null)
+    .then((analysis) => {
+      if (analysis) analysisStreams.set(id, analysis);
+    });
   return {
     src: url,
     analysis: url,
@@ -477,13 +522,15 @@ async function loadStream(id: string, refresh: boolean, seq: number): Promise<vo
   deckSources[mainIndex] = source.analysis;
   deckStreams[mainIndex] = source.stream;
   deckDetails[mainIndex] = source.details;
+  deckClips[mainIndex] = source.clip;
   useNowStream.getState().publish(id, source.details);
   await loadDeckSource(activeDeck(), source.src);
   if (seq !== loadSeq) return;
   applySpeed();
   if (source.lufs !== null) noteLoudness(id, source.lufs);
   else refreshVolumes();
-  if (pendingSeek > 0) activeDeck().currentTime = pendingSeek;
+  if (source.clip) activeDeck().currentTime = clipDeckTime(pendingSeek, source.clip);
+  else if (pendingSeek > 0) activeDeck().currentTime = pendingSeek;
   else trimHead(id);
   pendingSeek = 0;
   armSilence();
@@ -524,8 +571,11 @@ async function startPlayback(seq: number): Promise<void> {
   if (seq !== loadSeq || !wantPlaying) return;
   disarmStall();
   armStall();
+  armClipEnd();
   try {
     traceMark("player start");
+    const clip = deckClips[mainIndex];
+    if (clip && clipEnded(activeDeck().currentTime, clip)) activeDeck().currentTime = clip.start;
     await activeDeck().play();
   } catch (error) {
     if (isAbort(error)) return;
@@ -537,7 +587,8 @@ async function startPlayback(seq: number): Promise<void> {
 async function onFailure(seq: number): Promise<void> {
   const current = song;
   if (!current || !wantPlaying || seq !== loadSeq) return;
-  const at = activeDeck().currentTime > 1 ? activeDeck().currentTime : pendingSeek;
+  const position = clipPosition(activeDeck().currentTime, deckClips[mainIndex]);
+  const at = position > 1 ? position : pendingSeek;
   if (retryCount === 0 || at - retriedAt > RETRY_WINDOW_S) {
     retryCount += 1;
     retriedAt = at;
@@ -567,7 +618,7 @@ function isStale(pausedFor: number): boolean {
 }
 
 async function reloadMain(current: Song): Promise<void> {
-  const at = activeDeck().currentTime;
+  const at = clipPosition(activeDeck().currentTime, deckClips[mainIndex]);
   pendingSeek = Number.isFinite(at) && at > 0 ? at : 0;
   const seq = ++loadSeq;
   try {
@@ -582,10 +633,16 @@ async function reloadMain(current: Song): Promise<void> {
 
 export async function playStream(id: string, title: string, fromSeconds = 0, meta: PlayMeta = {}): Promise<void> {
   traceMark("tap", id);
-  if (ANDROID) return androidPlayStream(id, title, fromSeconds, meta);
+  if (ANDROID) {
+    if (isCasting()) return castTrackFromApp(id, title, fromSeconds, meta);
+    return androidPlayStream(id, title, fromSeconds, meta);
+  }
   abortBlend();
+  abortGapless();
   disarmSilence();
   disarmStall();
+  disarmClipEnd();
+  activeDeck().pause();
   song = { id, title };
   wantPlaying = true;
   pausedAt = null;
@@ -593,12 +650,20 @@ export async function playStream(id: string, title: string, fromSeconds = 0, met
   retryCount = 0;
   retriedAt = Number.NEGATIVE_INFINITY;
   const seq = ++loadSeq;
-  await loadStream(id, false, seq);
+  try {
+    await loadStream(id, false, seq);
+  } catch (error) {
+    wantPlaying = false;
+    throw error;
+  }
   await startPlayback(seq);
 }
 
 export async function play(): Promise<void> {
-  if (ANDROID) return androidPlay();
+  if (ANDROID) {
+    if (isCasting()) return castPlayPauseFromApp(true);
+    return androidPlay();
+  }
   const current = song;
   if (!current) return;
   const resuming = !wantPlaying;
@@ -608,7 +673,7 @@ export async function play(): Promise<void> {
   if (resuming) {
     retryCount = 0;
     retriedAt = Number.NEGATIVE_INFINITY;
-    if (isStale(pausedFor)) {
+    if (isStale(pausedFor) || deckIds[mainIndex] !== current.id) {
       abortBlend();
       await reloadMain(current);
       return;
@@ -620,33 +685,69 @@ export async function play(): Promise<void> {
 
 export function pause(): void {
   if (ANDROID) {
-    androidPause();
+    if (isCasting()) castPlayPauseFromApp(false);
+    else androidPause();
     return;
   }
   if (wantPlaying) pausedAt = Date.now();
   wantPlaying = false;
   disarmStall();
+  disarmClipEnd();
   if (fade) freezeFade(fade);
   else abortBlend();
+  abortGapless();
   activeDeck().pause();
 }
 
 export function getPlaybackPosition(): number {
-  return ANDROID ? androidPosition() : activeDeck().currentTime;
+  return ANDROID ? androidPosition() : clipPosition(activeDeck().currentTime, deckClips[mainIndex]);
 }
 
 export function seekTo(seconds: number): void {
   if (!Number.isFinite(seconds)) return;
   if (ANDROID) {
-    androidSeek(seconds);
+    if (isCasting()) castSeekFromApp(seconds);
+    else androidSeek(seconds);
     return;
   }
   abortBlend();
+  abortGapless();
   disarmSilence();
   const deck = activeDeck();
-  const end = Number.isFinite(deck.duration) && deck.duration > 0 ? deck.duration : seconds;
-  deck.currentTime = Math.max(0, Math.min(seconds, end));
+  const clip = deckClips[mainIndex];
+  if (clip) {
+    deck.currentTime = clipDeckTime(seconds, clip);
+    armClipEnd();
+  } else {
+    const end = Number.isFinite(deck.duration) && deck.duration > 0 ? deck.duration : seconds;
+    deck.currentTime = Math.max(0, Math.min(seconds, end));
+  }
   armSilence();
+}
+
+function armClipEnd(): void {
+  if (clipTimer !== null || !deckClips[mainIndex] || !wantPlaying) return;
+  clipTimer = setInterval(checkClipEnd, CLIP_POLL_MS);
+}
+
+function disarmClipEnd(): void {
+  if (clipTimer === null) return;
+  clearInterval(clipTimer);
+  clipTimer = null;
+}
+
+function checkClipEnd(): void {
+  const clip = deckClips[mainIndex];
+  if (!clip || !wantPlaying) {
+    disarmClipEnd();
+    return;
+  }
+  if (!clipEnded(activeDeck().currentTime, clip)) return;
+  disarmClipEnd();
+  wantPlaying = false;
+  disarmStall();
+  activeDeck().pause();
+  emitEnded();
 }
 
 export function setBlendHooks(hooks: BlendHooks): void {
@@ -654,7 +755,8 @@ export function setBlendHooks(hooks: BlendHooks): void {
 }
 
 function fadeMsForNext(): number {
-  const { crossfadeSeconds, smartFade, reduceAnimation } = useSettings.getState();
+  const { reduceAnimation } = useSettings.getState();
+  const { crossfadeSeconds, smartFade } = blendForOutput(useSettings.getState(), exclusiveNow());
   if (reduceAnimation) return 0;
   const seconds = clampCrossfadeSeconds(crossfadeSeconds);
   const fallback = smartFade ? AUTOMIX_FALLBACK_S : 0;
@@ -668,6 +770,7 @@ function maybeArm(): void {
   const current = song;
   const next = blendHooks?.upNext() ?? null;
   if (!current || !next || next.id === current.id) return;
+  if (isCueTrackId(current.id) || isCueTrackId(next.id)) return;
   if (failedBlend?.fromId !== current.id) failedBlend = null;
   if (failedBlend?.toId === next.id) return;
   const deck = activeDeck();
@@ -689,32 +792,34 @@ function skipShortIncoming(): void {
   abortBlend();
 }
 
+async function prepareStandby(id: string, current: () => boolean): Promise<Source | null> {
+  try {
+    const source = await sourceFor(id, false);
+    if (current()) {
+      const standby = 1 - mainIndex;
+      await loadDeckSource(standbyDeck(), source.src);
+      if (!current()) return null;
+      deckIds[standby] = id;
+      deckSources[standby] = source.analysis;
+      deckStreams[standby] = source.stream;
+      deckDetails[standby] = source.details;
+      applySpeed();
+      if (source.lufs !== null) noteLoudness(id, source.lufs);
+    }
+    return source;
+  } catch (error) {
+    console.warn(`[hushio] next source failed: ${describeError(error)}`);
+    return null;
+  }
+}
+
 function arm(fromId: string, next: BlendTarget, fadeMs: number, remainingMs: number): void {
   const waitMs = Math.max(0, remainingMs - fadeMs);
   const pending: Armed = {
     fromId,
     toId: next.id,
     fadeMs,
-    ready: sourceFor(next.id, false).then(
-      async (source) => {
-        if (armed === pending) {
-          const standby = 1 - mainIndex;
-          await loadDeckSource(standbyDeck(), source.src);
-          if (armed !== pending) return null;
-          deckIds[standby] = next.id;
-          deckSources[standby] = source.analysis;
-          deckStreams[standby] = source.stream;
-          deckDetails[standby] = source.details;
-          applySpeed();
-          if (source.lufs !== null) noteLoudness(next.id, source.lufs);
-        }
-        return source;
-      },
-      (error: unknown) => {
-        console.warn(`[hushio] blend source failed: ${describeError(error)}`);
-        return null;
-      },
-    ),
+    ready: prepareStandby(next.id, () => armed === pending),
     timer: setTimeout(() => void beginFade(pending, fadeMs), waitMs),
   };
   armed = pending;
@@ -782,6 +887,10 @@ function completeBlend(ended: boolean): void {
   }
   clearInterval(finished.timer);
   fade = null;
+  swapToStandby(target, ended);
+}
+
+function swapToStandby(target: BlendTarget, ended: boolean): void {
   const outgoing = activeDeck();
   const incoming = standbyDeck();
   mainIndex = 1 - mainIndex;
@@ -799,6 +908,69 @@ function completeBlend(ended: boolean): void {
   const limit = duration > 0 ? duration : Number.POSITIVE_INFINITY;
   const position = clamp(Number.isFinite(incoming.currentTime) ? incoming.currentTime : 0, 0, limit);
   blendHooks?.onComplete(target, { position, duration, ended });
+}
+
+function gaplessWanted(): boolean {
+  const state = useSettings.getState();
+  const exclusive = exclusiveNow();
+  const blend = blendForOutput(state, exclusive);
+  return gaplessEligible({
+    enabled: state.gaplessPlayback,
+    crossfadeSeconds: blend.crossfadeSeconds,
+    smartFade: blend.smartFade,
+    exclusive,
+  });
+}
+
+function maybeArmGapless(): void {
+  const current = song;
+  const next = blendHooks?.upNext() ?? null;
+  const eligible = wantPlaying && !armed && !fade && gaplessWanted() && !isCueTrackId(current?.id) && !isCueTrackId(next?.id);
+  if (gapless && !keepsPrepared(gapless, current?.id, next?.id, eligible)) abortGapless();
+  if (!current || !next || !eligible || gapless) return;
+  const deck = activeDeck();
+  const rate = deck.playbackRate || 1;
+  const remainingS = (deck.duration - edgeOf(current.id, "tail") - deck.currentTime) / rate;
+  if (!shouldPrepareGapless(remainingS, deck.duration)) return;
+  prepareGapless(current.id, next);
+}
+
+function prepareGapless(fromId: string, next: BlendTarget): void {
+  const pending: Gapless = { fromId, toId: next.id, ready: false };
+  gapless = pending;
+  void prepareStandby(next.id, () => gapless === pending).then((source) => {
+    if (source !== null && gapless === pending) pending.ready = true;
+  });
+}
+
+function abortGapless(): void {
+  if (gapless === null) return;
+  gapless = null;
+  const standby = standbyDeck();
+  standby.pause();
+  standby.removeAttribute("src");
+  deckIds[1 - mainIndex] = undefined;
+  deckStreams[1 - mainIndex] = undefined;
+}
+
+function completeGapless(): boolean {
+  const pending = gapless;
+  const target = blendHooks?.upNext() ?? null;
+  if (!pending?.ready || !target || target.id !== pending.toId || !gaplessWanted()) {
+    abortGapless();
+    return false;
+  }
+  gapless = null;
+  const head = edgeOf(target.id, "head");
+  if (head > 0) standbyDeck().currentTime = head;
+  swapToStandby(target, false);
+  void startPlayback(loadSeq);
+  return true;
+}
+
+function emitEnded(): void {
+  if (completeGapless()) return;
+  audio.dispatchEvent(new Event("ended"));
 }
 
 function freezeFade(current: Fade): void {
@@ -848,7 +1020,7 @@ function abortBlend(): void {
 
 async function analyseDeck(index: number): Promise<void> {
   const id = deckIds[index];
-  const source = deckSources[index];
+  const source = (id === undefined ? undefined : analysisStreams.get(id)) ?? deckSources[index];
   const deck = decks[index];
   if (id === undefined || source === undefined || analyses.has(id) || analysing.has(id)) return;
   if (!analysable(deck.duration)) return;
@@ -879,6 +1051,7 @@ for (const [index, deck] of decks.entries()) {
   deck.addEventListener("timeupdate", () => {
     if (deck !== activeDeck()) return;
     noteProgress();
+    maybeArmGapless();
     maybeArm();
   });
   for (const type of ["waiting", "stalled"] as const) {
@@ -896,7 +1069,30 @@ for (const [index, deck] of decks.entries()) {
   });
 }
 
+function applyExclusive(enabled: boolean): void {
+  if (!usesNativeAudio) return;
+  for (const deck of decks) {
+    if (deck instanceof NativeAudioDeck) deck.setExclusive(enabled);
+  }
+}
+
+onExclusiveRejected(() => {
+  const settings = useSettings.getState();
+  if (!settings.exclusiveOutput) return;
+  settings.setValue("exclusiveOutput", false);
+  useUI.getState().toast(EXCLUSIVE_UNAVAILABLE, "error");
+});
+
 useSettings.subscribe((state, previous) => {
+  if (state.gaplessPlayback !== previous.gaplessPlayback) abortGapless();
+  if (state.exclusiveOutput !== previous.exclusiveOutput) {
+    abortBlend();
+    abortGapless();
+    leveling.clearGlides();
+    stopLevelTimer();
+    applyExclusive(state.exclusiveOutput);
+    refreshVolumes();
+  }
   if (state.playbackSpeed !== previous.playbackSpeed) applySpeed();
   if (state.loudnessLevel !== previous.loudnessLevel) {
     leveling.clearGlides();
@@ -910,11 +1106,15 @@ useSettings.subscribe((state, previous) => {
   if (
     state.eqEnabled !== previous.eqEnabled ||
     state.eqGains !== previous.eqGains ||
-    state.eqAutoHeadroom !== previous.eqAutoHeadroom
+    state.eqAutoHeadroom !== previous.eqAutoHeadroom ||
+    state.exclusiveOutput !== previous.exclusiveOutput
   ) {
     applyEq(eqSettingsOf(state));
   }
-  if (state.audioSinkId !== previous.audioSinkId) applySink(state.audioSinkId);
+  if (state.audioSinkId !== previous.audioSinkId) {
+    abortGapless();
+    applySink(state.audioSinkId);
+  }
 });
 
 applySpeed();

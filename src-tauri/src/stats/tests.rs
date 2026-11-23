@@ -375,6 +375,19 @@ async fn an_exit_flush_writes_the_stats_and_the_journal() {
 }
 
 #[tokio::test]
+async fn quitting_journals_the_song_still_playing() {
+    let root = tempfile::tempdir().expect("temp dir");
+    let service = Service::load(root.path().to_path_buf()).await;
+    service.playback(&event("start", &track("a", None), 0.0), at(2026, 10, 15, 21)).expect("start");
+    service.playback(&event("progress", &track("a", None), 31_400.0), at(2026, 10, 15, 21)).expect("progress");
+    service.close_and_flush().await;
+    let entries = service.journal();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].track.id, "a");
+    assert_eq!(entries[0].heard, 31);
+}
+
+#[tokio::test]
 async fn stored_listening_survives_a_restart() {
     let root = tempfile::tempdir().expect("temp dir");
     let service = Service::load(root.path().to_path_buf()).await;

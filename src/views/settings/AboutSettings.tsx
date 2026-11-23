@@ -2,7 +2,8 @@ import { AppLogo } from "../../components/AppLogo";
 import { Button } from "../../components/Button";
 import { APP_NAME } from "../../lib/app";
 
-export const GITHUB_URL = "https://github.com/Nexvyn";
+export const GITHUB_URL = "https://github.com/Nexvyn/hushio";
+export const WEBSITE_URL = "https://hushio.nexvyn.dev";
 
 export function AboutHeader({ version }: { version: string | null }) {
   return (
@@ -15,13 +16,16 @@ export function AboutHeader({ version }: { version: string | null }) {
   );
 }
 
-export function AboutMaker({ onOpen }: { onOpen: () => void }) {
+export function AboutMaker({ onOpen, onWebsite }: { onOpen: () => void; onWebsite: () => void }) {
   return (
     <div className="flex flex-col items-start gap-3">
       <p className="text-body leading-[22px] text-ink-2">
         Made by Nexvyn. A free, calm music player with no ads and no servers. Built because music apps got too noisy.
       </p>
-      <Button onClick={onOpen}>GitHub</Button>
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={onOpen}>GitHub</Button>
+        <Button onClick={onWebsite}>Website</Button>
+      </div>
     </div>
   );
 }

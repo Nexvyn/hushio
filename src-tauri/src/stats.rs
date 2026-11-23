@@ -593,6 +593,15 @@ impl Service {
         }
     }
 
+    pub async fn close_and_flush(&self) {
+        {
+            let mut state = self.lock();
+            close_session(&mut state, &Local::now());
+            self.touch(&mut state);
+        }
+        self.flush().await;
+    }
+
     pub async fn run_flush(self: std::sync::Arc<Self>) {
         loop {
             self.wake.notified().await;

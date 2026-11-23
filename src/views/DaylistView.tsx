@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { useEffect, useMemo, useState } from "react";
 import { MusicNote, Play, Plus } from "@phosphor-icons/react";
 import { ActionMenu } from "../components/ActionMenu";
@@ -79,7 +80,7 @@ export function DaylistView() {
 
   const playActions = daily.tracks.length ? (phone ? <>
     <button type="button" onClick={() => usePlayer.getState().playQueue(daily.tracks, 0, daily.title)} className={PHONE_PLAY}><HeroIcon icon={Play} />Play</button>
-    <button type="button" onClick={() => save(daily.title, daily.tracks)} className={PHONE_SHUFFLE}><HeroIcon icon={Plus} />Save</button>
+    <button type="button" onClick={() => save(daily.title, daily.tracks)} className={PHONE_SHUFFLE}><HeroIcon icon={Plus} />{t("dialog.save")}</button>
   </> : <>
     <Button variant="primary" className="gap-2" onClick={() => usePlayer.getState().playQueue(daily.tracks, 0, daily.title)}><DaylistIcon icon={Play} /><span>Play</span></Button>
     <Button className="gap-2" onClick={() => save(daily.title, daily.tracks)}><DaylistIcon icon={Plus} /><span>Save playlist</span></Button>

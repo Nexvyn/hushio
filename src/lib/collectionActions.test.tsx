@@ -136,6 +136,7 @@ describe("rename and folder dialogs", () => {
 describe("delete playlist dialog", () => {
   it("names the playlist, keeps its songs, and deletes on confirm", () => {
     useLibrary.setState({ playlists: [roadTrip] });
+    useNavigation.setState({ view: { name: "playlist", param: "p1" } });
     openDialog(() => openDeletePlaylist("p1"));
 
     expect(screen.getByText("This can't be undone. The tracks themselves aren't affected.")).toBeTruthy();
@@ -143,6 +144,16 @@ describe("delete playlist dialog", () => {
 
     expect(useLibrary.getState().playlists).toEqual([]);
     expect(useNavigation.getState().view).toEqual({ name: "library" });
+  });
+
+  it("stays on the current page when the deleted playlist is not open", () => {
+    useLibrary.setState({ playlists: [roadTrip] });
+    useNavigation.setState({ view: { name: "home" } });
+    openDialog(() => openDeletePlaylist("p1"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(useLibrary.getState().playlists).toEqual([]);
+    expect(useNavigation.getState().view).toEqual({ name: "home" });
   });
 });
 

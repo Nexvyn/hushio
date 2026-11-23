@@ -16,6 +16,7 @@ export type OutputWatchDeps = {
 };
 
 const RESERVED_IDS = new Set(["", "default", "communications"]);
+const LIKELY_IN_USE_LABEL = /head(phone|set)|earbud|airpods|bluetooth|usb/i;
 let labelsUnlocked = false;
 
 export function outputsOf(devices: readonly RawDevice[]): OutputDevice[] {
@@ -30,10 +31,15 @@ export function outputsOf(devices: readonly RawDevice[]): OutputDevice[] {
 
 export async function readOutputDevices(): Promise<OutputDevice[]> {
   if (isTauri() && !/Android/.test(navigator.userAgent)) {
-    const devices = await invoke<{ name: string; description: string }[]>("desktop_playback_devices");
-    return devices.filter((device) => device.name !== "auto").map((device) => ({
-      deviceId: device.name, groupId: device.name, label: device.description,
-    }));
+    const devices = await invoke<{ name: string; description: string }[]>("desktop_playback_devices").catch((error: unknown) => {
+      console.warn(`[hushio] mpv device list unavailable: ${String(error)}`);
+      return null;
+    });
+    if (devices !== null) {
+      return devices.filter((device) => device.name !== "auto").map((device) => ({
+        deviceId: device.name, groupId: device.name, label: device.description,
+      }));
+    }
   }
   if (!navigator.mediaDevices) return [];
   return outputsOf(await navigator.mediaDevices.enumerateDevices());
@@ -113,18 +119,31 @@ export function audioOutputWatch(deps: Pick<OutputWatchDeps, "isPlaying" | "paus
 export function startOutputWatch(deps: OutputWatchDeps): void {
   if (!navigator.mediaDevices) return;
   let previous: OutputDevice[] | null = null;
+  let lastAddedGroup: string | undefined;
 
   async function check(): Promise<void> {
     const devices = await readOutputDevices();
-    const prev = previous === null ? null : snapshotOutputs(previous, deps.pinned());
-    const next = snapshotOutputs(devices, deps.pinned());
+    const pinned = deps.pinned();
+    const prev = previous === null ? null : snapshotOutputs(previous, pinned);
+    const next = snapshotOutputs(devices, pinned);
+    const before = previous ?? [];
+    const added = devices.filter((device) => !before.some((old) => old.groupId === device.groupId));
+    if (previous !== null && added.length > 0) lastAddedGroup = added[added.length - 1].groupId;
+    const likelyInUse = before.some((old) =>
+      !devices.some((device) => device.groupId === old.groupId)
+      && (old.groupId === lastAddedGroup || LIKELY_IN_USE_LABEL.test(old.label)));
+    const followsUnknownRoute = pinned === "" && next.selectedGroup === undefined;
     previous = devices;
-    if (outputChangeAction(prev, next, deps.isPlaying()) === "pause") {
+    const pausing = followsUnknownRoute
+      ? likelyInUse && deps.isPlaying()
+      : outputChangeAction(prev, next, deps.isPlaying()) === "pause";
+    if (pausing) {
       deps.pause();
-      if (deps.pinned() !== "") deps.unpin();
+      if (pinned !== "") deps.unpin();
     }
   }
 
-  void check();
-  navigator.mediaDevices.addEventListener("devicechange", () => void check());
+  const run = () => check().catch((error: unknown) => console.warn(`[hushio] output check failed: ${String(error)}`));
+  void run();
+  navigator.mediaDevices.addEventListener("devicechange", () => void run());
 }

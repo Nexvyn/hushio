@@ -102,7 +102,7 @@ The Windows app updates itself. On macOS, Linux and Android, Hushio tells you wh
 - Built-in update check.
 
 ### Accounts and sync (all optional)
-- Google sign-in to sync playlists and back up your library to your own Google Drive.
+- Google sign-in to sync playlists and liked songs with your YouTube account.
 - Scrobbling to Last.fm and ListenBrainz.
 - Backup export and import.
 
@@ -111,6 +111,7 @@ Google sign-in, connecting a Spotify account, Last.fm and Discord status need AP
 ### Look and feel
 - Light, dark or system theme, with a calm white design and one accent colour.
 - Every animation respects the system Reduce Motion setting.
+- The interface is available in English and Hindi, with more languages welcome.
 
 ## How it works
 

@@ -30,7 +30,7 @@ pub async fn validate(http: &reqwest::Client, token: &str) -> Result<Option<Stri
 
 pub fn metadata(item: &Scrobble) -> Value {
     let mut info = json!({ "media_player": APP_NAME });
-    if !item.video_id.is_empty() {
+    if !item.video_id.is_empty() && !item.video_id.contains(':') {
         info["origin_url"] = json!(format!("https://music.youtube.com/watch?v={}", item.video_id));
     }
     if let Some(ms) = item.duration_ms {

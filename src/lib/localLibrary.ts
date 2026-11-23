@@ -19,6 +19,13 @@ export function isNetworkId(id: string): boolean {
   return id.startsWith(NETWORK_ID_PREFIX);
 }
 
+export const UNKNOWN_ARTIST = "Unknown artist";
+export const UNKNOWN_ALBUM = "Unknown album";
+
+export function canEditTags(os: string = platform): boolean {
+  return os !== "android";
+}
+
 export function artUrl(art: string | undefined, os: string = platform): string | null {
   if (!art) return null;
   if (/^https?:\/\//.test(art)) return art;
@@ -29,6 +36,10 @@ export function artUrl(art: string | undefined, os: string = platform): string |
 export function networkTrackUrl(id: string, os: string = platform): string {
   const encoded = encodeURIComponent(id.replace(/^net:/, ""));
   return os === "windows" || os === "android" ? `http://netmusic.localhost/${encoded}` : `netmusic://localhost/${encoded}`;
+}
+
+export function networkArtUrl(serverId: string, coverArt: string, os: string = platform): string {
+  return networkTrackUrl(`netart:${serverId}:${coverArt}`, os);
 }
 
 export function toTrack(track: LocalTrack): Track {
@@ -77,7 +88,7 @@ export function deviceTracks(tracks: LocalTrack[], downloads: DownloadItem[]): L
       path: item.path,
       title: item.track.title,
       artist: item.track.artist,
-      album: item.track.album || "Unknown album",
+      album: item.track.album || UNKNOWN_ALBUM,
       duration: item.track.duration,
       size: 0,
       mtime: 0,

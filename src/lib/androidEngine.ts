@@ -10,6 +10,7 @@ import {
   playerSetUrl,
   localLibraryTrackPath,
   playerSetVolume,
+  streamProxyPort,
 } from "./bridge";
 import {
   expiryOf,
@@ -21,7 +22,7 @@ import {
   type PlayMeta,
 } from "./androidPlayback";
 import { MEDIA_USER_AGENT, resolveStream } from "./resolveStream";
-import { addonStreamFor, addonsEnabled } from "./addons/resolve";
+import { addonStreamFor } from "./addons/resolve";
 import { isJioSaavnId } from "./jiosaavn";
 import { useUI } from "../stores/ui";
 import { currentStreamBitrate } from "./streamingQuality";
@@ -29,11 +30,16 @@ import { fileDetails, streamDetails } from "./streamStats";
 import { useNowStream } from "../stores/nowStream";
 import { playFailedMessage } from "./playFailed";
 import { traceMark } from "./streamTrace";
+import { isNetworkId } from "./localLibrary";
 
 type StreamNeeded = { id: string; reason: string };
 type PlayerFailure = { id: string; code: string; message: string; recoverable: boolean };
 type PlayerAction = { action: string };
 type PlayerFocus = { state: "lost" | "gained" };
+type BrowsePick = {
+  index: number;
+  items: { id: string; title: string; artist: string; album: string | null; artworkUrl: string | null; durationMs: number }[];
+};
 
 let last: PlayerSnapshot = IDLE_SNAPSHOT;
 let currentTitle = "";
@@ -82,8 +88,17 @@ export async function androidPlayStream(id: string, title: string, fromSeconds =
     if (generation === playGeneration && wantsPlayback) await playerPlay();
     return;
   }
+  if (isNetworkId(id)) {
+    const port = await streamProxyPort();
+    if (generation !== playGeneration) return;
+    const url = `http://127.0.0.1:${port}/?id=${encodeURIComponent(id)}`;
+    useNowStream.getState().publish(id, fileDetails(url, "Network folder"));
+    await playerSetQueue([{ ...queueItemFor(id, title, url, {}, 0, meta), expiresAtEpochMs: null }], 0, positionMs);
+    if (generation === playGeneration && wantsPlayback) await playerPlay();
+    return;
+  }
   const maxKbps = currentStreamBitrate();
-  const addon = addonsEnabled(maxKbps === undefined) ? await addonStreamFor(id) : null;
+  const addon = await addonStreamFor(id, maxKbps === undefined);
   const stream =
     addon?.stream ?? (maxKbps === undefined ? await resolveStream(id, false) : await resolveStream(id, false, maxKbps));
   if (generation !== playGeneration) return;
@@ -172,7 +187,9 @@ async function refreshUrl(id: string): Promise<void> {
   const generation = playGeneration;
   try {
     const maxKbps = currentStreamBitrate();
-    const stream = maxKbps === undefined ? await resolveStream(id, true) : await resolveStream(id, true, maxKbps);
+    const addon = await addonStreamFor(id, maxKbps === undefined);
+    const stream =
+      addon?.stream ?? (maxKbps === undefined ? await resolveStream(id, true) : await resolveStream(id, true, maxKbps));
     if (generation !== playGeneration) return;
     await playerSetUrl(id, stream.url, headers(), expiryOf(stream.url, Date.now()));
   } catch (error) {
@@ -219,6 +236,20 @@ async function setCurrentLiked(liked: boolean): Promise<void> {
   library.toggleLike(track);
 }
 
+export async function playBrowsePick(pick: BrowsePick): Promise<void> {
+  const tracks = pick.items.map((item) => ({
+    id: item.id,
+    title: item.title,
+    artist: item.artist,
+    thumb: item.artworkUrl,
+    album: item.album,
+    duration: item.durationMs / 1000,
+  }));
+  if (tracks.length === 0) return;
+  const { usePlayer } = await import("../stores/player");
+  usePlayer.getState().playQueue(tracks, pick.index);
+}
+
 async function handlePlayerAction(action: string): Promise<void> {
   if (action === "play") {
     wantsPlayback = true;
@@ -243,6 +274,7 @@ export function startAndroidEngine(dispatch: (type: MediaEvent | "ended") => voi
   });
   subscribe<unknown>("player-ended", () => dispatch("ended"));
   subscribe<PlayerAction>("player-action", (event) => void handlePlayerAction(event.action));
+  subscribe<BrowsePick>("player-browse-pick", (event) => void playBrowsePick(event));
   subscribe<PlayerFocus>("player-focus", (event) => {
     wantsPlayback = event.state === "gained";
   });

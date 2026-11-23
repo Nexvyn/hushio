@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { House, Books, MagnifyingGlass, Fire, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { PhoneIcon } from "./PhoneIcon";
 import { TAB_BAR_DP, TABS, type TabId } from "../../lib/phoneNav";
+import { t, useT } from "../../lib/i18n";
 import { useNavigation, type View } from "../../stores/navigation";
 import { haptic } from "../../lib/haptics";
 import { motion } from "motion/react";
@@ -26,6 +27,7 @@ const ICONS: Record<TabId, PhosphorIcon> = {
 };
 
 export function TabBar() {
+  useT();
   const current = useNavigation((state) => state.tab);
   const navigate = useNavigation((state) => state.navigate);
   const reduced = reducedMotion();
@@ -96,7 +98,7 @@ export function TabBar() {
                 transition={gate(reduced, phoneTween(PHONE_MS.tab))}
                 className={`text-caption leading-[14px] ${active ? "font-semibold" : "font-medium"}`}
               >
-                {tab.label}
+                {t(tab.labelKey)}
               </motion.span>
             </span>
           </button>

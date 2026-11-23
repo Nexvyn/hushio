@@ -70,8 +70,18 @@ export function addonsEnabled(lossless: boolean): boolean {
   return enabledAddons(useSettings.getState().addonSources ?? []).length > 0;
 }
 
-export async function addonStreamFor(id: string): Promise<AddonResolution | null> {
+export async function addonTrackStream(id: string, sources: readonly AddonSource[]): Promise<AddonResolution | null> {
+  const [prefix, sourceId, ...rest] = id.split(":");
+  const source = enabledAddons(sources).find((item) => item.id === sourceId);
+  if (prefix !== "addon" || !source) return null;
+  const stream = await streamAddon(source, rest.join(":"));
+  return { stream: { url: stream.url, mime: stream.mime, lufs: null }, label: `Add-on: ${source.name}` };
+}
+
+export async function addonStreamFor(id: string, lossless: boolean): Promise<AddonResolution | null> {
   try {
+    if (id.startsWith("addon:")) return await addonTrackStream(id, useSettings.getState().addonSources ?? []);
+    if (!addonsEnabled(lossless)) return null;
     const { usePlayer } = await import("../../stores/player");
     const track = usePlayer.getState().queue.find((item) => item.id === id);
     if (!track || track.episode) return null;

@@ -252,7 +252,9 @@ impl Innertube {
                 return Err(TokenError::Retry);
             };
             if let Some(rotated) = &reply.refresh_token {
-                let _ = self.store.write(rotated);
+                if let Err(error) = self.store.write(rotated) {
+                    tracing::warn!(%error, "could not store the rotated YouTube token");
+                }
             }
             *self.access.lock().unwrap_or_else(PoisonError::into_inner) =
                 Some((reply.access_token.clone(), now_secs() + reply.expires_in));

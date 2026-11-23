@@ -36,6 +36,7 @@ import { fmtTotal } from "../lib/format";
 import { type LibraryTrack, useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
 import { usePlayer } from "../stores/player";
+import { useTrackSort } from "../stores/trackSort";
 
 const liked = (i: number, artist: string, duration: number): LibraryTrack => ({
   id: `t${i}`,
@@ -110,6 +111,15 @@ describe("Liked Songs with songs", () => {
     expect(usePlayer.getState().playingFrom).toBe("__liked__");
     expect(usePlayer.getState().queue.map((item) => item.id)).toEqual(["t1", "t2", "t3"]);
     expect(usePlayer.getState().index).toBe(0);
+  });
+
+  it("plays the list in the sorted order", () => {
+    useTrackSort.setState({ sorts: { liked: { field: "title", direction: "desc", then: null } } });
+    render(<LikedView />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Play Liked Songs" }));
+    expect(usePlayer.getState().queue.map((item) => item.id)).toEqual(["t3", "t2", "t1"]);
+    useTrackSort.setState({ sorts: {} });
   });
 
   it("starts from a clicked row", () => {

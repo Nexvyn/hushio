@@ -61,6 +61,21 @@ describe("refreshInsets", () => {
     expect(px("--inset-top")).toBe("0px");
     expect(px("--inset-left")).toBe("0px");
   });
+
+  it("keeps the newest result when an older call resolves last", async () => {
+    let resolveFirst!: (value: { top: number; bottom: number; left: number; right: number }) => void;
+    hoisted.getInsets
+      .mockReturnValueOnce(new Promise((resolve) => (resolveFirst = resolve)))
+      .mockResolvedValueOnce({ top: 64, bottom: 0, left: 0, right: 0 });
+
+    const first = refreshInsets();
+    await refreshInsets();
+    expect(px("--inset-top")).toBe("64px");
+
+    resolveFirst({ top: 16, bottom: 0, left: 0, right: 0 });
+    await first;
+    expect(px("--inset-top")).toBe("64px");
+  });
 });
 
 describe("startInsets", () => {

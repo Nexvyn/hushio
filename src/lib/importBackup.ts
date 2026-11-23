@@ -4,7 +4,7 @@ import { downloadText } from "./downloadText";
 import { isMatchLanguage } from "./importLanguage";
 import { importedAddonSources, parseAddonSources } from "./addons/registry";
 import type { Track } from "../types";
-import { DEFAULT_PINS, LIBRARY_VERSION, useLibrary, type LibraryValues } from "../stores/library";
+import { DEFAULT_PINS, LIBRARY_VERSION, normalizePlaylist, useLibrary, type LibraryValues, type Playlist } from "../stores/library";
 import { usePlayer, type PlayerState } from "../stores/player";
 import { useRecents } from "../stores/recents";
 import {
@@ -172,11 +172,21 @@ function settingsPatch(input: Json, current: SettingsState): Partial<SettingsVal
   return patch as Partial<SettingsValues>;
 }
 
+function isPlaylistRecord(value: Json): boolean {
+  return typeof value.id === "string" && typeof value.name === "string";
+}
+
+function restoredPlaylist(playlist: Json): Playlist {
+  const tracks = Array.isArray(playlist.tracks) ? playlist.tracks.filter(isTrack) : [];
+  return normalizePlaylist({ ...playlist, tracks } as Playlist);
+}
+
 function libraryPatch(state: Json): Partial<LibraryValues> {
   const patch: Json = {};
   for (const key of LIBRARY_LIST_KEYS) {
     const value = state[key];
-    if (Array.isArray(value) && value.every(isRecord)) patch[key] = value;
+    if (key === "playlists" && Array.isArray(value) && value.every(isPlaylistRecord)) patch.playlists = value.map(restoredPlaylist);
+    else if (Array.isArray(value) && value.every(isRecord)) patch[key] = value;
   }
   if (isRecord(state.pinnedSingles)) patch.pinnedSingles = { ...DEFAULT_PINS, ...state.pinnedSingles };
   if (Array.isArray(state.libraryOrder)) patch.libraryOrder = state.libraryOrder.filter((key) => typeof key === "string");

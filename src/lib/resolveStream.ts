@@ -1,7 +1,8 @@
 import { onMemoryTrim } from "./memoryTrim";
 import { ytFetch as fetch } from "./ytFetch";
 import type { Innertube } from "youtubei.js";
-import { getSession, MARKET, resetSession } from "./innertube";
+import { getSession, resetSession } from "./innertube";
+import { marketValue } from "./market";
 import { isJioSaavnId, resolveJioSaavnStream } from "./jiosaavn";
 import { firstSuccess } from "./firstSuccess";
 import { traceMark } from "./streamTrace";
@@ -323,9 +324,9 @@ async function resolveUncached(videoId: string, options: ResolveOptions): Promis
       console.warn(
         `[hushio] all clients failed, rebuilding session with a fresh PO token: ${describeError(lastError)}`,
       );
-      await resetSession(MARKET);
+      await resetSession(marketValue());
     }
-    const { innertube, context } = await getSession(MARKET);
+    const { innertube, context } = await getSession(marketValue());
     const order = clientOrder(options.exclude);
     try {
       const winner = await firstSuccess(
@@ -418,7 +419,7 @@ export function prefetchStream(videoId: string, maxKbps?: number): Promise<void>
 }
 
 export function warmStreamSession(): Promise<void> {
-  return getSession(MARKET).then(
+  return getSession(marketValue()).then(
     () => undefined,
     (error: unknown) => {
       console.warn(`[hushio] session warm-up failed: ${describeError(error)}`);

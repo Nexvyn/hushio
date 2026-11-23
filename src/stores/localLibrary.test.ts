@@ -10,6 +10,7 @@ const bridge = vi.hoisted(() => ({
   localLibraryRenameFolder: vi.fn(),
   localLibraryForgetOpened: vi.fn(),
   localLibraryOpenFiles: vi.fn(),
+  localLibraryEditTags: vi.fn(),
   pickFolder: vi.fn(),
   onLocalLibraryChanged: vi.fn(async (callback: () => void) => {
     listener.callback = callback;
@@ -23,7 +24,13 @@ const listener = vi.hoisted(() => ({ callback: null as null | (() => void) }));
 
 vi.mock("../lib/bridge", () => ({ platform: "windows", ...bridge }));
 
+vi.mock("./player", async () => {
+  const { create } = await import("zustand");
+  return { usePlayer: create(() => ({ queue: [] as unknown[] })) };
+});
+
 import { useLocalLibrary } from "./localLibrary";
+import { usePlayer } from "./player";
 import { useSettings } from "./settings";
 import { useUI } from "./ui";
 
@@ -215,5 +222,32 @@ describe("local library store", () => {
     useLocalLibrary.setState({ opened: [{ id: "local:x", path: "p", title: "x", artist: "", album: "", duration: 0, size: 0, mtime: 0 }] });
     await useLocalLibrary.getState().forgetOpened("local:x");
     expect(useLocalLibrary.getState().opened).toEqual([]);
+  });
+
+  it("editing a track swaps the new record into the library, opened list and queue", async () => {
+    const before = { id: "local:a", path: "C:\\Music\\a.mp3", title: "a", artist: "x", album: "y", duration: 40, size: 1, mtime: 1 };
+    const after = { ...before, title: "Renamed", album: "New" };
+    useLocalLibrary.setState({ library: { ...library, tracks: [before] }, opened: [before] });
+    usePlayer.setState({ queue: [{ id: "local:a", title: "a", artist: "x", thumb: null }] });
+    bridge.localLibraryEditTags.mockResolvedValue(after);
+
+    await useLocalLibrary.getState().editTags("local:a", { title: "Renamed" });
+
+    expect(bridge.localLibraryEditTags).toHaveBeenCalledWith("local:a", { title: "Renamed" });
+    expect(useLocalLibrary.getState().library.tracks).toEqual([after]);
+    expect(useLocalLibrary.getState().opened).toEqual([after]);
+    expect(usePlayer.getState().queue[0]).toMatchObject({ title: "Renamed", album: "New" });
+  });
+
+  it("a failed edit leaves the library and the queue as they were", async () => {
+    const before = { id: "local:a", path: "C:\\Music\\a.mp3", title: "a", artist: "x", album: "y", duration: 40, size: 1, mtime: 1 };
+    useLocalLibrary.setState({ library: { ...library, tracks: [before] }, opened: [] });
+    usePlayer.setState({ queue: [{ id: "local:a", title: "a", artist: "x", thumb: null }] });
+    bridge.localLibraryEditTags.mockRejectedValue("This file is read-only.");
+
+    await expect(useLocalLibrary.getState().editTags("local:a", { title: "Renamed" })).rejects.toBe("This file is read-only.");
+
+    expect(useLocalLibrary.getState().library.tracks).toEqual([before]);
+    expect(usePlayer.getState().queue[0].title).toBe("a");
   });
 });

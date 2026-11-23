@@ -35,6 +35,9 @@ pub trait Remote: Sync {
     fn add(&self, playlist: &str, video: &str) -> impl Future<Output = Result<(), ApiError>> + Send;
     fn remove(&self, playlist: &str, video: &str) -> impl Future<Output = Result<(), ApiError>> + Send;
     fn rate(&self, video: &str, like: bool) -> impl Future<Output = Result<(), ApiError>> + Send;
+    fn holds(&self, _playlist: &str, _video: &str) -> impl Future<Output = Result<bool, ApiError>> + Send {
+        async { Ok(false) }
+    }
 }
 
 struct Official<'a, T> {
@@ -72,6 +75,11 @@ impl<T: AccessTokens> Remote for Official<'_, T> {
 
     async fn rate(&self, video: &str, like: bool) -> Result<(), ApiError> {
         self.api.rate(self.tokens, video, like).await
+    }
+
+    async fn holds(&self, playlist: &str, video: &str) -> Result<bool, ApiError> {
+        let items = self.api.list_items(self.tokens, playlist).await?;
+        Ok(items.iter().any(|item| item.video_id == video))
     }
 }
 
@@ -123,6 +131,8 @@ pub struct Job {
     pub not_before: i64,
     pub created_at: i64,
     pub state: State,
+    #[serde(default)]
+    pub maybe_sent: bool,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -250,10 +260,15 @@ impl Queue {
             }
             Kind::Delete => {
                 self.drop_pending(|job| job.local_playlist_id == local);
-                let linked = local
-                    .as_ref()
-                    .is_some_and(|id| self.stored.links.contains_key(id));
-                if !linked {
+                let reachable = local.as_ref().is_some_and(|id| {
+                    self.stored.links.contains_key(id)
+                        || self.stored.jobs.iter().any(|job| {
+                            job.kind == Kind::Create
+                                && job.state == State::Running
+                                && job.local_playlist_id.as_ref() == Some(id)
+                        })
+                });
+                if !reachable {
                     return Ok(false);
                 }
             }
@@ -270,6 +285,7 @@ impl Queue {
             not_before: now,
             created_at: now,
             state: State::Pending,
+            maybe_sent: false,
         });
         Ok(true)
     }
@@ -335,6 +351,12 @@ impl Queue {
         self.stored.jobs.iter().position(|job| job.id == id)
     }
 
+    fn mark_unsure(&mut self, id: &str) {
+        if let Some(index) = self.position(id) {
+            self.stored.jobs[index].maybe_sent = true;
+        }
+    }
+
     fn release(&mut self, id: &str) {
         if let Some(index) = self.position(id) {
             self.stored.jobs[index].state = State::Pending;
@@ -381,6 +403,16 @@ impl Queue {
                 job.state = State::Failed;
                 true
             }
+        }
+    }
+
+    fn drop_deletes_waiting_on(&mut self, create: &Job) {
+        if let (Kind::Create, Some(local)) = (create.kind, create.local_playlist_id.as_ref()) {
+            self.stored.jobs.retain(|other| {
+                !(other.kind == Kind::Delete
+                    && other.state == State::Pending
+                    && other.local_playlist_id.as_ref() == Some(local))
+            });
         }
     }
 
@@ -777,13 +809,15 @@ impl<T: AccessTokens> Engine<T> {
             }
             Err(error) => match halt_for(&error) {
                 Some(halt) => {
+                    if matches!(error, ApiError::Network(_)) {
+                        queue.mark_unsure(&job.id);
+                    }
                     queue.release(&job.id);
                     self.halt(halt, route);
                     Step::Halted(halt)
                 }
                 None => {
-                    let gone = error.status() == Some(404)
-                        && matches!(job.kind, Kind::Rename | Kind::Add | Kind::Remove | Kind::Delete);
+                    let gone = playlist_gone(job.kind, &error);
                     match job.local_playlist_id.as_deref() {
                         Some(local) if gone => {
                             queue.drop_playlist(local);
@@ -794,6 +828,7 @@ impl<T: AccessTokens> Engine<T> {
                         }
                         _ => {
                             if queue.attempt_failed(&job.id, now) {
+                                queue.drop_deletes_waiting_on(&job);
                                 self.count_done();
                             }
                             self.note_error(error.describe());
@@ -876,8 +911,19 @@ impl<T: AccessTokens> Engine<T> {
 fn halt_for(error: &ApiError) -> Option<Halt> {
     match error {
         ApiError::Token(TokenError::SignedOut) => Some(Halt::SignIn),
-        ApiError::Network(_) => Some(Halt::Offline),
+        ApiError::Network(_) | ApiError::Token(TokenError::Retry) => Some(Halt::Offline),
         _ => None,
+    }
+}
+
+fn playlist_gone(kind: Kind, error: &ApiError) -> bool {
+    match error {
+        ApiError::Status { status: 404, reason, .. } => match kind {
+            Kind::Add => matches!(reason.as_deref(), None | Some("playlistNotFound")),
+            Kind::Rename | Kind::Remove | Kind::Delete => true,
+            Kind::Create | Kind::Like | Kind::Unlike => false,
+        },
+        _ => false,
     }
 }
 
@@ -888,7 +934,12 @@ async fn perform_on<R: Remote>(remote: &R, job: &Job) -> Result<Option<String>, 
     match job.kind {
         Kind::Create => remote.create(&name).await.map(Some),
         Kind::Rename => remote.rename(&playlist, &name).await.map(|()| None),
-        Kind::Add => remote.add(&playlist, &video).await.map(|()| None),
+        Kind::Add => {
+            if job.maybe_sent && remote.holds(&playlist, &video).await? {
+                return Ok(None);
+            }
+            remote.add(&playlist, &video).await.map(|()| None)
+        }
         Kind::Remove => remote.remove(&playlist, &video).await.map(|()| None),
         Kind::Delete => remote.delete(&playlist).await.map(|()| None),
         Kind::Like => remote.rate(&video, true).await.map(|()| None),
@@ -1000,6 +1051,22 @@ mod tests {
     }
 
     #[test]
+    fn clearing_the_queue_drops_the_playlist_links() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let mut queue = Queue {
+            root: dir.path().to_path_buf(),
+            stored: Stored::default(),
+        };
+        queue.link("L1", "PL1");
+        queue.enqueue(add("L1", "v1", Some("PL1")), 0).expect("queued");
+        queue.stored.last_synced_at = Some(5);
+        queue.clear();
+        assert!(queue.stored.jobs.is_empty());
+        assert!(queue.stored.links.is_empty());
+        assert_eq!(queue.stored.last_synced_at, None);
+    }
+
+    #[test]
     fn changes_wait_for_a_playlist_that_is_created_or_linked() {
         let dir = tempfile::tempdir().expect("temp dir");
         let mut queue = Queue {
@@ -1011,6 +1078,68 @@ mod tests {
         assert!(queue.enqueue(create("L9", "Mix"), 1).expect("create"));
         assert!(queue.enqueue(add("L9", "v1", None), 2).expect("held"));
         assert_eq!(queue.stored.jobs.len(), 2);
+    }
+
+    fn delete_playlist(local: &str) -> JobInput {
+        JobInput {
+            kind: Kind::Delete,
+            local_playlist_id: Some(local.to_owned()),
+            yt_playlist_id: None,
+            video_id: None,
+            payload: None,
+        }
+    }
+
+    #[test]
+    fn deleting_a_playlist_whose_create_has_not_started_drops_both() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let mut queue = Queue {
+            root: dir.path().to_path_buf(),
+            stored: Stored::default(),
+        };
+        assert!(queue.enqueue(create("L5", "Mix"), 0).expect("create"));
+        assert!(!queue.enqueue(delete_playlist("L5"), 1).expect("ignored"));
+        assert!(queue.stored.jobs.is_empty());
+    }
+
+    #[test]
+    fn a_delete_waiting_on_a_create_that_fails_for_good_is_dropped() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let mut queue = Queue {
+            root: dir.path().to_path_buf(),
+            stored: Stored::default(),
+        };
+        assert!(queue.enqueue(create("L6", "Mix"), 0).expect("create"));
+        let running = queue.take(1).expect("create starts");
+        assert!(queue.enqueue(delete_playlist("L6"), 2).expect("kept"));
+        let mut exhausted = false;
+        for _ in 0..5 {
+            exhausted = queue.attempt_failed(&running.id, 3);
+        }
+        assert!(exhausted);
+        queue.drop_deletes_waiting_on(&running);
+        assert_eq!(queue.stored.jobs.len(), 1);
+        assert_eq!(queue.stored.jobs[0].kind, Kind::Create);
+        assert_eq!(queue.stored.jobs[0].state, State::Failed);
+    }
+
+    #[test]
+    fn deleting_a_playlist_whose_create_is_running_deletes_the_new_youtube_playlist_after_it() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let mut queue = Queue {
+            root: dir.path().to_path_buf(),
+            stored: Stored::default(),
+        };
+        assert!(queue.enqueue(create("L4", "Mix"), 0).expect("create"));
+        let running = queue.take(1).expect("create starts");
+        assert!(queue.enqueue(delete_playlist("L4"), 2).expect("kept"));
+        assert_eq!(
+            queue.succeed(&running.id, Some("PLnew".to_owned())),
+            Some(("L4".to_owned(), "PLnew".to_owned()))
+        );
+        let job = queue.take(3).expect("delete runs once the create has finished");
+        assert_eq!(job.kind, Kind::Delete);
+        assert_eq!(job.yt_playlist_id.as_deref(), Some("PLnew"));
     }
 
     #[test]
@@ -1043,6 +1172,30 @@ mod tests {
         assert_eq!(queue.stored.jobs.len(), 1);
         assert_eq!(queue.stored.jobs[0].state, State::Pending);
         assert_eq!(queue.stored.jobs[0].attempts, 0);
+    }
+
+    #[test]
+    fn a_missing_video_on_add_does_not_count_as_a_deleted_playlist() {
+        let status = |reason: &str| ApiError::Status {
+            status: 404,
+            reason: Some(reason.to_owned()),
+            message: String::new(),
+        };
+        assert!(!playlist_gone(Kind::Add, &status("videoNotFound")));
+        assert!(playlist_gone(Kind::Add, &status("playlistNotFound")));
+        assert!(playlist_gone(Kind::Remove, &status("videoNotFound")));
+    }
+
+    #[test]
+    fn a_404_without_a_reason_from_the_fallback_route_counts_as_a_deleted_playlist() {
+        let bare = ApiError::Status { status: 404, reason: None, message: String::new() };
+        assert!(playlist_gone(Kind::Add, &bare));
+    }
+
+    #[test]
+    fn a_token_refresh_that_could_not_reach_google_halts_as_offline() {
+        assert_eq!(halt_for(&ApiError::Token(TokenError::Retry)), Some(Halt::Offline));
+        assert_eq!(halt_for(&ApiError::Token(TokenError::SignedOut)), Some(Halt::SignIn));
     }
 
     #[tokio::test]
@@ -1245,6 +1398,41 @@ mod tests {
         assert!(seen[1].path.ends_with("/playlistItems"));
         assert!(seen[1].body.contains("PLnew"));
         assert!(seen[1].body.contains("v9"));
+    }
+
+    #[tokio::test]
+    async fn a_retried_add_skips_a_video_the_playlist_already_holds() {
+        let (base, mock) = start_mock().await;
+        mock.replies.lock().unwrap().push_back((200, r#"{"items":[{"id":"item1","snippet":{"resourceId":{"videoId":"v1"}}}]}"#.to_owned()));
+        let dir = tempfile::tempdir().expect("temp dir");
+        let engine = engine(dir.path(), &base).await;
+        engine.link("L8", "PLhold").await.expect("linked");
+        engine.enqueue(vec![add("L8", "v1", None)]).await.expect("queued");
+        engine.queue.lock().await.stored.jobs[0].maybe_sent = true;
+
+        assert_eq!(engine.step(now_ms() + 1_000_000, &|_: Event| {}).await, Step::Ran);
+        let seen = mock.seen.lock().unwrap().clone();
+        assert_eq!(seen.len(), 1);
+        assert_eq!(seen[0].method, "GET");
+        assert!(engine.queue.lock().await.stored.jobs.is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_retried_add_still_adds_a_video_the_playlist_lacks() {
+        let (base, mock) = start_mock().await;
+        mock.replies.lock().unwrap().push_back((200, r#"{"items":[]}"#.to_owned()));
+        mock.replies.lock().unwrap().push_back((200, "{}".to_owned()));
+        let dir = tempfile::tempdir().expect("temp dir");
+        let engine = engine(dir.path(), &base).await;
+        engine.link("L8", "PLhold").await.expect("linked");
+        engine.enqueue(vec![add("L8", "v1", None)]).await.expect("queued");
+        engine.queue.lock().await.stored.jobs[0].maybe_sent = true;
+
+        assert_eq!(engine.step(now_ms() + 1_000_000, &|_: Event| {}).await, Step::Ran);
+        let seen = mock.seen.lock().unwrap().clone();
+        assert_eq!(seen.len(), 2);
+        assert_eq!(seen[1].method, "POST");
+        assert!(seen[1].body.contains("v1"));
     }
 
     #[tokio::test]

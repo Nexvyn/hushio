@@ -1,3 +1,4 @@
+import { t, useT } from "../lib/i18n";
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { motion, useTransform } from "motion/react";
 import { Button } from "../components/Button";
@@ -118,9 +119,10 @@ function PhoneSkeleton() {
 }
 
 function LoadingShelves() {
+  useT();
   return (
     <div role="status" aria-label="Loading Home" className="space-y-8">
-      <span className="sr-only">Finding music for your Home.</span>
+      <span className="sr-only">{t("home.finding")}</span>
       {[0, 1].map((section) => (
         <div key={section} aria-hidden="true">
           <div className="mb-4 h-5 w-36 rounded-control bg-wash" />
@@ -140,6 +142,7 @@ function LoadingShelves() {
 }
 
 export function HomeView() {
+  useT();
   const region = marketValue();
   const { location } = region;
   const shelves = useHomeCache((state) => (state.market === location && state.language === region.lang ? state.shelves : NO_SHELVES));
@@ -203,7 +206,7 @@ export function HomeView() {
   const quickSongs = new Set(quick.filter(item => item.kind === "song").map(item => item.id));
   const sections = allSections.filter(section => section.kind !== "market")
     .map(section => ({ ...section, items: section.items.filter(item => item.kind !== "track" || !quickSongs.has(item.track.id)) }))
-    .filter(section => section.items.length || section.playlists?.length || section.shelf?.items.length).slice(0, 3);
+    .filter(section => section.items.length || section.playlists?.length || section.shelf?.items.length);
   const featured = featuredFrom(allSections);
   const featuredPlaylistId = featured?.target.name === "ytplaylist" ? featured.target.param : null;
   const shelfSections =
@@ -304,14 +307,14 @@ export function HomeView() {
       <SkeletonFade show={!hasContent && !initialRemote.length && status === "loading"}>{phone ? <PhoneSkeleton /> : <LoadingShelves />}</SkeletonFade>
       {!hasContent && !initialRemote.length && status === "failed" && (
         <ErrorState
-          title="Couldn't load Home"
+          title={t("home.errorTitle")}
           message="Check your connection, then try again."
           action={{ label: "Try again", onClick: retry }}
         />
       )}
       {!hasContent && !initialRemote.length && !stream.shelves.length && status === "loaded" && (stream.done || hiddenSections.includes("market")) && (
         <EmptyState
-          title="Nothing here yet"
+          title={t("home.emptyTitle")}
           message="Play a song or search for music to fill Home."
           action={{ label: "Search for songs", onClick: () => navigate({ name: "search" }) }}
         />
@@ -344,10 +347,10 @@ export function HomeView() {
       <div className="home-sections">
         {(hasContent || initialRemote.length > 0 || stream.shelves.length > 0) && content}
         {states}
-        {filterEmpty && <p className="py-10 text-center text-meta text-ink-2">Nothing matches this filter yet.</p>}
+        {filterEmpty && <p className="py-10 text-center text-meta text-ink-2">{t("home.filterEmpty")}</p>}
         {canDiscover && (!stream.done || hasContent || initialRemote.length > 0 || stream.shelves.length > 0) && <div className="home-feed-footer" ref={moreRef}>
           <span role="status" className="sr-only">{!stream.loading && stream.shelves.length ? `${stream.shelves.reduce((sum, shelf) => sum + shelf.items.length, 0)} additional recommendations loaded.` : ""}</span>
-          {stream.error ? <div role="alert"><Button variant="ghost" onClick={() => void stream.loadMore()}>Show more music</Button></div> : !stream.done && <div aria-hidden="true" className="home-shelf-skeleton"><span className="home-shelf-skeleton-title bt-skeleton" />{Array.from({ length: 6 }, (_, index) => <span key={index} className="home-shelf-skeleton-card bt-skeleton" />)}</div>}
+          {stream.error ? <div role="alert"><Button variant="ghost" onClick={() => void stream.loadMore()}>{t("home.showMore")}</Button></div> : !stream.done && <div aria-hidden="true" className="home-shelf-skeleton"><span className="home-shelf-skeleton-title bt-skeleton" />{Array.from({ length: 6 }, (_, index) => <span key={index} className="home-shelf-skeleton-card bt-skeleton" />)}</div>}
         </div>}
       </div>
       </motion.div>

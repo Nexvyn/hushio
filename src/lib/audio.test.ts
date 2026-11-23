@@ -171,6 +171,50 @@ describe("playStream", () => {
     expect(playSpy).not.toHaveBeenCalled();
   });
 
+  it("stops the old track when the next one fails to resolve, and Play loads the new one", async () => {
+    await playStream(TEST_SONG_ID, TEST_SONG_TITLE);
+    pauseSpy.mockClear();
+    resolveStream.mockRejectedValueOnce(new Error("No Piped mirror had a playable stream"));
+
+    await expect(playStream("next-song", "Next")).rejects.toThrow();
+    expect(pauseSpy).toHaveBeenCalled();
+
+    resolveStream.mockResolvedValueOnce(stream(RETRY_URL));
+    await play();
+    expect(resolveStream).toHaveBeenLastCalledWith("next-song", true);
+    expect(registerStreamUrl).toHaveBeenLastCalledWith("next-song", RETRY_URL);
+  });
+
+  it("analyses an Opus stream through its AAC itag so skip silence can work", async () => {
+    useSettings.setState({ skipSilence: true });
+    resolveStream.mockImplementation(async (_id: string, _refresh: boolean, _kbps?: number, mp4Only?: boolean) =>
+      mp4Only
+        ? { url: "https://r1.googlevideo.com/aac", mime: "audio/mp4", lufs: null }
+        : { url: "https://r1.googlevideo.com/opus", mime: 'audio/webm; codecs="opus"', lufs: null },
+    );
+
+    await playStream(TEST_SONG_ID, TEST_SONG_TITLE);
+
+    await vi.waitFor(() =>
+      expect(registerStreamUrl).toHaveBeenCalledWith(`${TEST_SONG_ID}#analysis`, "https://r1.googlevideo.com/aac"),
+    );
+    useSettings.setState({ skipSilence: false });
+  });
+
+  it("starts a webm song without waiting for the AAC lookup that analysis uses", async () => {
+    useSettings.setState({ skipSilence: true });
+    resolveStream.mockImplementation(async (_id: string, _refresh: boolean, _kbps?: number, mp4Only?: boolean) =>
+      mp4Only
+        ? new Promise(() => {})
+        : { url: "https://r1.googlevideo.com/opus", mime: 'audio/webm; codecs="opus"', lufs: null },
+    );
+
+    await playStream(TEST_SONG_ID, TEST_SONG_TITLE);
+
+    expect(playSpy).toHaveBeenCalled();
+    useSettings.setState({ skipSilence: false });
+  });
+
   it("retries once with a fresh source when the element errors", async () => {
     await playStream(TEST_SONG_ID, TEST_SONG_TITLE);
     resolveStream.mockResolvedValueOnce(stream(RETRY_URL));
@@ -284,6 +328,7 @@ describe("transport", () => {
   it("pauses the element and resumes the same song", async () => {
     await playStream(TEST_SONG_ID, TEST_SONG_TITLE);
 
+    pauseSpy.mockClear();
     pause();
     expect(pauseSpy).toHaveBeenCalledTimes(1);
 
@@ -743,7 +788,7 @@ describe("crossfade and Automix", () => {
   });
 
   it("does not blend when the crossfade and Automix are both off", async () => {
-    settings.useSettings.setState({ crossfadeSeconds: 0, smartFade: false });
+    settings.useSettings.setState({ crossfadeSeconds: 0, smartFade: false, gaplessPlayback: false });
     await startSong();
     playhead(199.5);
     await flush();
@@ -754,7 +799,7 @@ describe("crossfade and Automix", () => {
   });
 
   it("treats a negative crossfade length as off", async () => {
-    settings.useSettings.setState({ crossfadeSeconds: -3, smartFade: false });
+    settings.useSettings.setState({ crossfadeSeconds: -3, smartFade: false, gaplessPlayback: false });
     await startSong();
     playhead(199.5);
     await flush();

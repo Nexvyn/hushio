@@ -47,6 +47,14 @@ function row(platform: BuildContext["platform"], id: string): RowSpec {
   return found;
 }
 
+describe("About website row", () => {
+  it("names the same site that the Open button goes to", () => {
+    const about = buildCategories(context("windows")).find((category) => category.id === "about");
+    const website = about?.groups.flatMap((group) => group.rows).find((candidate) => candidate.id === "website");
+    expect(website?.note).toBe("hushio.nexvyn.dev: downloads, news and help");
+  });
+});
+
 const param = () => ({ value: 0, setTargetAtTime: vi.fn() });
 const node = () => ({
   connect: vi.fn(),
@@ -125,6 +133,16 @@ describe("Sound rows on Windows", () => {
   it("turns the equalizer on through the switch", () => {
     row("windows", "equalizer").toggle?.onChange(true);
     expect(useSettings.getState().eqEnabled).toBe(true);
+  });
+
+  it("shows gapless playback on by default and disables it while crossfade is on", () => {
+    useSettings.setState({ gaplessPlayback: true, crossfadeSeconds: 0 });
+    expect(soundOrPlayback("windows", "gapless").title).toBe("Gapless playback");
+    expect(soundOrPlayback("windows", "gapless").note).toBe("Plays the next song without a gap. Turns off when crossfade is on.");
+    expect(soundOrPlayback("windows", "gapless").toggle?.checked).toBe(true);
+    expect(soundOrPlayback("windows", "gapless").disabled).toBeFalsy();
+    useSettings.setState({ crossfadeSeconds: 4 });
+    expect(soundOrPlayback("windows", "gapless").disabled).toBe(true);
   });
 
   it("disables prevent clipping while the equalizer is off and enables it when on", () => {

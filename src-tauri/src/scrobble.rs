@@ -140,6 +140,10 @@ impl ApiError {
         }
     }
 
+    fn token_rejected(&self) -> bool {
+        matches!(self, Self::Service { code: 4 | 15, .. })
+    }
+
     fn user_message(&self, service: &str) -> String {
         match self {
             Self::Network(_) => format!("{service} couldn't be reached. Try again."),
@@ -613,6 +617,11 @@ impl Service {
                 "Last.fm hasn't got your approval yet. Click Allow in the browser, then try again."
                     .to_owned(),
             ),
+            Err(error) if error.token_rejected() => {
+                self.lock().stored.lastfm_pending_token = None;
+                self.save().await;
+                Err("Last.fm sign-in expired. Start sign-in again.".to_owned())
+            }
             Err(error) => Err(error.user_message("Last.fm")),
         }
     }

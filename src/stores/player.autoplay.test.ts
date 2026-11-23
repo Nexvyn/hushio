@@ -87,6 +87,32 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("AutoPlay past the first 25 suggestions", () => {
+  it("refills when the suggestions still ahead run low, even after 25 were added", async () => {
+    getRadio.mockResolvedValueOnce(radioPage(Array.from({ length: 25 }, (_, i) => i + 1)));
+    state().playQueue([seed]);
+    await vi.waitFor(() => expect(state().queue.length).toBe(26));
+
+    getRadio.mockResolvedValueOnce(radioPage([26, 27]));
+    state().jumpTo(21);
+    await vi.waitFor(() => expect(queueIds()).toContain(vid(27)));
+  });
+});
+
+describe("AutoPlay refill that finishes late", () => {
+  it("plays the new songs when a refill that finished after the queue changed is dropped", async () => {
+    let resolveOld: (page: RadioPage) => void = () => {};
+    getRadio.mockReturnValueOnce(new Promise<RadioPage>((resolve) => (resolveOld = resolve)));
+    getRadio.mockResolvedValueOnce(radioPage([2]));
+    state().playQueue([seed]);
+    state().playQueue([song(5)]);
+    state().next();
+
+    resolveOld(radioPage([1]));
+    await vi.waitFor(() => expect(playStream).toHaveBeenLastCalledWith(vid(2), "Song 2", 0, expect.any(Object)));
+  });
+});
+
 describe("AutoPlay at the end of the queue", () => {
   it("asks radio for songs after the last song and plays the first new one", async () => {
     getRadio.mockResolvedValueOnce(null);

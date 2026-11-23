@@ -270,6 +270,7 @@ export async function listenForDownloadProgress(): Promise<() => void> {
   await reconcileStaleDownloads();
   const stopNetwork = subscribeNetworkType(releaseWaitingDownloads);
   const stopSettings = useSettings.subscribe(releaseWaitingDownloads);
+  releaseWaitingDownloads();
   const unlisten = await listenDownloadEvents(handleDownloadEvent);
   return () => {
     stopNetwork();
@@ -279,6 +280,10 @@ export async function listenForDownloadProgress(): Promise<() => void> {
 }
 
 export function revealDownload(path: string): void {
+  if (path.startsWith("content://")) {
+    notify("Saved in Music on this device");
+    return;
+  }
   revealPath(path).catch((error: unknown) => notify(`Couldn't show the file: ${describe(error)}`, "error"));
 }
 

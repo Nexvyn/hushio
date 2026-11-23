@@ -19,6 +19,7 @@ import { usePhoneBack } from "./usePhoneBack";
 import { useNavigation } from "../../stores/navigation";
 import { useUI } from "../../stores/ui";
 import { useSongInfo } from "../../stores/songInfo";
+import { usePlaylistEdit } from "../../stores/playlistEdit";
 
 let press: () => void = () => {};
 
@@ -61,6 +62,17 @@ describe("usePhoneBack", () => {
     press();
     expect(useSongInfo.getState().song).toBeNull();
     expect(useNavigation.getState().view.name).toBe("search");
+    expect(useNavigation.getState().navPast).toHaveLength(1);
+  });
+
+  it("closes the playlist edit sheet on back before going back in history", async () => {
+    renderHook(() => usePhoneBack());
+    await vi.waitFor(() => expect(listen).toHaveBeenCalled());
+    useNavigation.setState({ view: { name: "library" }, navPast: [{ view: { name: "home" }, scroll: 0 }] });
+    usePlaylistEdit.getState().open("pl-1");
+    press();
+    expect(usePlaylistEdit.getState().id).toBeNull();
+    expect(useNavigation.getState().view.name).toBe("library");
     expect(useNavigation.getState().navPast).toHaveLength(1);
   });
 

@@ -10,8 +10,12 @@ export function applyInsets(insets: Insets, root: HTMLElement = document.documen
   }
 }
 
+let latestRefresh = 0;
+
 export async function refreshInsets(): Promise<void> {
-  applyInsets(await playerGetInsets().catch(() => NO_INSETS));
+  const refresh = ++latestRefresh;
+  const insets = await playerGetInsets().catch(() => NO_INSETS);
+  if (refresh === latestRefresh) applyInsets(insets);
 }
 
 export function startInsets(): () => void {

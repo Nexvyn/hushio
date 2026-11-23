@@ -17,10 +17,12 @@ function hasText(result: LyricsResult | null): result is LyricsResult {
   return result !== null && ((result.synced?.length ?? 0) > 0 || (result.plain?.trim().length ?? 0) > 0);
 }
 
-export function requestLyrics(track: Track, duration = 0): Promise<LyricsResult | null> {
-  const cached = cache.get(track.id);
-  if (cached) return cached;
-  if (Date.now() < (retryAfter.get(track.id) ?? 0)) return Promise.resolve(null);
+export function requestLyrics(track: Track, duration = 0, retry = false): Promise<LyricsResult | null> {
+  if (!retry) {
+    const cached = cache.get(track.id);
+    if (cached) return cached;
+    if (Date.now() < (retryAfter.get(track.id) ?? 0)) return Promise.resolve(null);
+  }
 
   const providers = useSettings.getState().lyricsProviders;
   const request: Promise<LyricsResult | null> = lyricsGet({
@@ -29,6 +31,7 @@ export function requestLyrics(track: Track, duration = 0): Promise<LyricsResult 
     artist: track.artist,
     duration: duration > 0 ? duration : undefined,
     providers: [...providers],
+    retry: retry || undefined,
   })
     .catch(() => null)
     .then((result) => {
@@ -47,7 +50,7 @@ export function requestLyrics(track: Track, duration = 0): Promise<LyricsResult 
 }
 
 export function prefetchLyrics(track: Track): void {
-  void requestLyrics(track);
+  void requestLyrics(track, track.duration ?? 0);
 }
 
 export function replaceLyrics(trackId: string, result: LyricsResult): void {

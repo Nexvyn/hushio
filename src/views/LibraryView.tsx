@@ -1,3 +1,4 @@
+import { t, useT } from "../lib/i18n";
 import type { ReactNode } from "react";
 import { ArrowSquareIn, CaretRight, ClockCounterClockwise, DownloadSimple, Folder, Heart, HardDrive, ListBullets, Queue, Playlist, Plus, SquaresFour, VinylRecord, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { ActionMenu } from "../components/ActionMenu";
@@ -136,6 +137,7 @@ function Shelf({ label, children }: { label: string; children: ReactNode }) {
 }
 
 export function LibraryView() {
+  useT();
   const liked = useLibrary((state) => state.liked);
   const playlists = useLibrary((state) => state.playlists);
   const savedAlbums = useLibrary((state) => state.savedAlbums);
@@ -158,7 +160,7 @@ export function LibraryView() {
       {
         key: "liked",
         pin: "liked",
-        title: "Liked Songs",
+        title: t("nav.liked"),
         subtitle: "",
         covers: coversOf(liked, 3),
         fallback: Heart,
@@ -168,7 +170,7 @@ export function LibraryView() {
       {
         key: "downloads",
         pin: "downloads",
-        title: "Downloads",
+        title: t("nav.downloads"),
         subtitle: saved.length > 0 ? plural(saved.length, "song", "songs") : "Nothing saved yet",
         covers: coversOf(saved.map((item) => item.track), 3),
         fallback: DownloadSimple,
@@ -177,7 +179,7 @@ export function LibraryView() {
       },
       {
         key: "history",
-        title: "History",
+        title: t("library.history"),
         subtitle: "Recently played",
         covers: [],
         fallback: ClockCounterClockwise,
@@ -187,7 +189,7 @@ export function LibraryView() {
       {
         key: "local",
         pin: "local",
-        title: "Local music",
+        title: t("nav.local"),
         subtitle: onDevice.length > 0 ? `${plural(onDevice.length, "song", "songs")} on this device` : "On this device",
         covers: [],
         fallback: HardDrive,
@@ -196,7 +198,7 @@ export function LibraryView() {
       },
       {
         key: "playlists",
-        title: "Playlists",
+        title: t("library.playlists"),
         subtitle: "",
         covers: [],
         fallback: Playlist,
@@ -255,8 +257,8 @@ export function LibraryView() {
     });
     const importEntry: PhoneEntry = {
       key: "import",
-      title: "Import",
-      subtitle: "Playlists from other apps",
+      title: t("nav.import"),
+      subtitle: t("library.importFromApps"),
       pinned: false,
       covers: [],
       fallback: ArrowSquareIn,
@@ -288,8 +290,8 @@ export function LibraryView() {
       })),
       {
         key: "new-playlist",
-        title: "New playlist",
-        subtitle: "Start one with songs you like",
+        title: t("library.newPlaylist"),
+        subtitle: t("library.startOne"),
         pinned: false,
         covers: [],
         fallback: Plus,
@@ -345,7 +347,7 @@ export function LibraryView() {
     return (
       <div className="pb-16">
         <PhoneHeader
-          title="Library"
+          title={t("library.title")}
           actions={
             <>
               <ActionMenu items={createItems} label="Create" icon={Plus} triggerClass={PHONE_HEADER_ICON} phoneIcon />
@@ -365,12 +367,12 @@ export function LibraryView() {
         {renderEntries([...collectionEntries, importEntry])}
 
         <section aria-label="Playlists" className="mt-7">
-          <PhoneSectionHeader title="Playlists" />
+          <PhoneSectionHeader title={t("library.playlists")} />
           {renderEntries(playlistEntries)}
         </section>
         {savedAlbums.length > 0 && (
           <section aria-label="Albums" className="mt-7">
-            <PhoneSectionHeader title="Albums" />
+            <PhoneSectionHeader title={t("library.albums")} />
             <ul className={PHONE_TILE_GRID}>
               {savedAlbums.map((album) => (
                 <li key={album.id}>
@@ -393,7 +395,7 @@ export function LibraryView() {
 
   return (
     <div className="pb-16">
-      <CollectionHero title="Your Library" covers={heroCovers} facts={facts}>
+      <CollectionHero title={t("nav.library")} covers={heroCovers} facts={facts}>
         {actions}
       </CollectionHero>
 
@@ -448,7 +450,7 @@ export function LibraryView() {
         ) : (
           <EmptyState
             icon={Queue}
-            title="No playlists yet"
+            title={t("library.noPlaylists")}
             message='Use Create above to make a playlist or a folder, or right-click any song and choose "New playlist" to start one from a song you like.'
           />
         )}

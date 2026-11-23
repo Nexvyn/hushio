@@ -203,9 +203,12 @@ describe("LocalMusicView on this device", () => {
     expect(useLibrary.getState().downloads.dl1).toBeUndefined();
   });
 
-  it("gives local rows no download menu", () => {
+  it("gives local files an Edit info row menu but no download removal", () => {
     setup("all");
-    expect(screen.queryByRole("button", { name: "More options for Alpha" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "More options for Alpha" }));
+    const labels = useUI.getState().contextMenu?.items.map((entry) => entry.label);
+    expect(labels).toContain("Edit info");
+    expect(labels).not.toContain("Remove download");
   });
 });
 

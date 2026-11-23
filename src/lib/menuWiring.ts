@@ -1,13 +1,15 @@
 import { useEffect } from "react";
 import { focusSearch } from "./shortcuts";
-import { listenMenuCommands, menuSetPlaybackState, platform, type MenuPlaybackState } from "./bridge";
+import { listenMenuCommands, menuSetPlaybackState, pipToggle, platform, type MenuPlaybackState } from "./bridge";
 import { dispatchMenuCommand, historyCommand, type MenuDeps } from "./menuCommands";
 import { formatSleepLeft } from "./sleepTimer";
 import { startFor, startAtSongEnd } from "./sleepActions";
+import { confirmImportBackup, exportBackup } from "./importBackup";
 import { useNavigation } from "../stores/navigation";
 import { usePlayer } from "../stores/player";
 import { useSleepTimer } from "../stores/sleepTimer";
 import { useUI } from "../stores/ui";
+import { useUpdates } from "../stores/updates";
 
 export function storeDeps(): MenuDeps {
   return {
@@ -27,6 +29,12 @@ export function storeDeps(): MenuDeps {
     toggleNowPlaying: () => useUI.getState().toggleNowPlaying(),
     openSettings: () => useNavigation.getState().navigate({ name: "settings" }),
     focusSearch,
+    toggleMiniplayer: () => {
+      pipToggle().catch(() => {});
+    },
+    checkUpdates: () => void useUpdates.getState().check(),
+    importBackup: confirmImportBackup,
+    exportBackup: () => void exportBackup(),
     goBack: () => useNavigation.getState().goBack(),
     goForward: () => useNavigation.getState().goForward(),
     layered: () => {

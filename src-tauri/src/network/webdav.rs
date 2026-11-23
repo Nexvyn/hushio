@@ -26,13 +26,12 @@ fn basic_auth(username: &str, password: &str) -> Option<String> {
     ))
 }
 
-fn join(base: &str, path: &str) -> String {
-    let trimmed = base.trim_end_matches('/');
-    let rest = path.trim_start_matches('/');
-    if rest.is_empty() {
-        return trimmed.to_owned();
-    }
-    format!("{trimmed}/{rest}")
+fn address(base: &str, path: &str) -> Result<String, String> {
+    let root = url::Url::parse(&format!("{}/", base.trim().trim_end_matches('/')))
+        .map_err(|error| error.to_string())?;
+    root.join(path)
+        .map(|url| url.to_string())
+        .map_err(|error| error.to_string())
 }
 
 fn decode(text: &str) -> String {
@@ -42,12 +41,36 @@ fn decode(text: &str) -> String {
         .replace("&quot;", "\"")
         .replace("&apos;", "'")
 }
+fn percent_decode(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        let escaped = bytes
+            .get(index + 1..index + 3)
+            .and_then(|pair| std::str::from_utf8(pair).ok())
+            .and_then(|pair| u8::from_str_radix(pair, 16).ok());
+        match (bytes[index], escaped) {
+            (b'%', Some(value)) => {
+                out.push(value);
+                index += 3;
+            }
+            _ => {
+                out.push(bytes[index]);
+                index += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
 fn local_name(path: &str) -> String {
-    path.trim_end_matches('/')
-        .rsplit('/')
-        .next()
-        .unwrap_or(path)
-        .to_owned()
+    percent_decode(
+        path.trim_end_matches('/')
+            .rsplit('/')
+            .next()
+            .unwrap_or(path),
+    )
 }
 
 pub fn parse_propfind(body: &str) -> Vec<Entry> {
@@ -144,12 +167,13 @@ pub async fn list(http: &reqwest::Client, server: &Server, path: &str) -> Result
     if base.is_empty() {
         return Err("This server has no address.".to_owned());
     }
-    let url = join(&base, path);
+    let url = address(&base, path)?;
     let body = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname/><d:resourcetype/><d:getcontentlength/></d:prop></d:propfind>"#
     );
+    let method = reqwest::Method::from_bytes(b"PROPFIND").map_err(|error| error.to_string())?;
     let mut request = http
-        .post(&url)
+        .request(method, &url)
         .header("Depth", "1")
         .header("Content-Type", "application/xml; charset=utf-8")
         .body(body)
@@ -172,7 +196,7 @@ pub async fn read_range(
     from: u64,
     to: Option<u64>,
 ) -> Result<Vec<u8>, String> {
-    let url = join(&server.url.trim(), path);
+    let url = address(&server.url, path)?;
     let mut request = http.get(&url).timeout(REQUEST_TIMEOUT);
     if let Some(auth) = basic_auth(&server.username, &server.password) {
         request = request.header("Authorization", auth);
@@ -204,6 +228,7 @@ pub fn tracks_from(server: &Server, entries: Vec<Entry>) -> Vec<NetworkTrack> {
                 artist,
                 album: String::new(),
                 size: entry.size,
+                cover_art: None,
             }
         })
         .collect()
@@ -213,6 +238,7 @@ pub fn tracks_from(server: &Server, entries: Vec<Entry>) -> Vec<NetworkTrack> {
 mod tests {
     use super::*;
     use crate::network::{Server, ServerKind};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
     const BODY: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <d:multistatus xmlns:d="DAV:">
   <d:response>
@@ -252,13 +278,70 @@ mod tests {
         let body = r#"<d:multistatus xmlns:d="DAV:"><d:response><d:href>/dav/a%20b.mp3</d:href></d:response></d:multistatus>"#;
         let entries = parse_propfind(body);
         assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].name, "a%20b.mp3");
+        assert_eq!(entries[0].name, "a b.mp3");
     }
+    async fn serve_once(response: &'static str) -> (String, tokio::task::JoinHandle<String>) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let task = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buffer = vec![0u8; 8192];
+            let read = socket.read(&mut buffer).await.unwrap();
+            socket.write_all(response.as_bytes()).await.unwrap();
+            String::from_utf8_lossy(&buffer[..read]).lines().next().unwrap_or_default().to_owned()
+        });
+        (url, task)
+    }
+
+    #[tokio::test]
+    async fn a_listing_is_sent_as_propfind() {
+        let (url, task) = serve_once("HTTP/1.1 207 Multi-Status\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await;
+        let server = Server {
+            url,
+            ..test_server()
+        };
+        let http = reqwest::Client::new();
+        list(&http, &server, "").await.unwrap();
+        assert!(task.await.unwrap().starts_with("PROPFIND / "));
+    }
+
+    fn test_server() -> Server {
+        Server {
+            id: "s1".to_owned(),
+            kind: ServerKind::WebDav,
+            name: "Box".to_owned(),
+            url: String::new(),
+            host: String::new(),
+            share: String::new(),
+            path: String::new(),
+            username: String::new(),
+            password: String::new(),
+            scanned_at: 0,
+            song_count: 0,
+            truncated: false,
+        }
+    }
+
     #[test]
-    fn the_address_and_the_path_are_joined_with_one_slash() {
-        assert_eq!(join("https://box.example/dav", "Music/song.mp3"), "https://box.example/dav/Music/song.mp3");
-        assert_eq!(join("https://box.example/dav/", "/Music"), "https://box.example/dav/Music");
-        assert_eq!(join("https://box.example/dav", ""), "https://box.example/dav");
+    fn a_path_from_the_server_is_resolved_against_its_origin() {
+        assert_eq!(
+            address("https://box.example/remote.php/dav/files/me", "/remote.php/dav/files/me/a.mp3").unwrap(),
+            "https://box.example/remote.php/dav/files/me/a.mp3"
+        );
+        assert_eq!(address("https://box.example/dav", "Music/song.mp3").unwrap(), "https://box.example/dav/Music/song.mp3");
+        assert_eq!(address("https://box.example/dav", "").unwrap(), "https://box.example/dav/");
+    }
+
+    #[tokio::test]
+    async fn a_file_is_read_from_its_href_once() {
+        let (url, task) = serve_once("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await;
+        let server = Server {
+            url: format!("{url}/dav"),
+            ..test_server()
+        };
+        let http = reqwest::Client::new();
+        read_range(&http, &server, "/dav/song.mp3", 0, None).await.unwrap();
+        assert!(task.await.unwrap().starts_with("GET /dav/song.mp3 "));
     }
 
     #[test]
@@ -279,6 +362,9 @@ mod tests {
             path: String::new(),
             username: String::new(),
             password: String::new(),
+            scanned_at: 0,
+            song_count: 0,
+            truncated: false,
         };
         let tracks = tracks_from(
             &server,

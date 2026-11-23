@@ -1,5 +1,7 @@
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -8,21 +10,22 @@ use crate::persist;
 use crate::secrets::{forget_secret, keep_secret, resolve_secret, Vault};
 
 pub mod smb;
+pub mod subsonic;
 pub mod webdav;
 
 const OWNER: &str = "guest";
 const STORE: &str = "network-servers";
 const VERSION: u64 = 1;
 const MAX_SERVERS: usize = 20;
-const AUDIO_EXTENSIONS: [&str; 12] = [
-    "mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "m4b", "aiff", "alac", "wma", "webm",
-];
+const STALE_AFTER_MS: u64 = 24 * 60 * 60 * 1000;
+const AUDIO_EXTENSIONS: [&str; 8] = ["mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "webm"];
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum ServerKind {
     WebDav,
     Smb,
+    Subsonic,
 }
 
 impl ServerKind {
@@ -30,6 +33,7 @@ impl ServerKind {
         match self {
             ServerKind::WebDav => "WebDAV",
             ServerKind::Smb => "SMB",
+            ServerKind::Subsonic => "Music server",
         }
     }
 }
@@ -52,6 +56,12 @@ pub struct Server {
     pub username: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub password: String,
+    #[serde(default)]
+    pub scanned_at: u64,
+    #[serde(default)]
+    pub song_count: usize,
+    #[serde(default)]
+    pub truncated: bool,
 }
 
 #[derive(Serialize, Clone, Debug, PartialEq, Eq)]
@@ -66,6 +76,11 @@ pub struct ServerSummary {
     pub share: String,
     pub path: String,
     pub username: String,
+    pub scanned_at: u64,
+    pub song_count: usize,
+    pub truncated: bool,
+    pub scanning: bool,
+    pub scan_error: String,
 }
 
 #[derive(Serialize, Clone, Debug, PartialEq, Eq)]
@@ -80,6 +95,8 @@ pub struct NetworkTrack {
     pub artist: String,
     pub album: String,
     pub size: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cover_art: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
@@ -100,8 +117,24 @@ impl Server {
             share: self.share.clone(),
             path: self.path.clone(),
             username: self.username.clone(),
+            scanned_at: self.scanned_at,
+            song_count: self.song_count,
+            truncated: self.truncated,
+            scanning: false,
+            scan_error: String::new(),
         }
     }
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))
+        .unwrap_or(0)
+}
+
+fn songs_store(server_id: &str) -> String {
+    format!("network-songs-{server_id}")
 }
 
 pub fn is_audio_name(name: &str) -> bool {
@@ -133,7 +166,7 @@ pub(crate) fn title_from_name(name: &str) -> (String, String) {
     }
 }
 
-fn share_key(id: &str) -> String {
+pub(crate) fn share_key(id: &str) -> String {
     format!("network-share:{id}")
 }
 
@@ -141,6 +174,8 @@ pub struct Service {
     root: PathBuf,
     servers: Mutex<Stored>,
     vault: Arc<dyn Vault>,
+    scanning: Mutex<HashSet<String>>,
+    scan_errors: Mutex<HashMap<String, String>>,
 }
 
 impl Service {
@@ -163,6 +198,8 @@ impl Service {
             root,
             servers: Mutex::new(stored),
             vault,
+            scanning: Mutex::new(HashSet::new()),
+            scan_errors: Mutex::new(HashMap::new()),
         };
         if moved {
             let servers = service.lock().servers.clone();
@@ -186,12 +223,106 @@ impl Service {
             .unwrap_or_else(|poison| poison.into_inner())
     }
 
+    fn summaries(&self) -> Vec<ServerSummary> {
+        let servers = self.lock().servers.clone();
+        let scanning = self.scanning.lock().unwrap_or_else(|poison| poison.into_inner()).clone();
+        let errors = self.scan_errors.lock().unwrap_or_else(|poison| poison.into_inner()).clone();
+        servers
+            .iter()
+            .map(|server| {
+                let mut summary = server.summary();
+                summary.scanning = scanning.contains(&server.id);
+                summary.scan_error = errors.get(&server.id).cloned().unwrap_or_default();
+                summary
+            })
+            .collect()
+    }
+
     pub fn list(&self) -> Vec<ServerSummary> {
-        self.lock()
+        self.summaries()
+    }
+
+    fn begin_scan(&self, id: &str) -> bool {
+        self.scanning
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .insert(id.to_owned())
+    }
+
+    fn end_scan(&self, id: &str, outcome: &Result<(), String>) {
+        self.scanning
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .remove(id);
+        let mut errors = self.scan_errors.lock().unwrap_or_else(|poison| poison.into_inner());
+        match outcome {
+            Ok(()) => errors.remove(id),
+            Err(message) => errors.insert(id.to_owned(), message.clone()),
+        };
+    }
+
+    pub fn refresh(self: Arc<Self>, id: String) -> Result<Vec<ServerSummary>, String> {
+        let server = self.server(&id).ok_or_else(|| "That server is gone.".to_owned())?;
+        if server.kind != ServerKind::Subsonic {
+            return Err("Only music servers can be refreshed.".to_owned());
+        }
+        if self.begin_scan(&id) {
+            let service = Arc::clone(&self);
+            tauri::async_runtime::spawn(async move {
+                let outcome = service.scan_inner(&id).await;
+                service.end_scan(&id, &outcome);
+            });
+        }
+        Ok(self.summaries())
+    }
+
+    pub fn refresh_stale(self: Arc<Self>) {
+        let now = now_ms();
+        let stale: Vec<String> = self
+            .lock()
             .servers
             .iter()
-            .map(Server::summary)
-            .collect()
+            .filter(|server| server.kind == ServerKind::Subsonic)
+            .filter(|server| now.saturating_sub(server.scanned_at) > STALE_AFTER_MS)
+            .map(|server| server.id.clone())
+            .collect();
+        for id in stale {
+            let _ = Arc::clone(&self).refresh(id);
+        }
+    }
+
+    async fn scan_inner(&self, id: &str) -> Result<(), String> {
+        let server = self.connectable(id)?;
+        let http = subsonic::client()?;
+        let scan = subsonic::scan(&http, &server).await?;
+        let count = scan.songs.len();
+        let truncated = scan.truncated;
+        let songs = serde_json::to_value(&scan.songs).map_err(|error| error.to_string())?;
+        persist::write(
+            &self.root,
+            OWNER,
+            &songs_store(id),
+            &json!({ "state": { "songs": songs }, "version": VERSION }),
+        )
+        .await?;
+        let servers = {
+            let mut stored = self.lock();
+            if let Some(entry) = stored.servers.iter_mut().find(|entry| entry.id == id) {
+                entry.scanned_at = now_ms();
+                entry.song_count = count;
+                entry.truncated = truncated;
+            }
+            stored.servers.clone()
+        };
+        self.write(&servers).await
+    }
+
+    async fn cached_tracks(&self, server: &Server) -> Vec<NetworkTrack> {
+        let songs = persist::read(&self.root, OWNER, &songs_store(&server.id))
+            .await
+            .and_then(|value| serde_json::from_value::<Vec<subsonic::Song>>(value["state"]["songs"].clone()).ok())
+            .unwrap_or_default();
+        songs.iter().map(|song| subsonic::track_of(server, song)).collect()
     }
 
     pub fn server(&self, id: &str) -> Option<Server> {
@@ -202,8 +333,20 @@ impl Service {
             .cloned()
     }
 
-    pub async fn save(&self, mut server: Server) -> Result<Vec<ServerSummary>, String> {
+    pub async fn save(self: Arc<Self>, mut server: Server) -> Result<Vec<ServerSummary>, String> {
         server.name = server.name.trim().to_owned();
+        let is_music_server = server.kind == ServerKind::Subsonic;
+        if is_music_server {
+            server.url = subsonic::base_url(&server.url)?.to_string();
+            server.username = server.username.trim().to_owned();
+            subsonic::check_login(&server)?;
+            if server.name.is_empty() {
+                server.name = subsonic::base_url(&server.url)
+                    .ok()
+                    .and_then(|url| url.host_str().map(str::to_owned))
+                    .unwrap_or_default();
+            }
+        }
         if server.name.is_empty() {
             return Err("Give the server a name.".to_owned());
         }
@@ -213,26 +356,37 @@ impl Service {
                 server.name, server.url, server.host
             ));
         }
+        let id = server.id.clone();
         let servers = {
             let mut stored = self.lock();
             let is_new = !stored.servers.iter().any(|existing| existing.id == server.id);
             if is_new && stored.servers.len() >= MAX_SERVERS {
                 return Err("That's too many servers. Remove one first.".to_owned());
             }
-            server.password = keep_secret(self.vault.as_ref(), &share_key(&server.id), &server.password)
-                .unwrap_or_default();
+            if !server.password.is_empty() {
+                server.password = keep_secret(self.vault.as_ref(), &share_key(&server.id), &server.password)
+                    .unwrap_or_default();
+            }
             match stored
                 .servers
                 .iter_mut()
                 .find(|existing| existing.id == server.id)
             {
-                Some(existing) => *existing = server,
+                Some(existing) => {
+                    server.scanned_at = existing.scanned_at;
+                    server.song_count = existing.song_count;
+                    server.truncated = existing.truncated;
+                    *existing = server;
+                }
                 None => stored.servers.push(server),
             }
             stored.servers.clone()
         };
         self.write(&servers).await?;
-        Ok(servers.iter().map(Server::summary).collect())
+        if is_music_server {
+            let _ = self.clone().refresh(id)?;
+        }
+        Ok(self.summaries())
     }
 
     pub async fn remove(&self, id: &str) -> Result<Vec<ServerSummary>, String> {
@@ -243,7 +397,8 @@ impl Service {
         };
         self.write(&servers).await?;
         forget_secret(self.vault.as_ref(), &share_key(id));
-        Ok(servers.iter().map(Server::summary).collect())
+        let _ = std::fs::remove_file(persist::store_path(&self.root, OWNER, &songs_store(id)));
+        Ok(self.summaries())
     }
 
     async fn write(&self, servers: &[Server]) -> Result<(), String> {
@@ -256,6 +411,7 @@ impl Service {
         let servers = std::mem::take(&mut self.lock().servers);
         for server in servers {
             forget_secret(self.vault.as_ref(), &share_key(&server.id));
+            let _ = std::fs::remove_file(persist::store_path(&self.root, OWNER, &songs_store(&server.id)));
         }
     }
 
@@ -274,6 +430,7 @@ impl Service {
                 let entries = smb::list(&server, path).await?;
                 Ok(smb::tracks_from(&server, entries))
             }
+            ServerKind::Subsonic => Ok(self.cached_tracks(&server).await),
         }
     }
 
@@ -294,7 +451,20 @@ impl Service {
                 webdav::read_range(&http, &server, path, from, to).await
             }
             ServerKind::Smb => smb::read(&server, path, from, to).await,
+            ServerKind::Subsonic => {
+                let http = subsonic::client()?;
+                subsonic::stream(&http, &server, path, from, to).await
+            }
         }
+    }
+
+    pub async fn read_art(&self, id: &str, cover: &str) -> Result<Vec<u8>, String> {
+        let server = self.connectable(id)?;
+        if server.kind != ServerKind::Subsonic {
+            return Err("That server has no cover art.".to_owned());
+        }
+        let http = subsonic::client()?;
+        subsonic::cover(&http, &server, cover).await
     }
 }
 
@@ -308,7 +478,23 @@ pub async fn network_server_save(
     network: tauri::State<'_, Arc<Service>>,
     server: Server,
 ) -> Result<Vec<ServerSummary>, String> {
-    network.save(server).await
+    network.inner().clone().save(server).await
+}
+
+#[tauri::command]
+pub async fn network_server_test(server: Server) -> Result<String, String> {
+    if server.kind != ServerKind::Subsonic {
+        return Err("Only music servers can be tested this way.".to_owned());
+    }
+    subsonic::test(&server).await
+}
+
+#[tauri::command]
+pub fn network_server_refresh(
+    network: tauri::State<'_, Arc<Service>>,
+    id: String,
+) -> Result<Vec<ServerSummary>, String> {
+    network.inner().clone().refresh(id)
 }
 
 #[tauri::command]
@@ -397,11 +583,30 @@ fn track_content_type(track_path: &str) -> &'static str {
     }
 }
 
+fn request_art(path: &str) -> Option<(String, String)> {
+    let rest = path.strip_prefix('/')?;
+    let decoded = percent_decode(rest)?;
+    let target = decoded.strip_prefix("netart:")?;
+    let (server_id, cover) = target.split_once(':')?;
+    (!server_id.is_empty() && !cover.is_empty()).then(|| (server_id.to_owned(), cover.to_owned()))
+}
+
 pub async fn serve_track(
     network: &Service,
     request: &tauri::http::Request<Vec<u8>>,
 ) -> tauri::http::Response<Vec<u8>> {
     let path = request.uri().path().to_owned();
+    if let Some((server_id, cover)) = request_art(&path) {
+        return match network.read_art(&server_id, &cover).await {
+            Ok(bytes) => tauri::http::Response::builder()
+                .status(tauri::http::StatusCode::OK)
+                .header("Content-Type", subsonic::image_type(&bytes))
+                .header("Cache-Control", "max-age=86400")
+                .body(bytes)
+                .unwrap_or_else(|_| network_error(tauri::http::StatusCode::INTERNAL_SERVER_ERROR)),
+            Err(_) => network_error(tauri::http::StatusCode::NOT_FOUND),
+        };
+    }
     let Some((server_id, track_path)) = request_track(&path) else {
         return network_error(tauri::http::StatusCode::BAD_REQUEST);
     };
@@ -458,6 +663,9 @@ mod tests {
             path: String::new(),
             username: "me".to_owned(),
             password: "secret".to_owned(),
+            scanned_at: 0,
+            song_count: 0,
+            truncated: false,
         }
     }
 
@@ -479,6 +687,8 @@ mod tests {
         assert!(is_audio_name("song.mp3"));
         assert!(is_audio_name("Song.FLAC"));
         assert!(is_audio_name("track.m4a"));
+        assert!(!is_audio_name("track.wma"));
+        assert!(!is_audio_name("track.aiff"));
         assert!(!is_audio_name("cover.jpg"));
         assert!(!is_audio_name("readme"));
     }
@@ -625,5 +835,169 @@ mod secret_tests {
         service.remove("s1").await.unwrap();
 
         assert!(vault.get("network-share:s1").is_none());
+    }
+
+    fn webdav_input(password: &str) -> Server {
+        Server {
+            id: "s1".to_owned(),
+            kind: ServerKind::WebDav,
+            name: "Box".to_owned(),
+            url: "https://box.example/dav".to_owned(),
+            host: String::new(),
+            share: String::new(),
+            path: String::new(),
+            username: "me".to_owned(),
+            password: password.to_owned(),
+            scanned_at: 0,
+            song_count: 0,
+            truncated: false,
+        }
+    }
+
+    #[tokio::test]
+    async fn saving_a_password_puts_it_in_the_key_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = Arc::new(MemoryVault::default());
+        let service = Arc::new(Service::load(dir.path().to_path_buf(), vault.clone()).await);
+
+        service.clone().save(webdav_input("hunter2")).await.unwrap();
+
+        assert_eq!(vault.get("network-share:s1").as_deref(), Some("hunter2"));
+        let file = persist::read(dir.path(), OWNER, STORE).await.unwrap();
+        assert!(!file.to_string().contains("hunter2"));
+    }
+
+    #[tokio::test]
+    async fn saving_again_with_an_empty_password_keeps_the_stored_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = Arc::new(MemoryVault::default());
+        let service = Arc::new(Service::load(dir.path().to_path_buf(), vault.clone()).await);
+        service.clone().save(webdav_input("hunter2")).await.unwrap();
+
+        service.clone().save(webdav_input("")).await.unwrap();
+
+        assert_eq!(vault.get("network-share:s1").as_deref(), Some("hunter2"));
+        assert_eq!(service.connectable("s1").unwrap().password, "hunter2");
+    }
+
+    #[tokio::test]
+    async fn removing_after_a_save_clears_the_key_store_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = Arc::new(MemoryVault::default());
+        let service = Arc::new(Service::load(dir.path().to_path_buf(), vault.clone()).await);
+        service.clone().save(webdav_input("hunter2")).await.unwrap();
+
+        service.remove("s1").await.unwrap();
+
+        assert!(vault.get("network-share:s1").is_none());
+    }
+}
+
+#[cfg(test)]
+mod music_server_tests {
+    use super::*;
+    use crate::network::subsonic::mock_server::{self, Library, AUDIO, PASSWORD};
+    use crate::secrets::test_support::MemoryVault;
+
+    fn input(url: String, password: &str) -> Server {
+        Server {
+            id: String::new(),
+            kind: ServerKind::Subsonic,
+            name: String::new(),
+            url,
+            host: String::new(),
+            share: String::new(),
+            path: String::new(),
+            username: "me".to_owned(),
+            password: password.to_owned(),
+            scanned_at: 0,
+            song_count: 0,
+            truncated: false,
+        }
+    }
+
+    async fn wait_until_idle(service: &Service) {
+        for _ in 0..400 {
+            if service.summaries().iter().all(|server| !server.scanning) {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        }
+        panic!("the scan did not finish");
+    }
+
+    #[tokio::test]
+    async fn a_saved_music_server_is_scanned_and_its_songs_stream_and_show_art() {
+        let url = mock_server::serve(Library { albums: 3, songs_per_album: 2 }).await;
+        let dir = tempfile::tempdir().unwrap();
+        let vault = Arc::new(MemoryVault::default());
+        let service = Arc::new(Service::load(dir.path().to_path_buf(), vault.clone()).await);
+
+        let saved = service.clone().save(input(url, PASSWORD)).await.unwrap();
+        let id = saved[0].id.clone();
+        assert_eq!(saved[0].name, "127.0.0.1");
+        wait_until_idle(&service).await;
+
+        let summary = service.list()[0].clone();
+        assert_eq!(summary.song_count, 6);
+        assert!(!summary.truncated);
+        assert!(summary.scan_error.is_empty());
+        assert!(summary.scanned_at > 0);
+
+        let tracks = service.list_tracks(&id, "").await.unwrap();
+        assert_eq!(tracks.len(), 6);
+        assert_eq!(tracks[0].id, format!("net:{id}:s-0-0"));
+        assert_eq!(tracks[0].cover_art.as_deref(), Some("al-0"));
+
+        let range = tauri::http::Request::builder()
+            .uri(format!("/net%3A{id}%3As-0-0"))
+            .header("range", "bytes=2-5")
+            .body(Vec::new())
+            .unwrap();
+        let response = serve_track(&service, &range).await;
+        assert_eq!(response.status(), 206);
+        assert_eq!(response.body(), &AUDIO[2..=5].to_vec());
+
+        let art = tauri::http::Request::builder()
+            .uri(format!("/netart%3A{id}%3Aal-0"))
+            .body(Vec::new())
+            .unwrap();
+        let response = serve_track(&service, &art).await;
+        assert_eq!(response.status(), 200);
+        assert_eq!(response.headers()["content-type"].to_str().unwrap(), "image/jpeg");
+
+        let file = persist::read(dir.path(), OWNER, STORE).await.unwrap();
+        assert!(!file.to_string().contains(PASSWORD));
+        assert_eq!(vault.get(&share_key(&id)).as_deref(), Some(PASSWORD));
+    }
+
+    #[tokio::test]
+    async fn a_music_server_without_a_password_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let service = Arc::new(Service::load(dir.path().to_path_buf(), Arc::new(MemoryVault::default())).await);
+        let error = service
+            .clone()
+            .save(input("https://music.example".to_owned(), ""))
+            .await
+            .unwrap_err();
+        assert_eq!(error, "Enter the username and password.");
+        assert!(service.list().is_empty());
+    }
+
+    #[tokio::test]
+    async fn removing_a_music_server_forgets_its_password_and_songs() {
+        let url = mock_server::serve(Library { albums: 1, songs_per_album: 1 }).await;
+        let dir = tempfile::tempdir().unwrap();
+        let vault = Arc::new(MemoryVault::default());
+        let service = Arc::new(Service::load(dir.path().to_path_buf(), vault.clone()).await);
+        let saved = service.clone().save(input(url, PASSWORD)).await.unwrap();
+        let id = saved[0].id.clone();
+        wait_until_idle(&service).await;
+
+        service.remove(&id).await.unwrap();
+
+        assert!(service.list().is_empty());
+        assert!(vault.get(&share_key(&id)).is_none());
+        assert!(!persist::store_path(dir.path(), OWNER, &songs_store(&id)).exists());
     }
 }

@@ -25,11 +25,17 @@ export function detectPlatform(ua: string): Platform {
 
 export const platform: Platform = detectPlatform(navigator.userAgent);
 
+function isMissingCommand(error: unknown, command: string): boolean {
+  const text = (error instanceof Error ? error.message : String(error)).trim().toLowerCase();
+  const expected = `command ${command} not found`.toLowerCase();
+  return text.startsWith(expected) && /^[.!?]*$/.test(text.slice(expected.length));
+}
+
 export async function call<T>(command: string, args?: InvokeArgs): Promise<T> {
   try {
     return await invoke<T>(command, args);
   } catch (error) {
-    if (String(error).includes("not found")) {
+    if (isMissingCommand(error, command)) {
       throw new Error(`Native command "${command}" is not available`);
     }
     throw error;
@@ -392,8 +398,9 @@ export interface LyricsCandidate {
   preview: string[];
 }
 
-export function lyricsGet(meta: LyricsMeta): Promise<LyricsResult | null> {
-  return call<LyricsResult | null>("lyrics_get", { meta });
+export function lyricsGet(meta: LyricsMeta & { retry?: boolean }): Promise<LyricsResult | null> {
+  const { retry, ...query } = meta;
+  return call<LyricsResult | null>("lyrics_get", { meta: query, retry });
 }
 
 export function lyricsReset(songId: string): Promise<void> {
@@ -495,6 +502,25 @@ export interface LocalTrack {
   mtime: number;
   art?: string;
   codec?: string;
+  albumArtist?: string;
+  year?: number;
+  trackNumber?: number;
+  discNumber?: number;
+  cueStart?: number;
+  cueEnd?: number;
+}
+
+export type LocalNumberEdit = number | string;
+
+export interface LocalTagEdits {
+  title?: string;
+  artist?: string;
+  album?: string;
+  albumArtist?: string;
+  genre?: string;
+  year?: LocalNumberEdit;
+  trackNumber?: LocalNumberEdit;
+  discNumber?: LocalNumberEdit;
 }
 
 export interface LocalUnplayable {
@@ -570,9 +596,15 @@ export function localLibraryTrackPath(id: string): Promise<string | null> {
   return call<string | null>("local_library_track_path", { id });
 }
 
+export function localLibraryEditTags(id: string, edits: LocalTagEdits): Promise<LocalTrack> {
+  return call<LocalTrack>("local_library_edit_tags", { id, edits });
+}
+
 export interface LocalPlaybackSource {
   url: string;
   mime: string;
+  cueStart?: number;
+  cueEnd?: number;
 }
 
 /** Resolves a registered local track to its loopback playback URL. */
@@ -751,6 +783,10 @@ export function ytTvOpen(): Promise<void> {
 
 export function listenYtTvCode(onCode: (code: YtTvCode) => void): Promise<UnlistenFn> {
   return listen<YtTvCode>("yt-tv-code", (event) => onCode(event.payload));
+}
+
+export function crashReport(message: string): Promise<void> {
+  return call<void>("crash_report", { message });
 }
 
 export function eraseStopSync(): Promise<void> {
@@ -1000,7 +1036,7 @@ export function discordSetEnabled(enabled: boolean): Promise<DiscordStatus> {
   return call<DiscordStatus>("discord_set_enabled", { enabled });
 }
 
-export type NetworkServerKind = "webDav" | "smb";
+export type NetworkServerKind = "webDav" | "smb" | "subsonic";
 
 export type NetworkServer = {
   id: string;
@@ -1012,6 +1048,11 @@ export type NetworkServer = {
   share: string;
   path: string;
   username: string;
+  scannedAt: number;
+  songCount: number;
+  truncated: boolean;
+  scanning: boolean;
+  scanError: string;
 };
 
 export type NetworkServerInput = {
@@ -1036,6 +1077,7 @@ export type NetworkTrack = {
   artist: string;
   album: string;
   size: number;
+  coverArt?: string;
 };
 
 export function networkServers(): Promise<NetworkServer[]> {
@@ -1052,4 +1094,12 @@ export function networkServerRemove(id: string): Promise<NetworkServer[]> {
 
 export function networkTracks(id: string, path: string): Promise<NetworkTrack[]> {
   return call<NetworkTrack[]>("network_tracks", { id, path });
+}
+
+export function networkServerTest(server: NetworkServerInput): Promise<string> {
+  return call<string>("network_server_test", { server });
+}
+
+export function networkServerRefresh(id: string): Promise<NetworkServer[]> {
+  return call<NetworkServer[]>("network_server_refresh", { id });
 }

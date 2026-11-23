@@ -183,6 +183,10 @@ pub fn reveal_invocation(os: &str, path: &Path) -> Option<Invocation> {
             })
         }
         "linux" => Some(xdg_open(path.parent()?)),
+        "macos" => Some(Invocation {
+            program: "open",
+            args: vec![OsString::from("-R"), path.as_os_str().to_owned()],
+        }),
         _ => None,
     }
 }
@@ -194,6 +198,10 @@ pub fn open_invocation(os: &str, dir: &Path) -> Option<Invocation> {
             args: vec![quoted(dir)],
         }),
         "linux" => Some(xdg_open(dir)),
+        "macos" => Some(Invocation {
+            program: "open",
+            args: vec![dir.as_os_str().to_owned()],
+        }),
         _ => None,
     }
 }
@@ -234,6 +242,16 @@ pub fn allow_picked(app: &AppHandle, folders: &Folders) -> Result<(), String> {
 pub async fn approve_user_folder(app: &AppHandle, folders: &Folders, path: PathBuf) -> Result<(), String> {
     folders.remember(path.clone()).await?;
     allow_asset(app, &path)
+}
+
+pub fn remove_download(folders: &Folders, path: &str) -> Result<(), String> {
+    let path = PathBuf::from(path);
+    folders.check(&path)?;
+    match std::fs::remove_file(&path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.to_string()),
+    }
 }
 
 fn approved_path(folders: &Folders, path: String) -> Result<PathBuf, String> {
@@ -412,9 +430,42 @@ mod tests {
     }
 
     #[test]
+    fn macos_reveals_the_file_and_opens_the_folder_with_open() {
+        assert_eq!(
+            reveal_invocation("macos", Path::new("/a/b.m4a")),
+            Some(Invocation {
+                program: "open",
+                args: vec![OsString::from("-R"), OsString::from("/a/b.m4a")],
+            })
+        );
+        assert_eq!(
+            open_invocation("macos", Path::new("/a")),
+            Some(Invocation {
+                program: "open",
+                args: vec![OsString::from("/a")],
+            })
+        );
+    }
+
+    #[test]
     fn unsupported_platforms_build_no_command() {
-        assert_eq!(reveal_invocation("macos", Path::new("/a/b.m4a")), None);
-        assert_eq!(open_invocation("macos", Path::new("/a")), None);
+        assert_eq!(reveal_invocation("freebsd", Path::new("/a/b.m4a")), None);
+        assert_eq!(open_invocation("freebsd", Path::new("/a")), None);
+    }
+
+    #[tokio::test]
+    async fn remove_download_deletes_a_file_inside_an_approved_folder_only() {
+        let base = tempfile::tempdir().expect("temp dir");
+        let folders = folders_in(base.path()).await;
+        let inside = download_dir(base.path()).join("Artist - Title.m4a");
+        std::fs::create_dir_all(download_dir(base.path())).expect("dir");
+        std::fs::write(&inside, b"audio").expect("file");
+        let outside = base.path().join("elsewhere.m4a");
+        std::fs::write(&outside, b"audio").expect("file");
+        assert!(remove_download(&folders, &outside.to_string_lossy()).is_err());
+        assert!(outside.exists());
+        remove_download(&folders, &inside.to_string_lossy()).expect("removed");
+        assert!(!inside.exists());
     }
 
     #[tokio::test]

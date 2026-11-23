@@ -1,7 +1,17 @@
 {
   "name": "hushio-app",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
+  "description": "A free, calm music player with no ads and no servers",
+  "author": "Nexvyn",
+  "homepage": "https://hushio.nexvyn.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Nexvyn/hushio.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Nexvyn/hushio/issues"
+  },
   "license": "GPL-3.0-only",
   "type": "module",
   "scripts": {

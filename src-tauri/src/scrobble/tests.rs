@@ -179,6 +179,22 @@ fn the_lastfm_signature_leaves_out_the_format_parameter() {
 }
 
 #[test]
+fn an_expired_or_invalid_lastfm_token_is_dropped_but_approval_pending_is_not() {
+    let service = |code| ApiError::Service { code, message: String::new() };
+    assert!(service(4).token_rejected());
+    assert!(service(15).token_rejected());
+    assert!(!service(14).token_rejected());
+    assert!(!ApiError::Network("offline".into()).token_rejected());
+}
+
+#[test]
+fn listenbrainz_gives_no_youtube_origin_to_local_network_or_add_on_tracks() {
+    let mut item = scrobble_of("Artist", "Title", None);
+    item.video_id = "local:/music/a.mp3".to_owned();
+    assert!(listenbrainz::metadata(&item)["additional_info"].get("origin_url").is_none());
+}
+
+#[test]
 fn listenbrainz_metadata_carries_the_track_and_its_origin() {
     let item = scrobble_of("Artist", "Title", Some(200_000));
     let metadata = listenbrainz::metadata(&item);

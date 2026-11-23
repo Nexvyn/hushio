@@ -18,7 +18,7 @@ body {
   overflow: hidden;
   background-color: rgb(var(--base));
   color: rgb(var(--ink-1));
-  font-family: var(--font-app, "Segoe UI Variable Text", "Segoe UI", -apple-system, "SF Pro Text", "Roboto Flex", Roboto, system-ui, sans-serif);
+  font-family: var(--font-app, "Segoe UI Variable Text", "Segoe UI", -apple-system, "SF Pro Text", "Roboto Flex", Roboto, system-ui, sans-serif), var(--font-devanagari);
   font-weight: 400;
 }
 

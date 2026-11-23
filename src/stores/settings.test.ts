@@ -32,8 +32,8 @@ import {
   applyAppearance,
   clampLyricsOffset,
   DEVICE_SETTINGS_KEYS,
-  syncableSettings,
   useSettings,
+  type SettingsValues,
 } from "./settings";
 
 const initial = useSettings.getState();
@@ -59,24 +59,15 @@ describe("defaults", () => {
     expect(initial.audioSinkId).toBe("");
     expect(initial.lyricsOffset).toBe(0);
     expect(initial.closeToTray).toBe(true);
+    expect(initial.exclusiveOutput).toBe(false);
   });
 });
 
 describe("device settings", () => {
-  it("lists exactly the eight device-only keys", () => {
+  it("lists exactly the ten device-only keys", () => {
     expect([...DEVICE_SETTINGS_KEYS].sort()).toEqual(
-      ["audioSinkId", "closeToTray", "downloadDir", "imageCacheMb", "libraryLayout", "localMusicFolder", "lyricsOffset", "sidebarLayout"].sort(),
+      ["audioSinkId", "closeToTray", "downloadDir", "exclusiveOutput", "imageCacheMb", "language", "libraryLayout", "localMusicFolder", "lyricsOffset", "sidebarLayout"].sort(),
     );
-  });
-
-  it("leaves the device keys out of the synced payload", () => {
-    const synced = syncableSettings(useSettings.getState());
-    for (const key of DEVICE_SETTINGS_KEYS) {
-      expect(synced).not.toHaveProperty(key);
-    }
-    expect(synced).toHaveProperty("theme", "system");
-    expect(synced).toHaveProperty("reduceAnimation", false);
-    expect(synced).toHaveProperty("reduceDynamicBlur", false);
   });
 
   it("clamps and rounds the lyrics offset to 0.05 seconds", () => {
@@ -121,41 +112,21 @@ describe("persistence", () => {
     expect(useSettings.getState().reduceAnimation).toBe(true);
   });
 
+  it("saves exclusive output when it is turned on and restores it on hydrate", async () => {
+    useSettings.getState().setValue("exclusiveOutput", true);
+    expect(storage.value).toMatchObject({ state: { exclusiveOutput: true } });
+
+    storage.value = { state: { exclusiveOutput: true }, version: 5 };
+    await useSettings.persist.rehydrate();
+    expect(useSettings.getState().exclusiveOutput).toBe(true);
+  });
+
   it("keeps the default for keys missing from the stored state", async () => {
     storage.value = { state: { theme: "light" }, version: 0 };
     await useSettings.persist.rehydrate();
     expect(useSettings.getState().theme).toBe("light");
     expect(useSettings.getState().reduceAnimation).toBe(false);
     expect(useSettings.getState().closeToTray).toBe(true);
-  });
-
-  it("keeps device values out of the synced payload after they change", () => {
-    const state = useSettings.getState();
-    state.setDownloadDir("/music/downloads");
-    state.setLocalMusicFolder("/music/library");
-    state.setAudioSinkId("device-42");
-    state.setLyricsOffset(1.5);
-    state.setCloseToTray(false);
-
-    const current = useSettings.getState();
-    expect(current.downloadDir).toBe("/music/downloads");
-    expect(current.localMusicFolder).toBe("/music/library");
-    expect(current.audioSinkId).toBe("device-42");
-    expect(current.lyricsOffset).toBe(1.5);
-    expect(current.closeToTray).toBe(false);
-
-    const synced = syncableSettings(current);
-    for (const key of DEVICE_SETTINGS_KEYS) {
-      expect(synced).not.toHaveProperty(key);
-    }
-  });
-
-  it("syncs every other setting value", () => {
-    const current = useSettings.getState();
-    const expected = Object.keys(current).filter(
-      (key) => !(DEVICE_SETTINGS_KEYS as readonly string[]).includes(key) && key !== "addonSources",
-    );
-    expect(Object.keys(syncableSettings(current)).sort()).toEqual(expected.sort());
   });
 });
 
@@ -196,5 +167,91 @@ describe("library layout default", () => {
 
     expect(migrate?.(saved, 1)).toMatchObject({ libraryLayout: "grid" });
     expect(migrate?.({ ...saved, libraryLayout: "list" }, 2)).toMatchObject({ libraryLayout: "list" });
+  });
+});
+
+async function hydrateSettings(state: Record<string, unknown>) {
+  storage.value = { state, version: 5 };
+  await useSettings.persist.rehydrate();
+  return useSettings.getState();
+}
+
+const VALID_STORED: Record<string, unknown> = {
+  theme: "light",
+  reduceAnimation: true,
+  closeToTray: false,
+  lyricsOffset: -1.5,
+  crossfadeSeconds: 6,
+  playbackSpeed: 1.25,
+  zoom: 1.25,
+  imageCacheMb: 512,
+  streamingQuality: "low",
+  mobileStreamingQuality: "lossless",
+  downloadQuality: "standard",
+  loudnessLevel: "off",
+  matchLanguage: "hindi",
+  lyricsTextSize: "large",
+  appFont: "mono",
+  lyricsProviders: ["lrclib", "genius"],
+  homeSectionOrder: ["recent", "charts"],
+  hiddenHomeSections: ["charts"],
+  futureSetting: { anything: true },
+};
+
+const INVALID_STORED: [keyof SettingsValues, unknown][] = [
+  ["theme", "neon"],
+  ["reduceAnimation", 1],
+  ["closeToTray", "yes"],
+  ["downloadDir", 42],
+  ["audioSinkId", null],
+  ["lyricsOffset", 9],
+  ["lyricsOffset", NaN],
+  ["lyricsOffset", "0.5"],
+  ["crossfadeSeconds", -1],
+  ["crossfadeSeconds", 13],
+  ["crossfadeSeconds", null],
+  ["playbackSpeed", 0.1],
+  ["playbackSpeed", 2.5],
+  ["playbackSpeed", NaN],
+  ["playbackSpeed", "fast"],
+  ["zoom", -1],
+  ["zoom", 5],
+  ["zoom", "1"],
+  ["zoom", NaN],
+  ["imageCacheMb", -5],
+  ["imageCacheMb", NaN],
+  ["streamingQuality", "ultra"],
+  ["mobileStreamingQuality", 3],
+  ["downloadQuality", ""],
+  ["loudnessLevel", true],
+  ["matchLanguage", "klingon"],
+  ["lyricsTextSize", "huge"],
+  ["lyricsTextSize", null],
+  ["appFont", "comic"],
+  ["lyricsProviders", "lrclib"],
+  ["lyricsProviders", ["nope"]],
+  ["lyricsProviders", [1]],
+  ["homeSectionOrder", "recent"],
+  ["homeSectionOrder", [1, 2]],
+  ["hiddenHomeSections", null],
+];
+
+describe("stored values are validated on load", () => {
+  it("keeps every valid stored value", async () => {
+    const state = await hydrateSettings(VALID_STORED);
+    expect(state).toMatchObject(VALID_STORED);
+  });
+
+  it.each(INVALID_STORED)("falls back to the default for %s = %j and keeps the other valid values", async (key, value) => {
+    const state = await hydrateSettings({ ...VALID_STORED, [key]: value });
+    expect(state[key]).toEqual(initial[key]);
+    const others = { ...VALID_STORED };
+    delete others[key];
+    expect(state).toMatchObject(others);
+  });
+
+  it("returns the defaults for an empty persisted object", async () => {
+    const state = await hydrateSettings({});
+    expect(state).toMatchObject(initial);
   });
 });

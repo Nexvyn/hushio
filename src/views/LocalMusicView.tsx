@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { useEffect, useState } from "react";
 import { CaretLeft, Warning, X, Cloud, Trash, DownloadSimple, FileAudio, FolderPlus, FolderOpen, MusicNote, PencilSimple, Play, Playlist, ArrowClockwise, MagnifyingGlass, Shuffle, User } from "@phosphor-icons/react";
 import type { LocalFolderEntry, LocalTrack, NetworkServer, NetworkTrack } from "../lib/bridge";
@@ -12,13 +13,16 @@ import { PageHeader } from "../components/PageHeader";
 import { PHONE_ICON, PHONE_PLAY, PHONE_SHUFFLE } from "../components/phone/heroButtons";
 import { APP_NAME } from "../lib/app";
 import { removeDownload } from "../lib/downloads";
+import { isCueTrackId } from "../lib/clip";
 import { fmtTime, fmtTotal } from "../lib/format";
 import {
   albumGroups,
   artistGroups,
   artUrl,
+  canEditTags,
   childPath,
   deviceTracks,
+  isLocalId,
   type DeviceFilter,
   filterDevice,
   folderListing,
@@ -28,11 +32,14 @@ import {
   leftOutText,
   scopeTracks,
   sortTracks,
+  networkArtUrl,
   toTrack,
   type LocalScope,
-  type LocalSort,
   type LocalTab,
 } from "../lib/localLibrary";
+import { LOCAL_DEFAULT_SORT, LOCAL_FIELDS, sortTracksBy } from "../lib/trackSort";
+import { TrackSortMenu } from "../components/TrackListControls";
+import { useStoredTrackSort } from "../stores/trackSort";
 import { OPENED_FROM } from "../lib/localDrop";
 import { plural } from "../lib/plural";
 import { usePhone } from "../lib/usePhone";
@@ -41,7 +48,8 @@ import { useLocalLibrary } from "../stores/localLibrary";
 import { useNavigation } from "../stores/navigation";
 import { useNetwork } from "../stores/network";
 import { usePlayer } from "../stores/player";
-import { useUI } from "../stores/ui";
+import { useTrackEdit } from "../stores/trackEdit";
+import { type MenuItem, useUI } from "../stores/ui";
 import type { Track } from "../types";
 
 const ALL = "all";
@@ -121,6 +129,10 @@ function shuffleNetworkTracks(tracks: Track[], from: string) {
 function LocalTrackRow({ track, onPlay, onRemove }: { track: LocalTrack; onPlay: () => void; onRemove?: () => void }) {
   const phone = usePhone();
   const downloaded = isDownloadedTrack(track);
+  const menu: MenuItem[] = [
+    ...(canEditTags() && isLocalId(track.id) && !isCueTrackId(track.id) ? [{ label: "Edit info", icon: PencilSimple, onSelect: () => useTrackEdit.getState().open(track.id) }] : []),
+    ...(downloaded ? [{ label: "Remove download", icon: Trash, danger: true, onSelect: () => removeDownload(track.id) }] : []),
+  ];
   return (
     <div className={phone ? "flex items-center gap-2" : "flex items-center gap-2"}>
       <button
@@ -144,9 +156,9 @@ function LocalTrackRow({ track, onPlay, onRemove }: { track: LocalTrack; onPlay:
         </span>
         {!phone && <span className="tabular-nums text-meta text-ink-3">{fmtTime(track.duration)}</span>}
       </button>
-      {downloaded && (
+      {menu.length > 0 && (
         <ActionMenu
-          items={[{ label: "Remove download", icon: Trash, danger: true, onSelect: () => removeDownload(track.id) }]}
+          items={menu}
           label={`More options for ${track.title}`}
           triggerClass={phone ? PHONE_ICON : `${ROUND} hit-area h-9 w-9 shrink-0`}
         />
@@ -405,11 +417,15 @@ function NetworkServers({ onOpen }: { onOpen: (param: string) => void }) {
               key={server.id}
               title={server.name}
               subtitle={
-                busy === server.id
-                  ? "Reading the server…"
-                  : found.length > 0
-                    ? plural(found.length, "song", "songs")
-                    : "Open to read the server"
+                server.scanning
+                  ? t("network.scanning")
+                  : busy === server.id
+                    ? "Reading the server…"
+                    : found.length > 0
+                      ? plural(found.length, "song", "songs")
+                      : server.songCount > 0
+                        ? plural(server.songCount, "song", "songs")
+                        : "Open to read the server"
               }
               covers={[]}
               fallback={Cloud}
@@ -431,7 +447,7 @@ function networkTracksOf(tracks: NetworkTrack[]): Track[] {
     id: track.id,
     title: track.title,
     artist: track.artist,
-    thumb: null,
+    thumb: track.coverArt ? networkArtUrl(track.serverId, track.coverArt) : null,
   }));
 }
 
@@ -510,7 +526,7 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
   const forgetOpened = useLocalLibrary((state) => state.forgetOpened);
   const downloads = useLibrary((state) => state.downloads);
   const [tab, setTab] = useState<LocalTab>("songs");
-  const [sort, setSort] = useState<LocalSort>("title");
+  const [trackSort, setTrackSort] = useStoredTrackSort("local", LOCAL_DEFAULT_SORT);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>(null);
   const [source, setSource] = useState<DeviceFilter>("all");
@@ -532,7 +548,7 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
   const everything = scopeTracks(pool, opened, scope, "");
   const everythingSeconds = everything.reduce((sum, track) => sum + track.duration, 0);
   const scoped = scopeTracks(pool, opened, scope, query);
-  const list = sortTracks(scoped.filter((track) => matchesFilter(track, filter)), sort === "recent" ? "title" : sort);
+  const list = sortTracksBy(scoped.filter((track) => matchesFilter(track, filter)), trackSort);
   const folderTabs = scope.kind === "folder" ? folderListing(library.tracks, rootPath).folders.length : 0;
   const inMissing = scope.kind === "folder" && missing.includes(rootPath);
   const activeFolder = folderAt ?? rootPath;
@@ -544,7 +560,6 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
     { id: "artists", label: "Artists", count: artistGroups(scoped).length },
   ];
   if (folderTabs > 0) tabs.push({ id: "folders", label: "Folders", count: folderTabs });
-  const songsSorted = sort === "artist" ? "artist" : "title";
 
   return (
     <div className="pb-14">
@@ -665,18 +680,9 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
             {item.count > 0 && ` · ${item.count}`}
           </button>
         ))}
-        {tab === "songs" &&
-          (["title", "artist"] as const).map((option) => (
-            <button
-              key={option}
-              type="button"
-              aria-pressed={songsSorted === option}
-              onClick={() => setSort(option)}
-              className={`${TAB} ${songsSorted === option ? "bg-ink-1/15 text-ink-1" : "text-ink-3"}`}
-            >
-              {option === "title" ? "Title" : "Artist"}
-            </button>
-          ))}
+        {tab === "songs" && (
+          <TrackSortMenu sort={trackSort} onSort={setTrackSort} fields={LOCAL_FIELDS} phone={phone} />
+        )}
         <label className="relative ml-auto">
           <span className="sr-only">Search your files</span>
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3">
@@ -935,6 +941,7 @@ function NetworkCollectionView({ id, onBack }: { id: string; onBack: () => void 
             </span>
           </button>
         ))}
+        {server?.truncated && <p className="px-3 pt-3 text-meta text-ink-2">{t("network.truncated")}</p>}
         {!busy && list.length === 0 && (
           <EmptyState title="No songs on this server" message="Check the folder and try again." />
         )}

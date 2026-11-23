@@ -387,7 +387,17 @@ fn require(webview: &Webview, allowed: &[&str]) -> Result<(), String> {
     }
 }
 
+pub fn closes_with_main(label: &str, destroyed: bool) -> bool {
+    label == window::MAIN && destroyed
+}
+
 pub fn on_window_event(window: &Window, event: &WindowEvent) {
+    if closes_with_main(window.label(), matches!(event, WindowEvent::Destroyed)) {
+        if let Some(mini) = window.app_handle().get_webview_window(LABEL) {
+            let _ = mini.close();
+        }
+        return;
+    }
     if window.label() != LABEL {
         return;
     }
@@ -591,6 +601,13 @@ mod tests {
         assert!(always_on_top_supported(true, false, "ubuntu:GNOME"));
         assert!(always_on_top_supported(true, true, "KDE"));
         assert!(always_on_top_supported(false, true, "GNOME"));
+    }
+
+    #[test]
+    fn destroying_the_main_window_closes_the_miniplayer() {
+        assert!(closes_with_main(window::MAIN, true));
+        assert!(!closes_with_main(window::MAIN, false));
+        assert!(!closes_with_main(LABEL, true));
     }
 
     #[test]

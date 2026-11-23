@@ -6,10 +6,14 @@ import {
   outputChangeAction,
   outputsOf,
   type RawDevice,
+  readOutputDevices,
   snapshotAudioOutput,
   snapshotOutputs,
   startOutputWatch,
 } from "./outputDevices";
+
+const { invoke, isTauri } = vi.hoisted(() => ({ invoke: vi.fn(), isTauri: vi.fn(() => false) }));
+vi.mock("@tauri-apps/api/core", () => ({ invoke, isTauri }));
 
 function raw(deviceId: string, groupId: string, label: string, kind: MediaDeviceKind = "audiooutput"): RawDevice {
   return { kind, deviceId, groupId, label };
@@ -90,6 +94,19 @@ describe("listing", () => {
     expect(list[0].label).toBe("Speaker 1");
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+describe("desktop listing", () => {
+  it("falls back to the browser device list when mpv cannot list devices", async () => {
+    isTauri.mockReturnValue(true);
+    invoke.mockRejectedValueOnce(new Error("mpv is missing"));
+    stubMediaDevices([[raw("spk", "g-spk", "Speakers")]]);
+
+    const devices = await readOutputDevices();
+
+    expect(devices).toEqual([{ deviceId: "spk", groupId: "g-spk", label: "Speakers" }]);
+    isTauri.mockReturnValue(false);
   });
 });
 
@@ -221,6 +238,53 @@ describe("startOutputWatch", () => {
     await settle();
 
     expect(deps.pause).not.toHaveBeenCalled();
+  });
+
+  it("does not pause when an unused HDMI output is unplugged", async () => {
+    const hdmi = raw("hdmi", "g-hdmi", "HDMI Output");
+    const { deps, onChange } = startWith([[raw("spk", "g-spk", "Speakers"), raw("hdst", "g-hdst", "Monitor"), hdmi], [raw("spk", "g-spk", "Speakers"), raw("hdst", "g-hdst", "Monitor")]], true, "");
+    await settle();
+
+    onChange();
+    await settle();
+
+    expect(deps.pause).not.toHaveBeenCalled();
+  });
+
+  it("pauses when the device plugged in most recently is unplugged", async () => {
+    const dock = raw("dock", "g-dock", "Wireless Dock");
+    const base = [raw("spk", "g-spk", "Speakers"), raw("hdmi", "g-hdmi", "HDMI Output")];
+    const { deps, onChange } = startWith([base, [...base, dock], base], true, "");
+    await settle();
+
+    onChange();
+    await settle();
+    onChange();
+    await settle();
+
+    expect(deps.pause).toHaveBeenCalledTimes(1);
+  });
+
+  it("pauses when a Headphones output is unplugged", async () => {
+    const base = [raw("spk", "g-spk", "Speakers"), raw("hp", "g-hp", "Headphones"), raw("hdmi", "g-hdmi", "HDMI Output")];
+    const { deps, onChange } = startWith([base, [raw("spk", "g-spk", "Speakers"), raw("hdmi", "g-hdmi", "HDMI Output")]], true, "");
+    await settle();
+
+    onChange();
+    await settle();
+
+    expect(deps.pause).toHaveBeenCalledTimes(1);
+  });
+
+  it("pauses on desktop when the system default route is unplugged and no default entry exists", async () => {
+    const withoutDefault = [raw("spk", "g-spk", "Speakers"), raw("hdst", "g-hdst", "Headset")];
+    const { deps, onChange } = startWith([withoutDefault, [raw("spk", "g-spk", "Speakers")]], true, "");
+    await settle();
+
+    onChange();
+    await settle();
+
+    expect(deps.pause).toHaveBeenCalledTimes(1);
   });
 
   it("does nothing without media devices", async () => {

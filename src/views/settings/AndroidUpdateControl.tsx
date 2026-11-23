@@ -74,6 +74,11 @@ export function AndroidUpdateControl({ current }: { current: string | null }) {
     }
   }
 
+  function openInstallSettings() {
+    void updateOpenInstallSettings();
+    if (offer.current) setPhase({ kind: "ready", version: offer.current.version });
+  }
+
   const copy = updateCopy(phase, current);
   const busy = phase.kind === "checking" || phase.kind === "downloading";
 
@@ -94,7 +99,7 @@ export function AndroidUpdateControl({ current }: { current: string | null }) {
           Install
         </Button>
       ) : phase.kind === "unknown-sources" ? (
-        <Button className="min-h-[44px] min-w-[44px]" onClick={() => void updateOpenInstallSettings()}>
+        <Button className="min-h-[44px] min-w-[44px]" onClick={openInstallSettings}>
           Open settings
         </Button>
       ) : (

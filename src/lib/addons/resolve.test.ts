@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@tauri-apps/plugin-http", () => ({ fetch: vi.fn() }));
 
 import { fetch } from "@tauri-apps/plugin-http";
-import { matchAddonTrack, resolveAddonStream } from "./resolve";
+import { addonTrackStream, matchAddonTrack, resolveAddonStream } from "./resolve";
 import { sourceFromManifest, validateManifest } from "./registry";
 import type { AddonSource, AddonTrack } from "./types";
 
@@ -63,6 +63,24 @@ describe("matchAddonTrack", () => {
   it("accepts a credited artist list that contains the artist as whole words", () => {
     expect(matchAddonTrack(target, [track({ artist: "The Band, Guest" })])).not.toBeNull();
     expect(matchAddonTrack(target, [track({ artist: "Theband" })])).toBeNull();
+  });
+});
+
+describe("addonTrackStream", () => {
+  it("plays a search result by its source and track id, whatever the quality", async () => {
+    fetchMock.mockResolvedValueOnce(json({ url: "https://cdn.example/t.mp3", format: "mp3" }));
+    const result = await addonTrackStream("addon:alpha:a/42", [addon("alpha", 0)]);
+    expect(result).toEqual({
+      stream: { url: "https://cdn.example/t.mp3", mime: "audio/mpeg", lufs: null },
+      label: "Add-on: alpha",
+    });
+    expect(fetchMock.mock.calls[0][0]).toContain("/stream/a%2F42");
+  });
+
+  it("returns null for a YouTube id or a disabled add-on without calling the network", async () => {
+    expect(await addonTrackStream("dQw4w9WgXcQ", [addon("alpha", 0)])).toBeNull();
+    expect(await addonTrackStream("addon:alpha:42", [addon("alpha", 0, false)])).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

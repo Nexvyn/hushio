@@ -1,5 +1,8 @@
-import { VinylRecord, CaretDown, CaretDoubleDown, CaretUp, CaretDoubleUp, Copy, Trash, DownloadSimple, Heart, Info, ListDashes, MusicNotesPlus, Moon, Play, ListPlus, Playlist as PlaylistIcon, Radio, ShareNetwork, User } from "@phosphor-icons/react";
+import { VinylRecord, CaretDown, CaretDoubleDown, CaretUp, CaretDoubleUp, Copy, Trash, DownloadSimple, Heart, Info, ListDashes, MusicNotesPlus, Moon, PencilSimple, Play, ListPlus, Playlist as PlaylistIcon, Radio, ShareNetwork, User } from "@phosphor-icons/react";
 import type { Box } from "./pickerLayout";
+import { canEditTags } from "./localLibrary";
+import { isCueTrackId } from "./clip";
+import { useTrackEdit } from "../stores/trackEdit";
 import { copyLink } from "./browseActions";
 import { isAddonTrackId } from "./searchScope";
 import { trackShareLink } from "./shareLink";
@@ -177,6 +180,7 @@ export function trackMenuItems(track: SearchSong): MenuItem[] {
     items.push({ label: "Share", icon: ShareNetwork, onSelect: () => shareTrack(track) });
   }
   items.push(
+    ...(local && canEditTags() && !isCueTrackId(track.id) ? [{ label: "Edit info", icon: PencilSimple, onSelect: () => useTrackEdit.getState().open(track.id) }] : []),
     { label: "Song info", icon: Info, onSelect: () => useSongInfo.getState().open(track) },
     { label: "Sleep timer", icon: Moon, separatorBefore: true, children: sleepMenuItems() },
     ...(traceOn() ? [{ label: "Copy log", icon: Copy, onSelect: () => copyLog(track) }] : []),

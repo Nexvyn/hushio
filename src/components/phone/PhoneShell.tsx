@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { AnimatePresence, motion, useTransform } from "motion/react";
 import { Dialog } from "../Dialog";
+import { EraseDialog } from "../EraseDialog";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { PlaylistPicker } from "../PlaylistPicker";
 import { PlaylistEditDialog } from "../PlaylistEditDialog";
@@ -9,6 +10,7 @@ import { MiniPlayer } from "./MiniPlayer";
 import { NotificationBanner } from "./NotificationBanner";
 import { PhoneMenuSheet } from "./PhoneMenuSheet";
 import { PhoneNowPlaying } from "./PhoneNowPlaying";
+import { useSheetOpen } from "./phoneOverlays";
 import { opennessOf, pageCardOf, sheetY, watchSheetInterruptions } from "./sheetTravel";
 import { TabBar } from "./TabBar";
 import { useEdgeBack } from "./useEdgeBack";
@@ -30,9 +32,8 @@ export function PhoneShell() {
   const future = useNavigation((state) => state.navFuture.length);
   const goBack = useNavigation((state) => state.goBack);
   const nowPlayingOpen = useUI((state) => state.nowPlayingOpen);
-  const overlayOpen = useUI((state) =>
-    Boolean(state.nowPlayingOpen || state.contextMenu || state.dialog || state.playlistPicker || state.phoneQueueOpen || state.phoneLyricsOpen),
-  );
+  const sheetOpen = useSheetOpen();
+  const overlayOpen = sheetOpen || nowPlayingOpen;
   const edge = useEdgeBack({ enabled: past > 0 && !overlayOpen, onBack: goBack });
   const pendingScroll = useNavigation((state) => state.pendingScroll);
   const viewReloadNonce = useNavigation((state) => state.viewReloadNonce);
@@ -139,6 +140,7 @@ export function PhoneShell() {
       <Dialog sheet />
       <PlaylistEditDialog />
       <PlaylistPicker />
+      <EraseDialog />
       <PhoneMenuSheet />
     </div>
   );

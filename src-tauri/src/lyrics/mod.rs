@@ -271,6 +271,7 @@ struct Inner {
 
 struct Entry {
     at: Instant,
+    providers: Option<Vec<String>>,
     result: Option<LyricsResult>,
 }
 
@@ -374,13 +375,14 @@ impl Service {
 
     #[cfg(test)]
     pub async fn get(&self, meta: LyricsMeta) -> Option<LyricsResult> {
-        self.get_with_local_path(meta, None).await
+        self.get_with_local_path(meta, None, false).await
     }
 
     pub async fn get_with_local_path(
         &self,
         meta: LyricsMeta,
         local_path: Option<&str>,
+        retry: bool,
     ) -> Option<LyricsResult> {
         let enabled = meta.providers.clone();
         let query = Query::from(meta);
@@ -390,27 +392,31 @@ impl Service {
         if let Some(local) = local_result(local_path).await {
             return Some(local);
         }
-        if let Some(cached) = self.cached(&query.id) {
-            return cached;
+        if !retry {
+            if let Some(cached) = self.cached(&query.id, enabled.as_deref()) {
+                return cached;
+            }
         }
         let result = self.sweep(&query, enabled.as_deref()).await;
-        self.remember(&query.id, &result);
+        self.remember(&query.id, enabled.as_deref(), &result);
         result
     }
-    fn cached(&self, id: &str) -> Option<Option<LyricsResult>> {
+
+    fn cached(&self, id: &str, providers: Option<&[String]>) -> Option<Option<LyricsResult>> {
         let cache = self.cache.lock().expect("lyrics cache lock");
         cache
             .get(id)
-            .filter(|entry| is_fresh(entry, Instant::now()))
+            .filter(|entry| is_fresh(entry, Instant::now()) && entry.providers.as_deref() == providers)
             .map(|entry| entry.result.clone())
     }
 
-    fn remember(&self, id: &str, result: &Option<LyricsResult>) {
+    fn remember(&self, id: &str, providers: Option<&[String]>, result: &Option<LyricsResult>) {
         let mut cache = self.cache.lock().expect("lyrics cache lock");
         cache.insert(
             id.to_owned(),
             Entry {
                 at: Instant::now(),
+                providers: providers.map(<[String]>::to_vec),
                 result: result.clone(),
             },
         );
@@ -726,6 +732,7 @@ mod tests {
     fn entry(age: Duration, result: Option<LyricsResult>) -> Entry {
         Entry {
             at: Instant::now().checked_sub(age).expect("instant in range"),
+            providers: None,
             result,
         }
     }
@@ -778,7 +785,7 @@ mod tests {
                 cache.insert(format!("id{index}"), entry(age, None));
             }
         }
-        service.remember("new", &None);
+        service.remember("new", None, &None);
         let cache = service.cache.lock().expect("lock");
         assert_eq!(cache.len(), CACHE_CAP);
         assert!(!cache.contains_key("id0"));
@@ -1031,7 +1038,7 @@ mod tests {
         let service = Service::with_hosts(test_support::local_hosts(&base), SWEEP_CEILING).expect("client");
 
         let result = service
-            .get_with_local_path(meta("local:song"), Some(audio.to_string_lossy().as_ref()))
+            .get_with_local_path(meta("local:song"), Some(audio.to_string_lossy().as_ref()), false)
             .await
             .expect("local lyrics");
 
@@ -1053,7 +1060,7 @@ mod tests {
         let service = Service::with_hosts(test_support::local_hosts(&base), SWEEP_CEILING).expect("client");
 
         let result = service
-            .get_with_local_path(meta("local:song"), Some(audio.to_string_lossy().as_ref()))
+            .get_with_local_path(meta("local:song"), Some(audio.to_string_lossy().as_ref()), false)
             .await
             .expect("online lyrics");
 

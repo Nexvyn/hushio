@@ -6,6 +6,7 @@ import { SongInfoSheet } from "./components/SongInfoSheet";
 import { ContextMenu } from "./components/ContextMenu";
 import { Dialog } from "./components/Dialog";
 import { PlaylistEditDialog } from "./components/PlaylistEditDialog";
+import { TrackEditDialog } from "./components/TrackEditDialog";
 import { EraseDialog } from "./components/EraseDialog";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LyricsCenter } from "./components/LyricsCenter";
@@ -155,6 +156,7 @@ export default function App() {
       <FileDrop />
       <Dialog />
       <PlaylistEditDialog />
+      <TrackEditDialog />
       <EraseDialog />
       <PlaylistPicker />
       <ContextMenu />

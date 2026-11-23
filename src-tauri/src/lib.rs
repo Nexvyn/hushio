@@ -140,7 +140,7 @@ async fn persist_read(
     name: String,
     owner: Option<String>,
 ) -> Result<Option<serde_json::Value>, String> {
-    Ok(persist::read(&state.root, owner.as_deref().unwrap_or("guest"), &name).await)
+    Ok(persist::read(&state.root, owner.as_deref().unwrap_or(persist::DEFAULT_OWNER), &name).await)
 }
 
 #[tauri::command]
@@ -152,7 +152,7 @@ async fn persist_write(
 ) -> Result<bool, String> {
     persist::write(
         &state.root,
-        owner.as_deref().unwrap_or("guest"),
+        owner.as_deref().unwrap_or(persist::DEFAULT_OWNER),
         &name,
         &data,
     )
@@ -246,13 +246,16 @@ async fn lyrics_get(
     state: State<'_, lyrics::Service>,
     local: State<'_, local_library::Service>,
     meta: lyrics::LyricsMeta,
+    retry: Option<bool>,
 ) -> Result<Option<lyrics::LyricsResult>, String> {
     let local_path = if meta.id.starts_with("local:") {
         local.track_path(&meta.id).await
     } else {
         None
     };
-    Ok(state.get_with_local_path(meta, local_path.as_deref()).await)
+    Ok(state
+        .get_with_local_path(meta, local_path.as_deref(), retry.unwrap_or(false))
+        .await)
 }
 
 #[tauri::command]
@@ -417,9 +420,17 @@ fn emit_sync(app: &AppHandle, event: sync_queue::Event) {
 fn spawn_sync(app: &AppHandle, engine: Arc<YtEngine>) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        let emit = move |event: sync_queue::Event| emit_sync(&app, event);
-        if engine.run(&emit).await == Some(sync_queue::Halt::Offline) {
-            let _ = android::schedule_retry();
+        let emit_app = app.clone();
+        let emit = move |event: sync_queue::Event| emit_sync(&emit_app, event);
+        match engine.run(&emit).await {
+            Some(sync_queue::Halt::Offline) => {
+                let _ = android::schedule_retry();
+            }
+            Some(sync_queue::Halt::SignIn) => {
+                let account = app.state::<Arc<google_auth::GoogleAuth>>().account();
+                let _ = app.emit("google-auth-changed", &account);
+            }
+            _ => {}
         }
     });
 }
@@ -620,11 +631,26 @@ async fn local_library_track_path(
     Ok(state.track_path(&id).await)
 }
 
+#[cfg(desktop)]
+#[tauri::command]
+async fn local_library_edit_tags(
+    state: State<'_, local_library::Service>,
+    folders: State<'_, reveal::Folders>,
+    id: String,
+    edits: local_library::TagEdits,
+) -> Result<local_library::LocalTrack, String> {
+    state.edit_tags(&id, edits, &folders).await
+}
+
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct LocalPlaybackSource {
     url: String,
     mime: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cue_start: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cue_end: Option<f64>,
 }
 
 #[tauri::command]
@@ -634,10 +660,11 @@ async fn local_playback_source(
     folders: State<'_, reveal::Folders>,
     id: String,
 ) -> Result<LocalPlaybackSource, String> {
-    let path = local
-        .track_path(&id)
+    let track = local
+        .find_track(&id)
         .await
         .ok_or_else(|| "Local track is not in the library".to_owned())?;
+    let path = track.path;
     folders.check(Path::new(&path))?;
     proxy.register_local_file(&id, Path::new(&path))?;
     let port = proxy.start().await.map_err(|error| error.to_string())?;
@@ -648,6 +675,8 @@ async fn local_playback_source(
     Ok(LocalPlaybackSource {
         url: format!("http://127.0.0.1:{port}/?id={id}"),
         mime,
+        cue_start: track.cue_start,
+        cue_end: track.cue_end,
     })
 }
 
@@ -794,6 +823,12 @@ pub fn run() {
             app.manage(controls);
             app.manage(launch::Pending::default());
             launch::register_scheme(app.handle());
+            #[cfg(target_os = "macos")]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                let handle = app.handle().clone();
+                app.deep_link().on_open_url(move |event| launch::receive_urls(&handle, &event.urls()));
+            }
             let argv: Vec<String> = std::env::args().collect();
             let cwd = std::env::current_dir().unwrap_or_default();
             launch::receive(app.handle(), &argv, &cwd);
@@ -822,6 +857,7 @@ pub fn run() {
                 network_root,
                 vault,
             )));
+            network.clone().refresh_stale();
             app.state::<stream::StreamProxy<stream::Registry>>().set_network(network.clone());
             app.manage(network);
             crash::set_crash_root(crash_root.clone());
@@ -906,6 +942,8 @@ pub fn run() {
             local_library_forget_opened,
             local_library_open_files,
             local_library_track_path,
+            #[cfg(desktop)]
+            local_library_edit_tags,
             local_playback_source,
             playback_event,
             replay_summary,
@@ -948,10 +986,13 @@ pub fn run() {
             network::network_servers,
             network::network_server_save,
             network::network_server_remove,
+            network::network_server_test,
+            network::network_server_refresh,
             network::network_tracks,
             network::network_track_bytes,
             crash::crash_logs,
             crash::crash_logs_clear,
+            crash::crash_report,
             discord::discord_status,
             discord::discord_set_enabled,
             disconnect::erase_stop_sync,
@@ -997,7 +1038,7 @@ pub fn run() {
             tauri::async_runtime::block_on(app.state::<playback::Engine>().shutdown());
             macos_window::mark_quitting();
             app.state::<downloads::Downloads<AppHandle>>().abandon();
-            tauri::async_runtime::block_on(app.state::<Arc<stats::Service>>().flush());
+            tauri::async_runtime::block_on(app.state::<Arc<stats::Service>>().close_and_flush());
         }
         #[cfg(target_os = "macos")]
         RunEvent::Reopen {
@@ -1064,11 +1105,11 @@ fn notification_settings() -> Result<(), String> {
 }
 
 #[tauri::command]
-fn download_delete_file(path: String) -> Result<(), String> {
+fn download_delete_file(folders: State<'_, reveal::Folders>, path: String) -> Result<(), String> {
     if path.starts_with("content://") {
         android::media_delete(&path)
     } else {
-        Ok(())
+        reveal::remove_download(&folders, &path)
     }
 }
 

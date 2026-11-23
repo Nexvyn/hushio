@@ -40,6 +40,8 @@ import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import java.util.concurrent.ConcurrentHashMap
+import org.json.JSONArray
+import org.json.JSONObject
 
 class PlayerService : MediaLibraryService() {
 
@@ -301,12 +303,29 @@ class PlayerService : MediaLibraryService() {
             }
             val chosenId = mediaItems.getOrNull(startIndex)?.mediaId
             val index = chosen.indexOfFirst { it.id == chosenId }.coerceAtLeast(0)
-            replaceQueue(chosen, index, startPositionMs)
+            val appRunning = PlayerEvents.sink != null
+            if (appRunning) {
+                val picks = JSONArray()
+                chosen.forEach { item ->
+                    picks.put(
+                        JSONObject()
+                            .put("id", item.id)
+                            .put("title", item.title)
+                            .put("artist", item.artist)
+                            .put("album", item.album ?: JSONObject.NULL)
+                            .put("artworkUrl", item.artworkUrl ?: JSONObject.NULL)
+                            .put("durationMs", item.durationMs),
+                    )
+                }
+                PlayerEvents.emit("player-browse-pick", mapOf("index" to index, "items" to picks))
+            } else {
+                replaceQueue(chosen, index, startPositionMs)
+            }
             return Futures.immediateFuture(
                 MediaSession.MediaItemsWithStartPosition(
                     queue.items.map { toMediaItem(it) },
                     queue.current,
-                    startPositionMs,
+                    if (appRunning) player.currentPosition else startPositionMs,
                 ),
             )
         }
@@ -534,8 +553,8 @@ class PlayerService : MediaLibraryService() {
 
     fun togglePlayPause() {
         val playing = player.playWhenReady
-        setPlaying(!playing)
         PlayerEvents.emit("player-action", mapOf("action" to if (playing) "pause" else "play"))
+        setPlaying(!playing)
     }
 
     private fun onStreamError(error: PlaybackException) {

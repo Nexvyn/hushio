@@ -1,3 +1,4 @@
+import { t, useT } from "../lib/i18n";
 import { useEffect, useId, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { instant, reducedMotion, swap } from "../lib/motion";
@@ -20,11 +21,14 @@ import { playerAddMenuItems, songOf } from "../lib/trackActions";
 import { useTrackLyrics } from "../lib/useTrackLyrics";
 import { currentTrack, usePlayer } from "../stores/player";
 import { useSettings } from "../stores/settings";
+import { EXCLUSIVE_VOLUME_NOTE, exclusiveActive } from "../lib/exclusive";
+import { usesNativeAudio } from "../lib/nativeAudioDeck";
 import { useSleepTimer } from "../stores/sleepTimer";
 import { type MenuItem, useUI } from "../stores/ui";
 import type { Track } from "../types";
 
 function SleepTimer() {
+  useT();
   const owner = useId();
   const endsAt = useSleepTimer((state) => state.endsAt);
   const endOfSong = useSleepTimer((state) => state.endOfSong);
@@ -40,7 +44,7 @@ function SleepTimer() {
 
   const status = sleepStatus({ endsAt, endOfSong }, now);
   const left = endsAt === null ? null : formatSleepLeft(endsAt - now);
-  const label = status ? `Sleep timer: ${status.toLowerCase()}` : "Sleep timer";
+  const label = status ? `Sleep timer: ${status.toLowerCase()}` : t("player.sleepTimer");
 
   return (
     <span className="flex items-center">
@@ -60,7 +64,7 @@ function SleepTimer() {
             return;
           }
           const rect = event.currentTarget.getBoundingClientRect();
-          const header: MenuItem = { label: status ?? "Sleep timer", header: true };
+          const header: MenuItem = { label: status ?? t("player.sleepTimer"), header: true };
           ui.openContextMenu(rect.left, rect.top, [header, ...sleepMenuItems()], { owner, above: true });
         }}
         className={`bt-press relative hit-area grid h-9 w-9 shrink-0 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${status ? "text-ink-1" : "text-ink-2 hover:text-ink-1"}`}
@@ -79,8 +83,8 @@ export function AddToPlaylist({ track, onArt = false }: { track: Track | null; o
   return (
     <button
       type="button"
-      aria-label="Add to playlist"
-      title="Add to playlist"
+      aria-label={t("player.addToPlaylist")}
+      title={t("player.addToPlaylist")}
       aria-haspopup="menu"
       aria-expanded={open}
       disabled={track === null}
@@ -105,6 +109,7 @@ export function AddToPlaylist({ track, onArt = false }: { track: Track | null; o
 }
 
 function NowPlaying({ track }: { track: Track | null }) {
+  useT();
   const toggleNowPlaying = useUI((state) => state.toggleNowPlaying);
   const art = thumbArtwork(track?.thumb, 56);
   const reveal = useImageReveal(art);
@@ -119,17 +124,17 @@ function NowPlaying({ track }: { track: Track | null }) {
     >
       <button
         type="button"
-        title="Now playing view"
-        aria-label="Now playing view"
+        title={t("player.nowPlayingView")}
+        aria-label={t("player.nowPlayingView")}
         onClick={toggleNowPlaying}
         className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-[4px] bg-wash text-ink-2"
       >
         {art ? <img loading="lazy" decoding="async" src={art} alt="" onLoad={reveal.onLoad} className={`h-full w-full object-cover ${reveal.className}`} /> : <Icon icon={MusicNote} />}
       </button>
       <div className="ml-2.5 min-w-0">
-        <p className="truncate text-body leading-[19px] text-ink-1">{track?.title ?? "Nothing playing"}</p>
+        <p className="truncate text-body leading-[19px] text-ink-1">{track?.title ?? t("playback.nothingPlaying")}</p>
         <p className="truncate text-meta leading-[17px] text-ink-2">
-          {track ? normalizeCredit(track.artist) : "Search for something to play"}
+          {track ? normalizeCredit(track.artist) : t("playback.searchToPlay")}
         </p>
       </div>
       <div className="ml-2 flex shrink-0 items-center">
@@ -161,39 +166,43 @@ function PlayerGroove({ track }: { track: Track | null }) {
 }
 
 function VolumeControl() {
+  useT();
   const volume = usePlayer((state) => state.volume);
   const muted = usePlayer((state) => state.muted);
   const setVolume = usePlayer((state) => state.setVolume);
   const toggleMute = usePlayer((state) => state.toggleMute);
-  const level = muted ? 0 : volume;
+  const exclusive = exclusiveActive(useSettings((state) => state.exclusiveOutput), usesNativeAudio);
+  const level = exclusive ? 1 : muted ? 0 : volume;
   const silent = muted || volume === 0;
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-1" title={exclusive ? EXCLUSIVE_VOLUME_NOTE : undefined}>
       <TransportButton
-        label={muted ? "Unmute" : "Mute"}
+        label={muted ? t("player.unmute") : t("player.mute")}
         hint="M"
         icon={silent ? SpeakerX : SpeakerHigh}
         onClick={toggleMute}
       />
       <input
         type="range"
-        aria-label="Volume"
+        aria-label={t("player.volume")}
         min={0}
         max={1}
         step={0.01}
         value={level}
+        disabled={exclusive}
         onChange={(event) => setVolume(Number(event.target.value))}
-        className="hidden w-24 cursor-pointer rounded-full accent-ink-1 min-[1100px]:block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+        className="hidden w-24 cursor-pointer rounded-full accent-ink-1 disabled:cursor-default disabled:opacity-40 min-[1100px]:block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
       />
     </div>
   );
 }
 
 function FullScreenButton() {
+  useT();
   const osFullscreen = useUI((state) => state.osFullscreen);
   return (
     <TransportButton
-      label="Full screen"
+      label={t("player.fullScreen")}
       icon={CornersOut}
       pressed={osFullscreen}
       onClick={() => void setFullScreen(!osFullscreen)}
@@ -202,6 +211,7 @@ function FullScreenButton() {
 }
 
 export function PlayerBar({ trackInfo = true, transport = true, surface = "bar" }: { trackInfo?: boolean; transport?: boolean; surface?: "bar" | "none" }) {
+  useT();
   const surfaceClass = surface === "bar" ? "bg-base" : "";
   const track = usePlayer(currentTrack);
   const railSheet = railFor(useViewportWidth()) === "sheet";
@@ -216,7 +226,7 @@ export function PlayerBar({ trackInfo = true, transport = true, surface = "bar" 
     <div className="flex items-center justify-end gap-1">
       <SleepTimer />
       <TransportButton
-        label="Lyrics"
+        label={t("player.lyrics")}
         hint="L"
         icon={Microphone}
         active={lyricsCenter}
@@ -224,7 +234,7 @@ export function PlayerBar({ trackInfo = true, transport = true, surface = "bar" 
         onClick={toggleLyrics}
       />
       <TransportButton
-        label="Queue"
+        label={t("player.queue")}
         hint="Q"
         icon={Queue}
         active={queueShowing}

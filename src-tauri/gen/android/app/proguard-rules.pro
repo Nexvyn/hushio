@@ -19,3 +19,8 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+-keep class * extends androidx.room.RoomDatabase { <init>(); }
+-keep class androidx.work.impl.**_Impl { *; }
+-keep class androidx.work.impl.WorkDatabase_Impl { *; }
+-keep class com.hushio.player.** { *; }
+-keep class com.hushio.app.** { *; }

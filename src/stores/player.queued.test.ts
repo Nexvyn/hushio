@@ -84,9 +84,34 @@ describe("user-queued songs", () => {
     expect(usePlayer.getState().queue[0].queued).toBeUndefined();
   });
 
+  it("a suggestion dragged into Next becomes the user's song", () => {
+    usePlayer.setState({ queue: [song("a"), song("b"), song("c", { suggested: true })], index: 0 });
+    usePlayer.getState().moveUpcoming(2, 1);
+    expect(ids(usePlayer.getState().queue)).toEqual(["a", "c", "b"]);
+    expect(usePlayer.getState().queue[1].suggested).toBeUndefined();
+    expect(queuedIds()).toEqual(["c"]);
+  });
+
+  it("a suggestion moved among suggestions stays a suggestion", () => {
+    usePlayer.setState({
+      queue: [song("a"), song("s1", { suggested: true }), song("s2", { suggested: true }), song("s3", { suggested: true })],
+      index: 0,
+    });
+    usePlayer.getState().moveUpcoming(3, 2);
+    expect(ids(usePlayer.getState().queue)).toEqual(["a", "s1", "s3", "s2"]);
+    expect(usePlayer.getState().queue.slice(1).every((track) => track.suggested)).toBe(true);
+  });
+
+  it("marks the last autoplay songs of a queue saved before suggestions were tracked", () => {
+    const options = usePlayer.persist.getOptions();
+    const saved = { queue: [song("a"), song("b"), song("c")], index: 0, autoplayCount: 2 } as never;
+    const migrated = options.migrate?.(saved, 3) as { queue: Track[] };
+    expect(migrated.queue.map((track) => !!track.suggested)).toEqual([false, true, true]);
+  });
+
   it("migrates queue items saved before version 3 to context songs", () => {
     const options = usePlayer.persist.getOptions();
-    expect(options.version).toBe(3);
+    expect(options.version).toBe(4);
     const saved = { queue: [song("a"), song("b", { queued: true })], smartShuffle: true } as never;
     const migrated = options.migrate?.(saved, 2) as { queue: Track[]; smartShuffle: boolean };
     expect(migrated.queue.map((track) => track.queued)).toEqual([undefined, undefined]);

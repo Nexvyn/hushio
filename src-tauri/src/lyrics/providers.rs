@@ -1014,4 +1014,30 @@ mod tests {
         assert!(svc.get(meta()).await.is_none());
         assert_eq!(hits.load(Ordering::SeqCst), first);
     }
+
+    #[tokio::test]
+    async fn retry_and_a_new_provider_list_look_a_cached_miss_up_again() {
+        let hits = counter();
+        let gate = hits.clone();
+        let svc = service(
+            move |_| Router::new().route("/api/get", get(counted(gate, "{}"))),
+            SWEEP_CEILING,
+        )
+        .await;
+        let meta = |providers: Option<Vec<String>>| LyricsMeta {
+            id: "miss".to_owned(),
+            title: "Song".to_owned(),
+            artist: "Singer".to_owned(),
+            album: None,
+            duration: Some(200.0),
+            providers,
+        };
+        assert!(svc.get(meta(None)).await.is_none());
+        let first = hits.load(Ordering::SeqCst);
+        assert!(svc.get_with_local_path(meta(None), None, true).await.is_none());
+        let retried = hits.load(Ordering::SeqCst);
+        assert!(retried > first);
+        assert!(svc.get(meta(Some(vec!["lrclib".to_owned()]))).await.is_none());
+        assert!(hits.load(Ordering::SeqCst) > retried);
+    }
 }

@@ -47,7 +47,7 @@ function Artwork({ src, title, tile }: { src: string | null; title: string; tile
         data-testid="page-tile"
         className={`grid h-[232px] w-[232px] shrink-0 place-items-center rounded-art shadow-float ${tile.accent ? "bg-accent text-on-accent" : "bg-wash text-accent"}`}
       >
-        <Icon icon={tile.icon} fill={tile.accent ? "fill" : "none"} />
+        <Icon icon={tile.icon} />
       </span>
     );
   }

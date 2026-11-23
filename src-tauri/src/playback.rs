@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -49,7 +49,18 @@ pub enum Control {
     Speed { speed: f64 },
     Equalizer { enabled: bool, gains: Vec<f64>, auto_headroom: bool },
     OutputDevice { id: String },
+    Exclusive { enabled: bool },
     Stop,
+}
+
+pub const EXCLUSIVE_UNAVAILABLE: &str = "Exclusive output is not available on this device.";
+
+fn exclusive_command(enabled: bool) -> Value {
+    json!(["set_property", "audio-exclusive", if enabled { "yes" } else { "no" }])
+}
+
+fn should_turn_off(enabled: bool, outcome: &Result<(), String>) -> bool {
+    enabled && outcome.is_err()
 }
 
 #[tauri::command]
@@ -91,14 +102,77 @@ fn validate_stream_url(source: &str, proxy_port: u16) -> Result<(), String> {
     }
 }
 
+fn equalizer_filters(enabled: bool, gains: &[f64], auto_headroom: bool) -> Vec<String> {
+    let mut filters = Vec::new();
+    if enabled && auto_headroom {
+        let headroom = gains.iter().copied().fold(0.0, f64::max);
+        filters.push(format!("volume=-{headroom}dB"));
+    }
+    let bands = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+    for (index, (&frequency, &gain)) in bands.iter().zip(gains).enumerate() {
+        if !enabled || gain == 0.0 {
+            continue;
+        }
+        let filter = if index == 0 {
+            format!("bass=f={frequency}:t=q:w=0.707:g={gain}")
+        } else if index == bands.len() - 1 {
+            format!("treble=f={frequency}:t=q:w=0.707:g={gain}")
+        } else {
+            format!("equalizer=f={frequency}:t=q:w=1.41:g={gain}")
+        };
+        filters.push(filter);
+    }
+    filters.push("alimiter=limit=0.944061:attack=2:release=150:level=false:latency=true".to_owned());
+    filters
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{binary_runs, validate_stream_url};
+    use serde_json::json;
+
+    use super::{binary_runs, equalizer_filters, exclusive_command, should_turn_off, validate_stream_url};
 
     #[test]
     fn missing_binary_is_not_available() {
         let missing = std::path::Path::new("/nonexistent/hushio-mpv-test");
         assert!(!tauri::async_runtime::block_on(binary_runs(missing)));
+    }
+
+    #[test]
+    fn exclusive_flag_becomes_the_mpv_property() {
+        assert_eq!(exclusive_command(true), json!(["set_property", "audio-exclusive", "yes"]));
+        assert_eq!(exclusive_command(false), json!(["set_property", "audio-exclusive", "no"]));
+    }
+
+    #[test]
+    fn a_failed_enable_turns_exclusive_off() {
+        let failed = Err("mpv command failed: device busy".to_owned());
+        assert!(should_turn_off(true, &failed));
+        assert!(!should_turn_off(true, &Ok(())));
+        assert!(!should_turn_off(false, &failed));
+    }
+
+    #[test]
+    fn headroom_follows_the_largest_boost_not_the_sum() {
+        let loudness = [5.0, 4.0, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 4.0, 5.0];
+        let filters = equalizer_filters(true, &loudness, true);
+        assert_eq!(filters[0], "volume=-5dB");
+        assert!(equalizer_filters(false, &loudness, true)[0].starts_with("alimiter"));
+        assert!(equalizer_filters(true, &loudness, false)[0].starts_with("bass"));
+    }
+
+    #[test]
+    fn a_closed_mpv_pipe_reports_shutdown_to_the_deck() {
+        tauri::async_runtime::block_on(async {
+            let (client_side, server_side) = tokio::io::duplex(64);
+            drop(server_side);
+            let stream: super::BoxedStream = Box::new(client_side);
+            let (reader, _writer) = tokio::io::split(stream);
+            let (events, mut received) = tokio::sync::broadcast::channel(8);
+            let pending = std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
+            super::read_messages(reader, pending, events, tokio_util::sync::CancellationToken::new()).await;
+            assert_eq!(received.recv().await.unwrap(), json!({ "event": "shutdown" }));
+        });
     }
 
     #[test]
@@ -129,6 +203,7 @@ pub async fn desktop_playback_control(
         Control::Speed { speed } => engine.speed(deck, speed).await,
         Control::Equalizer { enabled, gains, auto_headroom } => engine.equalizer(deck, enabled, &gains, auto_headroom).await,
         Control::OutputDevice { id } => engine.output_device(deck, &id).await,
+        Control::Exclusive { enabled } => engine.exclusive(enabled).await,
         Control::Stop => {
             session.generation.store(0, Ordering::SeqCst);
             session.client.command(json!(["stop"])).await.map(|_| ())
@@ -298,6 +373,9 @@ async fn read_messages(
             let _ = events.send(message);
         }
     }
+    if !shutdown.is_cancelled() {
+        let _ = events.send(json!({ "event": "shutdown" }));
+    }
     shutdown.cancel();
     for (_, waiter) in pending.lock().unwrap_or_else(|poison| poison.into_inner()).drain() {
         let _ = waiter.send(Err("mpv process stopped".to_owned()));
@@ -340,6 +418,7 @@ impl Session {
 pub struct Engine {
     app: AppHandle,
     sessions: [AsyncMutex<Option<Arc<Session>>>; 2],
+    exclusive_output: AtomicBool,
 }
 
 impl Engine {
@@ -347,6 +426,7 @@ impl Engine {
         Self {
             app,
             sessions: std::array::from_fn(|_| AsyncMutex::new(None)),
+            exclusive_output: AtomicBool::new(false),
         }
     }
 
@@ -360,8 +440,45 @@ impl Engine {
             session.stop().await;
         }
         let session = spawn_session(&self.app, deck).await?;
+        if self.exclusive_output.load(Ordering::SeqCst) {
+            if let Err(error) = session.client.command(exclusive_command(true)).await {
+                tracing::warn!(%error, deck, "exclusive output unavailable");
+                session.stop().await;
+                self.exclusive_output.store(false, Ordering::SeqCst);
+                return Err(EXCLUSIVE_UNAVAILABLE.to_owned());
+            }
+        }
         *current = Some(session.clone());
         Ok(session)
+    }
+
+    pub async fn exclusive(&self, enabled: bool) -> Result<(), String> {
+        self.exclusive_output.store(enabled, Ordering::SeqCst);
+        let outcome = self.apply_exclusive(enabled).await;
+        if !should_turn_off(enabled, &outcome) {
+            return outcome;
+        }
+        if let Err(error) = &outcome {
+            tracing::warn!(%error, "exclusive output unavailable");
+        }
+        self.exclusive_output.store(false, Ordering::SeqCst);
+        let _ = self.apply_exclusive(false).await;
+        Err(EXCLUSIVE_UNAVAILABLE.to_owned())
+    }
+
+    async fn apply_exclusive(&self, enabled: bool) -> Result<(), String> {
+        let mut outcome = Ok(());
+        for slot in &self.sessions {
+            let Some(session) = slot.lock().await.clone() else { continue };
+            if session.client.shutdown.is_cancelled() {
+                continue;
+            }
+            let result = session.client.command(exclusive_command(enabled)).await.map(|_| ());
+            if outcome.is_ok() {
+                outcome = result;
+            }
+        }
+        outcome
     }
 
     pub async fn load(&self, deck: u8, generation: u64, source: &str) -> Result<Snapshot, String> {
@@ -445,26 +562,7 @@ impl Engine {
             return Err("equalizer requires ten gains between -12 and 12 dB".to_owned());
         }
         let client = self.session(deck).await?.client.clone();
-        let mut filters = Vec::new();
-        if enabled && auto_headroom {
-            let headroom: f64 = gains.iter().copied().filter(|gain| *gain > 0.0).sum();
-            filters.push(format!("volume=-{headroom}dB"));
-        }
-        let bands = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
-        for (index, (&frequency, &gain)) in bands.iter().zip(gains).enumerate() {
-            if !enabled || gain == 0.0 {
-                continue;
-            }
-            let filter = if index == 0 {
-                format!("bass=f={frequency}:t=q:w=0.707:g={gain}")
-            } else if index == bands.len() - 1 {
-                format!("treble=f={frequency}:t=q:w=0.707:g={gain}")
-            } else {
-                format!("equalizer=f={frequency}:t=q:w=1.41:g={gain}")
-            };
-            filters.push(filter);
-        }
-        filters.push("alimiter=limit=0.944061:attack=2:release=150:level=false:latency=true".to_owned());
+        let filters = equalizer_filters(enabled, gains, auto_headroom);
         client.set("af", json!(format!("lavfi=[{}]", filters.join(",")))).await
     }
 

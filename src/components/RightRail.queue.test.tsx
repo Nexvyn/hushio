@@ -77,7 +77,7 @@ describe("queue grouping", () => {
   it("groups user-queued songs, context songs and the autoplay tail under their headings", () => {
     usePlayer.getState().playQueue([track("0"), track("1"), track("2"), track("3"), track("4")], 0, "__liked__");
     usePlayer.getState().addToQueue([track("q")]);
-    usePlayer.setState({ autoplayCount: 1 });
+    usePlayer.setState((state) => ({ queue: state.queue.map((item) => (item.id === "4" ? { ...item, suggested: true as const } : item)) }));
     renderQueue();
 
     expect(headings()).toEqual(["Next in queue", "Next from: Liked Songs", "Autoplay"]);

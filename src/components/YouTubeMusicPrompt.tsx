@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import type { YtTvCode } from "../lib/bridge";
 import { Button } from "./Button";
 
@@ -30,7 +31,7 @@ export function YouTubeMusicPrompt({ code, busy, error, onOpen, onCancel }: YouT
         <Button variant="primary" onClick={onOpen}>
           Open google.com/device
         </Button>
-        <Button onClick={onCancel}>Cancel</Button>
+        <Button onClick={onCancel}>{t("dialog.cancel")}</Button>
       </div>
     </div>
   );

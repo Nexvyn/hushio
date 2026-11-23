@@ -375,7 +375,7 @@ export function topResult(
 ): { song: SearchSong | null; browse: BrowseItem | null; rest: SearchRow[] } {
   if (filter !== "all") return { song: null, browse: null, rest: rows };
   const top = rows.find((row) => row.kind === "top");
-  if (top?.kind === "top") return { song: top.song, browse: null, rest: rows };
+  if (top?.kind === "top") return { song: top.song, browse: null, rest: rows.filter((row) => row !== top) };
   const card = rows.find((row) => row.kind === "browse" && row.top === true && row.item.type !== "other");
   if (card?.kind !== "browse") return { song: null, browse: null, rest: rows };
   return { song: null, browse: card.item, rest: rows.filter((row) => row !== card) };

@@ -48,6 +48,16 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 If you change a screen, try it in the desktop app and in the phone layout, in both light and dark themes.
 
+## Translating Hushio
+
+The text lives in `src/lib/i18n/`. `en.ts` is the source of truth; every key you use must exist there.
+
+1. Copy `src/lib/i18n/en.ts` to `src/lib/i18n/<code>.ts`, for example `fr.ts`, and type it as `Partial<Catalog>`.
+2. Translate the values only. Keep the keys, the `{name}` placeholders and the `.one` and `.other` plural pairs.
+3. Add the language to `LANGUAGES` and to `CATALOGS` in `src/lib/i18n/index.ts`.
+4. Keep brand names and common app words in English where people use them that way, such as Playlist or Download. Never translate Hushio.
+5. Run `pnpm typecheck` and `pnpm test`. The catalog tests fail on keys that do not exist in `en.ts`, and print the keys that are still in English.
+
 ## Code style
 
 - TypeScript and React function components. Shared state lives in Zustand stores in `src/stores/`.
@@ -71,12 +81,26 @@ Some features need keys that are not in the repository:
 
 | Feature | Where the key goes |
 |---|---|
-| Google sign-in and Drive backup | `HUSHIO_GOOGLE_CLIENT_ID` environment variable when you build |
+| Google sign-in | `HUSHIO_GOOGLE_CLIENT_ID` environment variable when you build |
 | Connecting a Spotify account | `HUSHIO_SPOTIFY_CLIENT_ID` environment variable when you build |
 | Last.fm scrobbling | `LASTFM_API_KEY` and `LASTFM_API_SECRET` in `src-tauri/src/scrobble/lastfm.rs` |
 | Discord status | `DISCORD_CLIENT_ID` in `src-tauri/src/discord.rs` |
 
 Use your own keys for local builds and never commit them. Without keys, these features don't work, and the rest of the app does.
+
+## Building the Flatpak
+
+The Flatpak repackages the released Linux `.deb`, so build it after the GitHub release exists. Install `flatpak`, `flatpak-builder` and `appstream` from your distribution, then run:
+
+```sh
+flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak install --user -y flathub org.gnome.Platform//48 org.gnome.Sdk//48
+flatpak-builder --user --install --force-clean build-dir packaging/flatpak/dev.nexvyn.Hushio.yml
+flatpak run dev.nexvyn.Hushio
+appstreamcli validate --pedantic packaging/flatpak/dev.nexvyn.Hushio.metainfo.xml
+```
+
+For a new release, update the `url` and `sha256` of the `.deb` in the manifest and add the release to the `releases` list in the metainfo file. Submitting to Flathub is a separate step that is not done yet.
 
 ## Releases
 

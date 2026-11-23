@@ -136,7 +136,7 @@ function WordLine({
   useEffect(() => {
     position.current = getPlaybackPosition() - offset;
     redraw();
-    if (!playing || still) return;
+    if (!playing) return;
     let frame = 0;
     const tick = () => {
       position.current = getPlaybackPosition() - offset;
@@ -145,7 +145,7 @@ function WordLine({
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [playing, offset, still]);
+  }, [playing, offset]);
 
   return (
     <span className={lineClass} style={lineStyle}>

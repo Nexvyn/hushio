@@ -76,7 +76,7 @@ describe("EraseDialog", () => {
     render(<EraseDialog steps={steps} onErased={onErased} />);
     fireEvent.click(screen.getByRole("button", { name: "Disconnect & erase" }));
     expect((await screen.findByRole("alert")).textContent).toBe(
-      "Couldn't reach Google. Nothing was erased. Try again.",
+      "Couldn't reach Google. Your local data is untouched. Try again.",
     );
     expect(calls).not.toContain("wipeLocal");
     failing.current = null;

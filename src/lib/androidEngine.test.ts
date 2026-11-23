@@ -4,9 +4,10 @@ const mocks = vi.hoisted(() => ({
   resolveStream: vi.fn(), playerSetQueue: vi.fn(async (_items: { id: string }[], _index: number, _position: number) => {}), playerPlay: vi.fn(async () => {}),
   playerPause: vi.fn(async () => {}), playerSetUrl: vi.fn(async () => {}), localLibraryTrackPath: vi.fn(async () => 'content://song'),
   playerGetState: vi.fn(async () => snapshot(null)),
+  streamProxyPort: vi.fn(async () => 4321),
   toast: vi.fn(),
   listenPlayerEvent: vi.fn(async (_event: string, _handler: (payload: unknown) => void) => () => {}),
-  player: { next: vi.fn(), prevTrack: vi.fn(), queue: [{ id: 'song', title: 'Song', artist: 'Artist' }], index: 0 },
+  player: { next: vi.fn(), prevTrack: vi.fn(), playQueue: vi.fn(), queue: [{ id: 'song', title: 'Song', artist: 'Artist' }], index: 0 },
   library: { liked: [] as { id: string }[], toggleLike: vi.fn() },
 }));
 vi.mock('./bridge', () => ({ ...mocks }));
@@ -45,6 +46,7 @@ describe('Android playback requests', () => {
     let resolve!: (value: { url: string }) => void;
     mocks.resolveStream.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
     const pending = androidPlayStream('song', 'Song');
+    await vi.waitFor(() => expect(mocks.resolveStream).toHaveBeenCalled());
     androidPause(); resolve({ url: 'https://media/song' });
     await pending;
     expect(mocks.playerPlay).not.toHaveBeenCalled();
@@ -101,6 +103,11 @@ describe('Android playback metadata', () => {
     vi.clearAllMocks();
     await androidPlay();
     expect(mocks.playerSetQueue).toHaveBeenCalledWith([expect.objectContaining(meta)], 0, 0);
+  });
+  it('plays network songs through the local stream proxy, not the YouTube resolver', async () => {
+    await androidPlayStream('net:s1:/a.mp3', 'Song');
+    expect(mocks.resolveStream).not.toHaveBeenCalled();
+    expect(mocks.playerSetQueue.mock.calls[0][0][0]).toEqual(expect.objectContaining({ url: 'http://127.0.0.1:4321/?id=net%3As1%3A%2Fa.mp3' }));
   });
   it('sends the metadata for local tracks too', async () => {
     await androidPlayStream('local:1', 'Local', 0, { artist: 'Artist', durationMs: 90_000 });
@@ -264,5 +271,29 @@ describe('Android audio focus', () => {
     onState({ ...snapshot('song'), playing: true });
     await flush();
     expect(mocks.playerPause).not.toHaveBeenCalled();
+  });
+});
+
+describe('Android Auto browse picks', () => {
+  const flush = () => new Promise(done => setTimeout(done, 0));
+  it('plays a song picked in the car through the normal queue path', async () => {
+    startAndroidEngine(vi.fn());
+    const handler = mocks.listenPlayerEvent.mock.calls.find(([event]) => event === 'player-browse-pick')![1] as (payload: unknown) => void;
+    handler({
+      index: 1,
+      items: [
+        { id: 'a', title: 'A', artist: 'X', album: null, artworkUrl: null, durationMs: 1000 },
+        { id: 'b', title: 'B', artist: 'Y', album: 'Z', artworkUrl: 'https://art/b', durationMs: 214000 },
+      ],
+    });
+    await flush();
+    expect(mocks.player.playQueue).toHaveBeenCalledWith(
+      [
+        { id: 'a', title: 'A', artist: 'X', thumb: null, album: null, duration: 1 },
+        { id: 'b', title: 'B', artist: 'Y', thumb: 'https://art/b', album: 'Z', duration: 214 },
+      ],
+      1,
+    );
+    expect(mocks.playerSetQueue).not.toHaveBeenCalled();
   });
 });

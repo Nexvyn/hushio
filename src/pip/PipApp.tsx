@@ -37,7 +37,7 @@ function IconButton({ label, icon, onClick, pressed, disabled = false }: ButtonP
       onClick={onClick}
       className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-[#b3b3b3] hover:text-white disabled:opacity-40 ${pressed ? "text-white" : ""}`}
     >
-      <Icon icon={icon} />
+      <Icon icon={icon} fill={pressed ? "fill" : "none"} />
     </button>
   );
 }

@@ -77,40 +77,40 @@ class QueueBridgeTest {
     @Test
     fun mirrorRefusesItemOverMaxItems() {
         val queue = QueueMirror<Int>()
-        assertEquals(QueueMirror.MAX_ITEMS, queue.replace((1..501).toList(), 0))
+        assertEquals(QueueMirror.MAX_ITEMS, queue.replace((1..5001).toList(), 0))
         assertEquals(QueueMirror.MAX_ITEMS, queue.items.last())
-        assertEquals(0, queue.append(listOf(502)))
-        assertEquals(0, queue.insertNext(listOf(503)))
+        assertEquals(0, queue.append(listOf(5002)))
+        assertEquals(0, queue.insertNext(listOf(5003)))
         assertEquals(QueueMirror.MAX_ITEMS, queue.size)
     }
 
     @Test
     fun insertAndAppendStopAtCapacityMidway() {
         val queue = QueueMirror<Int>()
-        queue.replace((1..498).toList(), 0)
+        queue.replace((1..4998).toList(), 0)
         assertEquals(2, queue.insertNext(listOf(-1, -2, -3)))
         assertEquals(listOf(-1, -2), queue.items.subList(1, 3))
-        assertEquals(0, queue.append(listOf(499)))
+        assertEquals(0, queue.append(listOf(4999)))
         assertEquals(QueueMirror.MAX_ITEMS, queue.size)
-        assertFalse(queue.items.contains(499))
+        assertFalse(queue.items.contains(4999))
     }
 
     @Test
-    fun replaceAt499ThenAppendAndInsertFillToExactly500() {
+    fun replaceAt4999ThenAppendAndInsertFillToExactly5000() {
         val queue = QueueMirror<Int>()
-        queue.replace((1..499).toList(), 0)
-        assertEquals(1, queue.append(listOf(500, 501)))
+        queue.replace((1..4999).toList(), 0)
+        assertEquals(1, queue.append(listOf(5000, 5001)))
         assertEquals(0, queue.insertNext(listOf(-1)))
         assertEquals(QueueMirror.MAX_ITEMS, queue.size)
-        assertEquals(500, queue.items.last())
+        assertEquals(5000, queue.items.last())
     }
 
     @Test
     fun removingOneFromFullQueueReopensOneSlot() {
         val queue = QueueMirror<Int>()
-        queue.replace((1..500).toList(), 499)
+        queue.replace((1..5000).toList(), 4999)
         assertTrue(queue.removeAt(0))
-        assertEquals(500, queue.currentItem())
+        assertEquals(5000, queue.currentItem())
         assertEquals(1, queue.append(listOf(900, 901)))
         assertEquals(QueueMirror.MAX_ITEMS, queue.size)
         assertEquals(900, queue.items.last())
