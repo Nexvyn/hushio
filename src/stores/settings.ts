@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { persistStorage } from "../lib/persist";
-import { type MatchLanguage } from "../lib/importLanguage";
+import { isMatchLanguage, type MatchLanguage } from "../lib/importLanguage";
 import { type EqPreset, flatGains, normalizeEqGains, normalizeEqPresets } from "../lib/eq";
 import { desktopAppearance } from "../lib/desktopAppearance";
 import { DEFAULT_FONT, isAppFont, type AppFontId } from "../lib/fonts";
@@ -10,6 +10,7 @@ import { parseAddonSources } from "../lib/addons/registry";
 import type { AddonSource } from "../lib/addons/types";
 import { DEFAULT_IMAGE_CACHE_MB } from "../lib/cacheStats";
 import type { LanguageSetting } from "../lib/i18n";
+import { ZOOM_STEPS } from "../lib/zoom";
 
 export const DEVICE_SETTINGS_KEYS = [
   "downloadDir",
@@ -184,6 +185,86 @@ function isSidebarLayout(value: unknown): value is SidebarLayout {
   return (SIDEBAR_LAYOUTS as readonly unknown[]).includes(value);
 }
 
+type SettingCheck = (value: unknown) => boolean;
+
+function numberIn(min: number, max = Number.POSITIVE_INFINITY): SettingCheck {
+  return (value) => typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
+}
+
+function oneOf(values: readonly unknown[]): SettingCheck {
+  return (value) => values.includes(value);
+}
+
+function listOf(check: SettingCheck): SettingCheck {
+  return (value) => Array.isArray(value) && value.every(check);
+}
+
+function nullable(check: SettingCheck): SettingCheck {
+  return (value) => value === null || check(value);
+}
+
+const isBoolean: SettingCheck = (value) => typeof value === "boolean";
+const isString: SettingCheck = (value) => typeof value === "string";
+
+const SETTING_CHECKS: Record<string, SettingCheck> = {
+  theme: isThemeMode,
+  reduceAnimation: isBoolean,
+  reduceDynamicBlur: isBoolean,
+  downloadDir: nullable(isString),
+  localMusicFolder: nullable(isString),
+  audioSinkId: isString,
+  exclusiveOutput: isBoolean,
+  language: isLanguageSetting,
+  lyricsOffset: numberIn(-LYRICS_OFFSET_LIMIT, LYRICS_OFFSET_LIMIT),
+  closeToTray: isBoolean,
+  libraryLayout: isLibraryLayout,
+  sidebarLayout: isSidebarLayout,
+  crossfadeSeconds: numberIn(0, CROSSFADE_LIMIT),
+  smartFade: isBoolean,
+  skipSilence: isBoolean,
+  gaplessPlayback: isBoolean,
+  autoplay: isBoolean,
+  dontRepeatSuggestions: isBoolean,
+  playbackSpeed: numberIn(...PLAYBACK_SPEED_RANGE),
+  streamingQuality: oneOf(STREAMING_QUALITIES),
+  mobileStreamingQuality: oneOf(STREAMING_QUALITIES),
+  loudnessLevel: oneOf(LOUDNESS_LEVELS),
+  syncedLyrics: isBoolean,
+  blurUnfocusedLyrics: isBoolean,
+  romanizeLyrics: isBoolean,
+  fullBleedArtwork: isBoolean,
+  animatedCovers: isBoolean,
+  movingBackground: isBoolean,
+  hideVolumeBar: isBoolean,
+  filterNonMusicAudio: isBoolean,
+  downloadQuality: oneOf(DOWNLOAD_QUALITIES),
+  exportDownloads: isBoolean,
+  unlimitedSync: isBoolean,
+  matchLanguage: isMatchLanguage,
+  eqEnabled: isBoolean,
+  eqAutoHeadroom: isBoolean,
+  autoDownloadLiked: isBoolean,
+  downloadWifiOnly: isBoolean,
+  keepPlaylistsUpdated: isBoolean,
+  imageCacheMb: numberIn(0),
+  zoom: numberIn(Math.min(...ZOOM_STEPS), Math.max(...ZOOM_STEPS)),
+  pauseListeningHistory: isBoolean,
+  pauseSearchHistory: isBoolean,
+  noDuplicateQueue: isBoolean,
+  restoreQueueOnRestart: isBoolean,
+  homeSectionOrder: listOf(isString),
+  hiddenHomeSections: listOf(isString),
+  lyricsTextSize: oneOf(LYRICS_TEXT_SIZES),
+  lyricsProviders: listOf(oneOf(LYRICS_PROVIDERS.map((provider) => provider.id))),
+  appFont: isAppFont,
+  keepScreenAwake: isBoolean,
+  dataSaver: isBoolean,
+  jiosaavnEnabled: isBoolean,
+  haptics: isBoolean,
+  statsForNerds: isBoolean,
+  autoUpdateCheck: isBoolean,
+};
+
 export const useSettings = create<SettingsState>()(
   persist(
     (set) => ({
@@ -273,15 +354,14 @@ export const useSettings = create<SettingsState>()(
       storage: persistStorage<SettingsState>("settings"),
       merge: (persisted, current) => {
         const stored = persisted as Partial<SettingsValues>;
-        const theme = isThemeMode(stored.theme) ? stored.theme : current.theme;
-        const libraryLayout = isLibraryLayout(stored.libraryLayout) ? stored.libraryLayout : current.libraryLayout;
-        const sidebarLayout = isSidebarLayout(stored.sidebarLayout) ? stored.sidebarLayout : current.sidebarLayout;
+        const merged = { ...current, ...stored } as Record<string, unknown>;
+        for (const [key, check] of Object.entries(SETTING_CHECKS)) {
+          if (!check(merged[key])) merged[key] = current[key as keyof SettingsValues];
+        }
         const eqGains = stored.eqGains === undefined ? current.eqGains : normalizeEqGains(stored.eqGains);
         const eqPresets = stored.eqPresets === undefined ? current.eqPresets : normalizeEqPresets(stored.eqPresets);
-        const appFont = isAppFont(stored.appFont) ? stored.appFont : current.appFont;
         const addonSources = parseAddonSources(stored.addonSources) ?? current.addonSources;
-        const language = isLanguageSetting(stored.language) ? stored.language : current.language;
-        return { ...current, ...stored, theme, libraryLayout, sidebarLayout, eqGains, eqPresets, appFont, addonSources, language };
+        return { ...merged, eqGains, eqPresets, addonSources } as SettingsState;
       },
     },
   ),

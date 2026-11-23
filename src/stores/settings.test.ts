@@ -33,6 +33,7 @@ import {
   clampLyricsOffset,
   DEVICE_SETTINGS_KEYS,
   useSettings,
+  type SettingsValues,
 } from "./settings";
 
 const initial = useSettings.getState();
@@ -166,5 +167,91 @@ describe("library layout default", () => {
 
     expect(migrate?.(saved, 1)).toMatchObject({ libraryLayout: "grid" });
     expect(migrate?.({ ...saved, libraryLayout: "list" }, 2)).toMatchObject({ libraryLayout: "list" });
+  });
+});
+
+async function hydrateSettings(state: Record<string, unknown>) {
+  storage.value = { state, version: 5 };
+  await useSettings.persist.rehydrate();
+  return useSettings.getState();
+}
+
+const VALID_STORED: Record<string, unknown> = {
+  theme: "light",
+  reduceAnimation: true,
+  closeToTray: false,
+  lyricsOffset: -1.5,
+  crossfadeSeconds: 6,
+  playbackSpeed: 1.25,
+  zoom: 1.25,
+  imageCacheMb: 512,
+  streamingQuality: "low",
+  mobileStreamingQuality: "lossless",
+  downloadQuality: "standard",
+  loudnessLevel: "off",
+  matchLanguage: "hindi",
+  lyricsTextSize: "large",
+  appFont: "mono",
+  lyricsProviders: ["lrclib", "genius"],
+  homeSectionOrder: ["recent", "charts"],
+  hiddenHomeSections: ["charts"],
+  futureSetting: { anything: true },
+};
+
+const INVALID_STORED: [keyof SettingsValues, unknown][] = [
+  ["theme", "neon"],
+  ["reduceAnimation", 1],
+  ["closeToTray", "yes"],
+  ["downloadDir", 42],
+  ["audioSinkId", null],
+  ["lyricsOffset", 9],
+  ["lyricsOffset", NaN],
+  ["lyricsOffset", "0.5"],
+  ["crossfadeSeconds", -1],
+  ["crossfadeSeconds", 13],
+  ["crossfadeSeconds", null],
+  ["playbackSpeed", 0.1],
+  ["playbackSpeed", 2.5],
+  ["playbackSpeed", NaN],
+  ["playbackSpeed", "fast"],
+  ["zoom", -1],
+  ["zoom", 5],
+  ["zoom", "1"],
+  ["zoom", NaN],
+  ["imageCacheMb", -5],
+  ["imageCacheMb", NaN],
+  ["streamingQuality", "ultra"],
+  ["mobileStreamingQuality", 3],
+  ["downloadQuality", ""],
+  ["loudnessLevel", true],
+  ["matchLanguage", "klingon"],
+  ["lyricsTextSize", "huge"],
+  ["lyricsTextSize", null],
+  ["appFont", "comic"],
+  ["lyricsProviders", "lrclib"],
+  ["lyricsProviders", ["nope"]],
+  ["lyricsProviders", [1]],
+  ["homeSectionOrder", "recent"],
+  ["homeSectionOrder", [1, 2]],
+  ["hiddenHomeSections", null],
+];
+
+describe("stored values are validated on load", () => {
+  it("keeps every valid stored value", async () => {
+    const state = await hydrateSettings(VALID_STORED);
+    expect(state).toMatchObject(VALID_STORED);
+  });
+
+  it.each(INVALID_STORED)("falls back to the default for %s = %j and keeps the other valid values", async (key, value) => {
+    const state = await hydrateSettings({ ...VALID_STORED, [key]: value });
+    expect(state[key]).toEqual(initial[key]);
+    const others = { ...VALID_STORED };
+    delete others[key];
+    expect(state).toMatchObject(others);
+  });
+
+  it("returns the defaults for an empty persisted object", async () => {
+    const state = await hydrateSettings({});
+    expect(state).toMatchObject(initial);
   });
 });
