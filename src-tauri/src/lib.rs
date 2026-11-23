@@ -140,7 +140,7 @@ async fn persist_read(
     name: String,
     owner: Option<String>,
 ) -> Result<Option<serde_json::Value>, String> {
-    Ok(persist::read(&state.root, owner.as_deref().unwrap_or("guest"), &name).await)
+    Ok(persist::read(&state.root, owner.as_deref().unwrap_or(persist::DEFAULT_OWNER), &name).await)
 }
 
 #[tauri::command]
@@ -152,7 +152,7 @@ async fn persist_write(
 ) -> Result<bool, String> {
     persist::write(
         &state.root,
-        owner.as_deref().unwrap_or("guest"),
+        owner.as_deref().unwrap_or(persist::DEFAULT_OWNER),
         &name,
         &data,
     )

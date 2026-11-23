@@ -6,14 +6,18 @@ use serde_json::Value;
 use tokio::io::AsyncWriteExt;
 
 pub const MAX_STORE_BYTES: usize = 16 * 1024 * 1024;
+pub const DEFAULT_OWNER: &str = "guest";
+const DEFAULT_NAME: &str = "store";
+const FALLBACK_FILE_NAME: &str = "store.json";
+const SUFFIX_LEN: usize = 6;
 const RENAME_BACKOFF_MS: [u64; 4] = [40, 80, 120, 160];
 const KEPT_CORRUPT_COPIES: usize = 3;
 const DIGITS: &[u8; 36] = b"0123456789abcdefghijklmnopqrstuvwxyz";
 
 pub fn store_path(root: &Path, owner: &str, name: &str) -> PathBuf {
     root.join("data")
-        .join(sanitize(owner, "guest"))
-        .join(format!("{}.json", sanitize(name, "store")))
+        .join(sanitize(owner, DEFAULT_OWNER))
+        .join(format!("{}.json", sanitize(name, DEFAULT_NAME)))
 }
 
 fn sanitize(value: &str, fallback: &str) -> String {
@@ -25,7 +29,7 @@ fn sanitize(value: &str, fallback: &str) -> String {
         if c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-' {
             cleaned.push(c);
         } else {
-            for byte in c.to_string().bytes() {
+            for byte in c.encode_utf8(&mut [0; 4]).bytes() {
                 cleaned.push_str(&format!("~{byte:02x}"));
             }
         }
@@ -54,14 +58,8 @@ pub async fn read(root: &Path, owner: &str, name: &str) -> Option<Value> {
 }
 
 async fn move_aside(path: &Path) {
-    let name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("store.json");
-    let millis = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|elapsed| elapsed.as_millis())
-        .unwrap_or(0);
+    let name = file_name_of(path);
+    let millis = now_millis();
     let target = path.with_file_name(format!("{name}.corrupt-{millis}"));
     if let Err(error) = tokio::fs::rename(path, &target).await {
         tracing::warn!(%error, path = %path.display(), "could not move corrupt store aside");
@@ -113,15 +111,16 @@ async fn prune_corrupt_copies(path: &Path, name: &str) {
 pub async fn write(root: &Path, owner: &str, name: &str, data: &Value) -> Result<(), String> {
     let path = store_path(root, owner, name);
     if data.is_null() {
-        return match tokio::fs::remove_file(&path).await {
-            Ok(()) => Ok(()),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-            Err(error) => Err(error.to_string()),
-        };
+        return remove_if_exists(&path)
+            .await
+            .map_err(|error| error.to_string());
     }
     let bytes = serde_json::to_vec(data).map_err(|error| error.to_string())?;
     if bytes.len() > MAX_STORE_BYTES {
-        return Err("Store is larger than 16 MiB".to_string());
+        return Err(format!(
+            "Store is larger than {} MiB",
+            MAX_STORE_BYTES / (1024 * 1024)
+        ));
     }
     write_atomic(&path, &bytes)
         .await
@@ -140,12 +139,18 @@ async fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
         rename_with_retry(&tmp, path).await
     }
     .await;
-    if let Err(error) = tokio::fs::remove_file(&tmp).await {
-        if error.kind() != io::ErrorKind::NotFound {
-            tracing::warn!(%error, path = %tmp.display(), "could not remove temp file");
-        }
+    if let Err(error) = remove_if_exists(&tmp).await {
+        tracing::warn!(%error, path = %tmp.display(), "could not remove temp file");
     }
     result
+}
+
+async fn remove_if_exists(path: &Path) -> io::Result<()> {
+    match tokio::fs::remove_file(path).await {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
 }
 
 async fn write_synced(tmp: &Path, bytes: &[u8]) -> io::Result<()> {
@@ -154,15 +159,22 @@ async fn write_synced(tmp: &Path, bytes: &[u8]) -> io::Result<()> {
     file.sync_all().await
 }
 
-fn temp_path(path: &Path) -> PathBuf {
-    let name = path
-        .file_name()
+fn file_name_of(path: &Path) -> &str {
+    path.file_name()
         .and_then(|name| name.to_str())
-        .unwrap_or("store.json");
-    let millis = SystemTime::now()
+        .unwrap_or(FALLBACK_FILE_NAME)
+}
+
+fn now_millis() -> u128 {
+    SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|elapsed| elapsed.as_millis())
-        .unwrap_or(0);
+        .unwrap_or(0)
+}
+
+fn temp_path(path: &Path) -> PathBuf {
+    let name = file_name_of(path);
+    let millis = now_millis();
     path.with_file_name(format!("{name}.{millis}.{}.tmp", base36()))
 }
 
@@ -171,8 +183,8 @@ fn base36() -> String {
         .duration_since(UNIX_EPOCH)
         .map(|elapsed| elapsed.subsec_nanos() as u64)
         .unwrap_or(0);
-    let mut suffix = String::with_capacity(6);
-    for _ in 0..6 {
+    let mut suffix = String::with_capacity(SUFFIX_LEN);
+    for _ in 0..SUFFIX_LEN {
         suffix.push(DIGITS[(value % 36) as usize] as char);
         value /= 36;
     }
