@@ -31,6 +31,23 @@ class LaunchIntentsTest {
     }
 
     @Test
+    fun sharedAudioStreamBecomesFileLaunch() {
+        val uri = "content://media/external/audio/media/7"
+        assertEquals(Launch("file", uri), LaunchIntents.classify(LaunchIntents.ACTION_SEND, "audio/mpeg", null, null, null, uri))
+        assertEquals(
+            Launch("file", uri),
+            LaunchIntents.classify(LaunchIntents.ACTION_SEND_MULTIPLE, "audio/*", null, null, null, uri),
+        )
+    }
+
+    @Test
+    fun sharedStreamThatIsNotAudioOrIsBlankIsIgnored() {
+        assertNull(LaunchIntents.classify(LaunchIntents.ACTION_SEND, "video/mp4", null, null, null, "content://x/1"))
+        assertNull(LaunchIntents.classify(LaunchIntents.ACTION_SEND, "audio/mpeg", null, null, null, "  "))
+        assertNull(LaunchIntents.classify(LaunchIntents.ACTION_SEND, "audio/mpeg", null, null, null, null))
+    }
+
+    @Test
     fun otherViewsAreIgnored() {
         assertNull(LaunchIntents.classify(LaunchIntents.ACTION_VIEW, "video/mp4", "content", "content://x/1", null))
         assertNull(LaunchIntents.classify(LaunchIntents.ACTION_VIEW, null, "https", "https://example.com", null))

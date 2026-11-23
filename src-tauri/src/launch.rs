@@ -24,7 +24,11 @@ pub enum Action {
 pub struct Pending(Mutex<Vec<Action>>);
 
 pub fn parse_argv(argv: &[String], cwd: &Path) -> Vec<Action> {
-    argv.iter().skip(1).filter_map(|arg| parse_arg(arg, cwd)).collect()
+    parse_args(argv.get(1..).unwrap_or_default(), cwd)
+}
+
+fn parse_args(args: &[String], cwd: &Path) -> Vec<Action> {
+    args.iter().filter_map(|arg| parse_arg(arg, cwd)).collect()
 }
 
 fn parse_arg(arg: &str, cwd: &Path) -> Option<Action> {
@@ -35,7 +39,7 @@ fn parse_arg(arg: &str, cwd: &Path) -> Option<Action> {
         if url.scheme().len() > 1 {
             return match url.scheme() {
                 SCHEME => parse_link(&url),
-                "file" => audio_file(&url.to_file_path().ok()?, cwd),
+                "file" => audio_file(&local_file_path(&url)?, cwd),
                 _ => None,
             };
         }
@@ -54,6 +58,13 @@ fn parse_link(url: &Url) -> Option<Action> {
     valid.then(|| Action::Playlist { id: id.into_owned() })
 }
 
+fn local_file_path(url: &Url) -> Option<PathBuf> {
+    if !matches!(url.host_str(), None | Some("" | "localhost")) {
+        return None;
+    }
+    url.to_file_path().ok().filter(|path| path.is_absolute())
+}
+
 fn audio_file(path: &Path, cwd: &Path) -> Option<Action> {
     let name = path.file_name()?.to_str()?;
     if !(is_playable_name(name) || unplayable_format(name).is_some()) {
@@ -64,7 +75,17 @@ fn audio_file(path: &Path, cwd: &Path) -> Option<Action> {
 }
 
 pub fn receive(app: &AppHandle, argv: &[String], cwd: &Path) {
-    let actions = parse_argv(argv, cwd);
+    queue(app, parse_argv(argv, cwd));
+}
+
+#[cfg(target_os = "macos")]
+pub fn receive_urls(app: &AppHandle, urls: &[Url]) {
+    let args: Vec<String> = urls.iter().map(Url::to_string).collect();
+    let cwd = std::env::current_dir().unwrap_or_default();
+    queue(app, parse_args(&args, &cwd));
+}
+
+fn queue(app: &AppHandle, actions: Vec<Action>) {
     if actions.is_empty() {
         return;
     }
@@ -168,5 +189,28 @@ mod tests {
             &std::env::temp_dir(),
         );
         assert_eq!(actions, vec![file("a.mp3"), Action::Playlist { id: "PL1".into() }, file("b.wav")]);
+    }
+
+    #[test]
+    fn url_strings_from_apple_events_follow_the_argv_rules() {
+        let links = argv(&["hushio://playlist?list=abc", "hushio://playlist?list=a/b", "https://example.com/a.mp3"]);
+        assert_eq!(
+            parse_args(&links, &std::env::temp_dir()),
+            vec![Action::Playlist { id: "abc".into() }]
+        );
+    }
+
+    #[test]
+    fn percent_encoded_file_urls_become_decoded_paths() {
+        let url = Url::from_file_path(std::env::temp_dir().join("my song.mp3")).expect("file url");
+        assert_eq!(one(url.as_str()), vec![file("my song.mp3")]);
+    }
+
+    #[test]
+    fn file_urls_that_are_not_audio_or_not_local_are_dropped() {
+        let png = Url::from_file_path(std::env::temp_dir().join("cover.png")).expect("file url");
+        assert!(one(png.as_str()).is_empty());
+        assert!(one("file://server/share/a.mp3").is_empty());
+        assert!(one("content://media/external/audio/media/42").is_empty());
     }
 }

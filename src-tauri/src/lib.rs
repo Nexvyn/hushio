@@ -812,6 +812,12 @@ pub fn run() {
             app.manage(controls);
             app.manage(launch::Pending::default());
             launch::register_scheme(app.handle());
+            #[cfg(target_os = "macos")]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                let handle = app.handle().clone();
+                app.deep_link().on_open_url(move |event| launch::receive_urls(&handle, &event.urls()));
+            }
             let argv: Vec<String> = std::env::args().collect();
             let cwd = std::env::current_dir().unwrap_or_default();
             launch::receive(app.handle(), &argv, &cwd);
