@@ -1,8 +1,9 @@
 import { useSyncExternalStore } from "react";
 import { en, type Catalog } from "./en";
+import { de } from "./de";
 import { hi } from "./hi";
 
-export type LanguageCode = "en" | "hi";
+export type LanguageCode = "en" | "hi" | "de";
 export type LanguageSetting = "system" | LanguageCode;
 export type Params = Record<string, string | number>;
 
@@ -13,9 +14,10 @@ export type TKey = TranslationKey | PluralBase<TranslationKey>;
 export const LANGUAGES: readonly { code: LanguageCode; name: string; nativeName: string }[] = [
   { code: "en", name: "English", nativeName: "English" },
   { code: "hi", name: "Hindi", nativeName: "हिन्दी" },
+  { code: "de", name: "German", nativeName: "Deutsch" },
 ];
 
-const CATALOGS: Record<LanguageCode, Partial<Record<string, string>>> = { en, hi };
+const CATALOGS: Record<LanguageCode, Partial<Record<string, string>>> = { en, hi, de };
 
 let language: LanguageCode = "en";
 const listeners = new Set<() => void>();
