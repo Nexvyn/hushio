@@ -38,6 +38,10 @@ export function networkTrackUrl(id: string, os: string = platform): string {
   return os === "windows" || os === "android" ? `http://netmusic.localhost/${encoded}` : `netmusic://localhost/${encoded}`;
 }
 
+export function networkArtUrl(serverId: string, coverArt: string, os: string = platform): string {
+  return networkTrackUrl(`netart:${serverId}:${coverArt}`, os);
+}
+
 export function toTrack(track: LocalTrack): Track {
   return { id: track.id, title: track.title, artist: track.artist, thumb: artUrl(track.art) };
 }

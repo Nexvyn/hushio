@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { useEffect, useState } from "react";
 import { CaretLeft, Warning, X, Cloud, Trash, DownloadSimple, FileAudio, FolderPlus, FolderOpen, MusicNote, PencilSimple, Play, Playlist, ArrowClockwise, MagnifyingGlass, Shuffle, User } from "@phosphor-icons/react";
 import type { LocalFolderEntry, LocalTrack, NetworkServer, NetworkTrack } from "../lib/bridge";
@@ -31,6 +32,7 @@ import {
   leftOutText,
   scopeTracks,
   sortTracks,
+  networkArtUrl,
   toTrack,
   type LocalScope,
   type LocalTab,
@@ -415,11 +417,15 @@ function NetworkServers({ onOpen }: { onOpen: (param: string) => void }) {
               key={server.id}
               title={server.name}
               subtitle={
-                busy === server.id
-                  ? "Reading the server…"
-                  : found.length > 0
-                    ? plural(found.length, "song", "songs")
-                    : "Open to read the server"
+                server.scanning
+                  ? t("network.scanning")
+                  : busy === server.id
+                    ? "Reading the server…"
+                    : found.length > 0
+                      ? plural(found.length, "song", "songs")
+                      : server.songCount > 0
+                        ? plural(server.songCount, "song", "songs")
+                        : "Open to read the server"
               }
               covers={[]}
               fallback={Cloud}
@@ -441,7 +447,7 @@ function networkTracksOf(tracks: NetworkTrack[]): Track[] {
     id: track.id,
     title: track.title,
     artist: track.artist,
-    thumb: null,
+    thumb: track.coverArt ? networkArtUrl(track.serverId, track.coverArt) : null,
   }));
 }
 
@@ -935,6 +941,7 @@ function NetworkCollectionView({ id, onBack }: { id: string; onBack: () => void 
             </span>
           </button>
         ))}
+        {server?.truncated && <p className="px-3 pt-3 text-meta text-ink-2">{t("network.truncated")}</p>}
         {!busy && list.length === 0 && (
           <EmptyState title="No songs on this server" message="Check the folder and try again." />
         )}

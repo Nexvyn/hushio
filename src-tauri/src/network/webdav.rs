@@ -204,6 +204,7 @@ pub fn tracks_from(server: &Server, entries: Vec<Entry>) -> Vec<NetworkTrack> {
                 artist,
                 album: String::new(),
                 size: entry.size,
+                cover_art: None,
             }
         })
         .collect()
@@ -279,6 +280,9 @@ mod tests {
             path: String::new(),
             username: String::new(),
             password: String::new(),
+            scanned_at: 0,
+            song_count: 0,
+            truncated: false,
         };
         let tracks = tracks_from(
             &server,

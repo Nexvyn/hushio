@@ -840,6 +840,7 @@ pub fn run() {
                 network_root,
                 vault,
             )));
+            network.clone().refresh_stale();
             app.state::<stream::StreamProxy<stream::Registry>>().set_network(network.clone());
             app.manage(network);
             crash::set_crash_root(crash_root.clone());
@@ -968,6 +969,8 @@ pub fn run() {
             network::network_servers,
             network::network_server_save,
             network::network_server_remove,
+            network::network_server_test,
+            network::network_server_refresh,
             network::network_tracks,
             network::network_track_bytes,
             crash::crash_logs,

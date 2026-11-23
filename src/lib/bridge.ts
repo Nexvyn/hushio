@@ -1025,7 +1025,7 @@ export function discordSetEnabled(enabled: boolean): Promise<DiscordStatus> {
   return call<DiscordStatus>("discord_set_enabled", { enabled });
 }
 
-export type NetworkServerKind = "webDav" | "smb";
+export type NetworkServerKind = "webDav" | "smb" | "subsonic";
 
 export type NetworkServer = {
   id: string;
@@ -1037,6 +1037,11 @@ export type NetworkServer = {
   share: string;
   path: string;
   username: string;
+  scannedAt: number;
+  songCount: number;
+  truncated: boolean;
+  scanning: boolean;
+  scanError: string;
 };
 
 export type NetworkServerInput = {
@@ -1061,6 +1066,7 @@ export type NetworkTrack = {
   artist: string;
   album: string;
   size: number;
+  coverArt?: string;
 };
 
 export function networkServers(): Promise<NetworkServer[]> {
@@ -1077,4 +1083,12 @@ export function networkServerRemove(id: string): Promise<NetworkServer[]> {
 
 export function networkTracks(id: string, path: string): Promise<NetworkTrack[]> {
   return call<NetworkTrack[]>("network_tracks", { id, path });
+}
+
+export function networkServerTest(server: NetworkServerInput): Promise<string> {
+  return call<string>("network_server_test", { server });
+}
+
+export function networkServerRefresh(id: string): Promise<NetworkServer[]> {
+  return call<NetworkServer[]>("network_server_refresh", { id });
 }

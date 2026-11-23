@@ -5,6 +5,8 @@ const bridge = vi.hoisted(() => ({
   networkServerSave: vi.fn(),
   networkServerRemove: vi.fn(),
   networkTracks: vi.fn(),
+  networkServerTest: vi.fn(),
+  networkServerRefresh: vi.fn(),
 }));
 
 vi.mock("../lib/bridge", async (importOriginal) => ({
@@ -13,6 +15,8 @@ vi.mock("../lib/bridge", async (importOriginal) => ({
   networkServerSave: bridge.networkServerSave,
   networkServerRemove: bridge.networkServerRemove,
   networkTracks: bridge.networkTracks,
+  networkServerTest: bridge.networkServerTest,
+  networkServerRefresh: bridge.networkServerRefresh,
 }));
 
 import { useNetwork } from "./network";
@@ -28,6 +32,11 @@ const server = {
   share: "",
   path: "",
   username: "me",
+  scannedAt: 0,
+  songCount: 0,
+  truncated: false,
+  scanning: false,
+  scanError: "",
 };
 
 const track = {
@@ -103,5 +112,60 @@ describe("network store", () => {
     await useNetwork.getState().remove("s1");
     expect(useNetwork.getState().servers).toEqual([]);
     expect(useNetwork.getState().tracks.s1).toBeUndefined();
+  });
+
+  it("tests a music server and returns the plain answer", async () => {
+    bridge.networkServerTest.mockResolvedValue("Connected to navidrome 0.53.3");
+    const outcome = await useNetwork.getState().test({
+      id: "",
+      kind: "subsonic",
+      name: "",
+      url: "https://music.example",
+      host: "",
+      share: "",
+      path: "",
+      username: "me",
+      password: "hunter2",
+    });
+    expect(outcome).toEqual({ ok: true, message: "Connected to navidrome 0.53.3" });
+  });
+
+  it("reports a failed test without throwing", async () => {
+    bridge.networkServerTest.mockRejectedValue(new Error("Wrong username or password."));
+    const outcome = await useNetwork.getState().test({
+      id: "",
+      kind: "subsonic",
+      name: "",
+      url: "https://music.example",
+      host: "",
+      share: "",
+      path: "",
+      username: "me",
+      password: "nope",
+    });
+    expect(outcome).toEqual({ ok: false, message: "Wrong username or password." });
+  });
+
+  it("keeps the password out of the store and out of local storage", async () => {
+    bridge.networkServerSave.mockResolvedValue([{ ...server, kind: "subsonic", kindLabel: "Music server" }]);
+    await useNetwork.getState().save({
+      id: "",
+      kind: "subsonic",
+      name: "",
+      url: "https://music.example",
+      host: "",
+      share: "",
+      path: "",
+      username: "me",
+      password: "hunter2-secret",
+    });
+    expect(JSON.stringify(useNetwork.getState())).not.toContain("hunter2-secret");
+    expect(JSON.stringify({ ...localStorage })).not.toContain("hunter2-secret");
+  });
+
+  it("refreshes a music server and shows its scan state", async () => {
+    bridge.networkServerRefresh.mockResolvedValue([{ ...server, scanning: true }]);
+    await useNetwork.getState().refresh("s1");
+    expect(useNetwork.getState().servers[0].scanning).toBe(true);
   });
 });
