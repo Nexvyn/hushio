@@ -127,6 +127,17 @@ fn normalize_folder_trims_and_rejects_blank_input() {
 }
 
 #[test]
+fn a_tree_uri_folder_is_renamed_and_removed_by_the_same_text() {
+    let uri = "content://com.android.externalstorage.documents/tree/primary%3AMusic";
+    let mut lib = LocalLibrary::default();
+    add_folders(&mut lib, &[uri.to_owned()], 1);
+    assert!(rename_folder(&mut lib, uri, "Phone music"));
+    assert_eq!(lib.folders[0].display_name.as_deref(), Some("Phone music"));
+    assert!(remove_folder(&mut lib, uri));
+    assert!(lib.folders.is_empty());
+}
+
+#[test]
 fn add_folders_pins_music_subfolders_and_skips_the_rest() {
     let temp = tempfile::tempdir().expect("temp");
     let root = temp.path().join("Music");
@@ -212,6 +223,17 @@ fn scan_hides_non_music_only_when_the_filter_is_on() {
     assert_eq!(names(&filtered), vec!["Keeper".to_string()]);
     let (everything, _) = scan_root(temp.path(), false);
     assert_eq!(everything.len(), 3);
+}
+
+#[test]
+fn a_cached_track_is_hidden_when_the_non_music_filter_turns_on() {
+    let temp = tempfile::tempdir().expect("temp");
+    write_wav(&temp.path().join("Voice Memo.wav"), 40);
+    write_wav(&temp.path().join("Keeper.wav"), 40);
+    let art = temp.path().join(ART_DIR);
+    let (previous, _) = scan(&[folder_entry(temp.path())], &[], false, &art);
+    let (filtered, _) = scan(&[folder_entry(temp.path())], &previous, true, &art);
+    assert_eq!(names(&filtered), vec!["Keeper".to_string()]);
 }
 
 #[test]
@@ -1110,6 +1132,31 @@ mod cue_sheets {
         assert_eq!(plain.len(), 1);
         assert_eq!(plain[0].cue_start, None);
         assert_eq!(plain[0].id, format!("local:{}", hash_path(&plain[0].path)));
+    }
+
+    fn track_at(path: &str) -> LocalTrack {
+        LocalTrack { id: path.to_owned(), path: path.to_owned(), ..Default::default() }
+    }
+
+    fn folder_at(path: &str) -> LocalFolderEntry {
+        LocalFolderEntry { path: path.to_owned(), name: path.to_owned(), display_name: None, added_at: 0 }
+    }
+
+    #[test]
+    fn a_folder_removed_during_a_scan_stays_removed() {
+        let scanned_folders = [folder_at("/music/a"), folder_at("/music/b")];
+        let folders = [folder_at("/music/b")];
+        let merged = merge_scan(&[], &folders, &scanned_folders, vec![track_at("/music/a/1.mp3"), track_at("/music/b/2.mp3")]);
+        assert_eq!(merged.iter().map(|track| track.path.as_str()).collect::<Vec<_>>(), ["/music/b/2.mp3"]);
+    }
+
+    #[test]
+    fn tracks_of_folders_outside_the_scan_are_kept() {
+        let scanned_folders = [folder_at("/music/a")];
+        let folders = [folder_at("/music/a"), folder_at("/music/d")];
+        let current = [track_at("/music/a/old.mp3"), track_at("/music/d/keep.mp3")];
+        let merged = merge_scan(&current, &folders, &scanned_folders, vec![track_at("/music/a/new.mp3")]);
+        assert_eq!(merged.iter().map(|track| track.path.as_str()).collect::<Vec<_>>(), ["/music/d/keep.mp3", "/music/a/new.mp3"]);
     }
 
     #[test]

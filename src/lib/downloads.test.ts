@@ -407,6 +407,18 @@ describe("reconcileStaleDownloads and listenForDownloadProgress", () => {
     expect(useLibrary.getState().downloads.lost.status).toBe("queued");
   });
 
+  it("starts downloads that were waiting for Wi-Fi when the app opens on Wi-Fi", async () => {
+    useSettings.setState({ downloadWifiOnly: true });
+    network.type = "wifi";
+    seed("held", item({ status: "waiting" }));
+    bridge.downloadQueue.mockResolvedValue([]);
+
+    const unlisten = await listenForDownloadProgress();
+
+    await vi.waitFor(() => expect(bridge.downloadStart).toHaveBeenCalledTimes(1));
+    unlisten();
+  });
+
   it("reconciles before subscribing to events", async () => {
     seed("lost", item({ status: "queued" }));
     const calls: string[] = [];
@@ -505,6 +517,12 @@ describe("folders and reveal", () => {
     bridge.revealPath.mockRejectedValue(new Error("nope"));
     revealDownload("/music/b.m4a");
     await vi.waitFor(() => expect(toastMessages()).toEqual(["Couldn't show the file: nope"]));
+  });
+
+  it("does not try to reveal a phone download stored as a content link", () => {
+    revealDownload("content://media/external/audio/media/42");
+    expect(bridge.revealPath).not.toHaveBeenCalled();
+    expect(toastMessages()).toEqual(["Saved in Music on this device"]);
   });
 
   it("opens the default folder when no custom folder is set", () => {

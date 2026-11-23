@@ -146,6 +146,22 @@ describe("network store", () => {
     expect(outcome).toEqual({ ok: false, message: "Wrong username or password." });
   });
 
+  it("shows the message of a plain string rejection", async () => {
+    bridge.networkServerTest.mockRejectedValue("Wrong username or password.");
+    const outcome = await useNetwork.getState().test({
+      id: "",
+      kind: "subsonic",
+      name: "",
+      url: "https://music.example",
+      host: "",
+      share: "",
+      path: "",
+      username: "me",
+      password: "nope",
+    });
+    expect(outcome).toEqual({ ok: false, message: "Wrong username or password." });
+  });
+
   it("keeps the password out of the store and out of local storage", async () => {
     bridge.networkServerSave.mockResolvedValue([{ ...server, kind: "subsonic", kindLabel: "Music server" }]);
     await useNetwork.getState().save({

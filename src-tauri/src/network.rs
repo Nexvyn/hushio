@@ -18,9 +18,7 @@ const STORE: &str = "network-servers";
 const VERSION: u64 = 1;
 const MAX_SERVERS: usize = 20;
 const STALE_AFTER_MS: u64 = 24 * 60 * 60 * 1000;
-const AUDIO_EXTENSIONS: [&str; 12] = [
-    "mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "m4b", "aiff", "alac", "wma", "webm",
-];
+const AUDIO_EXTENSIONS: [&str; 8] = ["mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "webm"];
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -689,6 +687,8 @@ mod tests {
         assert!(is_audio_name("song.mp3"));
         assert!(is_audio_name("Song.FLAC"));
         assert!(is_audio_name("track.m4a"));
+        assert!(!is_audio_name("track.wma"));
+        assert!(!is_audio_name("track.aiff"));
         assert!(!is_audio_name("cover.jpg"));
         assert!(!is_audio_name("readme"));
     }

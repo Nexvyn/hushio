@@ -276,6 +276,9 @@ pub fn normalize_folder(raw: &str) -> Option<String> {
     if trimmed.is_empty() {
         return None;
     }
+    if tree_library::is_tree_uri(trimmed) {
+        return Some(trimmed.to_owned());
+    }
     let mut text = std::path::absolute(trimmed).ok()?.to_string_lossy().into_owned();
     while text.len() > 3 && (text.ends_with('\\') || text.ends_with('/')) {
         text.pop();
@@ -543,6 +546,22 @@ pub fn read_track(path: &Path, size: u64, mtime: i64, art_dir: &Path) -> LocalTr
     track
 }
 
+pub fn merge_scan(
+    current: &[LocalTrack],
+    folders: &[LocalFolderEntry],
+    scanned_folders: &[LocalFolderEntry],
+    scanned: Vec<LocalTrack>,
+) -> Vec<LocalTrack> {
+    let under = |track: &LocalTrack, list: &[LocalFolderEntry]| list.iter().any(|folder| is_under_path(&track.path, &folder.path));
+    let mut merged: Vec<LocalTrack> = current
+        .iter()
+        .filter(|track| !under(track, scanned_folders))
+        .cloned()
+        .collect();
+    merged.extend(scanned.into_iter().filter(|track| under(track, folders)));
+    merged
+}
+
 pub fn scan(
     folders: &[LocalFolderEntry],
     previous: &[LocalTrack],
@@ -581,6 +600,7 @@ pub fn scan(
             if cached.mtime == mtime && cached.codec.is_some() && cached.tag_version == TAG_VERSION {
                 match codec_format(cached.codec.as_deref()) {
                     Some(format) => *counts.entry(format).or_default() += 1,
+                    None if filter_non_music && is_non_music(&candidate.rel, &name) => {}
                     None => tracks.push((*cached).clone()),
                 }
                 continue;
@@ -793,9 +813,11 @@ impl Service {
     }
 
     pub async fn scan(&self, filter_non_music: bool, approvals: &Folders) -> Result<LocalLibrary, String> {
-        let mut lib = self.library.lock().await;
-        let folders = approved_folders(approvals, &lib.folders);
-        let previous = lib.tracks.clone();
+        let (folders, previous) = {
+            let lib = self.library.lock().await;
+            (approved_folders(approvals, &lib.folders), lib.tracks.clone())
+        };
+        let scanned_folders = folders.clone();
         let art_dir = self.art_dir();
         let (tracks, unplayable) = tokio::task::spawn_blocking(move || {
             let (mut tracks, unplayable) = scan(&folders, &previous, filter_non_music, &art_dir);
@@ -804,7 +826,8 @@ impl Service {
         })
             .await
             .map_err(|error| error.to_string())?;
-        lib.tracks = tracks;
+        let mut lib = self.library.lock().await;
+        lib.tracks = merge_scan(&lib.tracks, &lib.folders, &scanned_folders, tracks);
         lib.unplayable = unplayable;
         lib.scanned_at = now_ms();
         self.save_library(&lib).await?;
