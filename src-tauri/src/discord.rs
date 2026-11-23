@@ -139,6 +139,20 @@ fn open_pipe() -> std::io::Result<(Writer, std::fs::File)> {
 }
 
 #[cfg(all(unix, not(target_os = "android"), not(target_os = "ios")))]
+const SOCKET_DIRS: [&str; 3] = ["", "app/com.discordapp.Discord", "snap.discord"];
+
+#[cfg(all(unix, not(target_os = "android"), not(target_os = "ios")))]
+fn socket_paths(root: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut paths = Vec::new();
+    for dir in SOCKET_DIRS {
+        for index in 0..PIPE_ATTEMPTS {
+            paths.push(root.join(dir).join(format!("discord-ipc-{index}")));
+        }
+    }
+    paths
+}
+
+#[cfg(all(unix, not(target_os = "android"), not(target_os = "ios")))]
 fn open_pipe() -> std::io::Result<(Writer, std::os::unix::net::UnixStream)> {
     let mut roots: Vec<std::path::PathBuf> = Vec::new();
     if let Some(dir) = std::env::var_os("XDG_RUNTIME_DIR") {
@@ -149,8 +163,7 @@ fn open_pipe() -> std::io::Result<(Writer, std::os::unix::net::UnixStream)> {
     }
     roots.push(std::path::PathBuf::from("/tmp"));
     for root in roots {
-        for index in 0..PIPE_ATTEMPTS {
-            let path = root.join(format!("discord-ipc-{index}"));
+        for path in socket_paths(&root) {
             if let Ok(socket) = std::os::unix::net::UnixStream::connect(path) {
                 let reader = socket.try_clone()?;
                 return Ok((Writer::Socket(socket), reader));
@@ -249,7 +262,44 @@ impl Client {
 
 struct Inner {
     stored: Stored,
-    playing: Option<(TrackInput, i64)>,
+    track: Option<TrackInput>,
+    playing: bool,
+    played_ms: i64,
+}
+
+impl Inner {
+    fn start(&mut self, track: &TrackInput) {
+        self.track = Some(track.clone());
+        self.playing = true;
+        self.played_ms = 0;
+    }
+
+    fn resume(&mut self, track: &TrackInput) {
+        self.track = Some(track.clone());
+        self.playing = true;
+    }
+
+    fn elapse(&mut self, delta_ms: f64) {
+        self.played_ms += delta_ms.max(0.0).round() as i64;
+    }
+
+    fn pause(&mut self, delta_ms: f64) {
+        self.playing = false;
+        self.elapse(delta_ms);
+    }
+
+    fn stop(&mut self) {
+        self.track = None;
+        self.playing = false;
+        self.played_ms = 0;
+    }
+
+    fn presence(&self, now_ms: i64) -> Option<Presence> {
+        if !self.playing {
+            return None;
+        }
+        presence_of(self.track.as_ref()?, now_ms - self.played_ms)
+    }
 }
 
 pub struct Service {
@@ -277,7 +327,9 @@ impl Service {
             connected: Arc::clone(&connected),
             inner: Mutex::new(Inner {
                 stored,
-                playing: None,
+                track: None,
+                playing: false,
+                played_ms: 0,
             }),
             root,
         };
@@ -313,28 +365,22 @@ impl Service {
         let Some(track) = event.track.as_ref().filter(|track| !track.id.is_empty()) else {
             return;
         };
-        match kind {
-            "start" => {
-                self.lock().playing = Some((track.clone(), now_ms));
-                self.publish(presence_of(track, now_ms));
+        let presence = {
+            let mut inner = self.lock();
+            match kind {
+                "start" => inner.start(track),
+                "resume" => inner.resume(track),
+                "pause" => inner.pause(event.delta_ms),
+                "progress" => {
+                    inner.elapse(event.delta_ms);
+                    return;
+                }
+                "stop" => inner.stop(),
+                _ => return,
             }
-            "resume" => {
-                let start = self
-                    .lock()
-                    .playing
-                    .as_ref()
-                    .map(|(_, start)| *start)
-                    .unwrap_or(now_ms);
-                self.lock().playing = Some((track.clone(), start));
-                self.publish(presence_of(track, start));
-            }
-            "pause" => self.publish(None),
-            "stop" => {
-                self.lock().playing = None;
-                self.publish(None);
-            }
-            _ => {}
-        }
+            inner.presence(now_ms)
+        };
+        self.publish(presence);
     }
 
     fn publish(&self, presence: Option<Presence>) {
@@ -360,9 +406,12 @@ impl Service {
         }
         self.enabled.store(enabled, Ordering::Relaxed);
         self.save().await;
-        if !enabled {
-            self.publish(None);
-        }
+        let presence = if enabled {
+            self.lock().presence(chrono::Utc::now().timestamp_millis())
+        } else {
+            None
+        };
+        self.publish(presence);
         Ok(self.status())
     }
 
@@ -378,7 +427,7 @@ impl Service {
     pub fn erase(&self) {
         let mut inner = self.lock();
         inner.stored = Stored::default();
-        inner.playing = None;
+        inner.stop();
         self.enabled.store(false, Ordering::Relaxed);
         self.connected.store(false, Ordering::Relaxed);
     }
@@ -509,6 +558,52 @@ mod tests {
         let frame = set_activity_frame(Some(&presence));
         assert_eq!(frame["args"]["pid"], std::process::id());
         assert!(frame["nonce"].as_str().is_some_and(|nonce| !nonce.is_empty()));
+    }
+
+    #[test]
+    fn a_resumed_track_keeps_the_time_already_played() {
+        let mut inner = Inner { stored: Stored::default(), track: None, playing: false, played_ms: 0 };
+        let song = track("Song", "Artist", None, Some(200.0));
+        inner.start(&song);
+        inner.pause(30_000.0);
+        inner.pause(-5.0);
+        assert!(inner.presence(100_000).is_none());
+        inner.resume(&song);
+        let presence = inner.presence(100_000).expect("presence");
+        assert_eq!(presence.start_ms, 70_000);
+        inner.stop();
+        assert!(inner.presence(100_000).is_none());
+    }
+
+    #[test]
+    fn progress_ticks_count_toward_the_time_played() {
+        let mut inner = Inner { stored: Stored::default(), track: None, playing: false, played_ms: 0 };
+        let song = track("Song", "Artist", None, Some(300.0));
+        inner.start(&song);
+        for _ in 0..24 {
+            inner.elapse(5_000.0);
+        }
+        inner.pause(0.0);
+        inner.resume(&song);
+        assert_eq!(inner.presence(200_000).expect("presence").start_ms, 80_000);
+    }
+
+    #[test]
+    fn enabling_shows_the_track_already_playing() {
+        let mut inner = Inner { stored: Stored::default(), track: None, playing: false, played_ms: 0 };
+        inner.start(&track("Song", "Artist", None, Some(200.0)));
+        inner.pause(10_000.0);
+        inner.resume(&track("Song", "Artist", None, Some(200.0)));
+        assert_eq!(inner.presence(50_000).expect("presence").start_ms, 40_000);
+    }
+
+    #[cfg(all(unix, not(target_os = "android"), not(target_os = "ios")))]
+    #[test]
+    fn discord_sockets_are_also_looked_for_in_flatpak_and_snap_folders() {
+        let paths = socket_paths(std::path::Path::new("/run/user/1000"));
+        assert_eq!(paths[0], std::path::PathBuf::from("/run/user/1000/discord-ipc-0"));
+        assert!(paths.contains(&std::path::PathBuf::from("/run/user/1000/app/com.discordapp.Discord/discord-ipc-3")));
+        assert!(paths.contains(&std::path::PathBuf::from("/run/user/1000/snap.discord/discord-ipc-0")));
     }
 
     #[test]

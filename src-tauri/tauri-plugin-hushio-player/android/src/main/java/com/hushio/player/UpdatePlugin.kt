@@ -15,6 +15,7 @@ import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import org.json.JSONException
 
 @TauriPlugin
 class UpdatePlugin(private val activity: Activity) : Plugin(activity) {
@@ -53,6 +54,8 @@ class UpdatePlugin(private val activity: Activity) : Plugin(activity) {
                 invoke.resolve(
                     JSObject().put("state", "error").put("message", "Couldn't reach GitHub (${error.message})."),
                 )
+            } catch (error: JSONException) {
+                invoke.resolve(JSObject().put("state", "error").put("message", NO_UPDATE))
             }
         }.start()
     }

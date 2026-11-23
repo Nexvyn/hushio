@@ -99,6 +99,13 @@ impl UpdateState {
         self.percent = None;
     }
 
+    pub fn keep_offer(&mut self) {
+        self.status = Status::Available;
+        self.percent = None;
+        self.error = None;
+        self.error_from = None;
+    }
+
     pub fn begin_download(&mut self) -> bool {
         if self.status != Status::Available || self.route != Route::InApp {
             return false;
@@ -356,6 +363,7 @@ pub async fn check(app: AppHandle, manual: bool) {
     if !service.change(&app, UpdateState::begin_check) {
         return;
     }
+    let had_offer = snapshot.status == Status::Available;
     let outcome = match newer_release(&snapshot.current).await {
         Ok(Some(version)) if snapshot.route == Route::InApp => {
             offer(&app).await.map(|update| {
@@ -375,7 +383,11 @@ pub async fn check(app: AppHandle, manual: bool) {
         }
         Err(message) => {
             service.change(&app, |state| {
-                state.fail(Phase::Check, message);
+                if had_offer {
+                    state.keep_offer();
+                } else {
+                    state.fail(Phase::Check, message);
+                }
                 true
             });
         }
@@ -579,6 +591,19 @@ mod tests {
         state.found(None);
         assert_eq!(state.status, Status::Current);
         assert_eq!(state.error, None);
+    }
+
+    #[test]
+    fn a_failed_recheck_keeps_the_update_already_found() {
+        let mut state = UpdateState::new("1.1.1".into(), Route::InApp);
+        assert!(state.begin_check());
+        state.found(Some("1.2.0".into()));
+        assert!(state.begin_check());
+        state.keep_offer();
+        assert_eq!(state.status, Status::Available);
+        assert_eq!(state.version.as_deref(), Some("1.2.0"));
+        assert_eq!(state.error, None);
+        assert!(state.begin_download());
     }
 
     #[test]
