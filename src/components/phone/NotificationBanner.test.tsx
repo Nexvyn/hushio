@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const { notificationState, notificationRequest, notificationSettings, persistRead, persistWrite } = vi.hoisted(() => ({
   notificationState: vi.fn(),
@@ -69,5 +69,29 @@ describe("NotificationBanner", () => {
     expect((await screen.findByRole("status")).textContent).toContain("Playback still works");
     fireEvent.click(screen.getByRole("button", { name: "Open settings" }));
     expect(notificationSettings).toHaveBeenCalledTimes(1);
+  });
+  it("closes when dismissed", async () => {
+    notificationState.mockResolvedValue("settings");
+    usePlayer.setState({ queue: [track], index: 0, playing: true });
+    render(<NotificationBanner />);
+    await screen.findByRole("status");
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("hides itself after a few seconds", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      notificationState.mockResolvedValue("settings");
+      usePlayer.setState({ queue: [track], index: 0, playing: true });
+      render(<NotificationBanner />);
+      await screen.findByRole("status");
+      await act(async () => {
+        vi.advanceTimersByTime(6500);
+      });
+      expect(screen.queryByRole("status")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

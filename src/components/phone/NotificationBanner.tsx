@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Bell } from "@phosphor-icons/react";
+import { Bell, X } from "@phosphor-icons/react";
 import { Button } from "../Button";
 import { PhoneIcon } from "./PhoneIcon";
 import {
@@ -15,9 +15,12 @@ import {
 } from "../../lib/notifications";
 import { currentTrack, usePlayer } from "../../stores/player";
 
+const AUTO_HIDE_MS = 6000;
+
 export function NotificationBanner() {
   const [state, setState] = useState<NotificationState>("granted");
   const playing = usePlayer((player) => currentTrack(player) !== null);
+  const [dismissed, setDismissed] = useState(false);
   const asked = useRef(false);
 
   useEffect(() => {
@@ -34,7 +37,15 @@ export function NotificationBanner() {
       .catch(() => setState("settings"));
   }, [playing, state]);
 
-  if (!showNotificationBanner(state, playing)) return null;
+  const visible = !dismissed && showNotificationBanner(state, playing);
+
+  useEffect(() => {
+    if (!visible) return;
+    const timer = window.setTimeout(() => setDismissed(true), AUTO_HIDE_MS);
+    return () => window.clearTimeout(timer);
+  }, [visible]);
+
+  if (!visible) return null;
 
   return (
     <div
@@ -51,6 +62,14 @@ export function NotificationBanner() {
       <Button variant="ghost" onClick={() => void notificationSettings()}>
         Open settings
       </Button>
+      <button
+        type="button"
+        aria-label="Dismiss"
+        onClick={() => setDismissed(true)}
+        className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-ink-2 focus-visible:outline-2 focus-visible:outline-accent"
+      >
+        <PhoneIcon icon={X} />
+      </button>
     </div>
   );
 }
