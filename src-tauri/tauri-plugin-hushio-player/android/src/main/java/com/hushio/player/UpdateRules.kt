@@ -31,9 +31,9 @@ object UpdateRules {
     fun apkName(version: String, abi: String): String = "hushio-$version-$abi.apk"
 
     fun pickApk(release: LatestRelease, abi: String?): ReleaseAsset? {
-        if (!isSupportedAbi(abi)) return null
         val version = version(release.tag) ?: return null
-        return find(release, apkName(version, abi!!))
+        val abiAsset = if (isSupportedAbi(abi)) find(release, apkName(version, abi!!)) else null
+        return abiAsset ?: find(release, apkName(version, "universal"))
     }
 
     fun find(release: LatestRelease, name: String): ReleaseAsset? = release.assets.firstOrNull { it.name == name }
