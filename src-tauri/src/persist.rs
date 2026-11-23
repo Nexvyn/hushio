@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
+use tokio::io::AsyncWriteExt;
 
 pub const MAX_STORE_BYTES: usize = 16 * 1024 * 1024;
 const RENAME_BACKOFF_MS: [u64; 4] = [40, 80, 120, 160];
@@ -15,15 +16,20 @@ pub fn store_path(root: &Path, owner: &str, name: &str) -> PathBuf {
 }
 
 fn sanitize(value: &str, fallback: &str) -> String {
-    let cleaned: String = value
-        .chars()
-        .filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
-        .collect();
-    if cleaned.is_empty() {
-        fallback.to_string()
-    } else {
-        cleaned
+    if value.is_empty() {
+        return fallback.to_string();
     }
+    let mut cleaned = String::with_capacity(value.len());
+    for c in value.chars() {
+        if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+            cleaned.push(c);
+        } else {
+            for byte in c.to_string().bytes() {
+                cleaned.push_str(&format!("~{byte:02x}"));
+            }
+        }
+    }
+    cleaned
 }
 
 pub async fn read(root: &Path, owner: &str, name: &str) -> Option<Value> {
@@ -40,13 +46,36 @@ pub async fn read(root: &Path, owner: &str, name: &str) -> Option<Value> {
         Ok(value) => Some(value),
         Err(error) => {
             tracing::warn!(%error, path = %path.display(), "store is not valid JSON");
+            move_aside(&path).await;
             None
         }
     }
 }
 
+async fn move_aside(path: &Path) {
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("store.json");
+    let millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis())
+        .unwrap_or(0);
+    let target = path.with_file_name(format!("{name}.corrupt-{millis}"));
+    if let Err(error) = tokio::fs::rename(path, &target).await {
+        tracing::warn!(%error, path = %path.display(), "could not move corrupt store aside");
+    }
+}
+
 pub async fn write(root: &Path, owner: &str, name: &str, data: &Value) -> Result<(), String> {
     let path = store_path(root, owner, name);
+    if data.is_null() {
+        return match tokio::fs::remove_file(&path).await {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error.to_string()),
+        };
+    }
     let bytes = serde_json::to_vec(data).map_err(|error| error.to_string())?;
     if bytes.len() > MAX_STORE_BYTES {
         return Err("Store is larger than 16 MiB".to_string());
@@ -64,7 +93,7 @@ async fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
     }
     let tmp = temp_path(path);
     let result = async {
-        tokio::fs::write(&tmp, bytes).await?;
+        write_synced(&tmp, bytes).await?;
         rename_with_retry(&tmp, path).await
     }
     .await;
@@ -74,6 +103,12 @@ async fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
         }
     }
     result
+}
+
+async fn write_synced(tmp: &Path, bytes: &[u8]) -> io::Result<()> {
+    let mut file = tokio::fs::File::create(tmp).await?;
+    file.write_all(bytes).await?;
+    file.sync_all().await
 }
 
 fn temp_path(path: &Path) -> PathBuf {
@@ -113,8 +148,8 @@ async fn rename_with_retry(tmp: &Path, target: &Path) -> io::Result<()> {
             Err(error) => last = error,
         }
     }
-    tracing::warn!(%last, "rename failed, copying the temp file instead");
-    tokio::fs::copy(tmp, target).await.map(|_| ())
+    tracing::warn!(%last, "rename failed");
+    Err(last)
 }
 
 #[cfg(test)]
@@ -217,9 +252,9 @@ mod tests {
         let path = store_path(root.path(), "../owner", "../library");
         assert_eq!(
             path.parent().expect("parent").file_name(),
-            Some("owner".as_ref())
+            Some("~2e~2e~2fowner".as_ref())
         );
-        assert_eq!(path.file_name(), Some("library.json".as_ref()));
+        assert_eq!(path.file_name(), Some("~2e~2e~2flibrary.json".as_ref()));
     }
 
     #[tokio::test]
@@ -286,6 +321,30 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn corrupt_file_is_moved_aside_before_reading_as_none() {
+        let root = temp_root();
+        let path = store_path(root.path(), "guest", "player");
+        let dir = path.parent().expect("parent").to_path_buf();
+        std::fs::create_dir_all(&dir).expect("dirs");
+        std::fs::write(&path, b"not json").expect("write");
+        assert_eq!(read(root.path(), "guest", "player").await, None);
+
+        assert!(!path.exists());
+        let moved: Vec<PathBuf> = std::fs::read_dir(&dir)
+            .expect("read dir")
+            .map(|entry| entry.expect("entry").path())
+            .filter(|moved| {
+                moved
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.starts_with("player.json.corrupt-"))
+            })
+            .collect();
+        assert_eq!(moved.len(), 1);
+        assert_eq!(std::fs::read(&moved[0]).expect("read moved"), b"not json");
+    }
+
+    #[tokio::test]
     async fn write_after_corrupt_file_recovers_the_store() {
         let root = temp_root();
         let path = store_path(root.path(), "guest", "player");
@@ -318,16 +377,70 @@ mod tests {
         let root = Path::new("root");
         let guest = root.join("data").join("guest").join("library.json");
         assert_eq!(store_path(root, "", "library"), guest);
-        assert_eq!(store_path(root, "@@@", "library"), guest);
     }
 
     #[test]
     fn empty_name_falls_back_to_store() {
         let root = Path::new("root");
         assert_eq!(
-            store_path(root, "guest", "..."),
+            store_path(root, "guest", ""),
             root.join("data").join("guest").join("store.json")
         );
+    }
+
+    #[test]
+    fn names_with_different_punctuation_do_not_collide() {
+        let root = Path::new("root");
+        assert_ne!(
+            store_path(root, "guest", "a.b"),
+            store_path(root, "guest", "ab")
+        );
+        assert_eq!(
+            store_path(root, "guest", "a.b"),
+            root.join("data").join("guest").join("a~2eb.json")
+        );
+    }
+
+    #[test]
+    fn plain_names_are_unchanged() {
+        let root = Path::new("root");
+        assert_eq!(
+            store_path(root, "guest", "my_store-1"),
+            root.join("data").join("guest").join("my_store-1.json")
+        );
+    }
+
+    #[tokio::test]
+    async fn punctuated_name_round_trips_to_its_own_value() {
+        let root = temp_root();
+        write(root.path(), "guest", "a.b", &json!({ "dot": true }))
+            .await
+            .expect("write");
+        assert_eq!(
+            read(root.path(), "guest", "a.b").await,
+            Some(json!({ "dot": true }))
+        );
+        assert_eq!(read(root.path(), "guest", "ab").await, None);
+    }
+
+    #[tokio::test]
+    async fn writing_null_removes_the_store() {
+        let root = temp_root();
+        write(root.path(), "guest", "player", &json!({ "volume": 0.5 }))
+            .await
+            .expect("write");
+        write(root.path(), "guest", "player", &Value::Null)
+            .await
+            .expect("null write");
+        assert!(!store_path(root.path(), "guest", "player").exists());
+        assert_eq!(read(root.path(), "guest", "player").await, None);
+    }
+
+    #[tokio::test]
+    async fn writing_null_for_a_missing_store_is_ok() {
+        let root = temp_root();
+        assert_eq!(write(root.path(), "guest", "player", &Value::Null).await, Ok(()));
+        assert_eq!(read(root.path(), "guest", "player").await, None);
     }
 
     #[test]

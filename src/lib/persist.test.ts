@@ -84,4 +84,55 @@ describe("persistStorage", () => {
       persistStorage<Player>("player").setItem("player", { state: { volume: 1 }, version: 0 }),
     ).rejects.toThrow("store is larger than 16 MiB");
   });
+
+  it("runs writes to the same store one after another in call order", async () => {
+    const started: string[] = [];
+    let releaseFirst: () => void = () => {};
+    bridge.persistWrite
+      .mockImplementationOnce(async () => {
+        started.push("first");
+        await new Promise<void>((resolve) => {
+          releaseFirst = resolve;
+        });
+        return true;
+      })
+      .mockImplementationOnce(async () => {
+        started.push("second");
+        return true;
+      });
+    const storage = persistStorage<Player>("player");
+
+    const first = storage.setItem("player", { state: { volume: 0.1 }, version: 0 });
+    const second = storage.removeItem("player");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(started).toEqual(["first"]);
+
+    releaseFirst();
+    await Promise.all([first, second]);
+
+    expect(started).toEqual(["first", "second"]);
+    expect(bridge.persistWrite).toHaveBeenNthCalledWith(
+      1,
+      "player",
+      { state: { volume: 0.1 }, version: 0 },
+      "guest",
+    );
+    expect(bridge.persistWrite).toHaveBeenNthCalledWith(2, "player", null, "guest");
+  });
+
+  it("does not let a failed write block the next one", async () => {
+    bridge.persistWrite.mockRejectedValueOnce(new Error("disk full")).mockResolvedValueOnce(true);
+    const storage = persistStorage<Player>("player");
+
+    const failing = storage.setItem("player", { state: { volume: 0.2 }, version: 0 });
+    const next = storage.setItem("player", { state: { volume: 0.3 }, version: 0 });
+
+    await expect(failing).rejects.toThrow("disk full");
+    await expect(next).resolves.toBeUndefined();
+    expect(bridge.persistWrite).toHaveBeenLastCalledWith(
+      "player",
+      { state: { volume: 0.3 }, version: 0 },
+      "guest",
+    );
+  });
 });
