@@ -48,6 +48,7 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="1.0.1" date="2026-11-23"/>
     <release version="1.0.0" date="2026-11-20">
       <description>
         <p>First public release, with Windows, macOS, Linux and Android downloads.</p>
