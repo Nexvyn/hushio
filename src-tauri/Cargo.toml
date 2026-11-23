@@ -4,6 +4,8 @@ version = "1.0.1"
 description = "Hushio, a free music player"
 authors = ["Nexvyn"]
 license = "GPL-3.0-only"
+homepage = "https://hushio.nexvyn.dev"
+repository = "https://github.com/Nexvyn/hushio"
 edition = "2024"
 
 [lib]

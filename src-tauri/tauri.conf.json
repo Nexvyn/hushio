@@ -38,8 +38,11 @@
     "resources": { "resources/mpv/": "mpv/" },
     "targets": ["nsis", "dmg", "app"],
     "category": "Music",
-    "shortDescription": "Hushio — desktop music player for Windows & macOS",
-    "longDescription": "Hushio — desktop music player for Windows & macOS",
+    "publisher": "Nexvyn",
+    "homepage": "https://hushio.nexvyn.dev",
+    "copyright": "Copyright © 2026 Nexvyn. GPL-3.0-only.",
+    "shortDescription": "A free music player",
+    "longDescription": "Hushio is a free, calm music player for Windows, macOS, Linux and Android, with no ads and no servers.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

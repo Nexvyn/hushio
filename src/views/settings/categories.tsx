@@ -3,7 +3,7 @@ import { VinylRecord, Warning, ChartBar, Waveform, ChartLine, CloudArrowDown, Cl
 import type { ReactNode } from "react";
 import type { ThemeMode } from "../../lib/theme";
 import { Button } from "../../components/Button";
-import { AboutHeader, AboutMaker, GITHUB_URL } from "./AboutSettings";
+import { AboutHeader, AboutMaker, GITHUB_URL, WEBSITE_URL } from "./AboutSettings";
 import { Equalizer } from "../../components/Equalizer";
 import { AndroidUpdateControl } from "./AndroidUpdateControl";
 import { GoogleAccountCard } from "../../components/GoogleAccountCard";
@@ -1097,7 +1097,7 @@ function aboutCategory({ settings: s, version, updates, platform, navigate }: Bu
     icon: Info,
     groups: [
       { rows: [], body: <AboutHeader version={version} />, plain: true },
-      { title: "About the maker", rows: [], body: <AboutMaker onOpen={() => updates.openPage(GITHUB_URL)} /> },
+      { title: "About the maker", rows: [], body: <AboutMaker onOpen={() => updates.openPage(GITHUB_URL)} onWebsite={() => updates.openPage(WEBSITE_URL)} /> },
       {
         rows: [
           {
