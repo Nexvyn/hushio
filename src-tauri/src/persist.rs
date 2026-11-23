@@ -7,6 +7,7 @@ use tokio::io::AsyncWriteExt;
 
 pub const MAX_STORE_BYTES: usize = 16 * 1024 * 1024;
 const RENAME_BACKOFF_MS: [u64; 4] = [40, 80, 120, 160];
+const KEPT_CORRUPT_COPIES: usize = 3;
 const DIGITS: &[u8; 36] = b"0123456789abcdefghijklmnopqrstuvwxyz";
 
 pub fn store_path(root: &Path, owner: &str, name: &str) -> PathBuf {
@@ -21,7 +22,7 @@ fn sanitize(value: &str, fallback: &str) -> String {
     }
     let mut cleaned = String::with_capacity(value.len());
     for c in value.chars() {
-        if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+        if c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-' {
             cleaned.push(c);
         } else {
             for byte in c.to_string().bytes() {
@@ -64,6 +65,48 @@ async fn move_aside(path: &Path) {
     let target = path.with_file_name(format!("{name}.corrupt-{millis}"));
     if let Err(error) = tokio::fs::rename(path, &target).await {
         tracing::warn!(%error, path = %path.display(), "could not move corrupt store aside");
+        return;
+    }
+    prune_corrupt_copies(path, name).await;
+}
+
+async fn prune_corrupt_copies(path: &Path, name: &str) {
+    let Some(dir) = path.parent() else {
+        return;
+    };
+    let prefix = format!("{name}.corrupt-");
+    let mut entries = match tokio::fs::read_dir(dir).await {
+        Ok(entries) => entries,
+        Err(error) => {
+            tracing::warn!(%error, path = %dir.display(), "could not list corrupt stores");
+            return;
+        }
+    };
+    let mut copies: Vec<(u128, PathBuf)> = Vec::new();
+    loop {
+        match entries.next_entry().await {
+            Ok(Some(entry)) => {
+                let file_name = entry.file_name();
+                let millis = file_name
+                    .to_str()
+                    .and_then(|file_name| file_name.strip_prefix(prefix.as_str()))
+                    .and_then(|millis| millis.parse::<u128>().ok());
+                if let Some(millis) = millis {
+                    copies.push((millis, entry.path()));
+                }
+            }
+            Ok(None) => break,
+            Err(error) => {
+                tracing::warn!(%error, path = %dir.display(), "could not list corrupt stores");
+                break;
+            }
+        }
+    }
+    copies.sort_by(|a, b| b.0.cmp(&a.0));
+    for (_, stale) in copies.into_iter().skip(KEPT_CORRUPT_COPIES) {
+        if let Err(error) = tokio::fs::remove_file(&stale).await {
+            tracing::warn!(%error, path = %stale.display(), "could not remove old corrupt store");
+        }
     }
 }
 
@@ -486,5 +529,71 @@ mod tests {
             read(root.path(), "../..", "../escape").await,
             Some(json!({ "ok": true }))
         );
+    }
+
+    #[test]
+    fn uppercase_letters_are_encoded() {
+        let root = Path::new("root");
+        assert_eq!(
+            store_path(root, "guest", "A"),
+            root.join("data").join("guest").join("~41.json")
+        );
+        assert_ne!(
+            store_path(root, "guest", "A"),
+            store_path(root, "guest", "a")
+        );
+    }
+
+    #[test]
+    fn all_lowercase_names_are_unchanged() {
+        let root = Path::new("root");
+        assert_eq!(
+            store_path(root, "guest", "library-2"),
+            root.join("data").join("guest").join("library-2.json")
+        );
+    }
+
+    #[tokio::test]
+    async fn uppercase_name_round_trips_without_sharing_its_lowercase_file() {
+        let root = temp_root();
+        write(root.path(), "guest", "A", &json!({ "upper": true }))
+            .await
+            .expect("write");
+        assert_eq!(
+            read(root.path(), "guest", "A").await,
+            Some(json!({ "upper": true }))
+        );
+        assert_eq!(read(root.path(), "guest", "a").await, None);
+    }
+
+    #[tokio::test]
+    async fn corrupt_copies_keep_only_the_newest_three() {
+        let root = temp_root();
+        let path = store_path(root.path(), "guest", "player");
+        let dir = path.parent().expect("parent").to_path_buf();
+        std::fs::create_dir_all(&dir).expect("dirs");
+        for old in [10u128, 20, 30, 40, 50] {
+            std::fs::write(dir.join(format!("player.json.corrupt-{old}")), b"old").expect("old");
+        }
+        std::fs::write(dir.join("library.json.corrupt-1"), b"other").expect("other");
+        std::fs::write(&path, b"not json").expect("write");
+
+        assert_eq!(read(root.path(), "guest", "player").await, None);
+
+        let mut kept: Vec<u128> = std::fs::read_dir(&dir)
+            .expect("read dir")
+            .filter_map(|entry| {
+                let name = entry.expect("entry").file_name().to_string_lossy().into_owned();
+                name.strip_prefix("player.json.corrupt-")
+                    .and_then(|millis| millis.parse::<u128>().ok())
+            })
+            .collect();
+        kept.sort_unstable();
+        assert_eq!(kept.len(), 3);
+        assert_eq!(kept[0], 40);
+        assert_eq!(kept[1], 50);
+        assert!(kept[2] > 50);
+        assert!(dir.join("library.json.corrupt-1").exists());
+        assert!(!path.exists());
     }
 }

@@ -7,12 +7,16 @@ const bridge = vi.hoisted(() => ({
 
 vi.mock("./bridge", () => bridge);
 
+import { useUI } from "../stores/ui";
 import { persistStorage } from "./persist";
 
 type Player = { volume: number };
 
+const toast = vi.fn();
+
 beforeEach(() => {
   vi.clearAllMocks();
+  useUI.setState({ toast });
 });
 
 describe("persistStorage", () => {
@@ -78,11 +82,44 @@ describe("persistStorage", () => {
     );
   });
 
-  it("lets a failed native write reject instead of hiding it", async () => {
+  it("does not throw out of setItem or removeItem when the native write fails", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
     bridge.persistWrite.mockRejectedValue(new Error("store is larger than 16 MiB"));
+    const storage = persistStorage<Player>("player");
+
     await expect(
-      persistStorage<Player>("player").setItem("player", { state: { volume: 1 }, version: 0 }),
-    ).rejects.toThrow("store is larger than 16 MiB");
+      storage.setItem("player", { state: { volume: 1 }, version: 0 }),
+    ).resolves.toBeUndefined();
+    await expect(storage.removeItem("player")).resolves.toBeUndefined();
+
+    expect(error).toHaveBeenCalledTimes(2);
+    expect(error.mock.calls[0]?.[0]).toContain("player");
+    error.mockRestore();
+  });
+
+  it("shows one save failure toast per store per minute", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.useFakeTimers();
+    try {
+      bridge.persistWrite.mockRejectedValue(new Error("disk full"));
+      const state = { state: { volume: 1 }, version: 0 };
+      const quick = persistStorage<Player>("toast-once");
+      const other = persistStorage<Player>("toast-other");
+
+      await quick.setItem("toast-once", state);
+      await quick.setItem("toast-once", state);
+      expect(toast).toHaveBeenCalledTimes(1);
+      expect(toast).toHaveBeenCalledWith(expect.stringContaining("Couldn't save"), "error");
+
+      await other.setItem("toast-other", state);
+      expect(toast).toHaveBeenCalledTimes(2);
+
+      vi.advanceTimersByTime(60_000);
+      await quick.setItem("toast-once", state);
+      expect(toast).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("runs writes to the same store one after another in call order", async () => {
@@ -121,14 +158,16 @@ describe("persistStorage", () => {
   });
 
   it("does not let a failed write block the next one", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
     bridge.persistWrite.mockRejectedValueOnce(new Error("disk full")).mockResolvedValueOnce(true);
     const storage = persistStorage<Player>("player");
 
     const failing = storage.setItem("player", { state: { volume: 0.2 }, version: 0 });
     const next = storage.setItem("player", { state: { volume: 0.3 }, version: 0 });
 
-    await expect(failing).rejects.toThrow("disk full");
+    await expect(failing).resolves.toBeUndefined();
     await expect(next).resolves.toBeUndefined();
+    expect(bridge.persistWrite).toHaveBeenCalledTimes(2);
     expect(bridge.persistWrite).toHaveBeenLastCalledWith(
       "player",
       { state: { volume: 0.3 }, version: 0 },
