@@ -21,6 +21,9 @@ env:
   PNPM_VERSION: 10.34.5
   LINUX_DEPS: build-essential curl wget file libxdo-dev libssl-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libsecret-1-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav xvfb dbus-x11 gnome-keyring libasound2-dev
   TAG: ${{ inputs.tag || github.ref_name }}
+  HUSHIO_GOOGLE_CLIENT_ID: ${{ secrets.HUSHIO_GOOGLE_CLIENT_ID }}
+  HUSHIO_GOOGLE_CLIENT_SECRET: ${{ secrets.HUSHIO_GOOGLE_CLIENT_SECRET }}
+  HUSHIO_SPOTIFY_CLIENT_ID: ${{ secrets.HUSHIO_SPOTIFY_CLIENT_ID }}
 jobs:
   prepare:
     runs-on: ubuntu-latest
@@ -399,8 +402,6 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          HUSHIO_GOOGLE_CLIENT_ID: ${{ secrets.HUSHIO_GOOGLE_CLIENT_ID }}
-          HUSHIO_SPOTIFY_CLIENT_ID: ${{ secrets.HUSHIO_SPOTIFY_CLIENT_ID }}
         run: |
           set -euo pipefail
           pnpm build:web
