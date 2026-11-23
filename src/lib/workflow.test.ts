@@ -50,10 +50,10 @@ const ciJobs = ci.jobs;
 const SIGNING_SECRETS = ["TAURI_SIGNING_PRIVATE_KEY", "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"];
 const ANDROID_SECRETS = ["ANDROID_KEYSTORE_BASE64", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD"];
 const APPLE_SECRETS = ["APPLE_CERTIFICATE", "APPLE_CERTIFICATE_PASSWORD", "APPLE_SIGNING_IDENTITY", "APPLE_ID", "APPLE_PASSWORD", "APPLE_TEAM_ID"];
-const CLIENT_ID_SECRETS = ["HUSHIO_GOOGLE_CLIENT_ID", "HUSHIO_SPOTIFY_CLIENT_ID"];
+const CLIENT_KEY_SECRETS = ["HUSHIO_GOOGLE_CLIENT_ID", "HUSHIO_GOOGLE_CLIENT_SECRET", "HUSHIO_SPOTIFY_CLIENT_ID"];
 const REQUIRED_SECRETS = [...SIGNING_SECRETS, ...ANDROID_SECRETS];
-const ALLOWED_SECRETS = ["GITHUB_TOKEN", ...REQUIRED_SECRETS, ...APPLE_SECRETS, ...CLIENT_ID_SECRETS];
-const SECRET_ENV_KEYS = [...REQUIRED_SECRETS, ...APPLE_SECRETS, ...CLIENT_ID_SECRETS];
+const ALLOWED_SECRETS = ["GITHUB_TOKEN", ...REQUIRED_SECRETS, ...APPLE_SECRETS, ...CLIENT_KEY_SECRETS];
+const SECRET_ENV_KEYS = [...REQUIRED_SECRETS, ...APPLE_SECRETS, ...CLIENT_KEY_SECRETS];
 
 const needsOf = (job: Job): string[] => (typeof job.needs === "string" ? [job.needs] : (job.needs ?? []));
 const stepsOf = (job: Job): Step[] => job.steps ?? [];
@@ -312,9 +312,9 @@ describe("release workflow", () => {
     expect(ndk).toContain("NDK_HOME=$ANDROID_HOME/ndk/${ANDROID_NDK_VERSION}");
   });
 
-  it("installs only the three Rust Android targets, without i686", () => {
+  it("installs only the two Rust Android targets, arm64 and armv7, without i686 or x86_64", () => {
     const toolchain = usesIn(jobs.android, "actions-rust-lang/setup-rust-toolchain@")[0];
-    expect(toolchain?.with?.target).toBe("aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android");
+    expect(toolchain?.with?.target).toBe("aarch64-linux-android,armv7-linux-androideabi");
     expect(JSON.stringify(jobs.android)).not.toMatch(/i686/);
   });
 
@@ -325,18 +325,19 @@ describe("release workflow", () => {
     expect(build.indexOf("pnpm build:web")).toBeLessThan(build.indexOf("pnpm tauri android build"));
     expect(build).toContain(`NO_WEB='{"build":{"beforeBuildCommand":null}}'`);
     expect(build.split('--config "$NO_WEB"')).toHaveLength(3);
-    expect(build).toContain("pnpm tauri android build --apk --split-per-abi --target aarch64 armv7 x86_64");
-    expect(build).toContain("pnpm tauri android build --apk --target aarch64 armv7 x86_64");
+    expect(build).toContain("pnpm tauri android build --apk --split-per-abi --target aarch64 armv7");
+    expect(build).toContain("pnpm tauri android build --apk --target aarch64 armv7");
+    expect(build).not.toContain("x86_64");
   });
 
-  it("reads the keystore and client IDs only through the secrets context and only in the android job", () => {
+  it("passes the three client keys to every job through workflow env and the keystore only to the android steps", () => {
+    for (const name of CLIENT_KEY_SECRETS) expect(release.env?.[name], name).toBe(`\${{ secrets.${name} }}`);
     expect(stepNamed(jobs.android, "Decode the release keystore").env?.ANDROID_KEYSTORE_BASE64).toBe("${{ secrets.ANDROID_KEYSTORE_BASE64 }}");
     const build = stepNamed(jobs.android, "Build the APKs").env ?? {};
     expect(build.ANDROID_KEYSTORE_PASSWORD).toBe("${{ secrets.ANDROID_KEYSTORE_PASSWORD }}");
     expect(build.ANDROID_KEY_ALIAS).toBe("${{ secrets.ANDROID_KEY_ALIAS }}");
     expect(build.ANDROID_KEY_PASSWORD).toBe("${{ secrets.ANDROID_KEY_PASSWORD }}");
-    expect(build.HUSHIO_GOOGLE_CLIENT_ID).toBe("${{ secrets.HUSHIO_GOOGLE_CLIENT_ID }}");
-    expect(build.HUSHIO_SPOTIFY_CLIENT_ID).toBe("${{ secrets.HUSHIO_SPOTIFY_CLIENT_ID }}");
+    expect(Object.keys(build).sort()).toEqual(["ANDROID_KEYSTORE_FILE", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD"]);
     for (const name of ["windows", "macos", "linux", "publish"] as const) {
       expect(JSON.stringify(jobs[name])).not.toContain("ANDROID_");
     }
@@ -351,7 +352,7 @@ describe("release workflow", () => {
   it("names and verifies the APKs, then uploads the APK files without a checksum file", () => {
     const names = stepNamed(jobs.android, "Name and verify the APKs").run ?? "";
     for (const expected of [
-      "for pair in arm64:arm64-v8a arm:armeabi-v7a x86_64:x86_64",
+      "for pair in arm64:arm64-v8a arm:armeabi-v7a; do",
       'cp "$BUILD/$flavor/release/app-$flavor-release.apk" "$APK_DIR/hushio-$VERSION-$abi.apk"',
       'cp "$BUILD/universal/release/app-universal-release.apk" "$APK_DIR/hushio-$VERSION-universal.apk"',
       '"$APKSIGNER" verify --verbose',
@@ -394,7 +395,8 @@ describe("release workflow", () => {
     expect(publish.run).toBe('gh release edit "$TAG" --draft=false --latest');
   });
 
-  it("reads every signing and keystore value only through the secrets context", () => {
+  it("reads every signing, keystore and client key only through the secrets context and hard-codes none", () => {
+    for (const name of CLIENT_KEY_SECRETS) expect(release.env?.[name], name).toBe(`\${{ secrets.${name} }}`);
     for (const [key, value] of allEnvEntries(release)) {
       if (!SECRET_ENV_KEYS.includes(key)) continue;
       expect(value, key).toMatch(/^\$\{\{ secrets\.[A-Z0-9_]+ \}\}$/);

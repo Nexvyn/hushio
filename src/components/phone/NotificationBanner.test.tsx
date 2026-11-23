@@ -80,14 +80,19 @@ describe("NotificationBanner", () => {
   });
 
   it("hides itself after a few seconds", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.useFakeTimers();
     try {
       notificationState.mockResolvedValue("settings");
       usePlayer.setState({ queue: [track], index: 0, playing: true });
       render(<NotificationBanner />);
-      await screen.findByRole("status");
-      await act(async () => {
-        vi.advanceTimersByTime(6500);
+      await act(async () => {});
+      expect(screen.getByRole("status")).toBeTruthy();
+      act(() => {
+        vi.advanceTimersByTime(5999);
+      });
+      expect(screen.getByRole("status")).toBeTruthy();
+      act(() => {
+        vi.advanceTimersByTime(1);
       });
       expect(screen.queryByRole("status")).toBeNull();
     } finally {
