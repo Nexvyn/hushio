@@ -14,7 +14,7 @@ import { analysable, Leveling, Lru } from "./loudness";
 import { headTrimTarget, TRIM_MIN_S, tailReached } from "./playbackEdges";
 import { resolveStream } from "./resolveStream";
 import { traceMark } from "./streamTrace";
-import { addonStreamFor, addonsEnabled } from "./addons/resolve";
+import { addonStreamFor } from "./addons/resolve";
 import { isJioSaavnId } from "./jiosaavn";
 import { fileDetails, fileDetailsWithMime, streamDetails, type StreamDetails } from "./streamStats";
 import { useNowStream } from "../stores/nowStream";
@@ -36,6 +36,7 @@ import { ANDROID, type PlayMeta } from "./androidPlayback";
 import { clampCrossfadeSeconds, useSettings, type SettingsValues } from "../stores/settings";
 import { playFailedMessage } from "./playFailed";
 import { useUI } from "../stores/ui";
+import { castPlayPauseFromApp, castSeekFromApp, castTrackFromApp, isCasting } from "./castState";
 import { NativeAudioDeck, onExclusiveRejected, usesNativeAudio } from "./nativeAudioDeck";
 import { appVolume, blendForOutput, EXCLUSIVE_UNAVAILABLE, eqForOutput, exclusiveActive, levelGain } from "./exclusive";
 import { gaplessEligible, keepsPrepared, shouldPrepareGapless } from "./gapless";
@@ -121,6 +122,7 @@ let pausedAt: number | null = null;
 let stall: Stall | null = null;
 let graph: Graph | null = null;
 let volume = 1;
+let muted = false;
 let curve = { out: 1, incoming: 0 };
 let armed: Armed | null = null;
 let fade: Fade | null = null;
@@ -131,6 +133,7 @@ let eqState: EqSettings = { enabled: false, gains: NO_GAINS, autoHeadroom: true 
 let eqPeakDb = 0;
 const deckIds: (string | undefined)[] = [undefined, undefined];
 const deckSources: (string | undefined)[] = [undefined, undefined];
+const analysisStreams = new Map<string, string>();
 const deckStreams: (StreamInfo | undefined)[] = [undefined, undefined];
 const deckDetails: (StreamDetails | undefined)[] = [undefined, undefined];
 const leveling = new Leveling(() => useSettings.getState().loudnessLevel);
@@ -332,15 +335,16 @@ export function setVolume(value: number): void {
   if (!Number.isFinite(value)) return;
   volume = clamp(value, 0, 1);
   if (ANDROID) {
-    androidSetVolume(volume);
+    androidSetVolume(muted ? 0 : volume);
     return;
   }
   refreshVolumes();
 }
 
 export function setMuted(value: boolean): void {
+  muted = value;
   if (ANDROID) {
-    androidSetVolume(value ? 0 : volume);
+    androidSetVolume(muted ? 0 : volume);
     return;
   }
   for (const deck of decks) deck.muted = value;
@@ -471,9 +475,19 @@ async function sourceFor(id: string, refresh: boolean): Promise<Source> {
   return (await savedSource(id)) ?? streamSource(id, refresh);
 }
 
+async function analysisStreamFor(id: string, stream: { mime: string }, port: number): Promise<string | null> {
+  const { loudnessLevel } = useSettings.getState();
+  if (!stream.mime.includes("webm") || (!blendEdges() && loudnessLevel === "off")) return null;
+  const aac = await resolveStream(id, false, undefined, true).catch(() => null);
+  if (!aac?.mime.includes("mp4")) return null;
+  const key = `${id}#analysis`;
+  await registerStreamUrl(key, aac.url);
+  return `http://127.0.0.1:${port}/?id=${encodeURIComponent(key)}`;
+}
+
 async function streamSource(id: string, refresh: boolean): Promise<Source> {
   const maxKbps = currentStreamBitrate();
-  const addon = addonsEnabled(maxKbps === undefined) ? await addonStreamFor(id) : null;
+  const addon = await addonStreamFor(id, maxKbps === undefined);
   const resolving = addon?.stream
     ? Promise.resolve(addon.stream)
     : maxKbps === undefined
@@ -482,6 +496,11 @@ async function streamSource(id: string, refresh: boolean): Promise<Source> {
   const [stream, port] = await Promise.all([resolving, streamProxyPort()]);
   await registerStreamUrl(id, stream.url);
   const url = `http://127.0.0.1:${port}/?id=${encodeURIComponent(id)}`;
+  void analysisStreamFor(id, stream, port)
+    .catch(() => null)
+    .then((analysis) => {
+      if (analysis) analysisStreams.set(id, analysis);
+    });
   return {
     src: url,
     analysis: url,
@@ -614,12 +633,16 @@ async function reloadMain(current: Song): Promise<void> {
 
 export async function playStream(id: string, title: string, fromSeconds = 0, meta: PlayMeta = {}): Promise<void> {
   traceMark("tap", id);
-  if (ANDROID) return androidPlayStream(id, title, fromSeconds, meta);
+  if (ANDROID) {
+    if (isCasting()) return castTrackFromApp(id, title, fromSeconds, meta);
+    return androidPlayStream(id, title, fromSeconds, meta);
+  }
   abortBlend();
   abortGapless();
   disarmSilence();
   disarmStall();
   disarmClipEnd();
+  activeDeck().pause();
   song = { id, title };
   wantPlaying = true;
   pausedAt = null;
@@ -627,12 +650,20 @@ export async function playStream(id: string, title: string, fromSeconds = 0, met
   retryCount = 0;
   retriedAt = Number.NEGATIVE_INFINITY;
   const seq = ++loadSeq;
-  await loadStream(id, false, seq);
+  try {
+    await loadStream(id, false, seq);
+  } catch (error) {
+    wantPlaying = false;
+    throw error;
+  }
   await startPlayback(seq);
 }
 
 export async function play(): Promise<void> {
-  if (ANDROID) return androidPlay();
+  if (ANDROID) {
+    if (isCasting()) return castPlayPauseFromApp(true);
+    return androidPlay();
+  }
   const current = song;
   if (!current) return;
   const resuming = !wantPlaying;
@@ -642,7 +673,7 @@ export async function play(): Promise<void> {
   if (resuming) {
     retryCount = 0;
     retriedAt = Number.NEGATIVE_INFINITY;
-    if (isStale(pausedFor)) {
+    if (isStale(pausedFor) || deckIds[mainIndex] !== current.id) {
       abortBlend();
       await reloadMain(current);
       return;
@@ -654,7 +685,8 @@ export async function play(): Promise<void> {
 
 export function pause(): void {
   if (ANDROID) {
-    androidPause();
+    if (isCasting()) castPlayPauseFromApp(false);
+    else androidPause();
     return;
   }
   if (wantPlaying) pausedAt = Date.now();
@@ -674,7 +706,8 @@ export function getPlaybackPosition(): number {
 export function seekTo(seconds: number): void {
   if (!Number.isFinite(seconds)) return;
   if (ANDROID) {
-    androidSeek(seconds);
+    if (isCasting()) castSeekFromApp(seconds);
+    else androidSeek(seconds);
     return;
   }
   abortBlend();
@@ -987,7 +1020,7 @@ function abortBlend(): void {
 
 async function analyseDeck(index: number): Promise<void> {
   const id = deckIds[index];
-  const source = deckSources[index];
+  const source = (id === undefined ? undefined : analysisStreams.get(id)) ?? deckSources[index];
   const deck = decks[index];
   if (id === undefined || source === undefined || analyses.has(id) || analysing.has(id)) return;
   if (!analysable(deck.duration)) return;

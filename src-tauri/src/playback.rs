@@ -102,11 +102,35 @@ fn validate_stream_url(source: &str, proxy_port: u16) -> Result<(), String> {
     }
 }
 
+fn equalizer_filters(enabled: bool, gains: &[f64], auto_headroom: bool) -> Vec<String> {
+    let mut filters = Vec::new();
+    if enabled && auto_headroom {
+        let headroom = gains.iter().copied().fold(0.0, f64::max);
+        filters.push(format!("volume=-{headroom}dB"));
+    }
+    let bands = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+    for (index, (&frequency, &gain)) in bands.iter().zip(gains).enumerate() {
+        if !enabled || gain == 0.0 {
+            continue;
+        }
+        let filter = if index == 0 {
+            format!("bass=f={frequency}:t=q:w=0.707:g={gain}")
+        } else if index == bands.len() - 1 {
+            format!("treble=f={frequency}:t=q:w=0.707:g={gain}")
+        } else {
+            format!("equalizer=f={frequency}:t=q:w=1.41:g={gain}")
+        };
+        filters.push(filter);
+    }
+    filters.push("alimiter=limit=0.944061:attack=2:release=150:level=false:latency=true".to_owned());
+    filters
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::json;
 
-    use super::{binary_runs, exclusive_command, should_turn_off, validate_stream_url};
+    use super::{binary_runs, equalizer_filters, exclusive_command, should_turn_off, validate_stream_url};
 
     #[test]
     fn missing_binary_is_not_available() {
@@ -126,6 +150,29 @@ mod tests {
         assert!(should_turn_off(true, &failed));
         assert!(!should_turn_off(true, &Ok(())));
         assert!(!should_turn_off(false, &failed));
+    }
+
+    #[test]
+    fn headroom_follows_the_largest_boost_not_the_sum() {
+        let loudness = [5.0, 4.0, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 4.0, 5.0];
+        let filters = equalizer_filters(true, &loudness, true);
+        assert_eq!(filters[0], "volume=-5dB");
+        assert!(equalizer_filters(false, &loudness, true)[0].starts_with("alimiter"));
+        assert!(equalizer_filters(true, &loudness, false)[0].starts_with("bass"));
+    }
+
+    #[test]
+    fn a_closed_mpv_pipe_reports_shutdown_to_the_deck() {
+        tauri::async_runtime::block_on(async {
+            let (client_side, server_side) = tokio::io::duplex(64);
+            drop(server_side);
+            let stream: super::BoxedStream = Box::new(client_side);
+            let (reader, _writer) = tokio::io::split(stream);
+            let (events, mut received) = tokio::sync::broadcast::channel(8);
+            let pending = std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
+            super::read_messages(reader, pending, events, tokio_util::sync::CancellationToken::new()).await;
+            assert_eq!(received.recv().await.unwrap(), json!({ "event": "shutdown" }));
+        });
     }
 
     #[test]
@@ -326,6 +373,9 @@ async fn read_messages(
             let _ = events.send(message);
         }
     }
+    if !shutdown.is_cancelled() {
+        let _ = events.send(json!({ "event": "shutdown" }));
+    }
     shutdown.cancel();
     for (_, waiter) in pending.lock().unwrap_or_else(|poison| poison.into_inner()).drain() {
         let _ = waiter.send(Err("mpv process stopped".to_owned()));
@@ -512,26 +562,7 @@ impl Engine {
             return Err("equalizer requires ten gains between -12 and 12 dB".to_owned());
         }
         let client = self.session(deck).await?.client.clone();
-        let mut filters = Vec::new();
-        if enabled && auto_headroom {
-            let headroom: f64 = gains.iter().copied().filter(|gain| *gain > 0.0).sum();
-            filters.push(format!("volume=-{headroom}dB"));
-        }
-        let bands = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
-        for (index, (&frequency, &gain)) in bands.iter().zip(gains).enumerate() {
-            if !enabled || gain == 0.0 {
-                continue;
-            }
-            let filter = if index == 0 {
-                format!("bass=f={frequency}:t=q:w=0.707:g={gain}")
-            } else if index == bands.len() - 1 {
-                format!("treble=f={frequency}:t=q:w=0.707:g={gain}")
-            } else {
-                format!("equalizer=f={frequency}:t=q:w=1.41:g={gain}")
-            };
-            filters.push(filter);
-        }
-        filters.push("alimiter=limit=0.944061:attack=2:release=150:level=false:latency=true".to_owned());
+        let filters = equalizer_filters(enabled, gains, auto_headroom);
         client.set("af", json!(format!("lavfi=[{}]", filters.join(",")))).await
     }
 
