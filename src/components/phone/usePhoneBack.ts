@@ -2,8 +2,8 @@ import { useEffect } from "react";
 import { listenBackButton, exitApp } from "../../lib/bridge";
 import { EXIT_WINDOW_MS, nextArmedAt, resolveBack } from "../../lib/phoneBack";
 import { useNavigation } from "../../stores/navigation";
-import { useSongInfo } from "../../stores/songInfo";
 import { useUI } from "../../stores/ui";
+import { closeTopSheet, isSheetOpen } from "./phoneOverlays";
 
 export function usePhoneBack(enabled = true) {
   useEffect(() => {
@@ -16,16 +16,8 @@ export function usePhoneBack(enabled = true) {
       const ui = useUI.getState();
       const nav = useNavigation.getState();
       const now = Date.now();
-      const songInfoOpen = useSongInfo.getState().song !== null;
-      const sheetOpen =
-        ui.contextMenu !== null ||
-        songInfoOpen ||
-        ui.dialog !== null ||
-        ui.playlistPicker !== null ||
-        ui.phoneQueueOpen ||
-        ui.phoneLyricsOpen;
       const action = resolveBack({
-        sheetOpen,
+        sheetOpen: isSheetOpen(),
         nowPlayingOpen: ui.nowPlayingOpen,
         canGoBack: nav.navPast.length > 0,
         atHome: nav.view.name === "home",
@@ -35,12 +27,7 @@ export function usePhoneBack(enabled = true) {
       armedAt = nextArmedAt(action, now);
       switch (action) {
         case "close-sheet":
-          if (ui.contextMenu) ui.closeContextMenu();
-          else if (songInfoOpen) useSongInfo.getState().close();
-          else if (ui.dialog) ui.closeDialog();
-          else if (ui.playlistPicker) ui.closePlaylistPicker();
-          else if (ui.phoneLyricsOpen) ui.closePhoneLyrics();
-          else ui.closePhoneQueue();
+          closeTopSheet();
           break;
         case "close-now-playing":
           ui.closeNowPlaying();

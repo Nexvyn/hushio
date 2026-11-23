@@ -31,6 +31,7 @@ import { glideSheet, sheetY, travelPx } from "./sheetTravel";
 import { useNavigation } from "../../stores/navigation";
 import { usePlayer } from "../../stores/player";
 import { useUI } from "../../stores/ui";
+import { useErase } from "../../stores/erase";
 
 const track = (i: number): Track => ({ id: `t${i}`, title: `Track ${i}`, artist: `Artist ${i}`, thumb: null });
 
@@ -58,6 +59,13 @@ describe("PhoneShell", () => {
     render(<PhoneShell />);
     expect(screen.getByText("Screen home")).toBeTruthy();
     expect(screen.getByRole("navigation", { name: "Main" })).toBeTruthy();
+  });
+
+  it("shows the erase dialog on the phone", () => {
+    useErase.getState().open("reset");
+    render(<PhoneShell />);
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    useErase.setState({ mode: null });
   });
 
   it("hides the mini player when nothing is loaded", () => {

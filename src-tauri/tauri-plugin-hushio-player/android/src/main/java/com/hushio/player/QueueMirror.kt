@@ -75,7 +75,7 @@ class QueueMirror<T>(private val capacity: Int = MAX_ITEMS) {
     }
 
     companion object {
-        const val MAX_ITEMS = 500
+        const val MAX_ITEMS = 5000
         const val NONE = -1
     }
 }
