@@ -22,6 +22,10 @@ function fakeDeps(overrides: Partial<MenuDeps> = {}): MenuDeps {
     toggleNowPlaying: vi.fn(),
     openSettings: vi.fn(),
     focusSearch: vi.fn(),
+    toggleMiniplayer: vi.fn(),
+    checkUpdates: vi.fn(),
+    importBackup: vi.fn(),
+    exportBackup: vi.fn(),
     goBack: vi.fn(),
     goForward: vi.fn(),
     layered: () => false,
@@ -45,6 +49,10 @@ describe("dispatchMenuCommand", () => {
     ["focus-search", "focusSearch"],
     ["history-back", "goBack"],
     ["history-forward", "goForward"],
+    ["miniplayer", "toggleMiniplayer"],
+    ["updates", "checkUpdates"],
+    ["import-backup", "importBackup"],
+    ["export-backup", "exportBackup"],
   ] as const)("%s calls %s", (command, method) => {
     const deps = fakeDeps();
     expect(dispatchMenuCommand(command, deps)).toBe(true);
@@ -75,14 +83,6 @@ describe("dispatchMenuCommand", () => {
     const deps = fakeDeps({ layered: () => true });
     expect(dispatchMenuCommand("focus-search", deps)).toBe(false);
     expect(deps.focusSearch).not.toHaveBeenCalled();
-  });
-
-  it("returns false for commands whose feature is not built yet", () => {
-    const deps = fakeDeps();
-    for (const command of ["miniplayer", "updates", "import-backup", "export-backup"]) {
-      expect(dispatchMenuCommand(command, deps)).toBe(false);
-    }
-    expect(anyCalled(deps)).toBe(false);
   });
 
   it("returns false and does nothing for an unknown command", () => {

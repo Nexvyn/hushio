@@ -249,7 +249,7 @@ function LyricsHint({ visible, onOpen }: { visible: boolean; onOpen: () => void 
           className="inline-flex items-center gap-1"
         >
           <span>Lyrics</span>
-          <PhoneIcon icon={CaretUp} size={13} />
+          <PhoneIcon icon={CaretUp} />
         </motion.span>
       </button>
     </div>
@@ -732,7 +732,7 @@ function NowPlayingSheet() {
                   label="Previous"
                   icon={SkipBack}
                   size={56}
-                  glyph={28}
+                  glyph={24}
                   active
                   disabled={empty}
                   onClick={() => {
@@ -753,13 +753,13 @@ function NowPlayingSheet() {
                   transition={phoneSnappy}
                   className={`grid h-16 w-16 shrink-0 place-items-center rounded-full ${playTone} ${FOCUS} disabled:opacity-[var(--disabled-opacity)]`}
                 >
-                  <PlayPauseGlyph playing={playing} buffering={buffering} size={28} />
+                  <PlayPauseGlyph playing={playing} buffering={buffering} />
                 </motion.button>
                 <Control
                   label="Next"
                   icon={SkipForward}
                   size={56}
-                  glyph={28}
+                  glyph={24}
                   active
                   disabled={empty}
                   onClick={() => {

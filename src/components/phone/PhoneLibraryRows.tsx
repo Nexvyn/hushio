@@ -71,7 +71,7 @@ function PinnedSubtitle({ pinned, text }: { pinned?: boolean; text: string }) {
         <>
           <span className="sr-only">Pinned, </span>
           <span aria-hidden="true" className="inline-flex shrink-0">
-            <PhoneIcon icon={PushPin} size={12} fill="currentColor" />
+            <PhoneIcon icon={PushPin} fill="currentColor" />
           </span>
         </>
       )}

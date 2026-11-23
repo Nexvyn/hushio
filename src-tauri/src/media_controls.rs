@@ -144,6 +144,12 @@ pub fn seek_target(position: f64, offset_micros: i64, duration: f64) -> Option<f
     clamp_position(position + offset_micros as f64 / 1_000_000.0, duration)
 }
 
+pub fn is_seek_jump(previous: f64, next: f64) -> bool {
+    (next - previous).abs() > SEEK_JUMP_S
+}
+
+const SEEK_JUMP_S: f64 = 1.0;
+
 pub fn set_position_target(
     current_path: &str,
     requested_path: &str,
@@ -840,9 +846,16 @@ mod mpris {
 
         pub fn set_position(&self, position: f64, duration: f64) {
             if let Some(at) = super::clamp_position(position, duration) {
-                let mut now = lock(&self.now);
-                now.position = at;
-                now.duration = duration;
+                let jumped = {
+                    let mut now = lock(&self.now);
+                    let jumped = super::is_seek_jump(now.position, at);
+                    now.position = at;
+                    now.duration = duration;
+                    jumped
+                };
+                if jumped {
+                    self.send(Update::Seeked(Time::from_micros((at * 1_000_000.0).round() as i64)));
+                }
             }
         }
 
@@ -1088,6 +1101,14 @@ mod tests {
         assert_eq!(meta.album, "Hushio");
         assert_eq!(meta.duration, 0.0);
         assert_eq!(metadata(&track(None, 215.5), &art_dir()).duration, 215.5);
+    }
+
+    #[test]
+    fn only_a_jump_of_more_than_a_second_counts_as_a_seek() {
+        assert!(super::is_seek_jump(10.0, 30.0));
+        assert!(super::is_seek_jump(30.0, 10.0));
+        assert!(!super::is_seek_jump(10.0, 11.0));
+        assert!(!super::is_seek_jump(10.0, 10.5));
     }
 
     #[test]

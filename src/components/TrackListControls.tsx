@@ -53,7 +53,7 @@ export function CollectionActions({ playLabel, disabled, onPlay, onShuffle, onDo
   return (
     <div className="flex items-center gap-2">
       <button type="button" aria-label={playLabel} title="Play" disabled={disabled} onClick={onPlay} className={`${PLAY_BUTTON} mr-2`}>
-        <Icon icon={Play} fill="currentColor" />
+        <Icon icon={Play} />
       </button>
       {onShuffle && (
         <button type="button" aria-label="Shuffle" title="Shuffle" disabled={disabled} onClick={onShuffle} className={ICON_BUTTON}>

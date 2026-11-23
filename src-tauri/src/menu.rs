@@ -223,7 +223,7 @@ pub fn menus(dev: bool) -> Vec<Node> {
                 Node::Separator,
                 command("queue", "Show Queue", None),
                 command("lyrics", "Show Lyrics", None),
-                command("now-playing", "Now Playing View", Some("Ctrl+Cmd+F")),
+                command("now-playing", "Now Playing View", Some("Ctrl+Cmd+N")),
             ],
         ),
         menu(
@@ -518,7 +518,7 @@ mod tests {
     use super::*;
     use std::collections::HashSet;
 
-    const SHORTCUTS: [&str; 5] = ["Cmd+,", "Cmd+O", "Cmd+S", "Cmd+F", "Ctrl+Cmd+F"];
+    const SHORTCUTS: [&str; 5] = ["Cmd+,", "Cmd+O", "Cmd+S", "Cmd+F", "Ctrl+Cmd+N"];
 
     #[test]
     fn ids_are_unique_in_both_builds() {
@@ -553,6 +553,11 @@ mod tests {
         assert_eq!(route(&nodes, "queue"), Some(Route::Command("queue")));
         assert_eq!(route(&nodes, "delete"), Some(Route::Native(Native::Delete)));
         assert_eq!(route(&nodes, "missing"), None);
+    }
+
+    #[test]
+    fn now_playing_does_not_take_the_system_fullscreen_shortcut() {
+        assert!(!accelerators(&menus(false)).contains(&"Ctrl+Cmd+F"));
     }
 
     #[test]

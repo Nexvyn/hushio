@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { MusicNote } from "@phosphor-icons/react";
-import { Icon } from "../Icon";
+import { PhoneIcon } from "./PhoneIcon";
 
 type PhoneArtProps = {
   src: string | null;
@@ -21,7 +21,7 @@ export function PhoneArt({ src, round = false, radius = "rounded-[12px]", classN
   return (
     <span aria-hidden="true" className={`${className} relative overflow-hidden bg-wash text-ink-2 ${shape}`}>
       <span className="absolute inset-0 grid place-items-center">
-        <Icon icon={MusicNote} />
+        <PhoneIcon icon={MusicNote} />
       </span>
       {src && !failed && (
         <img

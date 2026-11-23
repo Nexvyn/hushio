@@ -79,3 +79,18 @@ describe("Dialog validation", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });
+
+describe("Dialog Enter on a focused button", () => {
+  it("leaves Enter on Cancel to the button instead of confirming", () => {
+    render(<Dialog />);
+    act(() => {
+      useUI.getState().openDialog({ title: "Delete it?", danger: true, confirmLabel: "Delete", onConfirm });
+    });
+
+    const cancel = screen.getByRole("button", { name: /cancel/i });
+    cancel.focus();
+    fireEvent.keyDown(cancel, { key: "Enter" });
+
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+});

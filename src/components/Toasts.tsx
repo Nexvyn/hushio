@@ -28,8 +28,8 @@ type KindStyle = {
 
 const KIND_STYLES: Record<ToastKind, KindStyle> = {
   info: { icon: Info, weight: "regular", tone: "text-white/70" },
-  success: { icon: CheckCircle, weight: "fill", tone: "text-accent" },
-  error: { icon: WarningCircle, weight: "fill", tone: "text-[#ff8a80]" },
+  success: { icon: CheckCircle, weight: "regular", tone: "text-accent" },
+  error: { icon: WarningCircle, weight: "regular", tone: "text-[#ff8a80]" },
   warning: { icon: WarningCircle, weight: "regular", tone: "text-[#ffc56b]" },
 };
 

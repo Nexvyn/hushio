@@ -46,6 +46,10 @@ export type MenuDeps = {
   focusSearch: () => void;
   goBack: () => void;
   goForward: () => void;
+  toggleMiniplayer: () => void;
+  checkUpdates: () => void;
+  importBackup: () => void;
+  exportBackup: () => void;
   layered: () => boolean;
 };
 
@@ -61,14 +65,12 @@ const SLEEP_COMMANDS: Record<string, number> = {
   "sleep-60": 60,
 };
 
-const NOT_BUILT = new Set<MenuCommand>(["miniplayer", "updates", "import-backup", "export-backup"]);
-
 export function isMenuCommand(value: string): value is MenuCommand {
   return (MENU_COMMANDS as readonly string[]).includes(value);
 }
 
 export function dispatchMenuCommand(command: string, deps: MenuDeps): boolean {
-  if (!isMenuCommand(command) || NOT_BUILT.has(command)) return false;
+  if (!isMenuCommand(command)) return false;
   if (command in REPEAT_COMMANDS) {
     deps.setRepeat(REPEAT_COMMANDS[command]);
     return true;
@@ -114,6 +116,18 @@ export function dispatchMenuCommand(command: string, deps: MenuDeps): boolean {
     case "focus-search":
       if (deps.layered()) return false;
       deps.focusSearch();
+      return true;
+    case "miniplayer":
+      deps.toggleMiniplayer();
+      return true;
+    case "updates":
+      deps.checkUpdates();
+      return true;
+    case "import-backup":
+      deps.importBackup();
+      return true;
+    case "export-backup":
+      deps.exportBackup();
       return true;
     case "history-back":
       deps.goBack();

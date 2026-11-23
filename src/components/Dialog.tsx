@@ -172,6 +172,7 @@ export function Dialog({ sheet = false }: { sheet?: boolean }) {
         return;
       }
       if (event.key !== "Enter") return;
+      if (document.activeElement instanceof HTMLButtonElement) return;
       if (active.multiline && !event.ctrlKey && !event.metaKey) return;
       event.preventDefault();
       event.stopPropagation();

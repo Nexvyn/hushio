@@ -13,7 +13,8 @@ finish-args:
   - --talk-name=org.freedesktop.secrets
   - --talk-name=org.kde.StatusNotifierWatcher
   - --own-name=org.mpris.MediaPlayer2.hushio
-  - --filesystem=xdg-music:ro
+  - --filesystem=xdg-music:rw
+  - --filesystem=xdg-download/Hushio:create
 modules:
   - name: hushio
     buildsystem: simple
