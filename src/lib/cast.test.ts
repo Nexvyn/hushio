@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const bridge = vi.hoisted(() => ({
   castLoad: vi.fn(async () => undefined),
   castOpen: vi.fn(async () => undefined),
+  castStop: vi.fn(async () => undefined),
   castStatus: vi.fn(),
   resolveStream: vi.fn(),
   listen: vi.fn(async (_event: string, handler: (payload: unknown) => void) => {
@@ -16,6 +17,7 @@ vi.mock("./bridge", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./bridge")>()),
   castLoad: bridge.castLoad,
   castOpen: bridge.castOpen,
+  castStop: bridge.castStop,
   castStatus: bridge.castStatus,
   listenPlayerEvent: bridge.listen,
   persistWrite: vi.fn(async () => true),
@@ -30,6 +32,7 @@ vi.mock("./audio", async (importOriginal) => ({
 }));
 
 import { castFromNowPlaying, castNowPlaying, errorText } from "./cast";
+import { setCasting } from "./castState";
 import { usePlayer } from "../stores/player";
 import { useUI } from "../stores/ui";
 
@@ -127,6 +130,26 @@ describe("Cast now playing", () => {
     await castNowPlaying();
 
     expect(bridge.castLoad).toHaveBeenCalledWith(expect.objectContaining({ contentType: "audio/mp4" }));
+  });
+
+  it("stops casting from the Cast control while a session is active", async () => {
+    usePlayer.setState({ queue: [TRACK], index: 0, playing: false });
+    setCasting(true);
+
+    await castFromNowPlaying();
+
+    expect(bridge.castStop).toHaveBeenCalledTimes(1);
+    expect(bridge.castOpen).not.toHaveBeenCalled();
+  });
+
+  it("refuses local and network songs before opening the chooser", async () => {
+    usePlayer.setState({ queue: [{ ...TRACK, id: "local:/music/a.mp3" }], index: 0 });
+
+    await castFromNowPlaying();
+
+    expect(bridge.castOpen).not.toHaveBeenCalled();
+    expect(bridge.resolveStream).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith("Couldn't cast this song: Local and network songs can't be cast yet", "error");
   });
 
   it("does nothing when nothing is queued", async () => {

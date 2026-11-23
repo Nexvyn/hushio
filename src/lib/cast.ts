@@ -1,5 +1,6 @@
-import { castLoad, castOpen, castStatus, listenPlayerEvent } from "./bridge";
-import { resolveStream } from "./resolveStream";
+import { castOpen, castStatus, listenPlayerEvent } from "./bridge";
+import { castTrack, isCasting, setCasting, stopCastingFromApp } from "./castState";
+import { isLocalId, isNetworkId } from "./localLibrary";
 import { currentTrack, usePlayer } from "../stores/player";
 import { useUI } from "../stores/ui";
 
@@ -20,18 +21,16 @@ function listenCastSessions(): Promise<void> {
   return listening;
 }
 
-function castContentType(mime: string | undefined): string {
-  return mime?.split(";")[0]?.trim().toLowerCase() || "audio/mp4";
+function assertCastable(id: string): void {
+  if (isLocalId(id) || isNetworkId(id)) throw new Error("Local and network songs can't be cast yet");
 }
 
 async function castCurrentTrack(): Promise<boolean> {
   const state = usePlayer.getState();
   const track = currentTrack(state);
   if (!track) return false;
-  const stream = await resolveStream(track.id, false, undefined, true);
-  await castLoad({
-    url: stream.url,
-    contentType: castContentType(stream.mime),
+  assertCastable(track.id);
+  await castTrack(track.id, {
     title: track.title,
     artist: track.artist,
     artworkUrl: track.thumb,
@@ -49,11 +48,13 @@ async function onCastSession(event: CastSessionEvent): Promise<void> {
   const ui = useUI.getState();
   if (event.state === "ended") {
     choosing = false;
+    setCasting(false);
     ui.toast("Stopped casting");
     return;
   }
   if (event.state === "failed") {
     choosing = false;
+    setCasting(false);
     ui.toast("Couldn't connect to the Cast device", "error");
     return;
   }
@@ -62,6 +63,7 @@ async function onCastSession(event: CastSessionEvent): Promise<void> {
   try {
     if (!(await castCurrentTrack())) return;
     pauseLocal();
+    setCasting(true);
     ui.toast(event.deviceName ? `Casting to ${event.deviceName}` : "Casting this song");
   } catch (error) {
     ui.toast(`Couldn't cast this song: ${errorText(error)}`, "error");
@@ -71,6 +73,7 @@ async function onCastSession(event: CastSessionEvent): Promise<void> {
 export async function castNowPlaying(): Promise<"connected" | "choose" | "idle"> {
   const track = currentTrack(usePlayer.getState());
   if (!track) return "idle";
+  assertCastable(track.id);
   await listenCastSessions();
   const status = await castStatus();
   if (!status.connected) {
@@ -80,6 +83,7 @@ export async function castNowPlaying(): Promise<"connected" | "choose" | "idle">
   }
   await castCurrentTrack();
   pauseLocal();
+  setCasting(true);
   await castOpen();
   return "connected";
 }
@@ -101,6 +105,7 @@ export function errorText(error: unknown): string {
 }
 
 export async function castFromNowPlaying(): Promise<void> {
+  if (isCasting()) return stopCastingFromApp();
   try {
     const result = await castNowPlaying();
     if (result === "connected") useUI.getState().toast("Casting this song");
