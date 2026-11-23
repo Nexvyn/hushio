@@ -161,13 +161,6 @@ export function clampPlaybackSpeed(value: number) {
   return Math.min(max, Math.max(min, rounded));
 }
 
-export function syncableSettings(settings: SettingsValues): Partial<SettingsValues> {
-  const result: Partial<SettingsValues> = { ...settings };
-  for (const key of DEVICE_SETTINGS_KEYS) delete result[key];
-  delete result.addonSources;
-  return result;
-}
-
 export function applyAppearance(
   settings: Pick<SettingsValues, "theme" | "reduceAnimation" | "reduceDynamicBlur">,
 ) {

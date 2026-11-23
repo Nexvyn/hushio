@@ -102,7 +102,7 @@ The Windows app updates itself. On macOS, Linux and Android, Hushio tells you wh
 - Built-in update check.
 
 ### Accounts and sync (all optional)
-- Google sign-in to sync playlists and back up your library to your own Google Drive.
+- Google sign-in to sync playlists and liked songs with your YouTube account.
 - Scrobbling to Last.fm and ListenBrainz.
 - Backup export and import.
 

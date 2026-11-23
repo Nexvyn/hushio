@@ -81,7 +81,7 @@ Some features need keys that are not in the repository:
 
 | Feature | Where the key goes |
 |---|---|
-| Google sign-in and Drive backup | `HUSHIO_GOOGLE_CLIENT_ID` environment variable when you build |
+| Google sign-in | `HUSHIO_GOOGLE_CLIENT_ID` environment variable when you build |
 | Connecting a Spotify account | `HUSHIO_SPOTIFY_CLIENT_ID` environment variable when you build |
 | Last.fm scrobbling | `LASTFM_API_KEY` and `LASTFM_API_SECRET` in `src-tauri/src/scrobble/lastfm.rs` |
 | Discord status | `DISCORD_CLIENT_ID` in `src-tauri/src/discord.rs` |
