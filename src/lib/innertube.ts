@@ -2,6 +2,7 @@ import { ytFetch as fetch } from "./ytFetch";
 import { Innertube } from "youtubei.js";
 import type { Track } from "../types";
 import { getPoToken, invalidatePoToken } from "./poToken";
+import { marketValue } from "./market";
 
 export type Market = { location: string; lang: string };
 
@@ -299,7 +300,7 @@ export async function withRetry<T>(run: () => Promise<T>, attempts = 2, delayMs 
 }
 
 export async function getRadio(videoId: string, token?: string): Promise<RadioPage | null> {
-  const { innertube } = await getSession(MARKET);
+  const { innertube } = await getSession(marketValue());
   const body = {
     videoId,
     playlistId: `RDAMVM${videoId}`,

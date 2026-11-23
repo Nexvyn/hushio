@@ -276,6 +276,22 @@ describe("SyncedLyrics", () => {
     expect(container.querySelector('[style*="linear-gradient"]')).not.toBeNull();
   });
 
+  it("keeps the word highlight moving when reduce motion is on", () => {
+    useSettings.setState({ reduceAnimation: true });
+    usePlayer.setState({ playing: true, position: 1.2 });
+    getPlaybackPosition.mockReturnValue(1.2);
+    const words = [
+      { start: 1, end: 1.5, text: "Hello" },
+      { start: 1.5, end: 2, text: "world" },
+    ];
+    const { container } = render(
+      <SyncedLyrics lyrics={lyricsWith([{ time: 1, text: "Hello world", words, end: 2 }])} loading={false} />,
+    );
+    getPlaybackPosition.mockReturnValue(1.45);
+    act(() => flushFrames(0));
+    expect(container.querySelector('[style*="90deg"]')?.getAttribute("style")).toContain("90%");
+  });
+
   it("jumps the scroll position at once when reduce motion is on", () => {
     useSettings.setState({ reduceAnimation: true });
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {

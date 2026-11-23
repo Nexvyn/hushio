@@ -2,11 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const { audio, playStream, seekTo, refreshHome } = vi.hoisted(() => ({
+const { audio, playStream, seekTo, refreshHome, feed } = vi.hoisted(() => ({
   audio: new Audio(),
   playStream: vi.fn(),
   seekTo: vi.fn(),
   refreshHome: vi.fn(),
+  feed: { sections: [] as unknown[] },
 }));
 
 vi.mock("../lib/audio", () => ({
@@ -29,7 +30,7 @@ vi.mock("../lib/persist", () => ({
   }),
 }));
 
-vi.mock("../lib/useHomeFeed", () => ({ useHomeFeed: () => [] }));
+vi.mock("../lib/useHomeFeed", () => ({ useHomeFeed: () => feed.sections }));
 
 vi.mock("../lib/market", () => ({
   marketValue: () => ({ location: "US", lang: "en" }),
@@ -59,9 +60,22 @@ const quickPicks: HomeShelf = {
   ],
 };
 
+function feedSection(name: string) {
+  return {
+    id: name,
+    kind: name,
+    title: name,
+    layout: "yt-shelf",
+    priority: 0,
+    items: [],
+    shelf: { id: name, title: name, items: [{ kind: "album", id: `${name}-album`, title: `${name} album`, artist: "Artist", thumb: null }] },
+  };
+}
+
 describe("HomeView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    feed.sections = [];
     refreshHome.mockResolvedValue([]);
     usePlayer.setState(initialPlayer, true);
     useUI.setState({ toasts: [], pendingToasts: [], searchQuery: "" });
@@ -89,6 +103,14 @@ describe("HomeView", () => {
 
     expect(screen.getByRole("heading", { name: "Quick picks" })).toBeTruthy();
     expect(screen.queryByRole("status", { name: "Loading Home" })).toBeNull();
+  });
+
+  it("shows every feed section, not only the first three", () => {
+    feed.sections = ["Heavy rotation", "Stations", "Dust these off", "Quick mixes"].map(feedSection);
+
+    render(<HomeView />);
+
+    expect(screen.getByText("Quick mixes")).toBeTruthy();
   });
 
   it("shows loading placeholders until the first refresh settles", () => {

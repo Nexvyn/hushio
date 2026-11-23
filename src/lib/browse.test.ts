@@ -7,6 +7,7 @@ const { execute, getSession } = vi.hoisted(() => {
 
 vi.mock("youtubei.js", () => ({ Innertube: { create: vi.fn() } }));
 vi.mock("@tauri-apps/plugin-http", () => ({ fetch: vi.fn() }));
+vi.mock("./market", () => ({ marketValue: () => ({ location: "IN", lang: "en" }) }));
 vi.mock("./innertube", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./innertube")>()),
   getSession,
@@ -134,6 +135,16 @@ describe("getArtistPage", () => {
 
     expect(execute).toHaveBeenCalledWith("/browse", { browseId: "UCnova", client: "YTMUSIC" });
     expect(page.artist.name).toBe("Nova");
+  });
+
+  it("asks for the session in the listener's market, not a fixed one", async () => {
+    execute.mockResolvedValueOnce({
+      data: { header: { musicVisualHeaderRenderer: { title: { runs: [{ text: "Nova" }] } } } },
+    });
+
+    await getArtistPage("UCnova");
+
+    expect(getSession).toHaveBeenCalledWith({ location: "IN", lang: "en" });
   });
 });
 

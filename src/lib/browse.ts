@@ -1,4 +1,5 @@
-import { getSession, MARKET, withRetry } from "./innertube";
+import { getSession, withRetry } from "./innertube";
+import { marketValue } from "./market";
 import {
   parseArtistPage,
   parseReleaseGrid,
@@ -25,7 +26,7 @@ export function playlistBrowseId(id: string): string {
 }
 
 async function browseRequest(payload: { browseId: string; params?: string } | { continuation: string }): Promise<unknown> {
-  const { innertube } = await getSession(MARKET);
+  const { innertube } = await getSession(marketValue());
   const response = await withRetry(() =>
     innertube.actions.execute("/browse", { ...payload, client: "YTMUSIC" }),
   );

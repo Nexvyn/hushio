@@ -398,8 +398,9 @@ export interface LyricsCandidate {
   preview: string[];
 }
 
-export function lyricsGet(meta: LyricsMeta): Promise<LyricsResult | null> {
-  return call<LyricsResult | null>("lyrics_get", { meta });
+export function lyricsGet(meta: LyricsMeta & { retry?: boolean }): Promise<LyricsResult | null> {
+  const { retry, ...query } = meta;
+  return call<LyricsResult | null>("lyrics_get", { meta: query, retry });
 }
 
 export function lyricsReset(songId: string): Promise<void> {

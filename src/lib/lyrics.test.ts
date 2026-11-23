@@ -66,6 +66,14 @@ describe("requestLyrics", () => {
     expect(lyricsGet).toHaveBeenCalledTimes(2);
   });
 
+  it("a retry asks again even while a miss is cached", async () => {
+    lyricsGet.mockResolvedValueOnce(null).mockResolvedValue(synced);
+    const { requestLyrics } = await load();
+    expect(await requestLyrics(track("a"))).toBeNull();
+    expect(await requestLyrics(track("a"), 0, true)).toEqual(synced);
+    expect(lyricsGet).toHaveBeenLastCalledWith(expect.objectContaining({ id: "a", retry: true }));
+  });
+
   it("treats an empty answer as a miss", async () => {
     lyricsGet.mockResolvedValueOnce({ synced: [], plain: "  ", source: "", wordSynced: false });
     const { requestLyrics } = await load();
@@ -114,5 +122,11 @@ describe("prefetchLyrics", () => {
     expect(lyricsGet).toHaveBeenCalledTimes(1);
     expect(await requestLyrics(track("warm"))).toEqual(synced);
     expect(lyricsGet).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes the track's duration so the lookup can match the right recording", async () => {
+    const { prefetchLyrics } = await load();
+    prefetchLyrics({ ...track("timed"), duration: 215 });
+    expect(lyricsGet).toHaveBeenCalledWith(expect.objectContaining({ id: "timed", duration: 215 }));
   });
 });

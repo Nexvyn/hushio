@@ -206,7 +206,7 @@ export function HomeView() {
   const quickSongs = new Set(quick.filter(item => item.kind === "song").map(item => item.id));
   const sections = allSections.filter(section => section.kind !== "market")
     .map(section => ({ ...section, items: section.items.filter(item => item.kind !== "track" || !quickSongs.has(item.track.id)) }))
-    .filter(section => section.items.length || section.playlists?.length || section.shelf?.items.length).slice(0, 3);
+    .filter(section => section.items.length || section.playlists?.length || section.shelf?.items.length);
   const featured = featuredFrom(allSections);
   const featuredPlaylistId = featured?.target.name === "ytplaylist" ? featured.target.param : null;
   const shelfSections =

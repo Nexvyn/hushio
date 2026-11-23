@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { LyricsResult } from "./bridge";
 import { requestLyrics } from "./lyrics";
 import type { Track } from "../types";
@@ -11,13 +11,15 @@ export function useTrackLyrics(track: Track | null, duration: number): {
   const trackId = track?.id ?? null;
   const [settled, setSettled] = useState<{ id: string; lyrics: LyricsResult | null } | null>(null);
   const [revision, setRevision] = useState(0);
+  const retry = useRef(false);
 
   useEffect(() => {
     if (!track) return;
     let cancelled = false;
-    requestLyrics(track, duration).then((result) => {
+    requestLyrics(track, duration, retry.current).then((result) => {
       if (!cancelled) setSettled({ id: track.id, lyrics: result });
     });
+    retry.current = false;
     return () => {
       cancelled = true;
     };
@@ -27,6 +29,9 @@ export function useTrackLyrics(track: Track | null, duration: number): {
   return {
     lyrics: ready ? settled.lyrics : null,
     loading: trackId !== null && !ready,
-    reload: () => setRevision((count) => count + 1),
+    reload: () => {
+      retry.current = true;
+      setRevision((count) => count + 1);
+    },
   };
 }
