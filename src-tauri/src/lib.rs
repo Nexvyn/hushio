@@ -246,13 +246,16 @@ async fn lyrics_get(
     state: State<'_, lyrics::Service>,
     local: State<'_, local_library::Service>,
     meta: lyrics::LyricsMeta,
+    retry: Option<bool>,
 ) -> Result<Option<lyrics::LyricsResult>, String> {
     let local_path = if meta.id.starts_with("local:") {
         local.track_path(&meta.id).await
     } else {
         None
     };
-    Ok(state.get_with_local_path(meta, local_path.as_deref()).await)
+    Ok(state
+        .get_with_local_path(meta, local_path.as_deref(), retry.unwrap_or(false))
+        .await)
 }
 
 #[tauri::command]
@@ -417,9 +420,17 @@ fn emit_sync(app: &AppHandle, event: sync_queue::Event) {
 fn spawn_sync(app: &AppHandle, engine: Arc<YtEngine>) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        let emit = move |event: sync_queue::Event| emit_sync(&app, event);
-        if engine.run(&emit).await == Some(sync_queue::Halt::Offline) {
-            let _ = android::schedule_retry();
+        let emit_app = app.clone();
+        let emit = move |event: sync_queue::Event| emit_sync(&emit_app, event);
+        match engine.run(&emit).await {
+            Some(sync_queue::Halt::Offline) => {
+                let _ = android::schedule_retry();
+            }
+            Some(sync_queue::Halt::SignIn) => {
+                let account = app.state::<Arc<google_auth::GoogleAuth>>().account();
+                let _ = app.emit("google-auth-changed", &account);
+            }
+            _ => {}
         }
     });
 }
@@ -1027,7 +1038,7 @@ pub fn run() {
             tauri::async_runtime::block_on(app.state::<playback::Engine>().shutdown());
             macos_window::mark_quitting();
             app.state::<downloads::Downloads<AppHandle>>().abandon();
-            tauri::async_runtime::block_on(app.state::<Arc<stats::Service>>().flush());
+            tauri::async_runtime::block_on(app.state::<Arc<stats::Service>>().close_and_flush());
         }
         #[cfg(target_os = "macos")]
         RunEvent::Reopen {
@@ -1094,11 +1105,11 @@ fn notification_settings() -> Result<(), String> {
 }
 
 #[tauri::command]
-fn download_delete_file(path: String) -> Result<(), String> {
+fn download_delete_file(folders: State<'_, reveal::Folders>, path: String) -> Result<(), String> {
     if path.starts_with("content://") {
         android::media_delete(&path)
     } else {
-        Ok(())
+        reveal::remove_download(&folders, &path)
     }
 }
 

@@ -140,7 +140,7 @@ function TrackRow({ track, onPlay, remove, onDontPlay, menu, at, rowProps }: Tra
             <span className="truncate">{normalizeCredit(track.artist)}</span>
             {recommended && (
               <span className="flex shrink-0 items-center gap-1 text-caption">
-                <Icon icon={Sparkle} size={14} />
+                <Icon icon={Sparkle} />
                 Recommended
               </span>
             )}
@@ -176,7 +176,6 @@ function UpcomingQueue({ tab }: { tab?: QueueTab }) {
   const ink = useInk();
   const queue = usePlayer((state) => state.queue);
   const index = usePlayer((state) => state.index);
-  const autoplayCount = usePlayer((state) => state.autoplayCount);
   const jumpTo = usePlayer((state) => state.jumpTo);
   const removeAt = usePlayer((state) => state.removeAt);
   const dontPlay = usePlayer((state) => state.dontPlay);
@@ -185,11 +184,10 @@ function UpcomingQueue({ tab }: { tab?: QueueTab }) {
   const playingFrom = usePlayer((state) => state.playingFrom);
   const playlists = useLibrary((state) => state.playlists);
   const upcoming = queue.slice(index + 1);
-  const autoplayStart = queue.length - autoplayCount;
   const seen = new Map<string, number>();
   const rows = upcoming.map((track, offset) => {
     const at = index + 1 + offset;
-    const section: QueueSection = at >= autoplayStart ? "autoplay" : track.queued ? "queued" : "context";
+    const section: QueueSection = track.suggested ? "autoplay" : track.queued ? "queued" : "context";
     const occurrence = seen.get(track.id) ?? 0;
     seen.set(track.id, occurrence + 1);
     return { track, at, key: `${track.id}:${occurrence}`, section };

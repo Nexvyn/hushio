@@ -31,7 +31,7 @@ vi.mock("../lib/bridge", async (importOriginal) => ({
   playbackEvent,
 }));
 
-import { usePlayer } from "./player";
+import { finishBlend, usePlayer } from "./player";
 import type { Track } from "../types";
 
 const song = (id: string, extra: Partial<Track> = {}): Track => ({ id, title: `Title ${id}`, artist: "Artist", thumb: null, ...extra });
@@ -109,6 +109,14 @@ describe("player and listening events", () => {
       ["start", "b"],
     ]);
     expect(sent()[2].deltaMs).toBe(31_000);
+  });
+
+  it("keeps counting listening time after a crossfade blend", () => {
+    usePlayer.setState({ queue: [song("a"), song("b")], index: 0, playing: true });
+    finishBlend({ id: "b", title: "Title b", index: 1 }, { position: 0, duration: 200, ended: false });
+    vi.setSystemTime(T0 + 30_000);
+    fire("timeupdate");
+    expect(sent()).toContainEqual(expect.objectContaining({ type: "progress", track: expect.objectContaining({ id: "b" }), deltaMs: 30_000 }));
   });
 
   it("never sends listening deltas for a podcast episode", () => {

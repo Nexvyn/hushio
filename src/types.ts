@@ -7,5 +7,6 @@ export type Track = {
   duration?: number;
   episode?: true;
   recommended?: true;
+  suggested?: true;
   queued?: true;
 };

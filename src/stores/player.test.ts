@@ -149,8 +149,15 @@ describe("50 song queue", () => {
     expect(playStream).toHaveBeenLastCalledWith("t0", "Track 0", 0, expect.any(Object));
   });
 
-  it("previous from the first song goes to the last song", () => {
+  it("previous from the first song restarts it when repeat is off", () => {
     state().playQueue(list(50), 0);
+    state().prev();
+    expect(currentId()).toBe("t0");
+  });
+
+  it("previous from the first song goes to the last song when repeat is all", () => {
+    state().playQueue(list(50), 0);
+    usePlayer.setState({ repeat: "all" });
     state().prev();
     expect(currentId()).toBe("t49");
   });

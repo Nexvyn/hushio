@@ -87,6 +87,20 @@ describe("cold start", () => {
   });
 });
 
+describe("restored position", () => {
+  it("applies only to the restored song, not to the one after it", async () => {
+    const next: Track = { id: "t1", title: "Track 1", artist: "Artist", thumb: null };
+    stored.value = {
+      state: { queue: [track, next], index: 0, position: 120, duration: 239, volume: 0.8, muted: false, shuffle: false, repeat: "off", unshuffled: null, playingFrom: null, autoplayCount: 0 },
+      version: 0,
+    };
+    await usePlayer.persist.rehydrate();
+    playStream.mockResolvedValue(undefined);
+    usePlayer.getState().next();
+    expect(playStream).toHaveBeenLastCalledWith("t1", "Track 1", 0, expect.any(Object));
+  });
+});
+
 describe("resumeFrom", () => {
   it("restarts from zero when the position is at the end", () => {
     expect(resumeFrom(274.362, 274.352)).toBe(0);
