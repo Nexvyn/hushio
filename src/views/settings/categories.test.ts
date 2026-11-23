@@ -47,6 +47,14 @@ function row(platform: BuildContext["platform"], id: string): RowSpec {
   return found;
 }
 
+describe("About website row", () => {
+  it("names the same site that the Open button goes to", () => {
+    const about = buildCategories(context("windows")).find((category) => category.id === "about");
+    const website = about?.groups.flatMap((group) => group.rows).find((candidate) => candidate.id === "website");
+    expect(website?.note).toBe("hushio.nexvyn.dev: downloads, news and help");
+  });
+});
+
 const param = () => ({ value: 0, setTargetAtTime: vi.fn() });
 const node = () => ({
   connect: vi.fn(),

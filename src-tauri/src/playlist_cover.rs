@@ -52,12 +52,20 @@ fn remove_stale(dir: &Path, id: &str, keep: Option<&Path>) -> Result<(), String>
 }
 
 pub fn store_cover(dir: &Path, playlist_id: &str, source: &Path) -> Result<PathBuf, String> {
-    let id = safe_id(playlist_id).ok_or_else(|| "Invalid playlist id".to_owned())?;
+    safe_id(playlist_id).ok_or_else(|| "Invalid playlist id".to_owned())?;
     let size = fs::metadata(source).map_err(|error| error.to_string())?.len();
     if size > MAX_BYTES {
         return Err("Pick an image under 10 MB".to_owned());
     }
     let bytes = fs::read(source).map_err(|error| error.to_string())?;
+    store_cover_bytes(dir, playlist_id, &bytes)
+}
+
+pub fn store_cover_bytes(dir: &Path, playlist_id: &str, bytes: &[u8]) -> Result<PathBuf, String> {
+    let id = safe_id(playlist_id).ok_or_else(|| "Invalid playlist id".to_owned())?;
+    if bytes.len() as u64 > MAX_BYTES {
+        return Err("Pick an image under 10 MB".to_owned());
+    }
     let ext = image_extension(&bytes).ok_or_else(|| "Pick a JPG, PNG or WebP image".to_owned())?;
     fs::create_dir_all(dir).map_err(|error| error.to_string())?;
     let stamp = std::time::SystemTime::now()
@@ -66,7 +74,7 @@ pub fn store_cover(dir: &Path, playlist_id: &str, source: &Path) -> Result<PathB
         .unwrap_or(0);
     let target = dir.join(format!("{id}.{stamp}.{ext}"));
     let tmp = dir.join(format!("{id}.{stamp}.{ext}.tmp"));
-    fs::write(&tmp, &bytes).map_err(|error| error.to_string())?;
+    fs::write(&tmp, bytes).map_err(|error| error.to_string())?;
     fs::rename(&tmp, &target).map_err(|error| error.to_string())?;
     remove_stale(dir, id, Some(&target))?;
     Ok(target)
@@ -96,9 +104,14 @@ pub async fn playlist_cover_pick(app: AppHandle, playlist_id: String) -> Result<
     let Some(picked) = receiver.await.map_err(|error| error.to_string())? else {
         return Ok(None);
     };
-    let source = picked.into_path().map_err(|error| error.to_string())?;
     let dir = cover_dir(&app)?;
-    let stored = store_cover(&dir, &playlist_id, &source)?;
+    let stored = match picked.as_path() {
+        Some(source) => store_cover(&dir, &playlist_id, source)?,
+        None => {
+            let bytes = crate::android::read_content_bytes(&picked.to_string())?;
+            store_cover_bytes(&dir, &playlist_id, &bytes)?
+        }
+    };
     allow_asset(&app, &dir)?;
     Ok(Some(stored.display().to_string()))
 }
@@ -147,6 +160,17 @@ mod tests {
         assert!(stored.starts_with(&dir));
         assert_eq!(stored.extension().unwrap(), "png");
         assert_eq!(fs::read(&stored).unwrap(), PNG);
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn stores_bytes_read_from_a_content_uri() {
+        let base = scratch("bytes");
+        let dir = base.join(COVER_DIR);
+        let stored = store_cover_bytes(&dir, "pl-2", JPG).unwrap();
+        assert_eq!(stored.extension().unwrap(), "jpg");
+        assert_eq!(fs::read(&stored).unwrap(), JPG);
+        assert!(store_cover_bytes(&dir, "pl-2", b"not an image").is_err());
         let _ = fs::remove_dir_all(&base);
     }
 

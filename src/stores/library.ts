@@ -11,7 +11,7 @@ import {
 } from "../lib/deletionSync";
 import { moveKey } from "../lib/libraryOrder";
 import { isTestSong } from "../lib/devSong";
-import { scrobbleLove } from "../lib/bridge";
+import { playlistCoverRemove, scrobbleLove, type YtSyncJob } from "../lib/bridge";
 import { queueYtJobs, rateYtSong, unlinkYtPlaylist, videoIdOf } from "../lib/ytSync";
 import { persistStorage } from "../lib/persist";
 import { useSettings } from "./settings";
@@ -119,6 +119,7 @@ type LibraryState = LibraryValues & {
   followArtist: (artist: ArtistInput) => boolean;
   unfollowArtist: (id: string) => void;
   createPlaylist: (name: string) => string;
+  createPlaylistWith: (name: string, tracks: LikeInput[]) => string;
   renamePlaylist: (id: string, name: string) => void;
   editPlaylist: (id: string, patch: PlaylistEdit) => void;
   deletePlaylist: (id: string) => void;
@@ -489,7 +490,7 @@ function deleteFolderUpdate(id: string): Update {
   };
 }
 
-function normalizePlaylist(playlist: Playlist): Playlist {
+export function normalizePlaylist(playlist: Playlist): Playlist {
   const { description, coverPath, ...rest } = playlist;
   const text = typeof description === "string" ? description.trim().slice(0, PLAYLIST_DESCRIPTION_MAX) : "";
   const cover = typeof coverPath === "string" && coverPath.length > 0 ? coverPath : undefined;
@@ -542,10 +543,11 @@ export const useLibrary = create<LibraryState>()(
         ...DEFAULTS,
         likeMany: (tracks) => {
           const liked = new Set(get().liked.map((item) => item.id));
-          const fresh = new Set(tracks.map((track) => track.id).filter((id) => !liked.has(id)));
-          if (fresh.size === 0) return 0;
+          const fresh = [...new Map(tracks.filter((track) => !liked.has(track.id)).map((track) => [track.id, track])).values()];
+          if (fresh.length === 0) return 0;
           apply(likeManyUpdate(tracks));
-          return fresh.size;
+          for (const track of fresh) rateYtSong(track, true);
+          return fresh.length;
         },
         toggleLike: (track) => {
           const wasLiked = get().liked.some((item) => item.id === track.id);
@@ -603,6 +605,31 @@ export const useLibrary = create<LibraryState>()(
           queueYtJobs([{ kind: "create", localPlaylistId: id, payload: name.trim() }]);
           return id;
         },
+        createPlaylistWith: (name, tracks) => {
+          const id = newId();
+          const unique = tracks.filter((track, index) => tracks.findIndex((other) => other.id === track.id) === index);
+          const libraryTracks = unique.map((track) => toLibraryTrack(track, Date.now()));
+          apply((state) =>
+            commit(
+              state,
+              {
+                playlists: [{ id, name: name.trim(), folderId: null, pinned: false, tracks: libraryTracks }, ...state.playlists],
+              },
+              [
+                { kind: "add", group: "playlists", id },
+                ...libraryTracks.map((track) => ({ kind: "add" as const, group: "tracks" as const, id: track.id, parent: id })),
+              ],
+            ),
+          );
+          const jobs: YtSyncJob[] = [{ kind: "create", localPlaylistId: id, payload: name.trim() }];
+          for (const track of unique) {
+            const videoId = videoIdOf(track);
+            if (videoId) jobs.push({ kind: "add", localPlaylistId: id, videoId });
+          }
+          queueYtJobs(jobs);
+          if (libraryTracks.length > 0) notifyPlaylistTracksAdded(id, libraryTracks.map((track) => track.id));
+          return id;
+        },
         renamePlaylist: (id, name) => {
           apply(renamePlaylistUpdate(id, name));
           const trimmed = name.trim();
@@ -616,6 +643,7 @@ export const useLibrary = create<LibraryState>()(
         deletePlaylist: (id) => {
           const remote = get().playlists.find((playlist) => playlist.id === id)?.remote;
           apply(deletePlaylistUpdate(id));
+          void playlistCoverRemove(id).catch(() => {});
           if (remote?.imported) {
             unlinkYtPlaylist(id);
             return;
@@ -673,8 +701,13 @@ export const useLibrary = create<LibraryState>()(
           const videoId = track && videoIdOf(track);
           if (videoId) queueYtJobs([{ kind: "remove", localPlaylistId: playlistId, videoId }]);
         },
-        restoreTrackInPlaylist: (playlistId, track, index) =>
-          apply(restoreTrackUpdate(playlistId, track, index)),
+        restoreTrackInPlaylist: (playlistId, track, index) => {
+          const playlist = get().playlists.find((item) => item.id === playlistId);
+          if (!playlist || playlist.tracks.some((item) => item.id === track.id)) return;
+          apply(restoreTrackUpdate(playlistId, track, index));
+          const videoId = videoIdOf(track);
+          if (videoId) queueYtJobs([{ kind: "add", localPlaylistId: playlistId, videoId }]);
+        },
         moveInPlaylist: (playlistId, from, to) => apply(movePlaylistTrackUpdate(playlistId, from, to)),
         setPlaylistTracks: (playlistId, tracks) => {
           const before = new Set(get().playlists.find((item) => item.id === playlistId)?.tracks.map((item) => item.id));

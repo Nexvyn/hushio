@@ -18,7 +18,7 @@ import {
   playlistMenuItems,
 } from "../lib/collectionActions";
 import { moveKey } from "../lib/libraryOrder";
-import { LIBRARY_SORTS, type LibrarySort, sortLibraryRows } from "../lib/librarySort";
+import { LIBRARY_SORTS, sortLibraryRows } from "../lib/librarySort";
 import { useRovingKeys } from "../lib/useRovingKeys";
 import { plural } from "../lib/plural";
 import { useSortable } from "../lib/useSortable";
@@ -185,7 +185,7 @@ export function Sidebar({ mode = "full" }: { mode?: SidebarMode }) {
   const setLibraryCollapsed = useUI((state) => state.setLibraryCollapsed);
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<LibrarySort>("recents");
+  const sort = useSettings((state) => state.sidebarSort);
   const listRef = useRef<HTMLUListElement>(null);
   const expandable = mode === "full";
   const rail = mode === "rail" || libraryCollapsed;
@@ -215,6 +215,7 @@ export function Sidebar({ mode = "full" }: { mode?: SidebarMode }) {
   const sortable = useSortable({
     keys: visibleKeys,
     listRef,
+    reorder: sort === "custom",
     onMove: (from, to) => {
       const source = movableKeys.indexOf(visibleKeys[from]);
       const target = movableKeys.indexOf(visibleKeys[to]);
@@ -231,7 +232,7 @@ export function Sidebar({ mode = "full" }: { mode?: SidebarMode }) {
     ...LIBRARY_SORTS.map((option) => ({
       label: option.label,
       checked: option.id === sort,
-      onSelect: () => setSort(option.id),
+      onSelect: () => setSetting("sidebarSort", option.id),
     })),
   ];
 

@@ -170,13 +170,23 @@ describe("bulk likes", () => {
     expect(adds[deletionKey("liked", "t2")]).toBeGreaterThan(0);
   });
 
-  it("does not rate on YouTube, scrobble, or download", async () => {
-    useLibrary.getState().likeMany([youtube("dQw4w9WgXcQ"), track(2)]);
+  it("queues a YouTube rating for each newly liked YouTube song, without scrobbling or downloading", async () => {
+    useLibrary.getState().likeMany([youtube("dQw4w9WgXcQ"), track(2), youtube("aaaaaaaaaaa"), youtube("aaaaaaaaaaa")]);
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(rate).not.toHaveBeenCalled();
+    expect(rate.mock.calls).toEqual([
+      ["dQw4w9WgXcQ", true],
+      ["aaaaaaaaaaa", true],
+    ]);
     expect(love).not.toHaveBeenCalled();
     expect(autoDownload).not.toHaveBeenCalled();
     expect(likedIds()).toContain("dQw4w9WgXcQ");
+  });
+
+  it("does not rate a song that was already liked", () => {
+    useLibrary.getState().toggleLike(youtube("dQw4w9WgXcQ"));
+    rate.mockClear();
+    useLibrary.getState().likeMany([youtube("dQw4w9WgXcQ")]);
+    expect(rate).not.toHaveBeenCalled();
   });
 
   it("still rates, scrobbles and downloads for a single like", async () => {
@@ -184,6 +194,20 @@ describe("bulk likes", () => {
     expect(rate).toHaveBeenCalledWith("dQw4w9WgXcQ", true);
     expect(love).toHaveBeenCalledTimes(1);
     await vi.waitFor(() => expect(autoDownload).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe("creating a playlist with songs", () => {
+  it("creates the playlist with every unique song in one update", () => {
+    const snapshots: number[] = [];
+    const unsubscribe = useLibrary.subscribe((state) => snapshots.push(state.playlists.length));
+    const id = useLibrary.getState().createPlaylistWith("Big", [track(1), track(2), track(1)]);
+    unsubscribe();
+
+    const playlist = useLibrary.getState().playlists.find((item) => item.id === id);
+    expect(playlist?.name).toBe("Big");
+    expect(ids(playlist?.tracks ?? [])).toEqual(["t1", "t2"]);
+    expect(snapshots).toHaveLength(1);
   });
 });
 

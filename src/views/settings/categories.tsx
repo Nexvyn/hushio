@@ -1122,7 +1122,7 @@ function aboutCategory({ settings: s, version, updates, platform, navigate }: Bu
             id: "website",
             icon: Globe,
             title: `${APP_NAME} website`,
-            note: `${APP_SLUG}.space: downloads, news and help`,
+            note: `${APP_SLUG}.nexvyn.dev: downloads, news and help`,
             control: <Button onClick={() => updates.openPage(DOWNLOAD_PAGE)}>Open</Button>,
           },
           {

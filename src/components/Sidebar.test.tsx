@@ -33,6 +33,7 @@ function rowKeys(container: HTMLElement): string[] {
 beforeEach(() => {
   useLibrary.setState({ ...initialLibrary, pinnedSingles: DEFAULT_PINS, libraryOrder: undefined, playlists: [] }, true);
   useNavigation.setState(initialNavigation, true);
+  useSettings.setState({ sidebarSort: "recents" });
 });
 
 afterEach(cleanup);
@@ -87,9 +88,10 @@ describe("Your Library sidebar", () => {
     expect(screen.getByRole("button", { name: /Mix b/ }).querySelector("span[aria-hidden='true']")).toBeNull();
   });
 
-  it("moves an unpinned row down with Alt+ArrowDown, keeps focus on it, and saves the order", () => {
+  it("moves an unpinned row down with Alt+ArrowDown, keeps focus on it, and saves the order", async () => {
     useLibrary.setState({ playlists: [playlist("a")] });
     const { container } = render(<Sidebar />);
+    await chooseCustomOrder();
 
     const downloads = screen.getByRole("button", { name: /Downloads/ });
     downloads.focus();
@@ -100,9 +102,22 @@ describe("Your Library sidebar", () => {
     expect(document.activeElement).toBe(screen.getByRole("button", { name: /Downloads/ }));
   });
 
-  it("moves an unpinned row up with Alt+ArrowUp", () => {
+  it("does not move rows with Alt+Arrow or drag outside Custom order", () => {
+    useLibrary.setState({ playlists: [playlist("a")] });
+    render(<Sidebar />);
+
+    fireEvent.keyDown(screen.getByRole("button", { name: /Downloads/ }), { key: "ArrowDown", altKey: true });
+    pointer(screen.getByRole("button", { name: /Downloads/ }), "pointerdown", { x: 0, y: 25 });
+    pointer(window, "pointermove", { x: 0, y: 95 });
+    pointer(window, "pointerup", { x: 0, y: 95 });
+
+    expect(useLibrary.getState().libraryOrder).toBeUndefined();
+  });
+
+  it("moves an unpinned row up with Alt+ArrowUp", async () => {
     useLibrary.setState({ playlists: [playlist("a")] });
     const { container } = render(<Sidebar />);
+    await chooseCustomOrder();
 
     fireEvent.keyDown(screen.getByRole("button", { name: /Mix a/ }), { key: "ArrowUp", altKey: true });
 
@@ -139,6 +154,11 @@ describe("Your Library sidebar", () => {
   });
 });
 
+async function chooseCustomOrder() {
+  fireEvent.click(screen.getByRole("button", { name: /Sort library/ }));
+  await act(async () => useUI.getState().contextMenu?.items.find((item) => item.label === "Custom order")?.onSelect?.());
+}
+
 function pointer(target: Element | Window, type: string, at: { x: number; y: number }) {
   const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX: at.x, clientY: at.y, button: 0 });
   Object.defineProperty(event, "pointerType", { value: "mouse" });
@@ -164,6 +184,7 @@ describe("Your Library drag and drop", () => {
   it("reorders unpinned rows by dragging and saves the whole order", async () => {
     useLibrary.setState({ playlists: [playlist("a")] });
     render(<Sidebar />);
+    await chooseCustomOrder();
 
     const downloads = screen.getByRole("button", { name: /Downloads/ });
     pointer(downloads, "pointerdown", { x: 0, y: 25 });

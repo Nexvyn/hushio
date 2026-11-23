@@ -135,8 +135,9 @@ export function openDeletePlaylist(id: string) {
     confirmLabel: "Delete",
     danger: true,
     onConfirm: () => {
+      const { view, navigate } = useNavigation.getState();
       useLibrary.getState().deletePlaylist(id);
-      useNavigation.getState().navigate({ name: "library" });
+      if (view.name === "playlist" && view.param === id) navigate({ name: "library" });
     },
   });
 }

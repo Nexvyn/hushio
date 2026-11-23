@@ -153,7 +153,7 @@ export function PlaylistView() {
       <CollectionActions
         playLabel={`Play ${playlist.name}`}
         disabled={empty}
-        onPlay={() => playCollection(tracks, playlist.id, false)}
+        onPlay={() => playCollection(visibleTracks, playlist.id, false)}
         onShuffle={() => playCollection(tracks, playlist.id, true)}
         onDownload={() => downloadAll(tracks, playlist.name)}
         menu={headerMenu}
@@ -181,7 +181,7 @@ export function PlaylistView() {
             <button
               type="button"
               aria-label={`Play ${playlist.name}`}
-              onClick={() => playCollection(tracks, playlist.id, false)}
+              onClick={() => playCollection(visibleTracks, playlist.id, false)}
               className={PHONE_PLAY}
             >
               <HeroIcon icon={Play} />

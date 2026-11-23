@@ -89,7 +89,7 @@ export function LikedView() {
       <CollectionActions
         playLabel="Play Liked Songs"
         disabled={empty}
-        onPlay={() => playCollection(liked, LIKED_SOURCE, false)}
+        onPlay={() => playCollection(visibleTracks, LIKED_SOURCE, false)}
         onShuffle={() => playCollection(liked, LIKED_SOURCE, true)}
         onDownload={() => downloadAll(liked, "Liked Songs")}
         menu={[
@@ -117,7 +117,7 @@ export function LikedView() {
               type="button"
               aria-label="Play Liked Songs"
               disabled={empty}
-              onClick={() => playCollection(liked, LIKED_SOURCE, false)}
+              onClick={() => playCollection(visibleTracks, LIKED_SOURCE, false)}
               className={PHONE_PLAY}
             >
               <HeroIcon icon={Play} />

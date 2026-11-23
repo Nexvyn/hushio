@@ -3,6 +3,7 @@ package com.hushio.player
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import android.util.Base64
 import androidx.activity.result.ActivityResult
 import app.tauri.annotation.ActivityCallback
 import app.tauri.annotation.Command
@@ -80,8 +81,37 @@ class LocalAudioPlugin(private val activity: Activity) : Plugin(activity) {
         null
     }
 
+    @Command
+    fun read_image(invoke: Invoke) {
+        val uri = invoke.getArgs().optString("uri")
+        Thread {
+            val bytes = readImageBytes(uri)
+            if (bytes == null) {
+                invoke.reject("Could not read the picked image")
+            } else {
+                invoke.resolve(JSObject().put("base64", Base64.encodeToString(bytes, Base64.NO_WRAP)))
+            }
+        }.start()
+    }
+
+    private fun readImageBytes(uri: String): ByteArray? = try {
+        activity.contentResolver.openInputStream(Uri.parse(uri))?.use { stream ->
+            val output = ByteArrayOutputStream()
+            val buffer = ByteArray(8192)
+            while (output.size() <= MAX_IMAGE_BYTES) {
+                val read = stream.read(buffer)
+                if (read < 0) break
+                output.write(buffer, 0, read)
+            }
+            output.toByteArray()
+        }
+    } catch (error: Exception) {
+        null
+    }
+
     private companion object {
         const val MAX_LRC_BYTES = 1048576
+        const val MAX_IMAGE_BYTES = 10 * 1024 * 1024
     }
 
 }

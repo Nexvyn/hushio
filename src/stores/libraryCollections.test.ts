@@ -15,6 +15,13 @@ vi.mock("../lib/persist", () => ({
   }),
 }));
 
+const queueYtJobs = vi.hoisted(() => vi.fn());
+
+vi.mock("../lib/ytSync", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/ytSync")>()),
+  queueYtJobs,
+}));
+
 import { deletionKey } from "../lib/deletionSync";
 import { DEFAULT_PINS, type LibraryTrack, useLibrary } from "./library";
 import type { Track } from "../types";
@@ -235,6 +242,16 @@ describe("song restore, removal and tombstones", () => {
     restoreTrackInPlaylist(id, library(2), -5);
     expect(ids()).toEqual(["t2", "t1", "t3"]);
     expect(useLibrary.getState().deletionSync?.adds[deletionKey("tracks", "t2", id)]).toBeGreaterThan(0);
+  });
+
+  it("queues an add on YouTube when a removed song is restored", () => {
+    const id = useLibrary.getState().createPlaylist("Synced");
+    const { addToPlaylist, removeFromPlaylist, restoreTrackInPlaylist } = useLibrary.getState();
+    addToPlaylist(id, track(5));
+    removeFromPlaylist(id, "t5");
+    queueYtJobs.mockClear();
+    restoreTrackInPlaylist(id, library(5), 0);
+    expect(queueYtJobs).toHaveBeenCalledWith([{ kind: "add", localPlaylistId: id, videoId: "t5" }]);
   });
 
   it("ignores a restore of a song that is already in the playlist", () => {

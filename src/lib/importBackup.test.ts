@@ -261,6 +261,24 @@ describe("restoreBackup library, player and searches", () => {
     expect(replayImport).toHaveBeenCalledWith([{ month: "2026-10" }]);
   });
 
+  it("normalises restored playlists and drops broken tracks, so a playlist without tracks cannot crash the library", () => {
+    restoreBackup(
+      parseBackup(
+        doc({
+          library: envelope({
+            playlists: [
+              { id: "p1", name: "Bare", folderId: null, pinned: false },
+              { id: "p2", name: "Mixed", folderId: null, pinned: false, tracks: [{ nope: true }, track("a")] },
+            ],
+          }),
+        }),
+      ),
+    );
+    const playlists = useLibrary.getState().playlists;
+    expect(playlists[0].tracks).toEqual([]);
+    expect(playlists[1].tracks.map((item) => item.id)).toEqual(["a"]);
+  });
+
   it("keeps the current listening stats when the backup has no listening section", () => {
     restoreBackup(parseBackup(doc({ recentSearches: [] })));
     expect(replayImport).not.toHaveBeenCalled();

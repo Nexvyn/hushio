@@ -209,15 +209,11 @@ async function importYouTubeMix(seedId: string): Promise<string | null> {
 }
 
 export function saveImportedPlaylist(name: string, songs: SearchSong[]): string {
-  const id = useLibrary.getState().createPlaylist(name);
-  for (const song of songs) useLibrary.getState().addToPlaylist(id, song);
-  return id;
+  return useLibrary.getState().createPlaylistWith(name, songs);
 }
 
 function addTracks(name: string, tracks: PlaylistTrack[]): string {
-  const id = useLibrary.getState().createPlaylist(name);
-  for (const track of tracks) useLibrary.getState().addToPlaylist(id, track);
-  return id;
+  return useLibrary.getState().createPlaylistWith(name, tracks);
 }
 
 export function importPlaylistFile(text: string, fileName: string): string | null {

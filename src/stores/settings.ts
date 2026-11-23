@@ -11,6 +11,7 @@ import type { AddonSource } from "../lib/addons/types";
 import { DEFAULT_IMAGE_CACHE_MB } from "../lib/cacheStats";
 import type { LanguageSetting } from "../lib/i18n";
 import { ZOOM_STEPS } from "../lib/zoom";
+import type { LibrarySort } from "../lib/librarySort";
 
 export const DEVICE_SETTINGS_KEYS = [
   "downloadDir",
@@ -30,6 +31,8 @@ export type LibraryLayout = (typeof LIBRARY_LAYOUTS)[number];
 
 export const SIDEBAR_LAYOUTS = ["compact", "list", "grid"] as const;
 export type SidebarLayout = (typeof SIDEBAR_LAYOUTS)[number];
+
+export const LIBRARY_SORT_IDS: readonly LibrarySort[] = ["recents", "added", "alpha", "creator", "custom"];
 
 export const LYRICS_OFFSET_LIMIT = 3;
 const LYRICS_OFFSET_STEPS_PER_SECOND = 20;
@@ -74,6 +77,7 @@ export type SettingsValues = {
   closeToTray: boolean;
   libraryLayout: LibraryLayout;
   sidebarLayout: SidebarLayout;
+  sidebarSort: LibrarySort;
   crossfadeSeconds: number;
   smartFade: boolean;
   skipSilence: boolean;
@@ -219,6 +223,7 @@ const SETTING_CHECKS: Record<string, SettingCheck> = {
   closeToTray: isBoolean,
   libraryLayout: isLibraryLayout,
   sidebarLayout: isSidebarLayout,
+  sidebarSort: oneOf(LIBRARY_SORT_IDS),
   crossfadeSeconds: numberIn(0, CROSSFADE_LIMIT),
   smartFade: isBoolean,
   skipSilence: isBoolean,
@@ -280,6 +285,7 @@ export const useSettings = create<SettingsState>()(
       closeToTray: true,
       libraryLayout: "grid",
       sidebarLayout: "list",
+      sidebarSort: "recents",
       crossfadeSeconds: 0,
       smartFade: false,
       skipSilence: false,

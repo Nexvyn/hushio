@@ -121,6 +121,23 @@ describe("Playlist sort menu on desktop", () => {
     expect(usePlayer.getState().index).toBe(1);
   });
 
+  it("the Play button starts from the sorted order", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <PlaylistView />
+        <ContextMenu />
+      </>,
+    );
+    await chooseSort(user, "Artist");
+    await chooseSort(user, "Album");
+
+    fireEvent.click(screen.getByRole("button", { name: "Play Road trip" }));
+
+    expect(usePlayer.getState().queue.map((track) => track.id)).toEqual(["s3", "s2", "s1", "s4"]);
+    expect(usePlayer.getState().index).toBe(0);
+  });
+
   it("turns off keyboard reorder while sorted and turns it back on for custom order", async () => {
     const user = userEvent.setup();
     render(

@@ -11,9 +11,10 @@ vi.mock("../lib/bridge", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../lib/bridge")>()),
   ytEnqueue: vi.fn(async () => {}),
   ytUnlinkPlaylist: vi.fn(async () => {}),
+  playlistCoverRemove: vi.fn(async () => {}),
 }));
 
-import { ytEnqueue, ytUnlinkPlaylist } from "../lib/bridge";
+import { playlistCoverRemove, ytEnqueue, ytUnlinkPlaylist } from "../lib/bridge";
 import { openDeletePlaylist } from "../lib/collectionActions";
 import { GUEST_ACCOUNT, useAuth } from "./auth";
 import { type Playlist, useLibrary } from "./library";
@@ -31,6 +32,16 @@ beforeEach(() => {
   useAuth.setState({ account: { ...GUEST_ACCOUNT, mode: "google", googleSub: "sub" }, signingIn: false, loaded: true });
   useLibrary.setState(initialLibrary, true);
   useUI.setState({ ...initialUI, dialog: null });
+});
+
+describe("deleting a playlist removes its cover file", () => {
+  it("asks the app to remove the cover for the deleted playlist", () => {
+    useLibrary.setState({ playlists: [{ ...playlist("cov"), coverPath: "/covers/cov.png" }] });
+
+    useLibrary.getState().deletePlaylist("cov");
+
+    expect(playlistCoverRemove).toHaveBeenCalledWith("cov");
+  });
 });
 
 describe("deleting a playlist that is linked to YouTube", () => {
