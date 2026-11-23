@@ -981,6 +981,7 @@ pub fn run() {
             network::network_track_bytes,
             crash::crash_logs,
             crash::crash_logs_clear,
+            crash::crash_report,
             discord::discord_status,
             discord::discord_set_enabled,
             disconnect::erase_stop_sync,

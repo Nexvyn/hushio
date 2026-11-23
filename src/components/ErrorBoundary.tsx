@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Warning } from "@phosphor-icons/react";
 import { Icon } from "./Icon";
+import { reportCrash } from "../lib/crashReport";
 
 type ErrorBoundaryProps = {
   children: ReactNode;
@@ -23,6 +24,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   componentDidCatch(error: Error, info: ErrorInfo) {
     this.setState({ componentStack: info.componentStack ?? "" });
     console.error("[hushio] renderer crashed:", error, info.componentStack);
+    reportCrash(error);
   }
 
   componentDidUpdate(previous: ErrorBoundaryProps) {

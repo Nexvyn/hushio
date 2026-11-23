@@ -784,6 +784,10 @@ export function listenYtTvCode(onCode: (code: YtTvCode) => void): Promise<Unlist
   return listen<YtTvCode>("yt-tv-code", (event) => onCode(event.payload));
 }
 
+export function crashReport(message: string): Promise<void> {
+  return call<void>("crash_report", { message });
+}
+
 export function eraseStopSync(): Promise<void> {
   return call<void>("erase_stop_sync");
 }

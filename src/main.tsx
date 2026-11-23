@@ -21,6 +21,7 @@ import { applyAppearance, useSettings } from "./stores/settings";
 import { applyLanguageSetting } from "./lib/i18n";
 import { MotionRoot } from "./components/MotionRoot";
 import { refreshHtmlClasses, startHtmlClasses } from "./lib/htmlClasses";
+import { installCrashReporting } from "./lib/crashReport";
 import { finishBlend, nextBlendTarget, resumeQueueAfterHydration, usePlayer } from "./stores/player";
 
 applyAppearance(useSettings.getState());
@@ -28,6 +29,7 @@ useSettings.subscribe(applyAppearance);
 applyLanguageSetting(useSettings.getState().language);
 useSettings.subscribe((state) => applyLanguageSetting(state.language));
 startHtmlClasses();
+installCrashReporting();
 
 const root = document.getElementById("root") as HTMLElement;
 const isPip = new URLSearchParams(window.location.search).get("window") === "pip";
