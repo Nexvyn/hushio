@@ -16,7 +16,7 @@ download() {
   local output="$3"
   curl --fail --location --retry 3 --silent --show-error "$url" -o "$output"
   local actual
-  actual=$( (shasum -a 256 "$output" 2>/dev/null || sha256sum "$output") | awk '{print $1}')
+  actual=$( (shasum -a 256 < "$output" 2>/dev/null || sha256sum < "$output") | awk '{print $1}')
   if [ "$actual" != "$sha256" ]; then
     echo "Checksum mismatch for $output: expected $sha256, got ${actual:-no hash}" >&2
     return 1
