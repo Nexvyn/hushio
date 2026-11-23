@@ -46,7 +46,7 @@ function optionsFor(mode: EraseMode, youtube: boolean, downloads: boolean): Eras
 function remoteText(message: string) {
   return /sign[- ]in/i.test(message)
     ? "Google didn't accept the request. Sign in again, then retry."
-    : "Couldn't reach Google. Nothing was erased. Try again.";
+    : "Couldn't reach Google. Your local data is untouched. Try again.";
 }
 
 const BUTTON =

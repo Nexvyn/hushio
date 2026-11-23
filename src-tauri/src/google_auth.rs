@@ -699,7 +699,10 @@ impl GoogleAuth {
         match self.access().await {
             Access::Token(token) => Ok(token),
             Access::Retry => Err(TokenError::Retry),
-            Access::Rejected => Err(TokenError::SignedOut),
+            Access::Rejected => {
+                self.forget();
+                Err(TokenError::SignedOut)
+            }
         }
     }
 
@@ -1604,6 +1607,20 @@ mod tests {
             panic!("expected a local sign-out");
         };
         assert_eq!(account.mode, Mode::Guest);
+        assert!(store.saved().is_none());
+    }
+
+    #[tokio::test]
+    async fn a_rejected_token_mid_session_signs_out_locally() {
+        let (base, fake) = start_fake().await;
+        *fake.token.lock().unwrap() = Some((400, r#"{"error":"invalid_grant"}"#.to_owned()));
+        let store = Arc::new(MemoryStore::with(
+            r#"{"refresh_token":"refresh-1","sub":"sub-1","email":null,"saved_at":1}"#,
+        ));
+        let auth = GoogleAuth::new(config(&base), store.clone());
+        assert!(auth.load_session());
+        assert_eq!(auth.youtube_token(false).await, Err(TokenError::SignedOut));
+        assert_eq!(auth.account().mode, Mode::Guest);
         assert!(store.saved().is_none());
     }
 
