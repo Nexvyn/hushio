@@ -168,7 +168,7 @@ pub(crate) fn title_from_name(name: &str) -> (String, String) {
     }
 }
 
-fn share_key(id: &str) -> String {
+pub(crate) fn share_key(id: &str) -> String {
     format!("network-share:{id}")
 }
 
@@ -365,8 +365,10 @@ impl Service {
             if is_new && stored.servers.len() >= MAX_SERVERS {
                 return Err("That's too many servers. Remove one first.".to_owned());
             }
-            server.password = keep_secret(self.vault.as_ref(), &share_key(&server.id), &server.password)
-                .unwrap_or_default();
+            if !server.password.is_empty() {
+                server.password = keep_secret(self.vault.as_ref(), &share_key(&server.id), &server.password)
+                    .unwrap_or_default();
+            }
             match stored
                 .servers
                 .iter_mut()
@@ -829,6 +831,61 @@ mod secret_tests {
         write_servers(dir.path()).await;
         let vault = Arc::new(MemoryVault::default());
         let service = Service::load(dir.path().to_path_buf(), vault.clone()).await;
+
+        service.remove("s1").await.unwrap();
+
+        assert!(vault.get("network-share:s1").is_none());
+    }
+
+    fn webdav_input(password: &str) -> Server {
+        Server {
+            id: "s1".to_owned(),
+            kind: ServerKind::WebDav,
+            name: "Box".to_owned(),
+            url: "https://box.example/dav".to_owned(),
+            host: String::new(),
+            share: String::new(),
+            path: String::new(),
+            username: "me".to_owned(),
+            password: password.to_owned(),
+            scanned_at: 0,
+            song_count: 0,
+            truncated: false,
+        }
+    }
+
+    #[tokio::test]
+    async fn saving_a_password_puts_it_in_the_key_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = Arc::new(MemoryVault::default());
+        let service = Arc::new(Service::load(dir.path().to_path_buf(), vault.clone()).await);
+
+        service.clone().save(webdav_input("hunter2")).await.unwrap();
+
+        assert_eq!(vault.get("network-share:s1").as_deref(), Some("hunter2"));
+        let file = persist::read(dir.path(), OWNER, STORE).await.unwrap();
+        assert!(!file.to_string().contains("hunter2"));
+    }
+
+    #[tokio::test]
+    async fn saving_again_with_an_empty_password_keeps_the_stored_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = Arc::new(MemoryVault::default());
+        let service = Arc::new(Service::load(dir.path().to_path_buf(), vault.clone()).await);
+        service.clone().save(webdav_input("hunter2")).await.unwrap();
+
+        service.clone().save(webdav_input("")).await.unwrap();
+
+        assert_eq!(vault.get("network-share:s1").as_deref(), Some("hunter2"));
+        assert_eq!(service.connectable("s1").unwrap().password, "hunter2");
+    }
+
+    #[tokio::test]
+    async fn removing_after_a_save_clears_the_key_store_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = Arc::new(MemoryVault::default());
+        let service = Arc::new(Service::load(dir.path().to_path_buf(), vault.clone()).await);
+        service.clone().save(webdav_input("hunter2")).await.unwrap();
 
         service.remove("s1").await.unwrap();
 

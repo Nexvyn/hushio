@@ -189,8 +189,15 @@ impl SpotifyAuth {
         if inner.loaded {
             return;
         }
+        let raw = match self.store.read() {
+            Ok(raw) => raw,
+            Err(error) => {
+                tracing::warn!(%error, "could not read the stored Spotify sign-in, will retry");
+                return;
+            }
+        };
         inner.loaded = true;
-        let Ok(Some(raw)) = self.store.read() else {
+        let Some(raw) = raw else {
             return;
         };
         match serde_json::from_str::<StoredSession>(&raw) {
@@ -584,5 +591,40 @@ mod tests {
         let account = auth.sign_out();
         assert!(!account.signed_in);
         assert!(store.saved().is_none());
+    }
+
+    struct FlakyStore {
+        reads: Mutex<u32>,
+        saved: String,
+    }
+
+    impl SecretStore for FlakyStore {
+        fn read(&self) -> StoreResult<Option<String>> {
+            let mut reads = self.reads.lock().unwrap();
+            *reads += 1;
+            if *reads == 1 {
+                return Err("key store busy".to_owned());
+            }
+            Ok(Some(self.saved.clone()))
+        }
+
+        fn write(&self, _: &str) -> StoreResult<()> {
+            Ok(())
+        }
+
+        fn clear(&self) -> StoreResult<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_failed_read_is_retried_on_the_next_call() {
+        let store = Arc::new(FlakyStore {
+            reads: Mutex::new(0),
+            saved: r#"{"refresh_token":"r-1","name":"Ada"}"#.to_owned(),
+        });
+        let auth = SpotifyAuth::new(config(), store);
+        assert!(!auth.account().signed_in);
+        assert!(auth.account().signed_in);
     }
 }

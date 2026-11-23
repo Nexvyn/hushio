@@ -5,6 +5,10 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -44,10 +48,16 @@ class SecretVault(context: Context) {
 
     private fun write(records: Map<String, String>) {
         val temp = File(file.parentFile, "${file.name}.tmp")
-        temp.writeText(SecretRecords.serialize(records), Charsets.UTF_8)
-        if (!temp.renameTo(file)) {
-            file.delete()
-            temp.renameTo(file)
+        try {
+            FileOutputStream(temp).use { stream ->
+                stream.write(SecretRecords.serialize(records).toByteArray(Charsets.UTF_8))
+                stream.flush()
+                stream.fd.sync()
+            }
+            Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        } catch (error: IOException) {
+            temp.delete()
+            throw error
         }
     }
 
