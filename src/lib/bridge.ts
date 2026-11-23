@@ -25,11 +25,17 @@ export function detectPlatform(ua: string): Platform {
 
 export const platform: Platform = detectPlatform(navigator.userAgent);
 
+function isMissingCommand(error: unknown, command: string): boolean {
+  const text = (error instanceof Error ? error.message : String(error)).trim().toLowerCase();
+  const expected = `command ${command} not found`.toLowerCase();
+  return text.startsWith(expected) && /^[.!?]*$/.test(text.slice(expected.length));
+}
+
 export async function call<T>(command: string, args?: InvokeArgs): Promise<T> {
   try {
     return await invoke<T>(command, args);
   } catch (error) {
-    if (String(error).includes("not found")) {
+    if (isMissingCommand(error, command)) {
       throw new Error(`Native command "${command}" is not available`);
     }
     throw error;
