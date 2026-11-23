@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>dev.nexvyn.Hushio</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <name>Hushio</name>
+  <summary>A free music player</summary>
+  <developer id="dev.nexvyn">
+    <name>Nexvyn</name>
+  </developer>
+  <description>
+    <p>Hushio is a free music player with no ads, no account and no servers of its own. Your library, playlists and settings stay on your device.</p>
+    <p>Hushio searches and plays songs from an online catalogue. It also plays your own music folders and music on network shares.</p>
+    <ul>
+      <li>Search songs, albums, artists, playlists and videos.</li>
+      <li>A queue with shuffle, repeat and endless Autoplay.</li>
+      <li>Synced lyrics with word-by-word highlighting.</li>
+      <li>Liked Songs and playlists, with imports from text lists, CSV files and playlist links.</li>
+      <li>Downloads for offline listening.</li>
+      <li>Equaliser, crossfade and a sleep timer.</li>
+      <li>Media keys, a tray icon, and a light, dark or system theme.</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">dev.nexvyn.Hushio.desktop</launchable>
+  <icon type="stock">dev.nexvyn.Hushio</icon>
+  <url type="homepage">https://hushio.nexvyn.dev</url>
+  <url type="bugtracker">https://github.com/Nexvyn/hushio/issues</url>
+  <url type="vcs-browser">https://github.com/Nexvyn/hushio</url>
+  <url type="contribute">https://github.com/Nexvyn/hushio/blob/main/CONTRIBUTING.md</url>
+  <url type="translate">https://github.com/Nexvyn/hushio/blob/main/CONTRIBUTING.md#translating-hushio</url>
+  <content_rating type="oars-1.1">
+    <content_attribute id="language-profanity">mild</content_attribute>
+    <content_attribute id="sex-themes">mild</content_attribute>
+  </content_rating>
+  <categories>
+    <category>AudioVideo</category>
+    <category>Audio</category>
+    <category>Music</category>
+    <category>Player</category>
+  </categories>
+  <provides>
+    <binary>hushio-desktop</binary>
+  </provides>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Hushio on the desktop</caption>
+      <image type="source" width="1920" height="1080">https://raw.githubusercontent.com/Nexvyn/hushio/main/.github/assets/desktop.jpg</image>
+    </screenshot>
+  </screenshots>
+  <releases>
+    <release version="1.0.0" date="2026-11-20">
+      <description>
+        <p>First public release, with Windows, macOS, Linux and Android downloads.</p>
+      </description>
+    </release>
+  </releases>
+</component>

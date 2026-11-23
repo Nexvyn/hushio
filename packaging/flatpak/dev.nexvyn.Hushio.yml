@@ -1,0 +1,37 @@
+app-id: dev.nexvyn.Hushio
+runtime: org.gnome.Platform
+runtime-version: '48'
+sdk: org.gnome.Sdk
+command: hushio-desktop
+finish-args:
+  - --share=network
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --socket=pulseaudio
+  - --device=dri
+  - --talk-name=org.freedesktop.secrets
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --own-name=org.mpris.MediaPlayer2.hushio
+  - --filesystem=xdg-music:ro
+modules:
+  - name: hushio
+    buildsystem: simple
+    build-commands:
+      - ar x Hushio-1.0.0-linux-amd64.deb
+      - mkdir deb-root
+      - tar -xf data.tar.* -C deb-root
+      - install -Dm755 deb-root/usr/bin/hushio-desktop /app/bin/hushio-desktop
+      - install -Dm644 deb-root/usr/share/applications/Hushio.desktop /app/share/applications/dev.nexvyn.Hushio.desktop
+      - sed -i -e 's/^Icon=.*/Icon=dev.nexvyn.Hushio/' -e 's/^Exec=.*/Exec=hushio-desktop %U/' /app/share/applications/dev.nexvyn.Hushio.desktop
+      - for size in 16 24 32 48 64 128 256 512; do install -Dm644 deb-root/usr/share/icons/hicolor/${size}x${size}/apps/hushio.png /app/share/icons/hicolor/${size}x${size}/apps/dev.nexvyn.Hushio.png; done
+      - install -Dm644 deb-root/usr/share/icons/hicolor/scalable/apps/hushio.svg /app/share/icons/hicolor/scalable/apps/dev.nexvyn.Hushio.svg
+      - install -Dm644 dev.nexvyn.Hushio.metainfo.xml /app/share/metainfo/dev.nexvyn.Hushio.metainfo.xml
+    sources:
+      - type: file
+        url: https://github.com/Nexvyn/hushio/releases/download/v1.0.0/Hushio-1.0.0-linux-amd64.deb
+        sha256: 510fc1c1ad89c4d81a31722b66576a9eebcf9e9d55877938305dee5437f715e8
+        only-arches:
+          - x86_64
+      - type: file
+        path: dev.nexvyn.Hushio.metainfo.xml

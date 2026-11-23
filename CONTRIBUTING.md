@@ -48,7 +48,6 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 If you change a screen, try it in the desktop app and in the phone layout, in both light and dark themes.
 
-## Code style
 ## Translating Hushio
 
 The text lives in `src/lib/i18n/`. `en.ts` is the source of truth; every key you use must exist there.
@@ -88,6 +87,20 @@ Some features need keys that are not in the repository:
 | Discord status | `DISCORD_CLIENT_ID` in `src-tauri/src/discord.rs` |
 
 Use your own keys for local builds and never commit them. Without keys, these features don't work, and the rest of the app does.
+
+## Building the Flatpak
+
+The Flatpak repackages the released Linux `.deb`, so build it after the GitHub release exists. Install `flatpak`, `flatpak-builder` and `appstream` from your distribution, then run:
+
+```sh
+flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak install --user -y flathub org.gnome.Platform//48 org.gnome.Sdk//48
+flatpak-builder --user --install --force-clean build-dir packaging/flatpak/dev.nexvyn.Hushio.yml
+flatpak run dev.nexvyn.Hushio
+appstreamcli validate --pedantic packaging/flatpak/dev.nexvyn.Hushio.metainfo.xml
+```
+
+For a new release, update the `url` and `sha256` of the `.deb` in the manifest and add the release to the `releases` list in the metainfo file. Submitting to Flathub is a separate step that is not done yet.
 
 ## Releases
 
