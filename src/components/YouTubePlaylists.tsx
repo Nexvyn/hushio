@@ -4,7 +4,7 @@ import { useAuth } from "../stores/auth";
 import { newId, useLibrary, type LikeInput } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
 import { useUI } from "../stores/ui";
-import { ytLinkPlaylist, ytMyPlaylists, ytPlaylistVideos, type YtRemotePlaylist, type YtRemoteVideo } from "../lib/bridge";
+import { ytLikedVideos, ytLinkPlaylist, ytMyPlaylists, ytPlaylistVideos, type YtRemotePlaylist, type YtRemoteVideo } from "../lib/bridge";
 import { plural } from "../lib/plural";
 
 type ListState =
@@ -32,12 +32,14 @@ export function YouTubePlaylists() {
   const signIn = useAuth((state) => state.signIn);
   const libraryPlaylists = useLibrary((state) => state.playlists);
   const importLinked = useLibrary((state) => state.importLinkedPlaylist);
+  const importLikedTracks = useLibrary((state) => state.importLikedTracks);
   const navigate = useNavigation((state) => state.navigate);
   const toast = useUI((state) => state.toast);
   const [list, setList] = useState<ListState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
   const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set());
   const [importingAll, setImportingAll] = useState(false);
+  const [likedBusy, setLikedBusy] = useState(false);
   const headingId = useId();
 
   useEffect(() => {
@@ -65,7 +67,7 @@ export function YouTubePlaylists() {
     setPending((current) => new Set(current).add(playlist.id));
     try {
       const videos = await ytPlaylistVideos(playlist.id);
-      const id = newId();
+      const id = linked.get(playlist.id) ?? newId();
       await ytLinkPlaylist(id, playlist.id);
       importLinked(id, playlist.title, playlist.id, videos.map(toTrack));
       return true;
@@ -78,6 +80,20 @@ export function YouTubePlaylists() {
         next.delete(playlist.id);
         return next;
       });
+    }
+  }
+
+  async function importLikedSongs() {
+    if (likedBusy) return;
+    setLikedBusy(true);
+    try {
+      const videos = await ytLikedVideos();
+      importLikedTracks(videos.map(toTrack));
+      toast(`Imported ${plural(videos.length, "liked song", "liked songs")}`, "success");
+    } catch (error) {
+      toast(errorText(error), "error");
+    } finally {
+      setLikedBusy(false);
     }
   }
 
@@ -144,6 +160,9 @@ export function YouTubePlaylists() {
               {localId ? (
                 <div className="flex shrink-0 items-center gap-2">
                   <span className="text-meta text-ink-2">Imported</span>
+                  <Button variant="ghost" disabled={busy || importingAll} onClick={() => void importOne(playlist)}>
+                    {busy ? "Refreshing..." : "Refresh"}
+                  </Button>
                   <Button variant="ghost" onClick={() => navigate({ name: "playlist", param: localId })}>
                     Open
                   </Button>
@@ -185,6 +204,14 @@ export function YouTubePlaylists() {
           </Button>
         )}
       </div>
+      {signedIn && (
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <p className="text-body text-ink-1">Liked music</p>
+          <Button variant="secondary" disabled={likedBusy} onClick={() => void importLikedSongs()}>
+            {likedBusy ? "Importing..." : "Import Liked music"}
+          </Button>
+        </div>
+      )}
       {renderBody()}
     </section>
   );

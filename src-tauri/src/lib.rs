@@ -518,6 +518,13 @@ async fn yt_playlist_videos(
 }
 
 #[tauri::command]
+async fn yt_liked_videos(
+    engine: State<'_, Arc<YtEngine>>,
+) -> Result<Vec<yt_data_api::RemoteVideo>, String> {
+    engine.liked_videos().await
+}
+
+#[tauri::command]
 async fn yt_link_playlist(
     engine: State<'_, Arc<YtEngine>>,
     local_playlist_id: String,
@@ -968,6 +975,7 @@ pub fn run() {
             yt_rate,
             yt_my_playlists,
             yt_playlist_videos,
+            yt_liked_videos,
             yt_link_playlist,
             yt_unlink_playlist,
             yt_tv_status,

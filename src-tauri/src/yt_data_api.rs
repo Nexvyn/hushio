@@ -276,11 +276,28 @@ impl YtApi {
         tokens: &T,
         playlist_id: &str,
     ) -> Result<Vec<RemoteVideo>, ApiError> {
+        self.videos(tokens, &[("playlistId", playlist_id)]).await
+    }
+
+    pub async fn liked_videos<T: AccessTokens>(
+        &self,
+        tokens: &T,
+    ) -> Result<Vec<RemoteVideo>, ApiError> {
+        self.videos(tokens, &[("myRating", "like")]).await
+    }
+
+    async fn videos<T: AccessTokens>(
+        &self,
+        tokens: &T,
+        filter: &[(&str, &str)],
+    ) -> Result<Vec<RemoteVideo>, ApiError> {
         let mut raw = Vec::new();
+        let mut query = vec![("part", "snippet,contentDetails")];
+        query.extend_from_slice(filter);
         self.pages(
             tokens,
             "playlistItems",
-            &[("part", "snippet,contentDetails"), ("playlistId", playlist_id)],
+            &query,
             &mut raw,
         )
         .await?;
@@ -683,6 +700,43 @@ mod tests {
         let api = YtApi::new(&base, quota());
         assert!(api.playlist_videos(&FakeTokens, "PL9").await.unwrap().is_empty());
         assert_eq!(mock.seen.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn liked_videos_follow_every_page_and_skip_unavailable_items() {
+        let (base, mock) = start_mock().await;
+        let first = (0..50)
+            .map(|index| {
+                format!(
+                    r#"{{"snippet":{{"title":"Song {index}","videoOwnerChannelTitle":"Artist","resourceId":{{"videoId":"v{index:010}"}}}}}}"#
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        mock.replies.lock().unwrap().push_back((
+            200,
+            format!(r#"{{"items":[{first}],"nextPageToken":"next"}}"#),
+        ));
+        mock.replies.lock().unwrap().push_back((
+            200,
+            r#"{"items":[{"snippet":{"title":"Deleted video","resourceId":{"videoId":"gone"}}},{"snippet":{"title":"Song 50","resourceId":{"videoId":"v0000000050"}}}]}"#.to_owned(),
+        ));
+        for _ in 0..2 {
+            mock.replies
+                .lock()
+                .unwrap()
+                .push_back((200, r#"{"items":[]}"#.to_owned()));
+        }
+        let api = YtApi::new(&base, quota());
+
+        let videos = api.liked_videos(&FakeTokens).await.unwrap();
+
+        assert_eq!(videos.len(), 51);
+        let seen = mock.seen.lock().unwrap().clone();
+        assert_eq!(seen.len(), 4);
+        assert!(seen[0].query.contains("myRating=like"));
+        assert!(seen[1].query.contains("pageToken=next"));
+        assert_eq!(seen[2].path, "/youtube/v3/videos");
     }
 
     #[test]

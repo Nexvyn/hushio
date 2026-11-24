@@ -14,6 +14,7 @@ vi.mock("../lib/bridge", async (importOriginal) => ({
   googleSignIn: vi.fn(),
   ytMyPlaylists: vi.fn(),
   ytPlaylistVideos: vi.fn(),
+  ytLikedVideos: vi.fn(),
   ytLinkPlaylist: vi.fn(),
 }));
 
@@ -22,7 +23,7 @@ import { GUEST_ACCOUNT, useAuth } from "../stores/auth";
 import { useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
 import { useUI } from "../stores/ui";
-import { googleSignIn, ytLinkPlaylist, ytMyPlaylists, ytPlaylistVideos } from "../lib/bridge";
+import { googleSignIn, ytLikedVideos, ytLinkPlaylist, ytMyPlaylists, ytPlaylistVideos } from "../lib/bridge";
 
 const initialLibrary = useLibrary.getState();
 const initialAuth = useAuth.getState();
@@ -62,6 +63,7 @@ beforeEach(() => {
   useUI.setState({ toasts: [], pendingToasts: [] });
   vi.mocked(ytMyPlaylists).mockResolvedValue(playlists);
   vi.mocked(ytPlaylistVideos).mockImplementation(async (id: string) => videos[id as keyof typeof videos]);
+  vi.mocked(ytLikedVideos).mockResolvedValue([]);
   vi.mocked(ytLinkPlaylist).mockResolvedValue(undefined);
 });
 
@@ -88,6 +90,37 @@ describe("YouTubePlaylists", () => {
     expect(within(section()).getByText("1 song")).toBeTruthy();
     expect(within(section()).getAllByRole("button", { name: "Import" })).toHaveLength(2);
     expect((within(section()).getByRole("button", { name: "Import all" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("imports YouTube Liked music into the liked library without duplicates", async () => {
+    signInAs("google");
+    vi.mocked(ytLikedVideos).mockResolvedValue([
+      { videoId: "dQw4w9WgXcQ", title: "Song", artist: "Artist", durationSeconds: 120, thumbnail: null },
+    ]);
+    render(<YouTubePlaylists />);
+    await within(section()).findByText("Road");
+
+    await userEvent.click(within(section()).getByRole("button", { name: "Import Liked music" }));
+    await userEvent.click(within(section()).getByRole("button", { name: "Import Liked music" }));
+
+    expect(ytLikedVideos).toHaveBeenCalledTimes(2);
+    expect(useLibrary.getState().liked.map((track) => track.id)).toEqual(["dQw4w9WgXcQ"]);
+  });
+
+  it("refreshes an existing linked playlist instead of creating a duplicate", () => {
+    useLibrary.getState().importLinkedPlaylist("local-1", "Old name", "PL1", [
+      { id: "old-song", title: "Old", artist: "Artist", thumb: null, duration: 10 },
+    ]);
+
+    useLibrary.getState().importLinkedPlaylist("local-2", "Road", "PL1", [
+      { id: "new-song", title: "New", artist: "Artist", thumb: null, duration: 20 },
+    ]);
+
+    const matches = useLibrary.getState().playlists.filter((playlist) => playlist.remote?.ytPlaylistId === "PL1");
+    expect(matches).toHaveLength(1);
+    expect(matches[0].id).toBe("local-1");
+    expect(matches[0].name).toBe("Road");
+    expect(matches[0].tracks.map((track) => track.id)).toEqual(["new-song"]);
   });
 
   it("shows the error and retries when the playlists cannot be read", async () => {
@@ -118,6 +151,24 @@ describe("YouTubePlaylists", () => {
     expect(await within(rows[0]).findByText("Imported")).toBeTruthy();
     expect(within(rows[0]).getByRole("button", { name: "Open" })).toBeTruthy();
     expect(useLibrary.getState().playlists.filter((playlist) => playlist.remote)).toHaveLength(1);
+  });
+
+  it("refreshes a linked playlist in place when YouTube changes", async () => {
+    signInAs("google");
+    render(<YouTubePlaylists />);
+    await within(section()).findByText("Road");
+    const rows = within(section()).getAllByRole("listitem");
+    await userEvent.click(within(rows[0]).getByRole("button", { name: "Import" }));
+    vi.mocked(ytPlaylistVideos).mockResolvedValueOnce([
+      { videoId: "v3", title: "Three", artist: "Band C", durationSeconds: 210, thumbnail: null },
+    ]);
+    await userEvent.click(within(rows[0]).getByRole("button", { name: "Refresh" }));
+
+    const linked = useLibrary.getState().playlists.filter((playlist) => playlist.remote?.ytPlaylistId === "PL1");
+    expect(linked).toHaveLength(1);
+    expect(linked[0].tracks.map((track) => track.id)).toEqual(["v3"]);
+    expect(ytLinkPlaylist).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(ytLinkPlaylist).mock.calls[0][0]).toBe(vi.mocked(ytLinkPlaylist).mock.calls[1][0]);
   });
 
   it("imports every playlist with Import all and links each one", async () => {

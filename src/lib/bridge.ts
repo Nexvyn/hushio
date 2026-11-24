@@ -749,6 +749,10 @@ export function ytPlaylistVideos(playlistId: string): Promise<YtRemoteVideo[]> {
   return call<YtRemoteVideo[]>("yt_playlist_videos", { playlistId });
 }
 
+export function ytLikedVideos(): Promise<YtRemoteVideo[]> {
+  return call<YtRemoteVideo[]>("yt_liked_videos");
+}
+
 export function ytLinkPlaylist(localPlaylistId: string, ytPlaylistId: string): Promise<void> {
   return call<void>("yt_link_playlist", { localPlaylistId, ytPlaylistId });
 }

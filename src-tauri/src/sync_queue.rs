@@ -586,6 +586,14 @@ impl<T: AccessTokens> Engine<T> {
             .map_err(|error| self.read_failed(error))
     }
 
+    pub async fn liked_videos(&self) -> Result<Vec<RemoteVideo>, String> {
+        self.read_allowed()?;
+        self.api
+            .liked_videos(&self.tokens)
+            .await
+            .map_err(|error| self.read_failed(error))
+    }
+
     pub async fn link(&self, local_playlist_id: &str, yt_playlist_id: &str) -> Result<(), String> {
         let mut queue = self.queue.lock().await;
         queue.link(local_playlist_id, yt_playlist_id);

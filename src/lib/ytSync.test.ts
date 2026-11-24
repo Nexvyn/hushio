@@ -68,6 +68,7 @@ describe("videoIdOf", () => {
   it("syncs only plain video IDs, not local files or podcast episodes", () => {
     expect(videoIdOf({ id: "dQw4w9WgXcQ" })).toBe("dQw4w9WgXcQ");
     expect(videoIdOf({ id: "local:abc" })).toBeNull();
+    expect(videoIdOf({ id: "jiosaavn:abc123" })).toBeNull();
     expect(videoIdOf({ id: "ep1", episode: true })).toBeNull();
   });
 });

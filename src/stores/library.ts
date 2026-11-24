@@ -113,6 +113,7 @@ type LibraryState = LibraryValues & {
   toggleLike: (track: LikeInput) => void;
   likeMany: (tracks: LikeInput[]) => number;
   setLikedTracks: (tracks: LibraryTrack[]) => void;
+  importLikedTracks: (tracks: LikeInput[]) => void;
   pushHistory: (track: LikeInput) => void;
   clearHistory: () => void;
   removeFromHistory: (id: string) => void;
@@ -568,6 +569,17 @@ export const useLibrary = create<LibraryState>()(
           }
         },
         setLikedTracks: (tracks) => apply(setLikedTracksUpdate(tracks)),
+        importLikedTracks: (tracks) => apply((state) => {
+          const known = new Set(state.liked.map((track) => track.id));
+          const fresh = tracks.filter((track) => {
+            if (known.has(track.id)) return false;
+            known.add(track.id);
+            return true;
+          });
+          if (fresh.length === 0) return {};
+          const imported = fresh.map((track) => toLibraryTrack(track, Date.now()));
+          return commit(state, { liked: [...imported, ...state.liked] }, fresh.map((track) => ({ kind: "add", group: "liked", id: track.id })));
+        }),
         pushHistory: (track) => {
           if (useSettings.getState().pauseListeningHistory) return;
           apply(historyUpdate(track));
@@ -657,8 +669,33 @@ export const useLibrary = create<LibraryState>()(
         importLinkedPlaylist: (id, name, ytPlaylistId, tracks) => {
           const unique = tracks.filter((track, index) => tracks.findIndex((other) => other.id === track.id) === index);
           const libraryTracks = unique.map(toLibraryTrack);
-          apply((state) =>
-            commit(
+          apply((state) => {
+            const existing = state.playlists.find((playlist) => playlist.remote?.ytPlaylistId === ytPlaylistId);
+            if (existing) {
+              const currentIds = new Set(existing.tracks.map((track) => track.id));
+              const nextIds = new Set(libraryTracks.map((track) => track.id));
+              const changes: DeletionChange[] = [
+                ...existing.tracks
+                  .filter((track) => !nextIds.has(track.id))
+                  .map((track): DeletionChange => ({ kind: "delete", group: "tracks", id: track.id, parent: existing.id })),
+                ...libraryTracks
+                  .filter((track) => !currentIds.has(track.id))
+                  .map((track): DeletionChange => ({ kind: "add", group: "tracks", id: track.id, parent: existing.id })),
+              ];
+              return commit(
+                state,
+                {
+                  playlists: mapPlaylist(state, existing.id, (playlist) => ({
+                    ...playlist,
+                    name: name.trim(),
+                    tracks: libraryTracks,
+                    remote: { ytPlaylistId, imported: true },
+                  })),
+                },
+                changes,
+              );
+            }
+            return commit(
               state,
               {
                 playlists: [
@@ -677,8 +714,8 @@ export const useLibrary = create<LibraryState>()(
                 { kind: "add", group: "playlists", id },
                 ...libraryTracks.map((track) => ({ kind: "add" as const, group: "tracks" as const, id: track.id, parent: id })),
               ],
-            ),
-          );
+            );
+          });
         },
         togglePinPlaylist: (id) =>
           apply((state) => ({

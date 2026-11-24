@@ -6,7 +6,7 @@ import { LOCAL_ID_PREFIX } from "./localLibrary";
 const YT_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 
 export function videoIdOf(track: { id: string; episode?: true }): string | null {
-  if (track.episode || track.id.startsWith(LOCAL_ID_PREFIX)) return null;
+  if (track.episode || track.id.startsWith(LOCAL_ID_PREFIX) || !YT_VIDEO_ID.test(track.id)) return null;
   return track.id;
 }
 
