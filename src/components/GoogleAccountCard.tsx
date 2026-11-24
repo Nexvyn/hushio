@@ -51,7 +51,7 @@ export function GoogleAccountCard({ account, signingIn, onSignIn, onCancelSignIn
           Your library stays on this {deviceNoun(platform)}. Sign in with Google to sync your playlists to your YouTube account.
         </p>
       </div>
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center justify-end gap-3">
         {signingIn ? (
           <>
             <Button disabled className="gap-2">

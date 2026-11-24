@@ -32,7 +32,8 @@ describe("GroupView on phone", () => {
     expect(row.className).toContain("min-h-[52px]");
     const radios = screen.getByRole("radiogroup");
     expect(radios.parentElement?.className).toContain("w-full");
-    expect(radios.parentElement?.className).toContain("[&_[role=radio]]:flex-1");
+    expect(radios.parentElement?.className).toContain("[&_[role=radiogroup]]:overflow-x-auto");
+    expect(radios.parentElement?.className).toContain("[&_[role=radio]]:flex-none");
   });
 
   it("keeps a short button beside its label", () => {

@@ -200,7 +200,7 @@ function tvRows(visible: boolean, tv: TvContext): RowSpec[] {
 }
 
 const DANGER_BUTTON =
-  "inline-flex h-9 items-center justify-center rounded-[8px] bg-danger px-4 text-body font-medium text-on-danger motion-safe:transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+  "inline-flex h-11 items-center justify-center rounded-[8px] border border-separator bg-transparent px-3 text-body font-medium text-danger-text motion-safe:transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
 function accountCategory({ settings: s, auth, sync, platform }: BuildContext): SettingsCategory {
   const device = deviceNoun(platform);
@@ -240,11 +240,11 @@ function accountCategory({ settings: s, auth, sync, platform }: BuildContext): S
                 ? "Waiting for Google…"
                 : `Syncs your playlists and Liked Songs to your YouTube account. Everything else stays on this ${device}.`,
               control: auth.signingIn ? (
-                <Button variant="ghost" onClick={auth.cancelSignIn}>
+                <Button onClick={auth.cancelSignIn}>
                   Cancel
                 </Button>
               ) : (
-                <Button variant="primary" onClick={auth.signIn}>
+                <Button onClick={auth.signIn}>
                   Sign in
                 </Button>
               ),
@@ -355,7 +355,6 @@ function playbackCategory(context: BuildContext): SettingsCategory {
       id: "crossfade",
       icon: ChartLine,
       title: t("settings.row.crossfade"),
-      note: "Blends the end of a track into the next.",
       value: crossfadeValue(s),
       control: (
         <Slider
@@ -389,7 +388,6 @@ function playbackCategory(context: BuildContext): SettingsCategory {
       id: "skip-silence",
       icon: SpeakerX,
       title: t("settings.row.skipSilence"),
-      note: "Skips silence at the start and end of songs.",
       toggle: flag(s, "skipSilence"),
     },
     {
@@ -417,21 +415,18 @@ function playbackCategory(context: BuildContext): SettingsCategory {
       id: "no-duplicate-queue",
       icon: Copy,
       title: t("settings.row.noDuplicates"),
-      note: "A song you already have in the queue is left out.",
       toggle: flag(s, "noDuplicateQueue"),
     },
     {
       id: "restore-queue",
       icon: ArrowClockwise,
       title: t("settings.row.restoreQueue"),
-      note: "Picks up where you left off, with the same song and position.",
       toggle: flag(s, "restoreQueueOnRestart"),
     },
     {
       id: "playback-speed",
       icon: Gauge,
       title: t("settings.row.speed"),
-      note: "Pitch-preserving tempo.",
       value: formatSpeed(s.playbackSpeed),
       control: (
         <Slider
@@ -517,7 +512,7 @@ function soundCategory(context: BuildContext): SettingsCategory {
             id: "streaming-quality",
             icon: WifiHigh,
             title: t("settings.row.wifiQuality"),
-            note: "Streaming quality on Wi-Fi.",
+            searchTerms: ["streaming"],
             control: (
               <RadioGroup
                 label="Wi-Fi quality"
@@ -533,7 +528,7 @@ function soundCategory(context: BuildContext): SettingsCategory {
                   id: "mobile-streaming-quality",
                   icon: DeviceMobile,
                   title: t("settings.row.mobileQuality"),
-                  note: "Streaming quality on cellular networks.",
+                  searchTerms: ["streaming"],
                   control: (
                     <RadioGroup
                       label="Mobile data quality"
@@ -579,7 +574,7 @@ function soundCategory(context: BuildContext): SettingsCategory {
             id: "equalizer",
             icon: SlidersHorizontal,
             title: t("settings.row.equalizer"),
-            note: "Shape the sound with 10 bands",
+            note: "Seven bands.",
             toggle: flag(s, "eqEnabled"),
           },
         ],
@@ -614,7 +609,6 @@ function lyricsCategory({ settings: s }: BuildContext): SettingsCategory {
             id: "synced-lyrics",
             icon: Microphone,
             title: t("settings.row.syncedLyrics"),
-            note: "Highlights the current line and auto-scrolls.",
             toggle: flag(s, "syncedLyrics"),
           },
         ],
@@ -628,7 +622,6 @@ function lyricsCategory({ settings: s }: BuildContext): SettingsCategory {
             id: "blur-lyrics",
             icon: Drop,
             title: t("settings.row.blurLyrics"),
-            note: "Keeps the spotlight on the current line.",
             toggle: flag(s, "blurUnfocusedLyrics"),
             disabled: syncedOff,
           },
@@ -644,7 +637,6 @@ function lyricsCategory({ settings: s }: BuildContext): SettingsCategory {
             id: "lyrics-timing",
             icon: Timer,
             title: t("settings.row.timing"),
-            note: "Shifts lyrics for this device.",
             value: formatLyricsShift(s.lyricsOffset),
             disabled: syncedOff,
             control: (
@@ -663,7 +655,6 @@ function lyricsCategory({ settings: s }: BuildContext): SettingsCategory {
             id: "lyrics-text-size",
             icon: TextT,
             title: t("settings.row.textSize"),
-            note: "How big the lyrics are.",
             control: (
               <RadioGroup
                 label="Lyrics text size"
@@ -729,7 +720,7 @@ function displayCategory(context: BuildContext): SettingsCategory {
                   const value = event.target.value;
                   if (value === "system" || value === "en" || value === "hi") s.setValue("language", value);
                 }}
-                className="hit-area h-9 rounded-control border border-separator bg-base px-2.5 text-meta text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                className="hit-area h-9 rounded-[8px] border border-separator bg-wash px-3 text-meta text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               >
                 <option value="system">{t("settings.languageSystem")}</option>
                 {LANGUAGES.map((option) => (
@@ -769,7 +760,6 @@ function displayCategory(context: BuildContext): SettingsCategory {
             id: "full-bleed-artwork",
             icon: CornersOut,
             title: t("settings.row.fullBleed"),
-            note: "Lets the artwork bleed behind the status area.",
             toggle: flag(s, "fullBleedArtwork"),
           },
           {
@@ -783,7 +773,6 @@ function displayCategory(context: BuildContext): SettingsCategory {
             id: "hide-volume-bar",
             icon: SpeakerHigh,
             title: t("settings.row.hideVolume"),
-            note: "Keeps the player bar free of the volume slider.",
             toggle: flag(s, "hideVolumeBar"),
           },
           {
@@ -804,7 +793,6 @@ function displayCategory(context: BuildContext): SettingsCategory {
             id: "app-font",
             icon: TextT,
             title: t("settings.row.appFont"),
-            note: "The font used for UI text and lyrics.",
             control: (
               <RadioGroup
                 label="App font"
@@ -820,7 +808,6 @@ function displayCategory(context: BuildContext): SettingsCategory {
             id: "home-sections",
             icon: List,
             title: t("settings.row.homeSections"),
-            note: "Reorder the sections on Home, or hide one.",
             control: <Button onClick={() => navigate({ name: "settings", param: "home-sections" })}>Open</Button>,
           },
         ],
@@ -959,7 +946,6 @@ function libraryCategory(context: BuildContext): SettingsCategory {
             id: "network-servers",
             icon: Cloud,
             title: "Network folders",
-            note: "Add a server and its songs appear under Local music.",
             control: (
               <Button onClick={() => navigate({ name: "settings", param: "network-servers" })}>Open</Button>
             ),
@@ -974,7 +960,6 @@ function libraryCategory(context: BuildContext): SettingsCategory {
             id: "addon-sources",
             icon: LinkSimple,
             title: "Add-on sources",
-            note: "Add, test and order the add-ons Hushio tries for lossless audio.",
             control: <Button onClick={() => navigate({ name: "settings", param: "add-on-sources" })}>Open</Button>,
           },
         ],
@@ -1017,7 +1002,6 @@ function dataCategory(context: BuildContext): SettingsCategory {
             id: "pause-search-history",
             icon: FunnelSimple,
             title: "Pause search history",
-            note: "Stops keeping the searches you make.",
             toggle: flag(s, "pauseSearchHistory"),
           },
         ],
@@ -1063,7 +1047,7 @@ function updateControl({ state, check, install, restart, openPage }: UpdatesCont
       return (
         <>
           {state.route === "inApp" && (
-            <Button variant="ghost" onClick={() => openPage(RELEASES_PAGE)}>
+            <Button onClick={() => openPage(RELEASES_PAGE)}>
               Release notes
             </Button>
           )}
@@ -1129,7 +1113,6 @@ function aboutCategory({ settings: s, version, updates, platform, navigate }: Bu
             id: "crash-logs",
             icon: Warning,
             title: "Crash logs",
-            note: "Recent crashes, with copy and clear.",
             control: <Button onClick={() => navigate({ name: "settings", param: "crash-logs" })}>Open</Button>,
           },
         ],

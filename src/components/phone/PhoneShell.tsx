@@ -95,7 +95,9 @@ export function PhoneShell() {
           aria-hidden="true"
           data-status-strip
           onClick={scrollToTop}
-          className="absolute inset-x-0 top-0 z-10 bg-[color:var(--phone-status-bg,rgb(var(--base)))] motion-safe:transition-colors motion-safe:duration-swap"
+          className={`absolute inset-x-0 top-0 z-10 motion-safe:transition-colors motion-safe:duration-swap ${
+            view.name === "settings" ? "bg-base" : "bg-[color:var(--phone-status-bg,rgb(var(--base)))]"
+          }`}
           style={{ height: INSET_TOP }}
         />
         <motion.div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0" style={{ x: edge.x, opacity: edge.shadow, boxShadow: "-12px 0 24px rgb(0 0 0)" }} />

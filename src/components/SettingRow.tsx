@@ -6,6 +6,7 @@ export type SettingRowProps = {
   icon: PhosphorIcon;
   title: string;
   note?: string;
+  searchTerms?: string[];
   value?: string;
   control?: ReactNode;
   toggle?: { checked: boolean; onChange: (checked: boolean) => void };
@@ -15,7 +16,7 @@ export type SettingRowProps = {
 };
 
 export const CONTROL_CLASSES =
-  "[&_.app-control]:h-9 [&_.app-control]:min-h-9 [&_.app-control]:rounded-[8px] [&_.app-control]:px-4 [&_.app-control:not(.bg-accent)]:bg-transparent [&_.app-control:not(.bg-accent)]:border [&_.app-control:not(.bg-accent)]:border-separator [&_.app-control:not(.bg-accent):hover]:bg-hover [&_[role=radiogroup]]:bg-transparent [&_[role=radiogroup]]:gap-1 [&_[role=radiogroup]]:p-0 [&_[role=radio]]:h-8 [&_[role=radio]]:rounded-[8px] [&_[role=radio][aria-checked=true]]:bg-ink-1 [&_[role=radio][aria-checked=true]]:text-[rgb(var(--base))] [&_[role=radio][aria-checked=false]:hover]:bg-hover";
+  "[&_.app-control]:h-11 [&_.app-control]:min-h-11 [&_.app-control]:rounded-[8px] [&_.app-control]:px-3 [&_.app-control:not(.bg-accent)]:bg-transparent [&_.app-control:not(.bg-accent)]:border [&_.app-control:not(.bg-accent)]:border-separator [&_.app-control:not(.bg-accent):hover]:bg-hover [&_[role=radiogroup]]:bg-transparent [&_[role=radiogroup]]:gap-1 [&_[role=radiogroup]]:p-0 [&_[role=radio]]:h-8 [&_[role=radio]]:rounded-[8px] [&_[role=radio][aria-checked=true]]:bg-ink-1 [&_[role=radio][aria-checked=true]]:text-[rgb(var(--base))] [&_[role=radio][aria-checked=false]:hover]:bg-hover [&_select]:h-9 [&_select]:rounded-[8px] [&_select]:border [&_select]:border-separator [&_select]:bg-transparent [&_select]:px-3";
 
 export function SettingRow({
   title,

@@ -4,6 +4,8 @@ import { Button } from "../../components/Button";
 import { Icon } from "../../components/Icon";
 import { CONTROL_CLASSES, SettingRow, type SettingRowProps } from "../../components/SettingRow";
 import { Switch } from "../../components/Switch";
+import { PhoneHeader } from "../../components/phone/PhoneHeader";
+import { usePhone } from "../../lib/usePhone";
 import type { SettingsGroup } from "./categories";
 
 function isShortButton(control: ReactNode): boolean {
@@ -17,7 +19,7 @@ function PhoneSettingRow({ title, note, value, control, toggle, disabled = false
     <div
       className={
         wide
-          ? `flex w-full items-center gap-3 [&_[role=radiogroup]]:w-full [&_[role=radio]]:flex-1 [&_[role=radio]]:min-w-0 [&_[role=radio]]:truncate [&_[role=radio]]:px-1 [&_input[type=range]]:w-auto [&_input[type=range]]:flex-1 ${CONTROL_CLASSES}`
+          ? `flex w-full items-center gap-3 [&_[role=radiogroup]]:w-full [&_[role=radiogroup]]:overflow-x-auto [&_[role=radio]]:flex-none [&_[role=radio]]:px-2 [&_input[type=range]]:w-auto [&_input[type=range]]:flex-1 ${CONTROL_CLASSES}`
           : `flex h-[22px] shrink-0 items-center gap-3 ${CONTROL_CLASSES}`
       }
     >
@@ -27,7 +29,6 @@ function PhoneSettingRow({ title, note, value, control, toggle, disabled = false
           checked={toggle.checked}
           disabled={disabled}
           aria-labelledby={titleId}
-          className={toggle.checked ? "!bg-accent" : undefined}
           onCheckedChange={toggle.onChange}
         />
       ) : (
@@ -63,7 +64,7 @@ function PhoneSettingRow({ title, note, value, control, toggle, disabled = false
   );
 }
 
-const PHONE_BOX = "divide-y divide-separator rounded-[12px] [corner-shape:squircle] bg-elevated px-4";
+const PHONE_BOX = "divide-y divide-separator";
 
 export function GroupView({ group, phone = false }: { group: SettingsGroup; phone?: boolean }) {
   if (group.plain) {
@@ -111,6 +112,15 @@ type PageHeaderProps = {
 };
 
 export function PageHeader({ title, note, onBack, backLabel = "Back to settings" }: PageHeaderProps) {
+  const phone = usePhone();
+  if (phone) {
+    return (
+      <>
+        <PhoneHeader title={title} onBack={onBack} backLabel={backLabel} />
+        {note && <p className="mb-4 text-meta text-ink-2">{note}</p>}
+      </>
+    );
+  }
   return (
     <header className="mb-4 flex items-start gap-2">
       {onBack && (

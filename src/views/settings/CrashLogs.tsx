@@ -54,7 +54,6 @@ export function CrashLogs() {
               <div className="flex min-h-10 items-center justify-between gap-3">
                 <span className="text-meta tabular-nums text-ink-2">{formatCrashTime(log.at)}</span>
                 <Button
-                  variant="ghost"
                   className="gap-2"
                   onClick={() => void copy(index, log)}
                   aria-label={`Copy crash from ${formatCrashTime(log.at)}`}

@@ -14,7 +14,7 @@ export function filterCategories(categories: SettingsCategory[], query: string):
     const groups = category.groups.flatMap((group) => {
       if (includes(group.title, needle)) return [group];
       const rows = group.rows.filter((row) =>
-        [row.title, row.note, row.value].some((text) => includes(text, needle)),
+        [row.title, row.note, row.value, ...(row.searchTerms ?? [])].some((text) => includes(text, needle)),
       );
       return rows.length > 0 ? [{ ...group, rows }] : [];
     });

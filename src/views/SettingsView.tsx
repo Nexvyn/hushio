@@ -168,7 +168,7 @@ const PHONE_GROUPS: CategoryId[][] = [
   ["about"],
 ];
 
-const PHONE_BOX = "divide-y divide-separator rounded-[12px] [corner-shape:squircle] bg-elevated px-4";
+const PHONE_BOX = "divide-y divide-separator rounded-[12px] bg-ink-1/[0.04] px-4";
 const PHONE_ROW = "-mx-4 flex w-[calc(100%+2rem)] items-center gap-4 px-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
 function backOr(fallback: View) {
@@ -232,7 +232,7 @@ function PhoneSettings({
         results.map((category) => (
           <section key={category.id} className="mt-7 first:mt-0">
             <SectionHeader title={category.label} />
-            <div className="space-y-5">
+            <div className="space-y-6">
               {category.groups.map((group, index) => (
                 <GroupView key={group.title ?? index} group={group} phone />
               ))}

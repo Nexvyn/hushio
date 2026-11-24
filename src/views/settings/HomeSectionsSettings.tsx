@@ -47,11 +47,10 @@ export function HomeSectionsSettings() {
     <div className="max-w-[680px] pb-8">
       <PageHeader
         title="Home sections"
-        note="Drag to reorder the sections on Home. Turn one off to hide it."
         onBack={() => navigate({ name: "settings", param: "display" })}
       />
 
-      <ul ref={listRef} className="divide-y divide-separator" {...sortable.listProps}>
+      <ul ref={listRef} className="divide-y divide-separator rounded-[12px] bg-ink-1/[0.04] px-4" {...sortable.listProps}>
         {keys.map((key) => {
           const bound = sortable.bind(key);
           const shown = !hidden.includes(key);
@@ -72,6 +71,7 @@ export function HomeSectionsSettings() {
           );
         })}
       </ul>
+      <p className="mt-3 text-meta text-ink-2">Drag to reorder the sections on Home. Turn one off to hide it.</p>
     </div>
   );
 }
