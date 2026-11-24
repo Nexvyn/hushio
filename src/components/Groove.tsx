@@ -330,8 +330,8 @@ export function Groove({
               />
               <span
                 aria-hidden="true"
-                style={{ width: `${progress * 100}%`, ...plainFillStyle }}
-                className={`pointer-events-none absolute left-0 top-1/2 h-1 -translate-y-1/2 rounded-full ${onArt ? "" : "bg-accent"}`}
+                style={{ transform: `scaleX(${progress})`, ...plainFillStyle }}
+                className={`pointer-events-none absolute inset-x-0 bottom-0 top-0 my-auto h-1 origin-left rounded-full ${onArt ? "" : "bg-accent"}`}
               />
             </>
           ) : (
@@ -339,18 +339,24 @@ export function Groove({
           )}
           {!disabled && (
             <span
-              data-groove-knob
+              data-groove-head
               aria-hidden="true"
-              style={{
-                left: `${progress * 100}%`,
-                top: boxHeight / 2,
-                width: size.knob,
-                height: size.knob,
-                backgroundColor: fillColour,
-                transform: `translate(-50%, -50%) scale(${knobScale})`,
-              }}
-              className={`pointer-events-none absolute rounded-full ring-1 ring-base ${plain ? `motion-safe:transition-opacity motion-safe:duration-quick ${plainKnobVisibility}` : ""}`}
-            />
+              style={{ transform: `translateX(${progress * 100}%)` }}
+              className="pointer-events-none absolute inset-0"
+            >
+              <span
+                data-groove-knob
+                aria-hidden="true"
+                style={{
+                  top: boxHeight / 2,
+                  width: size.knob,
+                  height: size.knob,
+                  backgroundColor: fillColour,
+                  transform: `translate(-50%, -50%) scale(${knobScale})`,
+                }}
+                className={`pointer-events-none absolute left-0 rounded-full ring-1 ring-base ${plain ? `motion-safe:transition-opacity motion-safe:duration-quick ${plainKnobVisibility}` : ""}`}
+              />
+            </span>
           )}
         </div>
       </div>

@@ -246,10 +246,23 @@ describe("Groove wave loop", () => {
     expect(raf).not.toHaveBeenCalled();
   });
 
-  it("places the knob at the progress", () => {
+  it("places the knob at the progress with a transform", () => {
     const { container } = render(<Groove seed="t1" position={50} duration={200} onSeek={vi.fn()} />);
     const knob = container.querySelector("[data-groove-knob]") as HTMLElement;
-    expect(knob.style.left).toBe("25%");
+    const head = container.querySelector("[data-groove-head]") as HTMLElement;
+    expect(head.style.transform).toBe("translateX(25%)");
+    expect(knob.style.left).toBe("");
+    expect(knob.className).toContain("left-0");
+  });
+
+  it("moves the progress with transforms only, never width or left", () => {
+    const { container } = render(<Groove seed="t1" position={50} duration={200} onSeek={vi.fn()} variant="plain" />);
+    const fill = slider().querySelector("span.bg-accent") as HTMLElement;
+    const head = container.querySelector("[data-groove-head]") as HTMLElement;
+    expect(fill.style.transform).toBe("scaleX(0.25)");
+    expect(fill.style.width).toBe("");
+    expect(head.style.transform).toBe("translateX(25%)");
+    expect(container.querySelector("[style*='left:']")).toBeNull();
   });
 });
 
@@ -272,7 +285,7 @@ describe("Groove variants", () => {
     expect(knob.style.width).toBe("12px");
     expect(knob.className).toContain("group-hover:opacity-100");
     const fill = slider().querySelector("span.bg-accent") as HTMLElement;
-    expect(fill.style.width).toBe("25%");
+    expect(fill.style.transform).toBe("scaleX(0.25)");
   });
 
   it("runs no animation loop in plain mode, even while playing", () => {

@@ -71,7 +71,7 @@ export function CoverStack({ title, subtitle, covers, fallback, onOpen, onPlay, 
               type="button"
               aria-label={`Play ${title}`}
               onClick={onPlay}
-              className="grid h-11 w-11 place-items-center rounded-full bg-accent text-on-accent shadow-float motion-safe:transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              className="grid h-11 w-11 place-items-center rounded-full bg-panel text-ink-1 shadow-float motion-safe:transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             >
               <Icon icon={Play} />
             </button>

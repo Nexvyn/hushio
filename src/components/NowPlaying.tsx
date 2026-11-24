@@ -322,7 +322,7 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
       animate={{ opacity: 1 }}
       transition={fade}
       style={{ y: rollY, clipPath: rollClip }}
-      className={`fixed inset-0 z-[100] flex flex-col overflow-hidden ${idle ? "cursor-none" : ""}`}
+      className={`fixed inset-0 z-[100] flex flex-col overflow-hidden bg-base ${idle ? "cursor-none" : ""}`}
     >
       <AmbientBackdrop primary={ambient.primary} src={paletteSrc} className="absolute inset-0" />
       <p
@@ -381,7 +381,7 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
         </header>
 
         <div className="relative z-10 flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto px-8 pb-4 min-[900px]:flex-row min-[900px]:justify-center min-[900px]:overflow-hidden lg:gap-12 lg:px-14 xl:gap-20">
-          <div className="now-playing-main-column flex min-h-0 min-w-0 shrink-0 flex-col items-center justify-center min-[900px]:w-[clamp(320px,36vw,480px)] min-[900px]:flex-none">
+          <div className="now-playing-main-column flex min-h-0 min-w-0 shrink-0 flex-col items-center justify-center min-[900px]:w-[min(52vh,44vw)] min-[900px]:flex-none">
             {track ? (
               <div className="flex w-full max-w-full flex-col">
                 <NowPlayingArtwork src={cover} trackId={track.id} overlay={clipUrl ? <CanvasVideo key={clipUrl} src={clipUrl} playing={playing} className="absolute inset-0 h-full w-full object-cover" /> : null} />
@@ -468,7 +468,7 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
                 <div className="mb-5 grid h-16 w-16 place-items-center rounded-[10px] border border-art/[0.18] text-art/[0.55]">
                   <Icon icon={MusicNote} />
                 </div>
-                <p className="text-sm text-art">Nothing playing yet</p>
+                <p className="text-body text-art">Nothing playing yet</p>
                 <p className="mt-1 text-meta text-art/[0.55]">Play something and it will show up here.</p>
               </div>
             )}

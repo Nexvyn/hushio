@@ -62,6 +62,45 @@ describe("FileDrop", () => {
     expect(drop.state.stopped).toBe(true);
   });
 
+  it("stays hidden and leaves the drop alone over an element that owns drops", async () => {
+    const owner = document.createElement("div");
+    owner.setAttribute("data-owns-drop", "");
+    const inside = document.createElement("span");
+    owner.appendChild(inside);
+    document.body.appendChild(owner);
+    const original = document.elementFromPoint;
+    document.elementFromPoint = vi.fn(() => inside);
+    try {
+      render(<FileDrop />);
+      await act(async () => {});
+      emit({ type: "enter", paths: ["C:\\a.mp3"], position: { x: 10, y: 10 } });
+      expect(screen.queryByText("Drop to play")).toBeNull();
+      emit({ type: "drop", paths: ["C:\\a.mp3"], position: { x: 10, y: 10 } });
+      expect(drop.dropPaths).not.toHaveBeenCalled();
+    } finally {
+      document.elementFromPoint = original;
+      owner.remove();
+    }
+  });
+
+  it("shows the overlay and plays the drop when the target does not own drops", async () => {
+    const plain = document.createElement("div");
+    document.body.appendChild(plain);
+    const original = document.elementFromPoint;
+    document.elementFromPoint = vi.fn(() => plain);
+    try {
+      render(<FileDrop />);
+      await act(async () => {});
+      emit({ type: "enter", paths: ["C:\\a.mp3"], position: { x: 10, y: 10 } });
+      expect(screen.getByText("Drop to play")).toBeTruthy();
+      emit({ type: "drop", paths: ["C:\\a.mp3"], position: { x: 10, y: 10 } });
+      expect(drop.dropPaths).toHaveBeenCalledWith(["C:\\a.mp3"]);
+    } finally {
+      document.elementFromPoint = original;
+      plain.remove();
+    }
+  });
+
   it("does not let the overlay block clicks", async () => {
     render(<FileDrop />);
     await act(async () => {});

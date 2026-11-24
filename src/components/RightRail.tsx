@@ -70,7 +70,7 @@ function NowPanel() {
   const clipUrl = useCanvasClip(track, animatedCovers && !dataSaver);
   if (!track) {
     return (
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-4">
         <Cover thumb={null} className="aspect-square w-full rounded-[8px] bg-ink-1/[0.04]" />
         <p className="text-meta text-ink-2">Play something and it shows up here.</p>
       </div>
@@ -78,12 +78,12 @@ function NowPanel() {
   }
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-4">
         <div className="relative mx-auto aspect-square w-full max-w-[260px] overflow-hidden rounded-[8px]">
           <Cover thumb={track.thumb} className="h-full w-full" />
           {clipUrl && <CanvasVideo key={clipUrl} src={clipUrl} playing={playing} className="absolute inset-0 h-full w-full object-cover" />}
         </div>
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
             <p className="truncate text-body font-semibold text-ink-1">{track.title}</p>
             <p className="truncate text-meta text-ink-2">{normalizeCredit(track.artist)}</p>
@@ -243,7 +243,7 @@ function UpcomingQueue({ tab }: { tab?: QueueTab }) {
           {rows.map((row, offset) => (
             <Fragment key={row.key}>
               {(offset === 0 || rows[offset - 1].section !== row.section) && (
-                <li role="presentation" className="px-2 pb-1 pt-3 first:pt-0">
+                <li role="presentation" className="px-2 pb-1 pt-4 first:pt-0">
                   <div className="flex min-w-0 items-center justify-between gap-3">
                     <h3 className={`min-w-0 truncate text-meta font-semibold ${ink.secondary}`}>{sectionHeading(row.section, playingFrom, playlists)}</h3>
                     {tab && offset === 0 && queueActions}
@@ -280,7 +280,7 @@ export function QueuePanel({ tab }: { tab?: QueueTab }) {
   const recent = history.filter((track) => track.id !== current?.id && track.id !== TEST_SONG_ID);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
       {(!tab || tab === "queue") && current && (
         <section aria-labelledby="now-playing-heading" className="flex flex-col">
           <h2 id="now-playing-heading" className={`px-2 text-meta font-semibold ${ink.secondary}`}>
@@ -381,7 +381,7 @@ export function RightRail({ mode = "column" }: { mode?: "column" | "sheet" }) {
       className={
         sheet
           ? "fixed inset-y-3 right-3 z-30 flex w-[328px] flex-col overflow-hidden rounded-2xl bg-surface shadow-float"
-          : "shell-rail relative flex w-[328px] shrink-0 flex-col overflow-hidden rounded-[8px] bg-surface"
+          : "shell-rail relative flex w-[328px] shrink-0 flex-col overflow-hidden"
       }
       initial={reduced ? false : { opacity: 0, x: 24 }}
       animate={{ opacity: 1, x: 0 }}

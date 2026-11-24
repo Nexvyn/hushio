@@ -194,6 +194,7 @@ export function ImportPage() {
 
   return (
     <div
+      data-owns-drop
       className={`max-w-[680px] rounded-[12px] pb-16 motion-safe:transition-shadow motion-safe:duration-quick ${dragOver ? "ring-2 ring-accent" : ""}`}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}

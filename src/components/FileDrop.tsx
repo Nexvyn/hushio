@@ -2,6 +2,14 @@ import { useEffect, useState } from "react";
 import { listenFileDrop } from "../lib/bridge";
 import { dropPaths } from "../lib/localDrop";
 
+type Point = { x: number; y: number };
+
+function ownsDrop(position: Point | undefined): boolean {
+  if (!position || typeof document.elementFromPoint !== "function") return false;
+  const ratio = window.devicePixelRatio || 1;
+  return document.elementFromPoint(position.x / ratio, position.y / ratio)?.closest("[data-owns-drop]") != null;
+}
+
 export function FileDrop() {
   const [dragging, setDragging] = useState(false);
 
@@ -9,11 +17,11 @@ export function FileDrop() {
     let active = true;
     let stop: (() => void) | undefined;
     void listenFileDrop((event) => {
-      if (event.type === "enter") setDragging(true);
-      else if (event.type === "leave") setDragging(false);
-      else if (event.type === "drop") {
+      if (event.type === "leave") setDragging(false);
+      else if (event.type === "enter" || event.type === "over") setDragging(!ownsDrop(event.position));
+      else {
         setDragging(false);
-        void dropPaths(event.paths);
+        if (!ownsDrop(event.position)) void dropPaths(event.paths);
       }
     }).then((unlisten) => {
       if (active) stop = unlisten;

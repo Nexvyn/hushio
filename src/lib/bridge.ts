@@ -553,8 +553,9 @@ export interface LocalOpenResult {
 }
 
 export type FileDropEvent =
-  | { type: "enter" | "drop"; paths: string[] }
-  | { type: "over" | "leave" };
+  | { type: "enter" | "drop"; paths: string[]; position: { x: number; y: number } }
+  | { type: "over"; position: { x: number; y: number } }
+  | { type: "leave" };
 
 export function localLibraryGet(): Promise<LocalLibrary> {
   return call<LocalLibrary>("local_library_get");
@@ -837,11 +838,9 @@ export function menuSetPlaybackState(state: MenuPlaybackState): Promise<void> {
 export async function listenFileDrop(onEvent: (event: FileDropEvent) => void): Promise<UnlistenFn> {
   return getCurrentWindow().onDragDropEvent((event) => {
     const payload = event.payload;
-    if (payload.type === "enter" || payload.type === "drop") {
-      onEvent({ type: payload.type, paths: payload.paths });
-    } else {
-      onEvent({ type: payload.type });
-    }
+    if (payload.type === "leave") onEvent({ type: "leave" });
+    else if (payload.type === "over") onEvent({ type: "over", position: payload.position });
+    else onEvent({ type: payload.type, paths: payload.paths, position: payload.position });
   });
 }
 
