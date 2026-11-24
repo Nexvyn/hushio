@@ -27,7 +27,7 @@ vi.mock("../../lib/persist", () => ({
 }));
 
 import { PhoneShell } from "./PhoneShell";
-import { glideSheet, sheetY, travelPx } from "./sheetTravel";
+import { glideSheet, sheetProgress, sheetY, travelPx } from "./sheetTravel";
 import { useNavigation } from "../../stores/navigation";
 import { usePlayer } from "../../stores/player";
 import { useUI } from "../../stores/ui";
@@ -172,6 +172,7 @@ describe("PhoneShell", () => {
     render(<PhoneShell />);
     act(() => {
       sheetY.set(travelPx() * 0.4);
+      expect(sheetProgress.get()).toBeCloseTo(0.6);
       glideSheet(travelPx(), 0, () => useUI.getState().closeNowPlaying());
     });
     const page = document.querySelector<HTMLElement>("[data-phone-page]") as HTMLElement;

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { coverFlight, coverRadiusOf, glideSheet, heldBox, miniFadeOf, mountSheet, opennessOf, pageCardOf, settleSheet, sheetRadiusOf, sheetY, travelPx, unmountSheet, watchSheetInterruptions, type Geometry } from "./sheetTravel";
+import { coverFlight, coverRadiusOf, glideSheet, heldBox, miniFadeOf, mountSheet, opennessOf, pageCardOf, settleSheet, sheetClipOf, sheetProgressOf, sheetRadiusOf, sheetY, titleFadeOf, travelPx, unmountSheet, watchSheetInterruptions, type Geometry } from "./sheetTravel";
 import { useUI } from "../../stores/ui";
 
 const geometry: Geometry = { from: { top: 700, left: 12, size: 40 }, to: { top: 120, left: 24, size: 320 } };
@@ -17,19 +17,18 @@ afterEach(() => {
 
 describe("sheet travel", () => {
   it("starts the cover exactly on the mini player thumb and lands on the big cover", () => {
-    const start = coverFlight(geometry, 800, 0);
+    const start = coverFlight(geometry, 0);
     expect(start.scale).toBeCloseTo(40 / 320);
-    expect(geometry.to.top + 800 + start.y).toBeCloseTo(geometry.from.top);
+    expect(geometry.to.top + start.y).toBeCloseTo(geometry.from.top);
     expect(geometry.to.left + start.x).toBeCloseTo(geometry.from.left);
-    const end = coverFlight(geometry, 0, 1);
+    const end = coverFlight(geometry, 1);
     expect([end.x + 0, end.y + 0, end.scale]).toEqual([0, 0, 1]);
   });
 
   it("moves the cover linearly with the sheet so both land together", () => {
-    const height = 800;
     const p = 0.5;
-    const flight = coverFlight(geometry, height * (1 - p), p);
-    expect(geometry.to.top + height * (1 - p) + flight.y).toBeCloseTo((geometry.from.top + geometry.to.top) / 2);
+    const flight = coverFlight(geometry, p);
+    expect(geometry.to.top + flight.y).toBeCloseTo((geometry.from.top + geometry.to.top) / 2);
     expect(flight.scale).toBeCloseTo((40 / 320 + 1) / 2);
   });
 
@@ -46,16 +45,42 @@ describe("sheet travel", () => {
     expect(heldBox(geometry.from, 1)).toBe(geometry.from);
   });
 
-  it("fades the mini player row out over the first quarter of the travel", () => {
+  it("fades the mini player row out over the first 30% of the travel", () => {
     expect(miniFadeOf(0)).toBe(1);
-    expect(miniFadeOf(0.125)).toBeCloseTo(0.5);
-    expect(miniFadeOf(0.25)).toBe(0);
+    expect(miniFadeOf(0.15)).toBeCloseTo(0.5);
+    expect(miniFadeOf(0.3)).toBe(0);
+  });
+
+  it("maps sheet position to one clamped progress value", () => {
+    expect(sheetProgressOf(800, 800)).toBe(0);
+    expect(sheetProgressOf(400, 800)).toBe(0.5);
+    expect(sheetProgressOf(0, 800)).toBe(1);
+    expect(sheetProgressOf(-20, 800)).toBe(1);
+    expect(sheetProgressOf(820, 800)).toBe(0);
+  });
+
+  it("expands the sheet clip from the mini bar to the full screen", () => {
+    const bounds = { top: 680, left: 8, width: 384, height: 64 };
+    expect(sheetClipOf(bounds, 400, 800, 0)).toEqual({ top: 680, right: 8, bottom: 56, left: 8, radius: 14 });
+    expect(sheetClipOf(bounds, 400, 800, 0.5).top).toBe(340);
+    expect(sheetClipOf(bounds, 400, 800, 1)).toEqual({ top: 0, right: 0, bottom: 0, left: 0, radius: 0 });
+  });
+
+  it("keeps only fade motion when reduced motion is active", () => {
+    expect(sheetClipOf({ top: 680, left: 8, width: 384, height: 64 }, 400, 800, 0.4, true)).toEqual({ top: 0, right: 0, bottom: 0, left: 0, radius: 0 });
+    expect(pageCardOf(1, true)).toEqual({ scale: 1, radius: 0, shade: 0 });
+  });
+
+  it("fades full player text and controls in after the cover travel begins", () => {
+    expect(titleFadeOf(0.55)).toBe(0);
+    expect(titleFadeOf(0.775)).toBeCloseTo(0.5);
+    expect(titleFadeOf(1)).toBe(1);
   });
 
   it("scales, rounds and dims the page with the sheet and leaves it untouched under reduced motion", () => {
     expect(pageCardOf(0, false)).toEqual({ scale: 1, radius: 0, shade: 0 });
     const open = pageCardOf(1, false);
-    expect(open.scale).toBeCloseTo(0.93);
+    expect(open.scale).toBeCloseTo(0.94);
     expect(open.radius).toBe(12);
     expect(open.shade).toBeCloseTo(0.4);
     expect(pageCardOf(1, true)).toEqual({ scale: 1, radius: 0, shade: 0 });

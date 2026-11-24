@@ -1,11 +1,11 @@
 import { animate, motionValue, type AnimationPlaybackControls, type MotionValue } from "motion/react";
-import { nowPlayingSpring, reducedMotion } from "../../lib/motion";
+import { reducedMotion, SPRING_SHEET } from "../../lib/motion";
 import { useUI } from "../../stores/ui";
 import { viewportHeight } from "../../lib/viewport";
 import type { SheetDriver } from "./useSheetDrag";
 
-const MINI_FADE_END = 0.25;
-const PAGE_SCALE_DROP = 0.07;
+const MINI_FADE_END = 0.3;
+const PAGE_SCALE_DROP = 0.06;
 const PAGE_RADIUS_PX = 12;
 const PAGE_SHADE = 0.4;
 const COVER_RADIUS_PX = 12;
@@ -13,17 +13,22 @@ const COVER_ROUND_END = 0.5;
 const SHEET_RADIUS_PX = 16;
 const SHEET_SQUARE_FROM = 0.85;
 const HANDOFF_AT = 0.001;
+const TITLE_FADE_START = 0.55;
 
 export type Box = { top: number; left: number; size: number };
+export type Bounds = { top: number; left: number; width: number; height: number };
 export type Geometry = { from: Box; to: Box };
 export type Flight = { x: number; y: number; scale: number };
 export type PageCard = { scale: number; radius: number; shade: number };
+export type SheetClip = { top: number; right: number; bottom: number; left: number; radius: number };
 
 export function travelPx(): number {
   return viewportHeight();
 }
 
 export const sheetY: MotionValue<number> = motionValue(travelPx());
+export const sheetProgress: MotionValue<number> = motionValue(opennessOf(sheetY.get()));
+sheetY.on("change", (y) => sheetProgress.set(opennessOf(y)));
 
 let controls: AnimationPlaybackControls | null = null;
 let token = 0;
@@ -60,7 +65,7 @@ export function glideSheet(target: number, velocity: number, onDone?: () => void
   }
   const id = token;
   done = onDone ?? null;
-  const run = animate(sheetY, goal, { ...nowPlayingSpring, velocity });
+  const run = animate(sheetY, goal, { ...SPRING_SHEET, velocity });
   controls = run;
   run.finished.then(
     () => {
@@ -117,12 +122,33 @@ function clamp01(value: number): number {
 }
 
 export function opennessOf(y: number): number {
-  const height = travelPx();
+  return sheetProgressOf(y, travelPx());
+}
+
+export function sheetProgressOf(y: number, height: number): number {
   return height > 0 ? clamp01(1 - y / height) : 1;
 }
 
 export function miniFadeOf(openness: number): number {
   return 1 - clamp01(openness / MINI_FADE_END);
+}
+
+export function titleFadeOf(openness: number, delay = 0): number {
+  const start = TITLE_FADE_START + delay;
+  return clamp01((openness - start) / (1 - start));
+}
+
+export function sheetClipOf(box: Bounds | null, width: number, height: number, openness: number, reduced = false): SheetClip {
+  const p = clamp01(openness);
+  if (reduced) return { top: 0, right: 0, bottom: 0, left: 0, radius: 0 };
+  if (!box || width <= 0 || height <= 0) return { top: 0, right: 0, bottom: 0, left: 0, radius: 0 };
+  return {
+    top: box.top * (1 - p),
+    right: (width - box.left - box.width) * (1 - p),
+    bottom: (height - box.top - box.height) * (1 - p),
+    left: box.left * (1 - p),
+    radius: 14 * (1 - p),
+  };
 }
 
 export function sheetRadiusOf(openness: number): number {
@@ -153,14 +179,14 @@ export function coverRadiusOf(geometry: Geometry | null, openness: number): numb
   return geometry.to.size / 2 + (COVER_RADIUS_PX - geometry.to.size / 2) * t;
 }
 
-export function coverFlight(geometry: Geometry | null, y: number, openness: number): Flight {
+export function coverFlight(geometry: Geometry | null, openness: number): Flight {
   if (!geometry) return { x: 0, y: 0, scale: 1 };
   const { from, to } = geometry;
   const rest = 1 - clamp01(openness);
   const ratio = from.size / to.size;
   return {
     x: rest * (from.left - to.left),
-    y: rest * (from.top - to.top) - Math.max(0, y),
+    y: rest * (from.top - to.top),
     scale: ratio + (1 - ratio) * (1 - rest),
   };
 }
@@ -170,6 +196,13 @@ export function measureMini(): Box | null {
   if (!cover) return null;
   const rect = cover.getBoundingClientRect();
   return rect.width > 0 ? { top: rect.top, left: rect.left, size: rect.width } : null;
+}
+
+export function measureMiniBar(): Bounds | null {
+  const bar = document.querySelector<HTMLElement>("[data-mini-player]");
+  if (!bar) return null;
+  const rect = bar.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0 ? { top: rect.top, left: rect.left, width: rect.width, height: rect.height } : null;
 }
 
 export function measureCover(section: HTMLElement): Box | null {

@@ -10,13 +10,14 @@ import { DURATION_MS, PHONE_MS, phoneSmooth, phoneSnappy, phoneTransition, phone
 import { MINI_PLAYER_DP } from "../../lib/phoneNav";
 import { pressMoved, swipeOf } from "../../lib/touchGesture";
 import { neighbourTracks, type Axis } from "../../lib/trackSwipe";
-import { projectDistance, rubberBand, rubberBandEdge } from "../../lib/gesturePhysics";
+import { rubberBand, rubberBandEdge } from "../../lib/gesturePhysics";
 import { miniAxis } from "../../lib/gestureClaim";
+import { sheetReleaseCloses } from "./useSheetDrag";
 import { playedFraction } from "../../lib/playbackProgress";
 import { RAIL_COMMIT_SHARE, railChange } from "../../lib/phoneGestures";
 import { haptic } from "../../lib/haptics";
 import { VelocityTracker } from "../../lib/velocity";
-import { glideSheet, handedOff, miniFadeOf, opennessOf, setPulling, sheetY, travelPx } from "./sheetTravel";
+import { glideSheet, handedOff, miniFadeOf, setPulling, sheetProgress, sheetY, travelPx } from "./sheetTravel";
 import { warmCover } from "./ArtCarousel";
 import { warmPalette } from "./useHeldPalette";
 import { paletteCoverFor } from "../AmbientBackdrop";
@@ -54,9 +55,8 @@ export function MiniPlayer() {
   const closeNowPlaying = useUI((state) => state.closeNowPlaying);
   const nowPlayingOpen = useUI((state) => state.nowPlayingOpen);
   const reduced = reducedMotion();
-  const openness = useTransform(sheetY, opennessOf);
-  const rowFade = useTransform(openness, miniFadeOf);
-  const handed = useTransform(openness, (p) => (handedOff(p) ? 0 : 1));
+  const rowFade = useTransform(sheetProgress, miniFadeOf);
+  const handed = useTransform(sheetProgress, (p) => (handedOff(p) ? 0 : 1));
   const body = useRef<HTMLButtonElement>(null);
   const x = useMotionValue(0);
   const opacity = useMotionValue(1);
@@ -120,7 +120,7 @@ export function MiniPlayer() {
   const releasePull = (event: PointerEvent<HTMLDivElement>, active: Session) => {
     setPulling(false);
     const velocity = active.trackerY.velocity(event.timeStamp);
-    const open = sheetY.get() + projectDistance(velocity) < travelPx() / 2;
+    const open = sheetReleaseCloses(travelPx() - sheetY.get(), travelPx(), -velocity);
     if (open) glideSheet(0, velocity);
     else glideSheet(travelPx(), velocity, closeNowPlaying);
   };

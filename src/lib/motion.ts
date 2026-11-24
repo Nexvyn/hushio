@@ -124,7 +124,9 @@ export const INTRO_FLIGHT_EASE: [number, number, number, number] = [0.65, 0, 0.3
 export const phoneSnappy: Transition = { type: "spring", stiffness: 420, damping: 36, mass: 1 };
 export const phoneSmooth: Transition = { type: "spring", stiffness: 260, damping: 30, mass: 1 };
 export const phoneBouncy: Transition = { type: "spring", stiffness: 380, damping: 29, mass: 1 };
-export const phoneShared: Transition = { type: "spring", stiffness: 300, damping: 34, mass: 1 };
+export const SPRING_SHEET: Transition = { type: "spring", stiffness: 400, damping: 40, mass: 1 };
+export const SPRING_GESTURE: Transition = { type: "spring", stiffness: 300, damping: 34, mass: 1 };
+export const phoneShared: Transition = SPRING_GESTURE;
 export const nowPlayingEnter = phoneShared;
 
 export const PHONE_MS = {
@@ -155,7 +157,7 @@ export const toastOut: Transition = { duration: DURATION_MS.toastOut / 1000, eas
 export const progressFill: Transition = { duration: DURATION_MS.progress / 1000, ease: EASE_OUT };
 
 export const sheetSpring: Transition ={ type: "spring", stiffness: 195, damping: 27.93, mass: 1, restDelta: 0.5 };
-export const nowPlayingSpring: Transition = { type: "spring", stiffness: 400, damping: 40, mass: 1, restDelta: 1, restSpeed: 20 };
+export const nowPlayingSpring: Transition = SPRING_SHEET;
 export const artPauseSpring: Transition = { type: "spring", stiffness: 300, damping: 33, mass: 1 };
 export const scrubSpring: Transition = { type: "spring", stiffness: 400, damping: 36, mass: 1 };
 export const coverSnapSpring: Transition = { type: "spring", stiffness: 400, damping: 40, mass: 1 };

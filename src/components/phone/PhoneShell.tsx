@@ -11,7 +11,7 @@ import { NotificationBanner } from "./NotificationBanner";
 import { PhoneMenuSheet } from "./PhoneMenuSheet";
 import { PhoneNowPlaying } from "./PhoneNowPlaying";
 import { useSheetOpen } from "./phoneOverlays";
-import { opennessOf, pageCardOf, sheetY, watchSheetInterruptions } from "./sheetTravel";
+import { pageCardOf, sheetProgress, watchSheetInterruptions } from "./sheetTravel";
 import { TabBar } from "./TabBar";
 import { useEdgeBack } from "./useEdgeBack";
 import { CurrentView } from "../../views/CurrentView";
@@ -41,8 +41,7 @@ export function PhoneShell() {
   const clearPendingScroll = useNavigation((state) => state.clearPendingScroll);
   const track = usePlayer(currentTrack);
   const reduced = reducedMotion();
-  const openness = useTransform(sheetY, opennessOf);
-  const card = useTransform(openness, (p) => pageCardOf(p, reduced));
+  const card = useTransform(sheetProgress, (p) => pageCardOf(p, reduced));
   const pageScale = useTransform(card, (c) => c.scale);
   const pageRadius = useTransform(card, (c) => c.radius);
   const pageShade = useTransform(card, (c) => c.shade);

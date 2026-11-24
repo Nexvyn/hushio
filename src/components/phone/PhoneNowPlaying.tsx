@@ -13,7 +13,7 @@ import { ActiveDot, ToggleIcon } from "../motion/ToggleIcon";
 import { DownloadRing } from "../motion/DownloadRing";
 import type { ToggleKind } from "../../lib/toggleMotion";
 import { sheetReleaseCloses, useSheetDrag } from "./useSheetDrag";
-import { coverFlight, coverRadiusOf, glideSheet, heldBox, measureCover, measureMini, measureWithin, mountSheet, nowPlayingDriver, opennessOf, sheetRadiusOf, sheetY, travelPx, unmountSheet, type Box, type Geometry } from "./sheetTravel";
+import { coverFlight, coverRadiusOf, glideSheet, heldBox, measureCover, measureMini, measureMiniBar, measureWithin, mountSheet, nowPlayingDriver, sheetClipOf, sheetProgress, sheetY, titleFadeOf, travelPx, unmountSheet, type Box, type Bounds, type Geometry } from "./sheetTravel";
 import { PhoneQueueList } from "./PhoneQueueSheet";
 import { PANEL_TRAVEL_SHARE, lyricsHintVisible, panelGestureMode, panelReleaseTarget, scrollHoldsDrag, type PanelKind, type PanelMode } from "./nowPlayingPanel";
 import { useTrackLyrics } from "../../lib/useTrackLyrics";
@@ -23,7 +23,7 @@ import { cancelDownload, isDownloadable, revealDownload, startDownload } from ".
 import { fmtTime } from "../../lib/format";
 import { AMBIENT_FALLBACK } from "../../lib/artworkPalette";
 import { shownDuration } from "../../lib/trackLength";
-import { viewportHeight } from "../../lib/viewport";
+import { viewportHeight, viewportWidth } from "../../lib/viewport";
 import { VelocityTracker } from "../../lib/velocity";
 import { useHeldPalette } from "./useHeldPalette";
 import { OnArtContext } from "../../lib/onArt";
@@ -394,13 +394,19 @@ function NowPlayingSheet() {
   const [panelKind, setPanelKind] = useState<PanelKind | null>(null);
   const drag = useSheetDrag(closeNowPlaying, () => "grab", nowPlayingDriver);
   const geometry = useRef<Geometry | null>(null);
-  const openness = useTransform(sheetY, opennessOf);
-  const sheetShift = useTransform(sheetY, (y) => Math.max(0, y));
+  const clipBounds = useRef<Bounds | null>(null);
+  const screenSize = useRef({ width: 0, height: 0 });
+  const openness = sheetProgress;
   const coverRadius = useTransform(openness, (p) => coverRadiusOf(geometry.current, p));
-  const sheetRadius = useTransform(openness, sheetRadiusOf);
-  const flightX = useTransform([sheetY, openness], ([y, p]: number[]) => coverFlight(geometry.current, y, p).x);
-  const flightY = useTransform([sheetY, openness], ([y, p]: number[]) => coverFlight(geometry.current, y, p).y);
-  const flightScale = useTransform([sheetY, openness], ([y, p]: number[]) => coverFlight(geometry.current, y, p).scale);
+  const clipPath = useMotionValue("inset(0px 0px 0px 0px round 0px)");
+  const clipAt = (p: number) => {
+    const reduced = reducedMotion();
+    const clip = sheetClipOf(clipBounds.current, screenSize.current.width, screenSize.current.height, p, reduced);
+    return `inset(${clip.top}px ${clip.right}px ${clip.bottom}px ${clip.left}px round ${clip.radius}px)`;
+  };
+  const flightX = useTransform(openness, (p) => coverFlight(geometry.current, p).x);
+  const flightY = useTransform(openness, (p) => coverFlight(geometry.current, p).y);
+  const flightScale = useTransform(openness, (p) => coverFlight(geometry.current, p).scale);
   const panelP = useMotionValue(0);
   const panelCtl = useRef<AnimationPlaybackControls | null>(null);
   const panelGeo = useRef<{ from: Box; to: Box } | null>(null);
@@ -412,7 +418,9 @@ function NowPlayingSheet() {
   const coverY = useTransform([flightY, panelFlightY], ([a, b]: number[]) => a + b);
   const coverScale = useTransform([flightScale, panelFlightScale], ([a, b]: number[]) => a * b);
   const neighbourFade = useTransform(panelP, (p) => 1 - p);
-  const lowerFade = useTransform(panelP, [0, 0.4], [1, 0]);
+  const contentFade = useTransform(openness, titleFadeOf);
+  const controlFade = useTransform(openness, (p) => titleFadeOf(p, 0.03));
+  const lowerFade = useTransform([panelP, controlFade], ([panelProgress, sheetProgress]: number[]) => Math.min(1 - Math.min(1, panelProgress / 0.4), sheetProgress));
   const overlayOpacity = useTransform(panelP, [0, 0.2], [0, 1]);
   const panelListY = useTransform(panelP, [0, 1], ["100%", "0%"]);
 
@@ -480,13 +488,18 @@ function NowPlayingSheet() {
 
   useLayoutEffect(() => {
     const section = sheet.current;
+    clipBounds.current = measureMiniBar();
+    screenSize.current = { width: viewportWidth(), height: viewportHeight() };
     const thumb = measureMini();
     const from = thumb && heldBox(thumb, usePlayer.getState().playing ? 1 : PAUSED_SCALE);
     const to = section ? measureCover(section) : null;
     geometry.current = !reducedMotion() && from && to ? { from, to } : null;
+    clipPath.set(clipAt(openness.get()));
     mountSheet();
     return unmountSheet;
   }, []);
+
+  useEffect(() => openness.on("change", (p) => clipPath.set(clipAt(p))), [openness, clipPath]);
 
   const [present, safeToRemove] = usePresence();
   const leaving = useRef(false);
@@ -497,7 +510,23 @@ function NowPlayingSheet() {
       return;
     }
     leaving.current = true;
-    if (reducedMotion() || sheetY.get() >= travelPx() - 1) safeToRemove();
+    if (reducedMotion()) {
+      const element = sheet.current;
+      if (!element) {
+        safeToRemove();
+        return;
+      }
+      const exit = animate(element, { opacity: 0 }, fade);
+      exit.finished.then(
+        () => {
+          sheetY.set(travelPx());
+          safeToRemove();
+        },
+        () => {},
+      );
+      return () => exit.stop();
+    }
+    if (sheetY.get() >= travelPx() - 1) safeToRemove();
     else glideSheet(travelPx(), 0, safeToRemove);
   }, [present]);
   const pull = useRef(new VelocityTracker());
@@ -629,16 +658,16 @@ function NowPlayingSheet() {
       animate={{ opacity: 1 }}
       exit={reduced ? { opacity: 0 } : undefined}
       transition={fade}
-      style={reduced ? undefined : { y: sheetShift }}
-      className={`fixed inset-0 z-40 overflow-x-clip text-ink-1 will-change-transform ${present ? "" : "pointer-events-none"}`}
+      style={{ clipPath }}
+      className={`fixed inset-0 z-40 overflow-hidden text-ink-1 will-change-[clip-path,opacity] ${present ? "" : "pointer-events-none"}`}
     >
-      <motion.div aria-hidden="true" className="absolute inset-0 overflow-hidden bg-base" style={{ borderTopLeftRadius: sheetRadius, borderTopRightRadius: sheetRadius }}>
+      <motion.div aria-hidden="true" className="absolute inset-0 overflow-hidden bg-base">
         {onArt && <AmbientBackdrop primary={palette.primary} src={paletteSrc} className="absolute inset-0" />}
       </motion.div>
       <OnArtContext.Provider value={onArt}>
         <div data-sheet-body className="relative z-10 flex h-full flex-col" style={{ paddingTop: INSET_TOP, paddingBottom: INSET_BOTTOM }}>
           <div className="relative flex min-h-0 flex-1 flex-col">
-              <header {...artHandlers} className="flex h-12 shrink-0 touch-none items-center justify-between px-6">
+              <motion.header {...artHandlers} style={{ opacity: contentFade }} className="flex h-12 shrink-0 touch-none items-center justify-between px-6">
                 <Control label="Close Now Playing" icon={CaretDown} size={44} active onClick={drag.close} />
                 <div className="flex min-w-0 flex-col items-center px-2 text-center">
                   <span className={`text-meta font-medium leading-[18px] ${titleBarTone}`}>Now playing</span>
@@ -654,12 +683,13 @@ function NowPlayingSheet() {
                     if (track) openMenu(event, trackMenuItems(songOf(track)));
                   }}
                 />
-              </header>
+              </motion.header>
 
             <div className="flex min-h-0 flex-1 flex-col">
-              <div
+              <motion.div
                 role="group"
                 aria-label="Now playing pages"
+                style={{ opacity: contentFade }}
                 className="flex min-h-0 flex-1 touch-none flex-col px-6 [container-type:size]"
                 {...artHandlers}
               >
@@ -678,7 +708,7 @@ function NowPlayingSheet() {
                   </div>
                   <div className="min-h-[16px] flex-1" />
                 </div>
-              </div>
+              </motion.div>
             </div>
 
             <motion.div className="shrink-0 touch-none will-change-[opacity]" style={{ opacity: lowerFade }} {...artHandlers}>

@@ -3,7 +3,7 @@ import { animate, useMotionValue, type AnimationPlaybackControls, type MotionVal
 import { type PointerHandlers } from "../../lib/usePointerSwipe";
 import { projectDistance, rubberBandEdge } from "../../lib/gesturePhysics";
 import { swipeAxis, type Axis } from "../../lib/trackSwipe";
-import { reducedMotion, sheetSpring } from "../../lib/motion";
+import { reducedMotion, SPRING_SHEET } from "../../lib/motion";
 import { viewportHeight } from "../../lib/viewport";
 import { VelocityTracker } from "../../lib/velocity";
 
@@ -53,7 +53,7 @@ function useLocalDriver(travel?: () => number): SheetDriver {
           onDone?.();
           return;
         }
-        controls.current = animate(y, target, { ...sheetSpring, velocity });
+        controls.current = animate(y, target, { ...SPRING_SHEET, velocity });
         controls.current.finished.then(
           () => {
             if (token.current === id) onDone?.();
