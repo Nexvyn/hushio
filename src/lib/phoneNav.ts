@@ -10,9 +10,9 @@ export const TABS: readonly { id: TabId; labelKey: TKey; view: View }[] = [
   { id: "hotlist", labelKey: "tab.hotlist", view: { name: "charts" } },
 ];
 
-export const TAB_BAR_DP = 64;
-export const MINI_PLAYER_DP = 64;
-const MINI_GAP_DP = 12;
+export const TAB_BAR_DP = 56;
+export const MINI_PLAYER_DP = 56;
+const MINI_GAP_DP = 8;
 export const INSET_BOTTOM = "var(--inset-bottom, env(safe-area-inset-bottom, 0px))";
 export const INSET_TOP = "var(--inset-top, env(safe-area-inset-top, 0px))";
 

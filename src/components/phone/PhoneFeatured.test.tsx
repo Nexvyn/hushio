@@ -29,14 +29,15 @@ describe("PhoneFeatured", () => {
     vi.clearAllMocks();
   });
 
-  it("falls back to the elevated surface when there is no cover colour", () => {
+  it("renders a flat row with a 112 px cover and an unfilled play control", () => {
     render(<PhoneFeatured item={album} />);
 
-    const card = screen.getByRole("button", { name: "Play Shelf album" }).parentElement;
-    expect(card?.className).toContain("h-[132px]");
-    expect(card?.className).toContain("rounded-[12px]");
-    expect(card?.className).toContain("bg-elevated");
-    expect(card?.querySelector("[data-ambient-backdrop]")).toBeNull();
+    const row = screen.getByRole("button", { name: "Play Shelf album" }).parentElement;
+    expect(row?.className).not.toContain("bg-elevated");
+    expect(row?.className).not.toContain("h-[132px]");
+    expect(screen.getByRole("button", { name: "Play Shelf album" }).className).toContain("border-ink-2");
+    expect(screen.queryByText("Albums for you")).toBeNull();
+    expect(screen.getByText("Shelf album").className).toContain("text-[20px]");
   });
 
   it("plays the item from the round play button", () => {
@@ -51,7 +52,7 @@ describe("PhoneFeatured", () => {
   it("opens the item from the rest of the card", () => {
     render(<PhoneFeatured item={album} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /Albums for you/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Shelf album/ }));
 
     expect(navigate).toHaveBeenCalledWith(album.target);
     expect(startPlaySource).not.toHaveBeenCalled();

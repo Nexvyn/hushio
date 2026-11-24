@@ -258,6 +258,6 @@ describe("MiniPlayer", () => {
     expect(bar.className).toContain("relative");
     expect(bar.className).toContain("overflow-hidden");
     expect(bar.className).not.toContain("border");
-    expect(bar.style.height).toBe("64px");
+    expect(bar.style.height).toBe("56px");
   });
 });

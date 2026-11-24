@@ -30,7 +30,7 @@ export function CoverPlay() {
   return (
     <span
       aria-hidden="true"
-      className="pointer-events-none absolute bottom-2 right-2 grid h-9 w-9 place-items-center rounded-full bg-accent text-on-accent opacity-0 shadow-float motion-safe:transition-[opacity,transform] motion-safe:duration-hover scale-75 group-hover:scale-100 group-focus-visible:scale-100 group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:hidden"
+      className="pointer-events-none absolute bottom-2 right-2 grid h-9 w-9 place-items-center rounded-full bg-panel text-ink-1 opacity-0 shadow-float motion-safe:transition-[opacity,transform] motion-safe:duration-hover scale-75 group-hover:scale-100 group-focus-visible:scale-100 group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:hidden"
     >
       <Icon icon={Play} />
     </span>

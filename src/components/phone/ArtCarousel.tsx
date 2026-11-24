@@ -3,6 +3,7 @@ import { AnimatePresence, animate, motion, useMotionValue, useTransform, type An
 import { MusicNote } from "@phosphor-icons/react";
 import { PhoneIcon } from "./PhoneIcon";
 import { thumbArtwork } from "../../lib/artwork";
+import { artFitFor, type ArtFit } from "../../lib/artFit";
 import { artPauseSpring, coverSnapSpring, fade, gate, phoneSmooth, phoneTween, reducedMotion } from "../../lib/motion";
 import { haptic } from "../../lib/haptics";
 import { rubberBand } from "../../lib/gesturePhysics";
@@ -75,14 +76,25 @@ function CoverFace({ track, clip = null, playing = false, lead = false, radius }
   const src = track.thumb ? thumbArtwork(track.thumb, coverPixels()) : null;
   const small = lead && track.thumb ? thumbArtwork(track.thumb, MINI_THUMB_PX) : "";
   const reveal = useImageReveal(src);
+  const [fit, setFit] = useState<ArtFit>("cover");
   return (
     <motion.span
-      className="relative grid h-full w-full place-items-center overflow-hidden rounded-[12px] [corner-shape:squircle] bg-wash text-ink-2"
+      className={`relative grid h-full w-full place-items-center overflow-hidden rounded-[12px] [corner-shape:squircle] text-ink-2 ${fit === "contain" ? "bg-base" : "bg-wash"}`}
       style={radius ? { borderRadius: radius } : undefined}
     >
-      {small && <img src={small} alt="" decoding="sync" className="absolute inset-0 h-full w-full object-cover" />}
+      {small && fit === "cover" && <img src={small} alt="" decoding="sync" className="absolute inset-0 h-full w-full object-cover" />}
       {src ? (
-        <img loading={lead ? "eager" : "lazy"} decoding="async" src={src} alt="" onLoad={reveal.onLoad} className={`relative h-full w-full object-cover ${reveal.className}`} />
+        <img
+          loading={lead ? "eager" : "lazy"}
+          decoding="async"
+          src={src}
+          alt=""
+          onLoad={(event) => {
+            setFit(artFitFor(event.currentTarget));
+            reveal.onLoad();
+          }}
+          className={`relative h-full w-full ${fit === "contain" ? "object-contain" : "object-cover"} ${reveal.className}`}
+        />
       ) : (
         <PhoneIcon icon={MusicNote} />
       )}

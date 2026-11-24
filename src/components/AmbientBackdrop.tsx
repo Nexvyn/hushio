@@ -80,7 +80,7 @@ function hslToRgb(h: number, s: number, l: number): Rgb {
   return [r, g, b].map((channel) => Math.round((channel + m) * 255)) as Rgb;
 }
 
-function isLightTheme(): boolean {
+export function isLightTheme(): boolean {
   if (typeof document === "undefined") return false;
   const text = getComputedStyle(document.documentElement).getPropertyValue("--on-art").trim();
   return text !== "" && parseRgb(text)[0] < 128;

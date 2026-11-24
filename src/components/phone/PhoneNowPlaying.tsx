@@ -2,7 +2,7 @@ import { useEffect, useContext, useLayoutEffect, useRef, useState, type Keyboard
 import { AnimatePresence, animate, motion, useMotionValue, usePresence, useTransform, type AnimationPlaybackControls } from "motion/react";
 import { CaretDown, CaretUp, Screencast, DownloadSimple, DotsThree, SkipForward, SkipBack, Queue, Repeat, Shuffle, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { PhoneIcon } from "./PhoneIcon";
-import { AmbientBackdrop, paletteCoverFor } from "../AmbientBackdrop";
+import { AmbientBackdrop, isLightTheme, paletteCoverFor } from "../AmbientBackdrop";
 import { LikeButton } from "../LikeButton";
 import { PhoneLyrics } from "./PhoneLyrics";
 import { ArtCarousel, PAUSED_SCALE } from "./ArtCarousel";
@@ -632,6 +632,7 @@ function NowPlayingSheet() {
   const held = useHeldPalette(paletteSrc);
   const palette = held ?? AMBIENT_FALLBACK;
   const onArt = held !== null && held !== AMBIENT_FALLBACK;
+  const lightTheme = isLightTheme();
 
   const titleTone = onArt ? "text-art" : "text-ink-1";
   const artistTone = onArt ? "text-art/[0.72]" : "text-ink-2";
@@ -664,7 +665,7 @@ function NowPlayingSheet() {
       className={`fixed inset-0 z-40 overflow-hidden text-ink-1 will-change-[clip-path,opacity] ${present ? "" : "pointer-events-none"}`}
     >
       <motion.div aria-hidden="true" className="absolute inset-0 overflow-hidden bg-base">
-        {onArt && <AmbientBackdrop primary={palette.primary} src={paletteSrc} className="absolute inset-0" lightOpacity={0.08} />}
+        {onArt && !lightTheme && <AmbientBackdrop primary={palette.primary} src={paletteSrc} className="absolute inset-0" />}
       </motion.div>
       <OnArtContext.Provider value={onArt}>
         <div data-sheet-body className="relative z-10 flex h-full flex-col" style={{ paddingTop: INSET_TOP, paddingBottom: INSET_BOTTOM }}>
@@ -698,6 +699,11 @@ function NowPlayingSheet() {
                 <div className="flex h-full w-full min-h-0 flex-col">
                   <div className="h-6 shrink-0" />
                   <div className="relative shrink-0" {...coverGestures.handlers}>
+                    {onArt && lightTheme && (
+                      <div aria-hidden="true" className="pointer-events-none absolute -inset-8 overflow-hidden rounded-[32px]">
+                        <AmbientBackdrop primary={palette.primary} src={paletteSrc} lightOpacity={0.04} />
+                      </div>
+                    )}
                     <ArtCarousel
                       current={track}
                       prev={neighbours.prev}

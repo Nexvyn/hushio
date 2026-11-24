@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { MusicNote } from "@phosphor-icons/react";
 import { PhoneIcon } from "./PhoneIcon";
 import { EASE_OUT, MS_FADE, MS_IMAGE, SPRING_GESTURE, reducedMotion } from "../../lib/motion";
+import { artFitFor, type ArtFit } from "../../lib/artFit";
 
 type PhoneArtProps = {
   src: string | null;
@@ -21,9 +22,10 @@ export function PhoneArt({ src, round = false, radius = "rounded-[12px]", classN
   const state = settled?.src === src ? settled : null;
   const loaded = (src !== null && loadedArt.has(src)) || state?.ok === true;
   const failed = state?.ok === false;
+  const [fit, setFit] = useState<ArtFit>("cover");
   const reduced = reducedMotion();
   return (
-    <span aria-hidden="true" className={`${className} relative overflow-hidden bg-wash text-ink-2 ${shape}`}>
+    <span aria-hidden="true" className={`${className} relative overflow-hidden text-ink-2 ${shape} ${fit === "contain" ? "bg-base" : "bg-wash"}`}>
       {(!src || failed) && (
         <span className="absolute inset-0 grid place-items-center">
           <PhoneIcon icon={MusicNote} />
@@ -39,12 +41,13 @@ export function PhoneArt({ src, round = false, radius = "rounded-[12px]", classN
           alt=""
           loading="lazy"
           decoding="async"
-          onLoad={() => {
+          onLoad={(event) => {
             loadedArt.add(src);
+            setFit(artFitFor(event.currentTarget));
             setSettled({ src, ok: true });
           }}
           onError={() => setSettled({ src, ok: false })}
-          className={`absolute inset-0 size-full object-cover ${shape}`}
+          className={`absolute inset-0 size-full ${fit === "contain" ? "object-contain" : "object-cover"} ${shape}`}
         />
       )}
       {children}

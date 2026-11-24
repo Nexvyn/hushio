@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { AnimatePresence } from "motion/react";
 import { CaretRight, Check } from "@phosphor-icons/react";
 import { PhoneIcon } from "./PhoneIcon";
@@ -13,16 +13,18 @@ function subjectOf(items: MenuItem[]) {
   return items.find((item) => item.subject)?.subject ?? null;
 }
 
+const SLOT = "grid size-6 shrink-0 place-items-center";
+
 function MenuRow({ item, onActivate, indent }: { item: MenuItem; onActivate: (item: MenuItem) => void; indent?: boolean }) {
   const tone = item.danger ? "text-danger-text" : "text-ink-1";
+  const trailing = item.checked === true ? Check : item.children ? CaretRight : null;
   return (
-    <PressRow label={item.label} className={`px-4 ${item.disabled ? "opacity-[var(--disabled-opacity)]" : ""}`} onPress={() => !item.disabled && onActivate(item)}>
-      <span className={`flex w-full items-center gap-3 text-meta font-normal ${tone} ${indent ? "pl-8" : ""}`}>
-        {item.icon && <PhoneIcon icon={item.icon} />}
+    <PressRow label={item.label} className={`h-14 px-4 ${item.disabled ? "opacity-[var(--disabled-opacity)]" : ""}`} onPress={() => !item.disabled && onActivate(item)}>
+      <span className={`flex h-full w-full items-center gap-3 text-meta font-normal ${tone} ${indent ? "pl-6" : ""}`}>
+        <span className={SLOT}>{item.icon && <PhoneIcon icon={item.icon} />}</span>
         <span className="min-w-0 flex-1 truncate">{item.label}</span>
         {item.note && <span className="truncate text-caption text-ink-2">{item.note}</span>}
-        {item.checked === true && <PhoneIcon icon={Check} />}
-        {item.children && <PhoneIcon icon={CaretRight} />}
+        <span className={SLOT}>{trailing && <PhoneIcon icon={trailing} />}</span>
       </span>
     </PressRow>
   );
@@ -63,7 +65,8 @@ function MenuBody({ menu }: { menu: ContextMenuState }) {
     >
       <div role="menu" className="flex flex-col pb-2">
         {rows.map((item, index) => (
-          <div key={`${index}:${item.label}`} className={item.separatorBefore ? "mt-2" : undefined}>
+          <Fragment key={`${index}:${item.label}`}>
+            {item.separatorBefore && <div role="separator" className="mx-4 my-4 h-px bg-separator" />}
             {item.header ? (
               <p className="px-4 pb-1 pt-2 text-caption text-ink-2">{item.label}</p>
             ) : (
@@ -71,7 +74,7 @@ function MenuBody({ menu }: { menu: ContextMenuState }) {
             )}
             {openIndex === index &&
               item.children?.map((child) => <MenuRow key={child.label} item={child} onActivate={activate} indent />)}
-          </div>
+          </Fragment>
         ))}
       </div>
     </Sheet>

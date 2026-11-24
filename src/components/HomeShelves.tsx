@@ -154,7 +154,7 @@ export function QuickTiles({ items }: { items: RecentItem[] }) {
           <span className="min-w-0 flex-1 truncate text-body font-semibold text-ink-1">{item.title}</span>
           <span
             aria-hidden="true"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent text-on-accent opacity-0 shadow-float motion-safe:transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:hidden"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-panel text-ink-1 opacity-0 shadow-float motion-safe:transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:hidden"
           >
             <Icon icon={Play} />
           </span>

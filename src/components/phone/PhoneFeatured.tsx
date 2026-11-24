@@ -26,7 +26,7 @@ export function PhoneFeatured({ item, menu }: { item: FeaturedItem; menu?: MenuS
   const hold = useCardLongPress(menuAt(menu));
 
   return (
-    <div className="relative h-[132px] overflow-hidden rounded-[12px] bg-elevated">
+    <div className="flex items-center gap-4">
       <motion.button
         type="button"
         onClick={() => {
@@ -35,13 +35,12 @@ export function PhoneFeatured({ item, menu }: { item: FeaturedItem; menu?: MenuS
         {...hold.bind}
         whileTap={pressTap(reduced)}
         transition={phoneSmooth}
-        className={`absolute inset-0 flex min-w-0 text-left ${focusRing}`}
+        className={`flex min-w-0 flex-1 items-center gap-4 rounded-[12px] text-left ${focusRing}`}
       >
-        <PhoneArt src={thumbArtwork(item.thumb, 132) || null} layoutId={`cover:${item.target.name}:${item.target.param}`} radius="rounded-none" className="block size-[132px] shrink-0" />
-        <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-4 pl-4 pr-16">
-          <span className="truncate text-phone-utility text-ink-2">{item.label}</span>
-          <span className="font-title line-clamp-2 text-phone-row-title text-ink-1">{item.title}</span>
-          {item.subtitle && <span className="truncate text-phone-meta text-ink-2">{item.subtitle}</span>}
+        <PhoneArt src={thumbArtwork(item.thumb, 112) || null} layoutId={`cover:${item.target.name}:${item.target.param}`} className="block size-[112px] shrink-0" />
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="line-clamp-2 font-title text-[20px] font-semibold leading-6 text-ink-1">{item.title}</span>
+          {item.subtitle && <span className="truncate text-[14px] leading-[18px] text-ink-2">{item.subtitle}</span>}
         </span>
       </motion.button>
       <motion.button
@@ -50,7 +49,7 @@ export function PhoneFeatured({ item, menu }: { item: FeaturedItem; menu?: MenuS
         onClick={() => void startPlaySource(item.source)}
         whileTap={pressTap(reduced)}
         transition={phoneSmooth}
-        className={`absolute bottom-4 right-4 z-10 grid size-11 place-items-center rounded-full bg-primary text-on-primary ${focusRing}`}
+        className={`hit-area grid size-10 shrink-0 place-items-center rounded-full border border-ink-2 text-ink-1 ${focusRing}`}
       >
         <PhoneIcon icon={Play} size={24} />
       </motion.button>

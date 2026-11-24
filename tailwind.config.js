@@ -70,7 +70,6 @@ export default {
         "on-scrim": "rgb(var(--on-scrim) / <alpha-value>)",
         art: ({ opacityValue }) => `rgb(var(--on-art) / calc(${opacityValue} * var(--on-art-alpha, 1)))`,
         focus: "rgb(var(--focus) / <alpha-value>)",
-        safe: "rgb(var(--safe) / <alpha-value>)",
         warn: "rgb(var(--warn) / <alpha-value>)",
         danger: "rgb(var(--danger) / <alpha-value>)",
         "danger-text": "rgb(var(--danger-text) / <alpha-value>)",

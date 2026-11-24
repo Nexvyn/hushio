@@ -20,18 +20,18 @@ describe("tabOfRoot", () => {
 
 describe("phoneBottomBlock", () => {
   it("covers the tab bar alone without a mini player", () => {
-    expect(phoneBottomBlock(false)).toContain("calc(76px +");
+    expect(phoneBottomBlock(false)).toContain("calc(64px +");
   });
 
   it("includes the joined player and dock clearance", () => {
-    expect(phoneBottomBlock(true)).toContain("calc(140px +");
+    expect(phoneBottomBlock(true)).toContain("calc(120px +");
   });
 });
 
 describe("phoneBottomPad", () => {
   it("leaves room above the block for the last item", () => {
-    expect(phoneBottomPad(false)).toContain("calc(92px +");
-    expect(phoneBottomPad(true)).toContain("calc(156px +");
+    expect(phoneBottomPad(false)).toContain("calc(80px +");
+    expect(phoneBottomPad(true)).toContain("calc(136px +");
   });
 });
 

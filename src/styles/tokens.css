@@ -39,7 +39,6 @@
   --focus: 245 245 247;
   --disabled-opacity: 0.5;
 
-  --safe: 74 222 128;
   --warn: 250 191 36;
   --danger: 255 69 58;
   --danger-text: 255 69 58;
@@ -67,7 +66,7 @@
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --base: 245 245 247;
+  --base: 247 247 245;
   --surface: 255 255 255;
   --panel: 255 255 255;
   --elevated: 255 255 255;
@@ -96,7 +95,6 @@
   --on-scrim: 255 255 255;
   --focus: 29 29 31;
 
-  --safe: 20 128 61;
   --warn: 181 84 10;
   --danger: 255 59 48;
   --danger-text: 215 0 21;
@@ -120,7 +118,7 @@
   :root[data-theme="system"] {
     color-scheme: light;
 
-    --base: 245 245 247;
+    --base: 247 247 245;
     --surface: 255 255 255;
     --panel: 255 255 255;
     --elevated: 255 255 255;
@@ -149,7 +147,6 @@
     --on-scrim: 255 255 255;
     --focus: 29 29 31;
 
-    --safe: 20 128 61;
     --warn: 181 84 10;
     --danger: 255 59 48;
     --danger-text: 215 0 21;
