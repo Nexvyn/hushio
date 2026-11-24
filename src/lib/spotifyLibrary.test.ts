@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   coverOf,
-  failureMessage,
   listPlaylists,
   playlistOf,
   readPages,
@@ -179,9 +178,9 @@ describe("readSource", () => {
     expect(list.warning).toBeUndefined();
   });
 
-  it("reads a playlist from the playlist tracks endpoint and accepts the item field", async () => {
+  it("reads a playlist from the playlist items endpoint and accepts the item field", async () => {
     const get = fixtureGetter({
-      "https://api.spotify.com/v1/playlists/pl1/tracks?limit=100": {
+      "https://api.spotify.com/v1/playlists/pl1/items?limit=50": {
         items: [{ item: TRACK }, { track: null }],
         next: null,
         total: 2,
@@ -203,14 +202,5 @@ describe("readSource", () => {
     const get = fixtureGetter({ "https://api.spotify.com/v1/me/tracks?limit=50": { items: [{ track: TRACK }], next: null } });
     const list = await readSource({ kind: "liked" }, get);
     expect(list.total).toBe(1);
-  });
-});
-
-describe("failureMessage", () => {
-  it("explains expired sign-in, refused access, rate limits and other failures", () => {
-    expect(failureMessage(401)).toBe("Your Spotify sign-in expired. Disconnect and connect again.");
-    expect(failureMessage(403)).toContain("didn't allow access");
-    expect(failureMessage(429)).toContain("busy");
-    expect(failureMessage(500)).toBe("Couldn't read your Spotify library. Try again.");
   });
 });

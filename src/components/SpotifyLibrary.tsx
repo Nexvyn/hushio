@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import { ImportButton as Button } from "./importControls";
-import { spotifySignIn, spotifySignOut, spotifyStatus, type SpotifyAccount } from "../lib/bridge";
+import { spotifyStatus, type SpotifyAccount } from "../lib/bridge";
 import { stageImport } from "../lib/importStage";
 import { plural } from "../lib/plural";
 import { LIKED_NAME, loadPlaylists, loadSource, type SpotifyPlaylist, type SpotifySource } from "../lib/spotifyLibrary";
@@ -9,7 +9,6 @@ import { useUI } from "../stores/ui";
 
 const LIKED_KEY = "liked";
 const UNAVAILABLE = "Spotify sign-in isn't available right now.";
-const NOT_CONFIGURED = "Spotify sign-in isn't set up in this build.";
 
 type AccountState =
   | { status: "loading" }
@@ -32,7 +31,6 @@ export function SpotifyLibrary() {
   const dismissToast = useUI((state) => state.dismissToast);
   const [account, setAccount] = useState<AccountState>({ status: "loading" });
   const [lists, setLists] = useState<ListState>({ status: "idle" });
-  const [connecting, setConnecting] = useState(false);
   const [reading, setReading] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const headingId = useId();
@@ -66,35 +64,14 @@ export function SpotifyLibrary() {
       })
       .catch((error: unknown) => {
         if (live) setLists({ status: "error", message: errorText(error) });
+        void spotifyStatus().then((next) => {
+          if (live) setAccount({ status: "ready", account: next });
+        }).catch(() => {});
       });
     return () => {
       live = false;
     };
   }, [signedIn, attempt]);
-
-  async function connect() {
-    setConnecting(true);
-    try {
-      const next = await spotifySignIn();
-      setAccount({ status: "ready", account: next });
-    } catch (error) {
-      toast(errorText(error), "error");
-    } finally {
-      setConnecting(false);
-    }
-  }
-
-  async function disconnect() {
-    setConnecting(true);
-    try {
-      const next = await spotifySignOut();
-      setAccount({ status: "ready", account: next });
-    } catch (error) {
-      toast(errorText(error), "error");
-    } finally {
-      setConnecting(false);
-    }
-  }
 
   async function importSource(key: string, source: SpotifySource) {
     setReading(key);
@@ -105,6 +82,8 @@ export function SpotifyLibrary() {
       navigate({ name: "import", param: id });
     } catch (error) {
       toast(errorText(error), "error");
+      const next = await spotifyStatus().catch(() => null);
+      if (next) setAccount({ status: "ready", account: next });
     } finally {
       dismissToast(loading);
       setReading(null);
@@ -113,25 +92,16 @@ export function SpotifyLibrary() {
 
   function renderAccount() {
     if (account.status === "loading") return null;
-    if (account.status === "unavailable" || !account.account.configured) {
-      return <p className="mt-0 text-body text-ink-2">{account.status === "unavailable" ? UNAVAILABLE : NOT_CONFIGURED}</p>;
-    }
-    if (!account.account.signedIn) {
-      return (
-        <div className="mt-0 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-body text-ink-2">Sign in to read your playlists and Liked Songs.</p>
-          <Button onClick={() => void connect()} disabled={connecting}>
-            {connecting ? "Waiting for your browser…" : "Connect Spotify account"}
-          </Button>
-        </div>
-      );
+    if (account.status === "ready" && account.account.signedIn) {
+      return <p className="text-body text-ink-2">Connected as {account.account.name}</p>;
     }
     return (
-      <div className="mt-0 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-body text-ink-2">Connected as {account.account.name ?? "your account"}</p>
-        <Button variant="ghost" onClick={() => void disconnect()} disabled={connecting}>
-          Disconnect
-        </Button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-body text-ink-2">
+          {account.status === "unavailable" ? UNAVAILABLE : account.account.expired
+            ? "Spotify signed you out. Sign in again." : "Connect Spotify in Account settings to import your library."}
+        </p>
+        <Button onClick={() => navigate({ name: "settings", param: "account" })}>Account settings</Button>
       </div>
     );
   }

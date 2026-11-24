@@ -38,7 +38,7 @@ const MSG_NOT_CONFIGURED: &str = "Spotify sign-in isn't set up in this build.";
 const MSG_ALREADY_PENDING: &str = "Finish signing in with Spotify in your browser.";
 const MSG_CANCELLED: &str = "Sign-in cancelled.";
 const MSG_SIGNED_OUT: &str = "Connect your Spotify account first.";
-const MSG_SAVE: &str = "Couldn't save your Spotify sign-in on this computer. Check that the app data folder is writable.";
+const MSG_SAVE: &str = "Couldn't save your Spotify settings in secure storage.";
 
 #[derive(Clone)]
 pub struct OAuthConfig {
@@ -47,7 +47,6 @@ pub struct OAuthConfig {
     pub token_url: String,
     pub me_url: String,
     pub sign_in_timeout: Duration,
-    pub memory_fallback: bool,
 }
 
 impl OAuthConfig {
@@ -58,7 +57,6 @@ impl OAuthConfig {
             token_url: TOKEN_URL.to_owned(),
             me_url: ME_URL.to_owned(),
             sign_in_timeout: SIGN_IN_TIMEOUT,
-            memory_fallback: cfg!(target_os = "linux"),
         }
     }
 }
@@ -93,33 +91,73 @@ impl Browser for SpotifyBrowser {
 #[serde(rename_all = "camelCase")]
 pub struct SpotifyAccount {
     pub configured: bool,
+    pub own_client_id: Option<String>,
+    pub redirect_uri: String,
+    pub expired: bool,
     pub signed_in: bool,
     pub name: Option<String>,
 }
 
-#[derive(Serialize, Deserialize)]
-struct StoredSession {
-    refresh_token: String,
-    name: Option<String>,
+#[derive(Clone, Default, Serialize, Deserialize)]
+struct StoredAccount {
+    own_client_id: Option<String>,
+    session: Option<Session>,
+    #[serde(default)]
+    expired: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 struct AccessToken {
     value: String,
     expires_at: i64,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 struct Session {
+    client_id: String,
     name: Option<String>,
-    access: Option<AccessToken>,
+    access: AccessToken,
     refresh_token: String,
 }
 
 #[derive(Default)]
 struct Inner {
-    session: Option<Session>,
+    account: StoredAccount,
     loaded: bool,
     pending: bool,
+    generation: u64,
+}
+
+const MSG_SIGN_IN_AGAIN: &str = "Spotify signed you out. Sign in again.";
+
+fn valid_id(value: &str) -> bool {
+    value.len() == 32 && value.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+fn api_error(status: u16, body: &str, profile: bool) -> &'static str {
+    let reason = body.to_ascii_lowercase();
+    match status {
+        403 if reason.contains("premium") => "Spotify Premium is required.",
+        403 if profile
+            || [
+                "not registered",
+                "not_registered",
+                "user registration",
+                "not added",
+                "allowlist",
+            ]
+            .iter()
+            .any(|hint| reason.contains(*hint)) =>
+        {
+            "This Spotify app hasn't added your account. Ask its owner to add you, or use your own Spotify app."
+        }
+        403 => "Spotify didn't allow access to this library item.",
+        429 if reason.contains("quota_exceeded") => {
+            "Spotify's limit for this app is used up for now. Try later or use your own Spotify app."
+        }
+        429 => "Spotify is busy right now. Try again later.",
+        _ => "Couldn't read your Spotify library. Try again.",
+    }
 }
 
 pub struct SpotifyAuth {
@@ -127,6 +165,7 @@ pub struct SpotifyAuth {
     store: Arc<dyn SecretStore>,
     http: reqwest::Client,
     inner: Mutex<Inner>,
+    refreshing: tokio::sync::Mutex<()>,
 }
 
 #[derive(Deserialize)]
@@ -177,6 +216,7 @@ impl SpotifyAuth {
             store,
             http,
             inner: Mutex::new(Inner::default()),
+            refreshing: tokio::sync::Mutex::new(()),
         }
     }
 
@@ -184,58 +224,106 @@ impl SpotifyAuth {
         self.inner.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn ensure_loaded(&self) {
-        let mut inner = self.lock();
-        if inner.loaded {
-            return;
-        }
-        let raw = match self.store.read() {
-            Ok(raw) => raw,
-            Err(error) => {
-                tracing::warn!(%error, "could not read the stored Spotify sign-in, will retry");
-                return;
-            }
-        };
-        inner.loaded = true;
-        let Some(raw) = raw else {
-            return;
-        };
-        match serde_json::from_str::<StoredSession>(&raw) {
-            Ok(stored) => {
-                inner.session = Some(Session {
-                    name: stored.name,
-                    access: None,
-                    refresh_token: stored.refresh_token,
-                });
-            }
-            Err(error) => tracing::warn!(%error, "stored Spotify session is unreadable"),
-        }
+    fn selected<'a>(&'a self, account: &'a StoredAccount) -> &'a str {
+        account
+            .own_client_id
+            .as_deref()
+            .unwrap_or(self.config.client_id.trim())
     }
 
-    pub fn account(&self) -> SpotifyAccount {
-        self.ensure_loaded();
-        let inner = self.lock();
+    fn loaded(&self) -> Result<MutexGuard<'_, Inner>, String> {
+        let mut inner = self.lock();
+        if !inner.loaded {
+            if let Some(raw) = self
+                .store
+                .read()
+                .map_err(|_| "Couldn't read your Spotify settings.")?
+            {
+                let value: serde_json::Value = serde_json::from_str(&raw).map_err(|_| MSG_SAVE)?;
+                let legacy = value.get("refresh_token").is_some();
+                let mut account: StoredAccount = serde_json::from_value(value).map_err(|_| MSG_SAVE)?;
+                if legacy
+                    || account
+                        .session
+                        .as_ref()
+                        .is_some_and(|s| s.client_id != self.selected(&account))
+                {
+                    account.session = None;
+                    account.expired = true;
+                    self.write(&account)?;
+                }
+                inner.account = account;
+            }
+            inner.loaded = true;
+        }
+        Ok(inner)
+    }
+
+    fn write(&self, account: &StoredAccount) -> Result<(), String> {
+        if account.session.is_none() && account.own_client_id.is_none() && !account.expired {
+            return self.store.clear().map_err(|_| MSG_SAVE.to_owned());
+        }
+        let raw = serde_json::to_string(account).map_err(|_| MSG_SAVE)?;
+        self.store.write(&raw).map_err(|_| MSG_SAVE.to_owned())
+    }
+
+    fn status(&self, account: &StoredAccount) -> SpotifyAccount {
         SpotifyAccount {
-            configured: !self.config.client_id.is_empty(),
-            signed_in: inner.session.is_some(),
-            name: inner.session.as_ref().and_then(|session| session.name.clone()),
+            configured: valid_id(self.selected(account)),
+            own_client_id: account.own_client_id.clone(),
+            redirect_uri: if cfg!(target_os = "android") {
+                format!("{ANDROID_SCHEME}{APP_REDIRECT_PATH}")
+            } else {
+                "http://127.0.0.1/callback".to_owned()
+            },
+            expired: account.expired,
+            signed_in: account.session.is_some(),
+            name: account.session.as_ref().and_then(|s| s.name.clone()),
         }
     }
 
-    fn begin(&self) -> Result<(), String> {
-        let mut inner = self.lock();
-        if inner.pending {
-            return Err(MSG_ALREADY_PENDING.to_owned());
+    pub fn account(&self) -> Result<SpotifyAccount, String> {
+        Ok(self.status(&self.loaded()?.account))
+    }
+
+    fn commit(&self, inner: &mut Inner, next: StoredAccount) -> Result<SpotifyAccount, String> {
+        self.write(&next)?;
+        inner.account = next;
+        inner.generation += 1;
+        Ok(self.status(&inner.account))
+    }
+
+    pub fn set_client_id(&self, value: String) -> Result<SpotifyAccount, String> {
+        let value = value.trim().to_ascii_lowercase();
+        if !value.is_empty() && !valid_id(&value) {
+            return Err("Enter a 32-character hexadecimal Client ID.".to_owned());
         }
-        inner.pending = true;
-        Ok(())
+        let mut inner = self.loaded()?;
+        let mut next = inner.account.clone();
+        next.own_client_id = (!value.is_empty()).then_some(value);
+        if next.own_client_id == inner.account.own_client_id {
+            return Ok(self.status(&inner.account));
+        }
+        if self.selected(&next) != self.selected(&inner.account) {
+            next.session = None;
+            next.expired = false;
+        }
+        self.commit(&mut inner, next)
     }
 
     pub async fn sign_in(&self, browser: &dyn Browser) -> Result<SpotifyAccount, String> {
-        if self.config.client_id.is_empty() {
-            return Err(MSG_NOT_CONFIGURED.to_owned());
-        }
-        self.begin()?;
+        let (client_id, generation) = {
+            let mut inner = self.loaded()?;
+            let client_id = self.selected(&inner.account).to_owned();
+            if !valid_id(&client_id) {
+                return Err(MSG_NOT_CONFIGURED.to_owned());
+            }
+            if inner.pending {
+                return Err(MSG_ALREADY_PENDING.to_owned());
+            }
+            inner.pending = true;
+            (client_id, inner.generation)
+        };
         let _pending = PendingGuard(self);
 
         let verifier = random_verifier();
@@ -243,13 +331,17 @@ impl SpotifyAuth {
         let (listener, redirect) = match browser.redirect_scheme() {
             Some(scheme) => (None, format!("{scheme}{APP_REDIRECT_PATH}")),
             None => {
-                let (listener, port) = bind_loopback()
-                    .await
-                    .map_err(|_| MSG_DIDNT_COMPLETE.to_owned())?;
+                let (listener, port) = bind_loopback().await.map_err(|_| MSG_DIDNT_COMPLETE.to_owned())?;
                 (Some(listener), redirect_uri(port))
             }
         };
-        let url = authorization_url(&self.config, &redirect, &code_challenge(&verifier), &state);
+        let url = authorization_url(
+            &self.config,
+            &client_id,
+            &redirect,
+            &code_challenge(&verifier),
+            &state,
+        );
         browser.open(&url).map_err(|_| MSG_NO_BROWSER.to_owned())?;
 
         let callback = tokio::time::timeout(
@@ -260,86 +352,143 @@ impl SpotifyAuth {
         .map_err(|_| MSG_TIMED_OUT.to_owned())??;
 
         let Callback { code, stream } = callback;
-        let outcome = self.complete(&code, &verifier, &redirect).await;
+        let outcome = self
+            .complete(&client_id, generation, &code, &verifier, &redirect)
+            .await;
         if let Some(mut stream) = stream {
-            let page = if outcome.is_ok() { success_page() } else { error_page() };
+            let page = if outcome.is_ok() {
+                success_page()
+            } else {
+                error_page()
+            };
             respond(&mut stream, "200 OK", &page).await;
         }
         outcome
     }
 
-    async fn complete(&self, code: &str, verifier: &str, redirect: &str) -> Result<SpotifyAccount, String> {
-        let token = self.exchange(code, verifier, redirect).await?;
+    async fn complete(
+        &self,
+        client_id: &str,
+        generation: u64,
+        code: &str,
+        verifier: &str,
+        redirect: &str,
+    ) -> Result<SpotifyAccount, String> {
+        let token = self.exchange(client_id, code, verifier, redirect).await?;
         let refresh_token = token
             .refresh_token
             .clone()
             .ok_or_else(|| MSG_NO_REFRESH.to_owned())?;
-        let profile = self
-            .profile(&token.access_token)
-            .await
-            .ok_or_else(|| MSG_DIDNT_COMPLETE.to_owned())?;
+        let profile = self.profile(&token.access_token).await?;
         let session = Session {
-            name: profile.display_name.filter(|name| !name.is_empty()).or(Some(profile.id)),
-            access: Some(AccessToken {
+            client_id: client_id.to_owned(),
+            name: profile
+                .display_name
+                .filter(|name| !name.is_empty())
+                .or(Some(profile.id)),
+            access: AccessToken {
                 value: token.access_token,
                 expires_at: now_secs() + token.expires_in,
-            }),
+            },
             refresh_token,
         };
-        if self.persist(&session).is_err() && !self.config.memory_fallback {
-            return Err(MSG_SAVE.to_owned());
+        let mut inner = self.loaded()?;
+        if inner.generation != generation {
+            return Err(MSG_CANCELLED.to_owned());
         }
-        {
-            let mut inner = self.lock();
-            inner.loaded = true;
-            inner.session = Some(session);
-        }
-        Ok(self.account())
+        let mut next = inner.account.clone();
+        next.session = Some(session);
+        next.expired = false;
+        self.commit(&mut inner, next)
     }
 
-    pub async fn access_token(&self) -> Result<String, String> {
-        self.ensure_loaded();
-        let refresh_token = {
-            let inner = self.lock();
-            let session = inner.session.as_ref().ok_or_else(|| MSG_SIGNED_OUT.to_owned())?;
-            if let Some(token) = &session.access {
-                if is_fresh(token.expires_at, now_secs()) {
-                    return Ok(token.value.clone());
-                }
+    async fn access_token(&self, rejected: Option<&str>) -> Result<String, String> {
+        let _refresh = self.refreshing.lock().await;
+        let (mut session, generation) = {
+            let inner = self.loaded()?;
+            let session = inner.account.session.as_ref().ok_or(if inner.account.expired {
+                MSG_SIGN_IN_AGAIN
+            } else {
+                MSG_SIGNED_OUT
+            })?;
+            if Some(session.access.value.as_str()) != rejected
+                && is_fresh(session.access.expires_at, now_secs())
+            {
+                return Ok(session.access.value.clone());
             }
-            session.refresh_token.clone()
+            (session.clone(), inner.generation)
         };
-        match self.refresh(&refresh_token).await {
+        let result = self.refresh(&session.client_id, &session.refresh_token).await;
+        let mut inner = self.loaded()?;
+        if inner.generation != generation {
+            return Err(MSG_CANCELLED.to_owned());
+        }
+        let mut next = inner.account.clone();
+        match result {
             Refresh::Ok { access, rotated } => {
                 let value = access.value.clone();
-                let mut inner = self.lock();
-                if let Some(session) = inner.session.as_mut() {
-                    session.access = Some(access);
-                    if let Some(next) = rotated {
-                        session.refresh_token = next;
-                        if let Err(error) = self.persist(session) {
-                            tracing::warn!(%error, "could not store the rotated Spotify token");
-                        }
-                    }
+                session.access = access;
+                if let Some(token) = rotated {
+                    session.refresh_token = token;
                 }
+                next.session = Some(session);
+                self.commit(&mut inner, next)?;
                 Ok(value)
             }
-            Refresh::Retry => Err(MSG_NETWORK.to_owned()),
-            Refresh::Rejected => {
-                self.forget();
-                Err(MSG_SIGNED_OUT.to_owned())
+            Refresh::Retry | Refresh::Rejected => {
+                next.session = None;
+                next.expired = true;
+                self.commit(&mut inner, next)?;
+                Err(MSG_SIGN_IN_AGAIN.to_owned())
             }
         }
     }
 
-    async fn refresh(&self, refresh_token: &str) -> Refresh {
+    pub async fn library_page(&self, url: String) -> Result<serde_json::Value, String> {
+        if !url.starts_with("https://api.spotify.com/v1/") {
+            return Err("Invalid Spotify library URL.".to_owned());
+        }
+        let token = self.access_token(None).await?;
+        let get = |token: &str| self.http.get(&url).bearer_auth(token).send();
+        let mut response = get(&token).await.map_err(|_| MSG_NETWORK)?;
+        if response.status().as_u16() == 401 {
+            let renewed = self.access_token(Some(&token)).await?;
+            response = get(&renewed).await.map_err(|_| MSG_NETWORK)?;
+            if response.status().as_u16() == 401 {
+                let mut inner = self.loaded()?;
+                if inner
+                    .account
+                    .session
+                    .as_ref()
+                    .is_some_and(|session| session.access.value == renewed)
+                {
+                    let next = StoredAccount {
+                        own_client_id: inner.account.own_client_id.clone(),
+                        session: None,
+                        expired: true,
+                    };
+                    self.commit(&mut inner, next)?;
+                }
+                return Err(MSG_SIGN_IN_AGAIN.to_owned());
+            }
+        }
+        let status = response.status();
+        if !status.is_success() {
+            return Err(
+                api_error(status.as_u16(), &response.text().await.unwrap_or_default(), false).to_owned(),
+            );
+        }
+        response.json().await.map_err(|_| MSG_DIDNT_COMPLETE.to_owned())
+    }
+
+    async fn refresh(&self, client_id: &str, refresh_token: &str) -> Refresh {
         let Some(reply) = self
             .post_form(
                 &self.config.token_url,
                 &[
                     ("grant_type", "refresh_token"),
                     ("refresh_token", refresh_token),
-                    ("client_id", self.config.client_id.as_str()),
+                    ("client_id", client_id),
                 ],
             )
             .await
@@ -364,7 +513,13 @@ impl SpotifyAuth {
         }
     }
 
-    async fn exchange(&self, code: &str, verifier: &str, redirect: &str) -> Result<TokenResponse, String> {
+    async fn exchange(
+        &self,
+        client_id: &str,
+        code: &str,
+        verifier: &str,
+        redirect: &str,
+    ) -> Result<TokenResponse, String> {
         let reply = self
             .post_form(
                 &self.config.token_url,
@@ -372,7 +527,7 @@ impl SpotifyAuth {
                     ("grant_type", "authorization_code"),
                     ("code", code),
                     ("redirect_uri", redirect),
-                    ("client_id", self.config.client_id.as_str()),
+                    ("client_id", client_id),
                     ("code_verifier", verifier),
                 ],
             )
@@ -382,6 +537,9 @@ impl SpotifyAuth {
             return serde_json::from_str::<TokenResponse>(&reply.body)
                 .map_err(|_| MSG_DIDNT_COMPLETE.to_owned());
         }
+        if matches!(reply.status, 403 | 429) {
+            return Err(api_error(reply.status, &reply.body, true).to_owned());
+        }
         if error_code(&reply.body).as_deref() == Some("invalid_grant") {
             Err(MSG_EXPIRED.to_owned())
         } else {
@@ -389,18 +547,21 @@ impl SpotifyAuth {
         }
     }
 
-    async fn profile(&self, access_token: &str) -> Option<Profile> {
+    async fn profile(&self, access_token: &str) -> Result<Profile, String> {
         let response = self
             .http
             .get(&self.config.me_url)
             .bearer_auth(access_token)
             .send()
             .await
-            .ok()?;
-        if !response.status().is_success() {
-            return None;
+            .map_err(|_| MSG_NETWORK)?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(
+                api_error(status.as_u16(), &response.text().await.unwrap_or_default(), true).to_owned(),
+            );
         }
-        response.json::<Profile>().await.ok()
+        response.json().await.map_err(|_| MSG_DIDNT_COMPLETE.to_owned())
     }
 
     async fn post_form(&self, url: &str, fields: &[(&str, &str)]) -> Option<Reply> {
@@ -421,31 +582,25 @@ impl SpotifyAuth {
         })
     }
 
-    fn persist(&self, session: &Session) -> StoreResult<()> {
-        let stored = StoredSession {
-            refresh_token: session.refresh_token.clone(),
-            name: session.name.clone(),
+    pub fn sign_out(&self) -> Result<SpotifyAccount, String> {
+        let mut inner = self.loaded()?;
+        let next = StoredAccount {
+            own_client_id: inner.account.own_client_id.clone(),
+            ..Default::default()
         };
-        let raw = serde_json::to_string(&stored).map_err(|error| error.to_string())?;
-        self.store.write(&raw)
-    }
-
-    fn forget(&self) {
-        self.lock().session = None;
-        if let Err(error) = self.store.clear() {
-            tracing::warn!(%error, "could not delete the stored Spotify sign-in");
-        }
-    }
-
-    pub fn sign_out(&self) -> SpotifyAccount {
-        self.forget();
-        self.account()
+        self.commit(&mut inner, next)
     }
 }
 
-fn authorization_url(config: &OAuthConfig, redirect: &str, challenge: &str, state: &str) -> String {
+fn authorization_url(
+    config: &OAuthConfig,
+    client_id: &str,
+    redirect: &str,
+    challenge: &str,
+    state: &str,
+) -> String {
     let query = form_body(&[
-        ("client_id", config.client_id.as_str()),
+        ("client_id", client_id),
         ("response_type", "code"),
         ("redirect_uri", redirect),
         ("scope", SCOPES),
@@ -509,12 +664,11 @@ mod tests {
 
     fn config() -> OAuthConfig {
         OAuthConfig {
-            client_id: "spotify-client".to_owned(),
+            client_id: "a".repeat(32),
             auth_url: "https://accounts.test/authorize".to_owned(),
             token_url: "https://accounts.test/api/token".to_owned(),
             me_url: "https://api.test/v1/me".to_owned(),
             sign_in_timeout: Duration::from_secs(5),
-            memory_fallback: false,
         }
     }
 
@@ -530,24 +684,37 @@ mod tests {
     fn verifier_meets_the_pkce_length_and_charset() {
         let verifier = random_verifier();
         assert!((43..=128).contains(&verifier.len()));
-        assert!(verifier.bytes().all(|byte| byte.is_ascii_alphanumeric() || b"-._~".contains(&byte)));
+        assert!(
+            verifier
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || b"-._~".contains(&byte))
+        );
         assert_ne!(verifier, random_verifier());
     }
 
     #[test]
     fn authorization_url_carries_pkce_and_only_the_library_scopes() {
-        let url = authorization_url(&config(), "hushio-spotify:/callback", "chal", "st");
+        let url = authorization_url(
+            &config(),
+            &config().client_id,
+            "hushio-spotify:/callback",
+            "chal",
+            "st",
+        );
         let parsed = Url::parse(&url).unwrap();
         assert_eq!(parsed.origin().ascii_serialization(), "https://accounts.test");
         assert_eq!(parsed.path(), "/authorize");
         let query: HashMap<String, String> = parsed.query_pairs().into_owned().collect();
-        assert_eq!(query["client_id"], "spotify-client");
+        assert_eq!(query["client_id"], "a".repeat(32));
         assert_eq!(query["response_type"], "code");
         assert_eq!(query["redirect_uri"], "hushio-spotify:/callback");
         assert_eq!(query["code_challenge"], "chal");
         assert_eq!(query["code_challenge_method"], "S256");
         assert_eq!(query["state"], "st");
-        assert_eq!(query["scope"], "playlist-read-private playlist-read-collaborative user-library-read");
+        assert_eq!(
+            query["scope"],
+            "playlist-read-private playlist-read-collaborative user-library-read"
+        );
         assert_eq!(query.len(), 7);
         assert!(!query.contains_key("client_secret"));
     }
@@ -562,7 +729,10 @@ mod tests {
 
     #[test]
     fn android_redirect_is_the_manifest_scheme_and_path() {
-        assert_eq!(format!("{ANDROID_SCHEME}{APP_REDIRECT_PATH}"), "hushio-spotify:/callback");
+        assert_eq!(
+            format!("{ANDROID_SCHEME}{APP_REDIRECT_PATH}"),
+            "hushio-spotify:/callback"
+        );
     }
 
     #[tokio::test]
@@ -571,26 +741,118 @@ mod tests {
         settings.client_id = String::new();
         let auth = SpotifyAuth::new(settings, Arc::new(MemoryStore::default()));
         assert_eq!(auth.sign_in(&NoBrowser).await, Err(MSG_NOT_CONFIGURED.to_owned()));
-        assert!(!auth.account().configured);
+        assert!(!auth.account().unwrap().configured);
     }
 
     #[test]
-    fn stored_session_is_read_without_the_network() {
-        let store = Arc::new(MemoryStore::with(r#"{"refresh_token":"r-1","name":"Ada"}"#));
-        let auth = SpotifyAuth::new(config(), store);
-        let account = auth.account();
-        assert!(account.configured);
-        assert!(account.signed_in);
-        assert_eq!(account.name.as_deref(), Some("Ada"));
-    }
-
-    #[test]
-    fn sign_out_forgets_the_session_and_the_stored_secret() {
-        let store = Arc::new(MemoryStore::with(r#"{"refresh_token":"r-1","name":null}"#));
+    fn validates_and_selects_the_session_client() {
+        let store = Arc::new(MemoryStore::default());
         let auth = SpotifyAuth::new(config(), store.clone());
-        let account = auth.sign_out();
-        assert!(!account.signed_in);
+        assert!(auth.set_client_id("g".repeat(32)).is_err());
+        assert!(auth.set_client_id("a".repeat(31)).is_err());
+        assert!(auth.set_client_id("B".repeat(32)).is_ok());
+        let fresh = SpotifyAuth::new(config(), store);
+        assert_eq!(fresh.selected(&fresh.loaded().unwrap().account), "b".repeat(32));
+        fresh.set_client_id(String::new()).unwrap();
+        assert_eq!(
+            fresh.selected(&fresh.loaded().unwrap().account),
+            config().client_id
+        );
+    }
+
+    #[test]
+    fn legacy_sessions_require_sign_in_and_disconnect_clears_the_slot() {
+        let store = Arc::new(MemoryStore::with(r#"{"refresh_token":"fixture","name":"Ada"}"#));
+        let auth = SpotifyAuth::new(config(), store.clone());
+        assert!(auth.account().unwrap().expired);
+        assert!(!auth.account().unwrap().signed_in);
+        assert!(!auth.sign_out().unwrap().signed_in);
         assert!(store.saved().is_none());
+    }
+
+    #[test]
+    fn explains_spotify_errors() {
+        assert!(api_error(403, "USER_NOT_REGISTERED", false).contains("hasn't added"));
+        assert!(api_error(403, "PREMIUM_REQUIRED", true).contains("Premium"));
+        assert!(api_error(429, "QUOTA_EXCEEDED", false).contains("limit for this app"));
+        assert!(api_error(429, "", false).contains("busy"));
+    }
+
+    fn expired_account(client_id: &str) -> StoredAccount {
+        StoredAccount {
+            own_client_id: Some(client_id.to_owned()),
+            session: Some(Session {
+                client_id: client_id.to_owned(),
+                name: Some("Ada".to_owned()),
+                access: AccessToken {
+                    value: random_state(),
+                    expires_at: 0,
+                },
+                refresh_token: random_state(),
+            }),
+            expired: false,
+        }
+    }
+
+    #[tokio::test]
+    async fn refresh_uses_the_session_id_and_persists_both_rotated_tokens() {
+        use axum::{Json, Router, routing::post};
+        let own = "b".repeat(32);
+        let original = expired_account(&own);
+        let expected_refresh = original.session.as_ref().unwrap().refresh_token.clone();
+        let access = random_state();
+        let refresh = random_state();
+        let reply = serde_json::json!({
+            "access_token": access, "refresh_token": refresh, "expires_in": 3600
+        });
+        let handler = move |body: String| async move {
+            let fields: HashMap<_, _> = url::form_urlencoded::parse(body.as_bytes())
+                .into_owned()
+                .collect();
+            assert_eq!(fields["client_id"], own);
+            assert_eq!(fields["refresh_token"], expected_refresh);
+            assert_eq!(fields["grant_type"], "refresh_token");
+            Json(reply)
+        };
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let mut cfg = config();
+        cfg.token_url = format!("http://{}/token", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            axum::serve(listener, Router::new().route("/token", post(handler)))
+                .await
+                .unwrap();
+        });
+        let store = Arc::new(MemoryStore::with(&serde_json::to_string(&original).unwrap()));
+        let auth = SpotifyAuth::new(cfg, store.clone());
+        assert_eq!(auth.access_token(None).await.unwrap(), access);
+        server.abort();
+        let saved: StoredAccount = serde_json::from_str(&store.saved().unwrap()).unwrap();
+        assert_eq!(saved.session.unwrap().refresh_token, refresh);
+        let restarted = SpotifyAuth::new(config(), store.clone());
+        assert_eq!(restarted.access_token(None).await.unwrap(), access);
+        assert!(!restarted.set_client_id(String::new()).unwrap().signed_in);
+        assert!(!SpotifyAuth::new(config(), store).account().unwrap().signed_in);
+    }
+
+    #[tokio::test]
+    async fn rejected_refresh_expires_session_and_keeps_the_personal_app() {
+        use axum::{Router, http::StatusCode, routing::post};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let mut cfg = config();
+        cfg.token_url = format!("http://{}/token", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let app = Router::new().route("/token", post(|| async { StatusCode::BAD_REQUEST }));
+            axum::serve(listener, app).await.unwrap();
+        });
+        let original = expired_account(&"b".repeat(32));
+        let store = Arc::new(MemoryStore::with(&serde_json::to_string(&original).unwrap()));
+        let auth = SpotifyAuth::new(cfg, store.clone());
+        assert_eq!(auth.access_token(None).await.unwrap_err(), MSG_SIGN_IN_AGAIN);
+        server.abort();
+        let account = SpotifyAuth::new(config(), store).account().unwrap();
+        assert!(account.expired);
+        assert!(!account.signed_in);
+        assert_eq!(account.own_client_id, original.own_client_id);
     }
 
     struct FlakyStore {
@@ -624,7 +886,7 @@ mod tests {
             saved: r#"{"refresh_token":"r-1","name":"Ada"}"#.to_owned(),
         });
         let auth = SpotifyAuth::new(config(), store);
-        assert!(!auth.account().signed_in);
-        assert!(auth.account().signed_in);
+        assert!(auth.account().is_err());
+        assert!(auth.account().unwrap().expired);
     }
 }

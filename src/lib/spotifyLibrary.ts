@@ -1,13 +1,11 @@
-import { fetch } from "@tauri-apps/plugin-http";
-import { spotifyAccessToken } from "./bridge";
+import { spotifyLibraryPage } from "./bridge";
 import { clip, durationOf, MAX_SONGS, type ImportSong } from "./importParse";
 import type { StagedImport } from "./importStage";
 
 const API = "https://api.spotify.com/v1";
-const REQUEST_TIMEOUT_MS = 15_000;
 const PLAYLIST_PAGE = 50;
 const LIKED_PAGE = 50;
-const SONG_PAGE = 100;
+const SONG_PAGE = 50;
 const MAX_PLAYLISTS = 500;
 const MAX_PAGES = 200;
 const COVER_MIN = 300;
@@ -140,34 +138,15 @@ export async function readSource(source: SpotifySource, get: Getter): Promise<Sp
     return songList(LIKED_NAME, null, page);
   }
   const { playlist } = source;
-  const url = `${API}/playlists/${encodeURIComponent(playlist.id)}/tracks?limit=${SONG_PAGE}`;
+  const url = `${API}/playlists/${encodeURIComponent(playlist.id)}/items?limit=${SONG_PAGE}`;
   const page = await readPages<TrackEntry>(url, get, MAX_SONGS);
   return songList(playlist.name, playlist.thumb, page);
 }
 
-export function failureMessage(status: number): string {
-  if (status === 401) return "Your Spotify sign-in expired. Disconnect and connect again.";
-  if (status === 403) return "Spotify didn't allow access to your library. Disconnect and connect again.";
-  if (status === 429) return "Spotify is busy right now. Try again in a minute.";
-  return "Couldn't read your Spotify library. Try again.";
-}
-
-function spotifyGetter(token: string): Getter {
-  return async (url) => {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
-    if (!response.ok) throw new Error(failureMessage(response.status));
-    return response.json();
-  };
-}
-
 export async function loadPlaylists(): Promise<SpotifyPlaylist[]> {
-  return listPlaylists(spotifyGetter(await spotifyAccessToken()));
+  return listPlaylists(spotifyLibraryPage);
 }
 
 export async function loadSource(source: SpotifySource): Promise<SpotifyImportList> {
-  return readSource(source, spotifyGetter(await spotifyAccessToken()));
+  return readSource(source, spotifyLibraryPage);
 }

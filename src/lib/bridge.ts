@@ -647,6 +647,9 @@ export function listenGoogleAuthChanged(onChange: (account: GoogleAccount) => vo
 }
 
 export type SpotifyAccount = {
+  ownClientId: string | null;
+  expired: boolean;
+  redirectUri: string;
   configured: boolean;
   signedIn: boolean;
   name: string | null;
@@ -664,8 +667,12 @@ export function spotifySignOut(): Promise<SpotifyAccount> {
   return call<SpotifyAccount>("spotify_sign_out");
 }
 
-export function spotifyAccessToken(): Promise<string> {
-  return call<string>("spotify_access_token");
+export function spotifySetClientId(clientId: string): Promise<SpotifyAccount> {
+  return call<SpotifyAccount>("spotify_set_client_id", { clientId });
+}
+
+export function spotifyLibraryPage(url: string): Promise<unknown> {
+  return call<unknown>("spotify_library_page", { url });
 }
 
 export function audioOutputState(): Promise<AudioOutputState> {

@@ -588,7 +588,7 @@ async fn google_sign_out(
 }
 
 #[tauri::command]
-fn spotify_status(spotify: State<'_, Arc<spotify_auth::SpotifyAuth>>) -> spotify_auth::SpotifyAccount {
+fn spotify_status(spotify: State<'_, Arc<spotify_auth::SpotifyAuth>>) -> Result<spotify_auth::SpotifyAccount, String> {
     spotify.account()
 }
 
@@ -603,13 +603,18 @@ async fn spotify_sign_in(
 }
 
 #[tauri::command]
-fn spotify_sign_out(spotify: State<'_, Arc<spotify_auth::SpotifyAuth>>) -> spotify_auth::SpotifyAccount {
+fn spotify_sign_out(spotify: State<'_, Arc<spotify_auth::SpotifyAuth>>) -> Result<spotify_auth::SpotifyAccount, String> {
     spotify.sign_out()
 }
 
 #[tauri::command]
-async fn spotify_access_token(spotify: State<'_, Arc<spotify_auth::SpotifyAuth>>) -> Result<String, String> {
-    spotify.access_token().await
+fn spotify_set_client_id(spotify: State<'_, Arc<spotify_auth::SpotifyAuth>>, client_id: String) -> Result<spotify_auth::SpotifyAccount, String> {
+    spotify.set_client_id(client_id)
+}
+
+#[tauri::command]
+async fn spotify_library_page(spotify: State<'_, Arc<spotify_auth::SpotifyAuth>>, url: String) -> Result<serde_json::Value, String> {
+    spotify.library_page(url).await
 }
 
 async fn keep_google_session(app: AppHandle, google: Arc<google_auth::GoogleAuth>) {
@@ -968,7 +973,8 @@ pub fn run() {
             spotify_status,
             spotify_sign_in,
             spotify_sign_out,
-            spotify_access_token,
+            spotify_set_client_id,
+            spotify_library_page,
             yt_sync_status,
             yt_sync_now,
             yt_enqueue,

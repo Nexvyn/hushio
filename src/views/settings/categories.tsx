@@ -6,6 +6,7 @@ import { Button } from "../../components/Button";
 import { AboutHeader, AboutMaker, GITHUB_URL, WEBSITE_URL } from "./AboutSettings";
 import { Equalizer } from "../../components/Equalizer";
 import { AndroidUpdateControl } from "./AndroidUpdateControl";
+import { SpotifySettings } from "./SpotifySettings";
 import { GoogleAccountCard } from "../../components/GoogleAccountCard";
 import { OutputDevicePicker } from "../../components/OutputDevicePicker";
 import { RadioGroup, type RadioOption } from "../../components/RadioGroup";
@@ -263,7 +264,7 @@ function accountCategory({ settings: s, auth, sync, platform }: BuildContext): S
           ],
         };
 
-  const groups: SettingsGroup[] = [firstGroup];
+  const groups: SettingsGroup[] = [firstGroup, { title: "Connected services", rows: [], body: <SpotifySettings /> }];
   if (signedIn) {
     groups.push({
       title: "Sync",
