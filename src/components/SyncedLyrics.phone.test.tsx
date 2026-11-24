@@ -1,5 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
+import type { ComponentProps } from "react";
+
+vi.mock("motion/react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("motion/react")>();
+  type MotionButtonProps = ComponentProps<"button"> & Pick<ComponentProps<typeof actual.motion.button>, "animate" | "transition">;
+  function MotionButton({ animate, transition, style, ...props }: MotionButtonProps) {
+    const target = typeof animate === "object" ? animate : {};
+    const opacity = "opacity" in target && typeof target.opacity === "number" ? target.opacity : undefined;
+    const scale = "scale" in target && typeof target.scale === "number" ? target.scale : undefined;
+    return <button {...props} style={{ ...style, opacity, scale }} />;
+  }
+  return { ...actual, motion: { div: actual.motion.div, button: MotionButton } };
+});
 
 vi.hoisted(() => {
   if (!window.matchMedia) {
@@ -78,26 +91,23 @@ afterEach(() => {
 });
 
 describe("SyncedLyrics on phone", () => {
-  it("sets the active line at 28px inside the box with no scale transform", () => {
+  it("keeps the same font size and width constraints for active and inactive lines", () => {
     render(<SyncedLyrics lyrics={lyrics} loading={false} />);
     const [first, active, third] = lineButtons();
 
-    const activeText = active.querySelector("span > span") as HTMLSpanElement;
-    expect(activeText.className).toContain("text-[28px]");
-    expect(activeText.className).not.toContain("text-section");
-    expect(activeText.style.transition).toContain("font-size");
+    const activeText = screen.getByText("Second line");
+    expect(activeText.className).toContain("text-section");
+    expect(activeText.style.transition).not.toContain("font-size");
     expect(active.className).toContain("text-ink-1");
     expect(Number(active.style.opacity)).toBeCloseTo(1, 5);
-    expect(active.style.transform).toBe("");
     expect(active.style.width).toBe("");
     expect(active.style.maxWidth).toBe("100%");
 
     for (const line of [first, third]) {
       const text = line.querySelector("span > span") as HTMLSpanElement;
-      expect(text.className).toContain("text-section");
+      expect(text.className).toBe(activeText.className);
       expect(text.className).toContain("font-semibold");
       expect(line.className).toContain("text-ink-2");
-      expect(line.style.transform).toBe("");
       expect(line.style.width).toBe("");
       expect(line.style.maxWidth).toBe("100%");
       expect(Number(line.style.opacity)).toBeCloseTo(0.8, 5);
@@ -121,17 +131,21 @@ describe("SyncedLyrics on phone", () => {
     const [first, second, third] = lineButtons();
     expect(Number(first.style.opacity)).toBeCloseTo(1, 5);
     expect(first.style.filter).toBe("");
-    expect(second.style.filter).toBe("blur(1px)");
+    expect(Number(second.style.opacity)).toBeCloseTo(0.8, 5);
+    expect(second.style.filter).toBe("");
     expect(Number(third.style.opacity)).toBeCloseTo(0.7, 5);
+    expect(first.style.scale).toBe("1");
   });
 
-  it("fades and blurs lines by distance and leaves the inactive ones unscaled", () => {
+  it("dims and scales inactive lines without blur during playback", () => {
     render(<SyncedLyrics lyrics={lyrics} loading={false} />);
     const [first, active, third] = lineButtons();
     expect(active.style.filter).toBe("");
+    expect(active.style.scale).toBe("1");
     for (const line of [first, third]) {
-      expect(line.style.filter).toBe("blur(1px)");
-      expect(line.style.transform).toBe("");
+      expect(line.style.filter).toBe("");
+      expect(line.style.scale).toBe("0.96");
+      expect(Number(line.style.opacity)).toBeCloseTo(0.8, 5);
     }
   });
 
@@ -165,11 +179,12 @@ describe("SyncedLyrics on phone", () => {
 
     expect(active.className).toContain("text-art");
     expect(active.className).not.toContain("text-ink-1");
-    expect((active.querySelector("span > span") as HTMLSpanElement).className).toContain("text-[28px]");
+    expect(screen.getByText("Second line").className).toBe(screen.getByText("First line").className);
     expect(first.className).toContain("text-art");
     expect(Number(active.style.opacity)).toBeCloseTo(1, 5);
     expect(Number(first.style.opacity)).toBeCloseTo(0.8, 5);
-    expect(first.style.filter).toBe("blur(1px)");
+    expect(first.style.filter).toBe("");
+    expect(active.style.filter).toBe("");
   });
 });
 
@@ -185,16 +200,16 @@ describe("SyncedLyrics on phone with right-to-left lines", () => {
     wordSynced: false,
   };
 
-  it("sets dir auto and keeps the enlarged active RTL line inside the box", () => {
+  it("sets dir auto and anchors RTL scaling on the right at the shared font size", () => {
     render(<SyncedLyrics lyrics={rtl} loading={false} />);
     const [first, active, third] = lineButtons();
     expect(active.getAttribute("dir")).toBe("auto");
     expect(active.className).toContain("text-start");
     expect(active.style.transformOrigin).toBe("right center");
-    expect(active.style.transform).toBe("");
+    expect(active.style.scale).toBe("1");
     expect(active.style.maxWidth).toBe("100%");
-    expect((active.querySelector("span > span") as HTMLSpanElement).className).toContain("text-[28px]");
+    expect(active.querySelector("span > span")?.className).toBe(screen.getByText("First line").className);
     expect(first.style.transformOrigin).toBe("left center");
-    expect(third.style.transform).toBe("");
+    expect(third.style.scale).toBe("0.96");
   });
 });

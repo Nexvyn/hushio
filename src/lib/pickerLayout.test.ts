@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { instant } from "./motion";
 import { type Box, PICKER_MAX_HEIGHT, placePicker, pickerMotion } from "./pickerLayout";
 
 const view = { width: 1200, height: 800 };
@@ -58,11 +59,11 @@ describe("pickerMotion", () => {
     expect((motion.exit as { transition: { duration: number } }).transition.duration).toBe(0.12);
   });
 
-  it("uses a fade only under Reduce Motion", () => {
+  it("shows the picker immediately under Reduce Motion", () => {
     const motion = pickerMotion(true);
-    expect(motion.initial).toEqual({ opacity: 0 });
+    expect(motion.initial).toBe(false);
     expect(motion.animate).toEqual({ opacity: 1 });
-    expect(motion.exit).toMatchObject({ opacity: 0, transition: { duration: 0.12 } });
-    expect(motion.transition).toMatchObject({ duration: 0.12 });
+    expect(motion.exit).toBeUndefined();
+    expect(motion.transition).toBe(instant);
   });
 });

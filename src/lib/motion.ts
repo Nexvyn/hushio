@@ -2,16 +2,6 @@ import type { Transition } from "motion/react";
 
 export const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 export const EASE_MOVE: [number, number, number, number] = [0.4, 0, 0.2, 1];
-export const SPRING_SHEET: Transition = { type: "spring", stiffness: 400, damping: 40, mass: 1 };
-export const SPRING_GESTURE: Transition = { type: "spring", stiffness: 300, damping: 34, mass: 1 };
-export const SPRING_CONTROL: Transition = { type: "spring", stiffness: 420, damping: 36, mass: 1 };
-export const MS_PRESS_IN = 120;
-export const MS_PRESS_OUT = 160;
-export const MS_ICON = 140;
-export const MS_FADE = 120;
-export const MS_POPOVER_IN = 160;
-export const MS_POPOVER_OUT = 120;
-export const MS_IMAGE = 140;
 export const EASE_IN_OUT: [number, number, number, number] = [0.42, 0, 0.58, 1];
 
 export const DURATION_MS = {
@@ -39,6 +29,10 @@ export const DURATION_MS = {
   gooDelay: 60,
   canvasFade: 500,
   lyric: 400,
+  lyricFocus: 160,
+  lyricFocusReduced: 120,
+  lyricWordLift: 160,
+  lyricScroll: 160,
   queue: 420,
   progress: 300,
   toastOut: 160,

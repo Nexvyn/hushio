@@ -51,15 +51,21 @@ describe("NotificationBanner", () => {
     expect(screen.queryByRole("status")).toBeNull();
   });
 
-  it("asks for the permission at the first playback, not before", async () => {
+  it("explains notifications at first playback and requests permission after Allow", async () => {
     notificationState.mockResolvedValue("request");
     notificationRequest.mockResolvedValue("granted");
     render(<NotificationBanner />);
     await waitFor(() => expect(notificationState).toHaveBeenCalled());
-    expect(notificationRequest).not.toHaveBeenCalled();
-    usePlayer.setState({ queue: [track], index: 0, playing: true });
-    await waitFor(() => expect(notificationRequest).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole("status")).toBeNull();
+    expect(notificationRequest).not.toHaveBeenCalled();
+    await act(async () => {
+      usePlayer.setState({ queue: [track], index: 0, playing: true });
+    });
+    expect((await screen.findByRole("status")).textContent).toContain("playback controls on your lock screen");
+    expect(notificationRequest).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Allow" }));
+    expect(notificationRequest).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
   });
 
   it("shows the banner when denied and opens system settings from it", async () => {
