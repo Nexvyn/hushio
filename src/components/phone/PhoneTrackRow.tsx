@@ -78,8 +78,8 @@ export function PhoneTrackRow({
           >
             <PhoneArt src={thumbArtwork(track.thumb, ROW_THUMB_TARGET) || null} radius="rounded-[6px]" className="block size-12 shrink-0" />
             <span className="flex min-w-0 flex-1 flex-col text-left">
-              <span className="truncate text-body font-medium leading-5 text-ink-1">{track.title}</span>
-              <span className="truncate text-meta leading-[18px] text-ink-2">{track.artist}</span>
+              <span className="truncate text-phone-row-title text-ink-1">{track.title}</span>
+              <span className="truncate text-phone-meta text-ink-2">{track.artist}</span>
             </span>
             {active && (
               <span className="shrink-0 text-ink-1">
@@ -170,7 +170,7 @@ export function PhoneSongRow({
             onLongPress={sortable ? undefined : (point) => useUI.getState().openContextMenu(point.x, point.y, resolveMenu(menu))}
           >
             {numbered ? (
-              <span className="flex w-6 shrink-0 justify-center text-meta tabular-nums text-ink-2">
+              <span className="flex w-6 shrink-0 justify-center text-phone-meta tabular-nums text-ink-2">
                 {current ? <EqBars playing={animate} /> : index + 1}
               </span>
             ) : (
@@ -185,12 +185,12 @@ export function PhoneSongRow({
             <span className="flex min-w-0 flex-1 flex-col text-left">
               <span
                 title={song.title}
-                className={`flex min-w-0 items-center text-body leading-[22px] ${current ? "font-medium text-accent" : "font-normal text-ink-1"}`}
+                className={`flex min-w-0 items-center text-phone-row-title ${current ? "text-accent" : "text-ink-1"}`}
               >
                 {song.explicit && <ExplicitBadge />}
                 <span className="truncate">{song.title}</span>
               </span>
-              {showArtist && artist && <span className="truncate text-meta leading-[18px] text-ink-2">{artist}</span>}
+              {showArtist && artist && <span className="truncate text-phone-meta text-ink-2">{artist}</span>}
             </span>
           </PressRow>
           {liked && (

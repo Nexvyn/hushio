@@ -108,11 +108,11 @@ export function PhoneHeader({
           <h1
             id={titleId}
             title={titleTooltip}
-            className="break-words font-title text-section font-semibold leading-9 tracking-[-0.02em] text-ink-1"
+            className="break-words font-title text-phone-page-title text-ink-1"
           >
             {title}
           </h1>
-          {meta && <div className="mt-0.5 text-meta leading-[18px] tabular-nums text-ink-2">{meta}</div>}
+          {meta && <div className="mt-0.5 text-phone-meta tabular-nums text-ink-2">{meta}</div>}
         </div>
         {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
       </header>
@@ -148,7 +148,7 @@ export function PhoneHeader({
       <h1
         id={titleId}
         title={titleTooltip}
-        className={`mt-4 line-clamp-2 max-w-full break-words font-title text-section font-semibold leading-7 tracking-[-0.02em] ${tone}`}
+        className={`mt-4 line-clamp-2 max-w-full break-words font-title text-phone-page-title ${tone}`}
       >
         {onEdit ? (
           <button type="button" onClick={onEdit} className="max-w-full text-center">
@@ -158,8 +158,8 @@ export function PhoneHeader({
           title
         )}
       </h1>
-      {description && <p className={`mt-1.5 line-clamp-3 max-w-full break-words text-meta leading-[18px] ${dim}`}>{description}</p>}
-      {meta && <div className={`mt-1 text-meta leading-[18px] tabular-nums ${dim}`}>{meta}</div>}
+      {description && <p className={`mt-1.5 line-clamp-3 max-w-full break-words text-phone-meta ${dim}`}>{description}</p>}
+      {meta && <div className={`mt-1 text-phone-meta tabular-nums ${dim}`}>{meta}</div>}
       {actions && <div className="mt-5 flex w-full min-w-0 items-center gap-3">{actions}</div>}
     </header>
   );

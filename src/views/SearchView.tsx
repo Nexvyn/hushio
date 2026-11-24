@@ -43,7 +43,7 @@ import { SkeletonSwap } from "../components/SkeletonSwap";
 const SEARCH_DEBOUNCE_MS = 300;
 
 const HEADING = "text-section text-ink-1";
-const PHONE_HEADING = "font-title text-card-title leading-[26px] font-bold tracking-[-0.02em] text-ink-1";
+const PHONE_HEADING = "font-title text-phone-section text-ink-1";
 const PHONE_RECENT_LIMIT = 6;
 
 const FILTER_TABS: { filter: SearchFilter; labelKey: TKey; icon: PhosphorIcon }[] = [

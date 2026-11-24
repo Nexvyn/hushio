@@ -12,7 +12,7 @@ describe("PhoneHeader", () => {
     render(<PhoneHeader title="Library" />);
     const title = screen.getByRole("heading", { name: "Library" });
     expect(title.className).toContain("font-title");
-    expect(title.className).toContain("tracking-[-0.02em]");
+    expect(title.className).toContain("text-phone-page-title");
   });
 
   it("paints no band while the cover colour is not ready", () => {

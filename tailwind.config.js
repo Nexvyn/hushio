@@ -13,6 +13,12 @@ export default {
         title: ["var(--font-title)", "var(--font-devanagari)"],
       },
       fontSize: {
+        "phone-page-title": ["28px", { lineHeight: "34px", letterSpacing: "-0.02em", fontWeight: "600" }],
+        "phone-section": ["20px", { lineHeight: "26px", letterSpacing: "-0.01em", fontWeight: "600" }],
+        "phone-row-title": ["16px", { lineHeight: "21px", fontWeight: "500" }],
+        "phone-meta": ["13px", { lineHeight: "18px", fontWeight: "400" }],
+        "phone-utility": ["12px", { lineHeight: "16px", fontWeight: "500" }],
+        "phone-player-title": ["22px", { lineHeight: "28px", letterSpacing: "-0.01em", fontWeight: "600" }],
         "page-title": ["34px", { lineHeight: "40px", letterSpacing: "-0.02em", fontWeight: "700" }],
         section: ["22px", { lineHeight: "28px", letterSpacing: "-0.01em", fontWeight: "600" }],
         "card-title": ["17px", { lineHeight: "22px", letterSpacing: "-0.01em", fontWeight: "600" }],

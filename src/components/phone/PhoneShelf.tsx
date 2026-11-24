@@ -22,11 +22,11 @@ const FRAME: Record<ShelfVariant, string> = {
 };
 
 const TITLE: Record<ShelfVariant, string> = {
-  default: "text-body font-semibold leading-5",
-  tile: "text-body font-semibold leading-5",
-  large: "text-body font-semibold leading-5",
-  round: "text-body font-semibold leading-5",
-  compact: "text-body leading-[22px] font-normal",
+  default: "text-phone-row-title",
+  tile: "text-phone-row-title",
+  large: "text-phone-row-title",
+  round: "text-phone-row-title",
+  compact: "text-phone-row-title",
 };
 
 const ROW: Record<ShelfVariant, string> = {
@@ -39,7 +39,7 @@ const ROW: Record<ShelfVariant, string> = {
 
 export function PhoneSectionHeader({ id, title }: { id?: string; title: string }) {
   return (
-    <h2 id={id} className="mb-3 truncate font-title text-card-title leading-[26px] font-semibold tracking-[-0.02em] text-ink-1">
+    <h2 id={id} className="mb-3 truncate font-title text-phone-section text-ink-1">
       {title}
     </h2>
   );
@@ -98,7 +98,7 @@ export function PhoneShelfCard({ art, title, subtitle, tag, round = false, varia
       <span className={`relative block ${row ? "size-14 shrink-0" : "w-full"}`}>
         {art}
         {tag && (
-          <span className="absolute left-1.5 top-1.5 rounded-[6px] bg-panel px-1.5 py-0.5 text-meta font-semibold tracking-[0.08em] text-ink-1">
+          <span className="absolute left-1.5 top-1.5 rounded-[6px] bg-panel px-1.5 py-0.5 text-phone-utility text-ink-1">
             {tag}
           </span>
         )}
@@ -106,7 +106,7 @@ export function PhoneShelfCard({ art, title, subtitle, tag, round = false, varia
       <span className={`block min-w-0 ${row ? "flex-1" : "mt-2"}`}>
         <span className={`block truncate text-ink-1 ${TITLE[variant]}`}>{title}</span>
         {showSubtitle && (
-          <span className="block truncate text-meta leading-[18px] text-ink-2">
+          <span className="block truncate text-phone-meta text-ink-2">
             {subtitle}
           </span>
         )}
@@ -132,7 +132,7 @@ function QuickTile({ item, menu }: QuickTileProps) {
       className={`flex h-14 min-w-0 items-center overflow-hidden rounded-[10px] bg-elevated text-left ${focusRing}`}
     >
       <PhoneArt src={thumbArtwork(item.thumb, 56) || null} radius="rounded-none" className="block size-14 shrink-0" />
-      <span className="line-clamp-2 min-w-0 flex-1 px-2.5 text-body font-semibold leading-5 text-ink-1">{item.title}</span>
+      <span className="line-clamp-2 min-w-0 flex-1 px-2.5 text-phone-row-title text-ink-1">{item.title}</span>
     </motion.button>
   );
 }

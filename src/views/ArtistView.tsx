@@ -239,8 +239,8 @@ function ArtistContent({ page }: { page: ArtistPage }) {
         <header className="flex min-w-0 flex-col items-center text-center">
           <PhoneBackRow onBack={goBackOrTabRoot} />
           <PhoneArt src={photo} round className="mt-2 block size-36 shrink-0" />
-          <h1 className="mt-4 line-clamp-2 max-w-full break-words text-section font-semibold leading-[28px] text-ink-1">{artist.name}</h1>
-          <div className="mt-1 text-meta leading-[18px] tabular-nums text-ink-2">{joinMeta([subscribers, listeners])}</div>
+          <h1 className="mt-4 line-clamp-2 max-w-full break-words text-phone-page-title text-ink-1">{artist.name}</h1>
+          <div className="mt-1 text-phone-meta tabular-nums text-ink-2">{joinMeta([subscribers, listeners])}</div>
           <div className="mt-4 flex w-full min-w-0 items-center gap-3">
             <button type="button" onClick={() => playAt(0)} disabled={top.length === 0} className={PHONE_PLAY}>
               <HeroIcon icon={Play} />

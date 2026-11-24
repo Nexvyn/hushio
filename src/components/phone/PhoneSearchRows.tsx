@@ -40,10 +40,10 @@ export function PhoneBrowseRow({ item, query, featured = false }: { item: Browse
         radius={artist ? undefined : featured ? "rounded-[10px]" : "rounded-[6px]"}
       />
       <span className="min-w-0 flex-1">
-        <span className={`block truncate text-ink-1 ${featured ? "text-card-title leading-[22px] font-semibold" : "text-body leading-[22px] font-normal"}`}>
+        <span className="block truncate text-phone-row-title text-ink-1">
           {item.title}
         </span>
-        <span className="block truncate text-meta leading-[18px] text-ink-2">{joinSubtitle(TYPE_LABEL[item.type], item.subtitle)}</span>
+        <span className="block truncate text-phone-meta text-ink-2">{joinSubtitle(TYPE_LABEL[item.type], item.subtitle)}</span>
       </span>
     </button>
   );
@@ -54,8 +54,8 @@ export function PhoneTopSong({ song, query }: { song: SearchSong; query: string 
     <button type="button" onClick={() => playSong(song, query)} className={FEATURED_ROW}>
       <Artwork src={song.thumb} size="h-16 w-16" radius="rounded-[10px]" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-card-title leading-[22px] font-semibold text-ink-1">{song.title}</span>
-        {song.artist && <span className="block truncate text-meta leading-[18px] text-ink-2">{normalizeCredit(song.artist)}</span>}
+        <span className="block truncate text-phone-row-title text-ink-1">{song.title}</span>
+        {song.artist && <span className="block truncate text-phone-meta text-ink-2">{normalizeCredit(song.artist)}</span>}
       </span>
     </button>
   );
@@ -90,13 +90,13 @@ export function PhoneTrackRow({ song, query }: { song: SearchSong; query: string
         <span className="min-w-0 flex-1">
           <span
             title={song.title}
-            className={`flex min-w-0 items-center text-body leading-[22px] ${current ? "font-medium text-accent" : "font-normal text-ink-1"}`}
+            className={`flex min-w-0 items-center text-phone-row-title ${current ? "text-accent" : "text-ink-1"}`}
           >
             {song.explicit && <ExplicitBadge />}
             <span className="truncate">{song.title}</span>
           </span>
           {song.artist && (
-            <span className="block truncate text-meta leading-[18px] text-ink-2">{normalizeCredit(song.artist)}</span>
+            <span className="block truncate text-phone-meta text-ink-2">{normalizeCredit(song.artist)}</span>
           )}
         </span>
       </button>

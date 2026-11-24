@@ -39,9 +39,9 @@ export function PhoneFeatured({ item, menu }: { item: FeaturedItem; menu?: MenuS
       >
         <PhoneArt src={thumbArtwork(item.thumb, 132) || null} radius="rounded-none" className="block size-[132px] shrink-0" />
         <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-4 pl-4 pr-16">
-          <span className="truncate text-meta leading-4 font-semibold text-ink-2">{item.label}</span>
-          <span className="font-title line-clamp-2 text-card-title leading-6 font-bold text-ink-1">{item.title}</span>
-          {item.subtitle && <span className="truncate text-meta leading-[17px] text-ink-2">{item.subtitle}</span>}
+          <span className="truncate text-phone-utility text-ink-2">{item.label}</span>
+          <span className="font-title line-clamp-2 text-phone-row-title text-ink-1">{item.title}</span>
+          {item.subtitle && <span className="truncate text-phone-meta text-ink-2">{item.subtitle}</span>}
         </span>
       </motion.button>
       <motion.button

@@ -54,12 +54,12 @@ describe("PhoneSongRow playing state", () => {
     document.documentElement.classList.remove("reduce-motion");
   });
 
-  it("sets the playing title in the accent colour at weight 500", () => {
+  it("sets the playing title in the accent colour at the phone row scale", () => {
     renderRow(true, true);
 
     const title = screen.getByText("Physical");
     expect(title.parentElement?.className).toContain("text-accent");
-    expect(title.parentElement?.className).toContain("font-medium");
+    expect(title.parentElement?.className).toContain("text-phone-row-title");
   });
 
   it("animates the equaliser only while the song plays", () => {
