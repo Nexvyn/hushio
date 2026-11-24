@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
-import { motion } from "motion/react";
+import { animate, motion } from "motion/react";
 import { DotsSixVertical, Radio, Repeat, RepeatOnce, Shuffle, Trash, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { PHONE_ROW_DP, PhoneTrackRow } from "./PhoneTrackRow";
 import { PhoneIcon } from "./PhoneIcon";
 import { VirtualList, scrollerOf } from "../VirtualList";
 import { autoScrollStep, dropIndex, slideOffset } from "../../lib/dragReorder";
 import { haptic } from "../../lib/haptics";
-import { PHONE_MS, gate, phoneTween, reducedMotion } from "../../lib/motion";
+import { EASE_MOVE, PHONE_MS, SPRING_CONTROL, gate, phoneTween, reducedMotion } from "../../lib/motion";
 import { nowPlayingSourceName } from "../../lib/nowPlayingSource";
 import { queueEntryKeys } from "../../lib/queueKeys";
 import { songOf, trackMenuItems } from "../../lib/trackActions";
@@ -29,7 +29,7 @@ const REPEAT_LABEL: Record<RepeatMode, string> = {
   one: "Disable repeat one",
 };
 
-type Drag = { from: number; travel: number; target: number } | null;
+type Drag = { from: number; target: number } | null;
 
 type Session = {
   from: number;
@@ -40,6 +40,9 @@ type Session = {
   scroller: HTMLElement | null;
   scrollBase: number;
   target: number;
+  velocity: number;
+  lastY: number;
+  lastTime: number;
 };
 
 function ModeButton({ label, icon, on, onPress }: { label: string; icon: PhosphorIcon; on: boolean; onPress: () => void }) {
@@ -103,6 +106,8 @@ export function PhoneQueueList() {
   const openContextMenu = useUI((state) => state.openContextMenu);
   const [drag, setDrag] = useState<Drag>(null);
   const [showPrevious, setShowPrevious] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
   const session = useRef<Session | null>(null);
   const dragging = drag !== null;
   const keys = useMemo(() => queueEntryKeys(queue), [queue]);
@@ -127,10 +132,10 @@ export function PhoneQueueList() {
     if (target !== active.target) {
       active.target = target;
       haptic("tick");
+      setDrag({ from: active.from, target });
     }
-    setDrag((current) =>
-      current && current.travel === travel && current.target === target ? current : { from: active.from, travel, target },
-    );
+    const draggedRow = root.current?.querySelector<HTMLElement>(`[data-index="${active.from}"]`);
+    if (draggedRow) draggedRow.style.translate = reduced ? "" : `0px ${travel}px`;
   };
 
   useEffect(() => {
@@ -154,13 +159,28 @@ export function PhoneQueueList() {
   const finish = () => {
     const active = session.current;
     session.current = null;
-    if (active && active.target !== active.from) moveUpcoming(active.from, active.target);
+    const draggedRow = active && root.current?.querySelector<HTMLElement>(`[data-index="${active.from}"]`);
+    if (draggedRow && active) {
+      const distance = (active.scroller?.scrollTop ?? active.scrollBase) - active.scrollBase + active.y - active.startY;
+      draggedRow.style.translate = "";
+      if (reduced) {
+        void animate(draggedRow, { opacity: [0.96, 1] }, { duration: 0.12 });
+      } else {
+        draggedRow.style.transform = "translateY(0px) scale(1.02)";
+        void animate(draggedRow, { y: [distance, 0], scale: [1.02, 1], opacity: [0.96, 1] }, { ...SPRING_CONTROL, velocity: active.velocity });
+      }
+      if (active.target !== active.from) moveUpcoming(active.from, active.target);
+    }
     setDrag(null);
   };
 
   const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
     const active = session.current;
     if (!active) return;
+    const elapsed = event.timeStamp - active.lastTime;
+    if (elapsed > 0) active.velocity = ((event.clientY - active.lastY) / elapsed) * 1000;
+    active.lastY = event.clientY;
+    active.lastTime = event.timeStamp;
     active.y = event.clientY;
     applyDrag();
   };
@@ -183,8 +203,13 @@ export function PhoneQueueList() {
       scroller,
       scrollBase: scroller?.scrollTop ?? 0,
       target: at,
+      velocity: 0,
+      lastY: event.clientY,
+      lastTime: event.timeStamp,
     };
-    setDrag({ from: at, travel: 0, target: at });
+    setDrag({ from: at, target: at });
+    const row = root.current?.querySelector<HTMLElement>(`[data-index="${at}"]`);
+    if (row && !reduced) void animate(row, { scale: [1, 1.02], opacity: [1, 0.96] }, { duration: 0.1, ease: EASE_MOVE });
     haptic("select");
   };
 
@@ -202,7 +227,7 @@ export function PhoneQueueList() {
   };
 
   return (
-    <div className="flex flex-col pb-2" onPointerMove={onPointerMove} onPointerUp={finish} onPointerCancel={finish}>
+    <div ref={root} className="flex flex-col pb-2" onPointerMove={onPointerMove} onPointerUp={finish} onPointerCancel={finish}>
       <QueueModes />
       {index > 0 && (
         <div className="px-1">
@@ -244,6 +269,7 @@ export function PhoneQueueList() {
       {playingFrom && sourceName ? <p className="px-4 pb-2 text-meta text-ink-2">Playing from {sourceName}</p> : null}
       <div className="flex items-center justify-between pr-4">
         <h3 className={HEADING}>Up next</h3>
+        {upcoming.length > 0 && <button type="button" aria-pressed={editing} onClick={() => setEditing((value) => !value)} className="min-h-12 px-3 text-meta font-medium text-ink-2">{editing ? "Done" : "Edit"}</button>}
         <button
           type="button"
           onClick={clearUpcoming}
@@ -266,11 +292,13 @@ export function PhoneQueueList() {
               track={track}
               index={at}
               dragging={drag?.from === at}
-              dragOffset={drag ? (drag.from === at ? drag.travel : slideOffset(at, drag.from, drag.target, PHONE_ROW_DP)) : 0}
+              dragOffset={reduced ? 0 : drag && drag.from !== at ? slideOffset(at, drag.from, drag.target, PHONE_ROW_DP) : 0}
+              dragTransition={drag ? { duration: 0.18, ease: EASE_MOVE } : SPRING_CONTROL}
+              hideMore={editing}
               onPress={() => jumpTo(at)}
               onMore={(event) => menuFor(track, event)}
               swipeLeft={{ label: "Remove", icon: Trash, tone: "danger", run: () => removeUpcoming(at, track) }}
-              handle={
+              handle={editing ? (
                 <button
                   type="button"
                   aria-label={`Drag ${track.title} to reorder`}
@@ -279,7 +307,7 @@ export function PhoneQueueList() {
                 >
                   <PhoneIcon icon={DotsSixVertical} />
                 </button>
-              }
+              ) : undefined}
             />
           )}
         />

@@ -29,15 +29,8 @@ export function NotificationBanner() {
       .catch(() => setState("granted"));
   }, []);
 
-  useEffect(() => {
-    if (!playing || !shouldAskAtPlayback(state, asked.current)) return;
-    asked.current = true;
-    notificationRequest()
-      .then((value) => setState(parseNotificationState(value)))
-      .catch(() => setState("settings"));
-  }, [playing, state]);
-
-  const visible = !dismissed && showNotificationBanner(state, playing);
+  const shouldExplain = shouldAskAtPlayback(state, asked.current);
+  const visible = !dismissed && playing && (shouldExplain || showNotificationBanner(state, playing));
 
   useEffect(() => {
     if (!visible) return;
@@ -57,11 +50,14 @@ export function NotificationBanner() {
         <PhoneIcon icon={Bell} />
       </span>
       <p className="min-w-0 flex-1 text-sm">
-        Notifications are off. Playback still works, but the media controls are hidden.
+        {shouldExplain ? "Allow notifications to show playback controls on your lock screen." : "Notifications are off. Playback still works, but the media controls are hidden."}
       </p>
-      <Button variant="ghost" onClick={() => void notificationSettings()}>
-        Open settings
-      </Button>
+      {shouldExplain ? (
+        <Button variant="ghost" onClick={() => {
+          asked.current = true;
+          void notificationRequest().then((value) => setState(parseNotificationState(value))).catch(() => setState("settings"));
+        }}>Allow</Button>
+      ) : <Button variant="ghost" onClick={() => void notificationSettings()}>Open settings</Button>}
       <button
         type="button"
         aria-label="Dismiss"

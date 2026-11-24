@@ -190,31 +190,36 @@ export function HomeView() {
   const pull = usePullToRefresh({ enabled: phone, busy: status === "loading", onRefresh: retry });
   const pullWillChange = useTransform(pull.distance, (distance) => (distance > 0 ? "transform" : "auto"));
 
-  const tiles = recent
-    .filter((item) => item.id !== TEST_SONG_ID)
-    .slice(0, phone ? TILE_LIMIT : DESKTOP_TILE_LIMIT);
+  const tiles = useMemo(
+    () => recent.filter((item) => item.id !== TEST_SONG_ID).slice(0, phone ? TILE_LIMIT : DESKTOP_TILE_LIMIT),
+    [recent, phone],
+  );
   const feed = useHomeFeed(shelves);
-  const allSections = orderHomeSections(
-    feed.filter((section) => section.kind !== "browse"),
-    sectionOrder,
-    hiddenSections,
+  const allSections = useMemo(
+    () => orderHomeSections(feed.filter((section) => section.kind !== "browse"), sectionOrder, hiddenSections),
+    [feed, sectionOrder, hiddenSections],
   );
-  const jumpBackTracks = allSections.flatMap((section) =>
-    section.kind === "jump-back-in" ? section.items.flatMap((item) => (item.kind === "track" ? [item.track] : [])) : [],
+  const jumpBackTracks = useMemo(
+    () => allSections.flatMap((section) =>
+      section.kind === "jump-back-in" ? section.items.flatMap((item) => (item.kind === "track" ? [item.track] : [])) : [],
+    ),
+    [allSections],
   );
-  const quick = phone ? quickTilesFrom(tiles, jumpBackTracks, TILE_LIMIT) : tiles;
-  const quickSongs = new Set(quick.filter(item => item.kind === "song").map(item => item.id));
-  const sections = allSections.filter(section => section.kind !== "market")
-    .map(section => ({ ...section, items: section.items.filter(item => item.kind !== "track" || !quickSongs.has(item.track.id)) }))
-    .filter(section => section.items.length || section.playlists?.length || section.shelf?.items.length);
-  const featured = featuredFrom(allSections);
+  const quick = useMemo(() => phone ? quickTilesFrom(tiles, jumpBackTracks, TILE_LIMIT) : tiles, [phone, tiles, jumpBackTracks]);
+  const quickSongs = useMemo(() => new Set(quick.filter(item => item.kind === "song").map(item => item.id)), [quick]);
+  const sections = useMemo(
+    () => allSections.filter(section => section.kind !== "market")
+      .map(section => ({ ...section, items: section.items.filter(item => item.kind !== "track" || !quickSongs.has(item.track.id)) }))
+      .filter(section => section.items.length || section.playlists?.length || section.shelf?.items.length),
+    [allSections, quickSongs],
+  );
+  const featured = useMemo(() => featuredFrom(allSections), [allSections]);
   const featuredPlaylistId = featured?.target.name === "ytplaylist" ? featured.target.param : null;
-  const shelfSections =
-    featuredPlaylistId
-      ? sections.map((section) =>
-          section.playlists ? { ...section, playlists: section.playlists.filter((playlist) => playlist.id !== featuredPlaylistId) } : section,
-        ).filter(section => section.items.length || section.playlists?.length || section.shelf?.items.length)
-      : sections;
+  const shelfSections = useMemo(() => featuredPlaylistId
+    ? sections.map((section) =>
+        section.playlists ? { ...section, playlists: section.playlists.filter((playlist) => playlist.id !== featuredPlaylistId) } : section,
+      ).filter(section => section.items.length || section.playlists?.length || section.shelf?.items.length)
+    : sections, [featuredPlaylistId, sections]);
   const hasContent = quick.length > 0 || sections.length > 0 || featured !== null;
 
   const initialRemote = useMemo(() => {

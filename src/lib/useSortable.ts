@@ -7,15 +7,15 @@ import {
   type PointerEvent as ReactPointerEvent,
   type RefObject,
 } from "react";
+import { animate } from "motion/react";
 import { reducedMotion } from "./motion";
+import { EASE_MOVE, SPRING_CONTROL } from "./motion";
 import {
   type Box,
   autoScrollStep,
   clampOffset,
   edgeOverflow,
   LIFT_SHADOW,
-  SETTLE_EASE,
-  SETTLE_MS,
   START_PX,
   TOUCH_HOLD_MS,
   TOUCH_SLOP_PX,
@@ -52,6 +52,9 @@ type Drag = {
   startY: number;
   x: number;
   y: number;
+  velocity: number;
+  lastY: number;
+  lastTime: number;
   lifted: boolean;
   rows: HTMLElement[];
   boxes: Box[];
@@ -123,15 +126,16 @@ export function useSortable(options: SortableOptions) {
     const span = spanAt(drag.from, drag.boxes);
     drag.rows.forEach((row, index) => {
       if (index === drag.from) {
-        row.style.transition = "none";
+        row.style.transition = reduced ? "none" : "transform 100ms ease, opacity 100ms ease";
         row.style.transform = `translateY(${drag.offset}px) scale(1.02)`;
+        row.style.opacity = reduced ? "1" : "0.96";
         row.style.boxShadow = LIFT_SHADOW;
         row.style.background = "rgb(var(--elevated))";
         row.style.position = "relative";
         row.style.zIndex = "10";
         return;
       }
-      row.style.transition = reduced ? "none" : `transform ${SETTLE_MS}ms ${SETTLE_EASE}`;
+      row.style.transition = reduced ? "none" : `transform 180ms cubic-bezier(${EASE_MOVE.join(",")})`;
       row.style.transform = `translateY(${shiftFor(index, drag.from, drag.target, span)}px)`;
     });
   }
@@ -195,6 +199,7 @@ export function useSortable(options: SortableOptions) {
     for (const row of drag.rows) {
       row.style.transition = "";
       row.style.transform = "";
+      row.style.opacity = "";
       row.style.boxShadow = "";
       row.style.background = "";
       row.style.position = "";
@@ -214,6 +219,10 @@ export function useSortable(options: SortableOptions) {
   function handleMove(drag: Drag, event: PointerEvent) {
     if (dragRef.current !== drag) return;
     drag.x = event.clientX;
+    const elapsed = event.timeStamp - drag.lastTime;
+    if (elapsed > 0) drag.velocity = ((event.clientY - drag.lastY) / elapsed) * 1000;
+    drag.lastY = event.clientY;
+    drag.lastTime = event.timeStamp;
     drag.y = event.clientY;
     const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
     if (!drag.lifted) {
@@ -254,19 +263,16 @@ export function useSortable(options: SortableOptions) {
       clear(drag);
       return;
     }
-    const reduced = reducedMotion();
     const row = drag.rows[from];
-    row.style.transition = reduced ? "none" : `transform ${SETTLE_MS}ms ${SETTLE_EASE}`;
-    row.style.transform = `translateY(${drag.boxes[target].top - drag.boxes[from].top}px)`;
-    settleTimer.current = window.setTimeout(
-      () => {
-        settleTimer.current = undefined;
-        clear(drag);
-        selfMove.current = true;
-        optionsRef.current.onMove?.(from, target);
-      },
-      reduced ? 0 : SETTLE_MS,
-    );
+    const reduced = reducedMotion();
+    const settle = reduced
+      ? animate(row, { opacity: [0.96, 1] }, { duration: 0.12 })
+      : animate(row, { y: drag.boxes[target].top - drag.boxes[from].top, scale: 1, opacity: 1 }, { ...SPRING_CONTROL, velocity: drag.velocity });
+    void settle.then(() => {
+      clear(drag);
+      selfMove.current = true;
+      optionsRef.current.onMove?.(from, target);
+    });
   }
 
   function begin(key: string, from: number, event: ReactPointerEvent<HTMLElement>) {
@@ -279,6 +285,9 @@ export function useSortable(options: SortableOptions) {
       startY: event.clientY,
       x: event.clientX,
       y: event.clientY,
+      velocity: 0,
+      lastY: event.clientY,
+      lastTime: event.timeStamp,
       lifted: false,
       rows: [],
       boxes: [],

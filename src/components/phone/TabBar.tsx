@@ -26,9 +26,9 @@ const ICONS: Record<TabId, PhosphorIcon> = {
   hotlist: Fire,
 };
 
-export function TabBar() {
+export function TabBar({ activeTab }: { activeTab?: TabId | null } = {}) {
   useT();
-  const current = useNavigation((state) => state.tab);
+  const current = useNavigation((state) => activeTab === undefined ? state.tab : activeTab);
   const navigate = useNavigation((state) => state.navigate);
   const reduced = reducedMotion();
   const searchPress = useRef<LongPress | null>(null);

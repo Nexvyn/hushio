@@ -18,7 +18,7 @@ import { CurrentView } from "../../views/CurrentView";
 import { MS_FADE, SPRING_NAV, fade, gate, phoneSnappy, phoneTween, reducedMotion } from "../../lib/motion";
 import { navDirection, type NavDirection, type NavSnapshot } from "../../lib/navDirection";
 import { useScrimMounted } from "../../lib/useScrimMounted";
-import { INSET_TOP, INSET_BOTTOM, phoneBottomPad } from "../../lib/phoneNav";
+import { INSET_TOP, INSET_BOTTOM, phoneBottomPad, tabOfRoot } from "../../lib/phoneNav";
 import { currentTrack, usePlayer } from "../../stores/player";
 import { useNavigation } from "../../stores/navigation";
 import { useUI } from "../../stores/ui";
@@ -138,7 +138,7 @@ export function PhoneShell() {
           className={`absolute inset-x-0 bottom-0 z-20 overflow-hidden rounded-t-[24px] border-t border-separator bg-surface shadow-[0_-4px_24px_rgb(0_0_0/0.12)] ${searchFocused ? "pointer-events-none" : ""}`}
         >
           <MiniPlayer />
-          <TabBar />
+          <TabBar activeTab={view.name === "settings" ? null : tabOfRoot(view) ?? tab} />
           <div aria-hidden="true" className="bg-surface" style={{ height: INSET_BOTTOM }} />
         </motion.div>
         {scrimOn && <motion.div aria-hidden="true" data-page-shade className="pointer-events-none absolute inset-0 z-30 bg-black will-change-[opacity]" style={{ opacity: pageShade }} />}

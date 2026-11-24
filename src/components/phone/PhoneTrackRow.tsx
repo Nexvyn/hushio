@@ -13,7 +13,7 @@ import { SwipeRow } from "./SwipeRow";
 import type { RowAction } from "./useSwipeRow";
 import { thumbArtwork } from "../../lib/artwork";
 import { normalizeCredit } from "../../lib/credits";
-import { gate, phoneSnappy, reducedMotion, settle } from "../../lib/motion";
+import { EASE_MOVE, gate, reducedMotion, settle } from "../../lib/motion";
 import { LONG_HOLD_MS } from "../../lib/phoneGestures";
 import type { SearchSong } from "../../lib/searchParse";
 import type { Point } from "../../lib/touchGesture";
@@ -24,6 +24,7 @@ import { useLibrary } from "../../stores/library";
 import { usePlayer } from "../../stores/player";
 import { useUI } from "../../stores/ui";
 import type { Track } from "../../types";
+import type { Transition } from "motion/react";
 import { prefetchTrack } from "../../lib/prefetch";
 
 export const PHONE_ROW_DP = 60;
@@ -41,6 +42,8 @@ type PhoneTrackRowProps = {
   swipeLeft?: RowAction;
   swipeRight?: RowAction;
   handle?: ReactNode;
+  hideMore?: boolean;
+  dragTransition?: Transition;
 };
 
 export function PhoneTrackRow({
@@ -55,14 +58,16 @@ export function PhoneTrackRow({
   swipeLeft,
   swipeRight,
   handle,
+  hideMore = false,
+  dragTransition,
 }: PhoneTrackRowProps) {
   const reduced = reducedMotion();
-  const liftTransition = { y: { duration: 0 }, scale: gate(reduced, phoneSnappy) };
+  const liftTransition = { y: { duration: 0 }, scale: reduced ? { duration: 0 } : { duration: 0.1, ease: EASE_MOVE }, opacity: reduced ? { duration: 0.12 } : { duration: 0.1, ease: EASE_MOVE } };
   return (
     <motion.div
       data-index={index}
-      animate={{ y: dragOffset, scale: dragging && !reduced ? 1.02 : 1 }}
-      transition={dragging ? liftTransition : gate(reduced, settle)}
+      animate={{ y: dragOffset, scale: dragging && !reduced ? 1.02 : 1, opacity: dragging && !reduced ? 0.96 : 1 }}
+      transition={dragTransition ?? (dragging ? liftTransition : gate(reduced, settle))}
       className={dragging ? "relative z-10 rounded-[10px] bg-base" : ""}
       style={{ height: PHONE_ROW_DP, boxShadow: dragging ? "var(--shadow-held)" : undefined }}
     >
@@ -88,14 +93,14 @@ export function PhoneTrackRow({
             )}
           </PressRow>
           {handle}
-          <button
+          {!hideMore && <button
             type="button"
             aria-label={`More options for ${track.title}`}
             onClick={onMore}
             className="grid h-12 w-12 shrink-0 place-items-center rounded-full text-ink-2 motion-safe:transition-transform motion-safe:duration-press motion-safe:active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
             <PhoneIcon icon={DotsThree} />
-          </button>
+          </button>}
         </div>
       </SwipeRow>
     </motion.div>
