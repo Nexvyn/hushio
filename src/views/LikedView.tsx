@@ -109,9 +109,9 @@ export function LikedView() {
   );
 
   return (
-    <div className="pb-16">
-      <CollectionHero title="Liked Songs" covers={covers} facts={facts} icon={Heart} tile={{ icon: Heart, accent: true }} eyebrow="Playlist" footer={footer}>
-        {phone && (
+    <div className={phone ? "" : "pb-16"}>
+      <CollectionHero title="Liked Songs" covers={covers} facts={phone && empty ? null : facts} icon={Heart} tile={{ icon: Heart, accent: true }} eyebrow={empty ? undefined : "Playlist"} hideArtwork={phone && empty} footer={footer}>
+        {phone && !empty && (
           <>
             <button
               type="button"
@@ -138,14 +138,14 @@ export function LikedView() {
         )}
       </CollectionHero>
 
-      <div className={phone ? (empty ? "" : "mt-5") : `mt-6 ${empty ? "flex min-h-[50vh] flex-col" : ""}`}>
+      <div className={phone ? (empty ? "flex flex-col" : "mt-5") : `mt-6 ${empty ? "flex min-h-[50vh] flex-col" : ""}`}>
         {empty ? (
           <EmptyState
             centered
             icon={Heart}
             title="No liked songs yet"
             message="Tap the heart on any song to keep it here."
-            action={{ label: "Find songs", onClick: () => navigate({ name: "search" }) }}
+            secondaryAction={{ label: "Find songs", onClick: () => navigate({ name: "search" }) }}
           />
         ) : (
           <>

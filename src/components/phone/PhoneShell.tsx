@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, type CSSProperties } from "react";
 import { AnimatePresence, motion, useTransform } from "motion/react";
 import { Dialog } from "../Dialog";
 import { EraseDialog } from "../EraseDialog";
@@ -105,7 +105,10 @@ export function PhoneShell() {
           <div
             id="view-scroll"
             className="no-scrollbar h-full overflow-y-auto overflow-x-hidden"
-            style={{ paddingBottom: phoneBottomPad(track !== null) }}
+            style={{
+              paddingBottom: phoneBottomPad(track !== null),
+              "--phone-empty-offset": `calc(${INSET_TOP} + ${phoneBottomPad(track !== null)} + 44px)`,
+            } as CSSProperties}
           >
             <div className="relative">
               <AnimatePresence mode="popLayout">

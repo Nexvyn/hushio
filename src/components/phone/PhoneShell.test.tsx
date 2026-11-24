@@ -32,6 +32,7 @@ import { useNavigation } from "../../stores/navigation";
 import { usePlayer } from "../../stores/player";
 import { useUI } from "../../stores/ui";
 import { useErase } from "../../stores/erase";
+import { phoneBottomPad } from "../../lib/phoneNav";
 
 const track = (i: number): Track => ({ id: `t${i}`, title: `Track ${i}`, artist: `Artist ${i}`, thumb: null });
 
@@ -89,6 +90,12 @@ describe("PhoneShell", () => {
     usePlayer.setState({ queue: [track(1)], index: 0 });
     render(<PhoneShell />);
     expect(screen.getByRole("region", { name: "Mini player" })).toBeTruthy();
+  });
+
+  it("reserves the mini player, tab bar and final scroll gap once", () => {
+    usePlayer.setState({ queue: [track(1)], index: 0 });
+    render(<PhoneShell />);
+    expect(scroller().style.paddingBottom).toBe(phoneBottomPad(true));
   });
 
   it("changes the screen when a tab is tapped", async () => {

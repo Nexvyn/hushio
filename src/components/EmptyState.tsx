@@ -21,7 +21,7 @@ export function EmptyState({ title, message, icon, action, secondaryAction, cent
   const phone = usePhone();
   if (phone) {
     return (
-      <section className={`animate-fade-in mx-auto flex max-w-[280px] flex-col items-center px-4 text-center ${centered ? "flex-1 justify-center py-8" : "pt-8"}`}>
+      <section className={`animate-fade-in mx-auto flex max-w-[280px] flex-col items-center px-4 text-center ${centered ? "min-h-[calc(100dvh-var(--phone-empty-offset,240px))] flex-1 justify-center py-8" : "pt-8"}`}>
         {icon && (
           <span aria-hidden="true" className="grid place-items-center text-ink-2">
             <PhoneIcon icon={icon} />

@@ -26,14 +26,14 @@ function commit(request: DialogRequest, value: string, fail: (message: string) =
   close();
 }
 
-function DialogFrame({ request, sheet, failure, panelRef, inputRef, onConfirm, onDismiss }: FrameProps) {
+function DialogFrame({ request, sheet, failure, panelRef, inputRef, onConfirm, onDismiss, keyboardInset }: FrameProps & { keyboardInset: number }) {
   const shell = sheet ? "fixed inset-0 z-[120] flex items-end" : "fixed inset-0 z-[120] grid place-items-center";
   const panelShape = sheet
     ? "relative w-full rounded-t-[16px] border-t border-separator bg-elevated p-6 outline-none"
     : "glass-strong relative w-[min(420px,calc(100vw-48px))] rounded-2xl p-6 outline-none";
   const buttonHeight = sheet ? "h-12" : "h-9";
   return (
-    <div className={shell}>
+    <div className={shell} style={sheet ? { bottom: keyboardInset } : undefined}>
       <motion.div
         className="absolute inset-0"
         style={{ background: "rgb(var(--scrim) / var(--scrim-alpha))" }}
@@ -80,7 +80,7 @@ function DialogFrame({ request, sheet, failure, panelRef, inputRef, onConfirm, o
               placeholder={request.placeholder}
               rows={7}
               spellCheck={false}
-              className="mt-4 w-full resize-none rounded-xl border border-separator bg-ink-1/[0.06] px-3.5 py-2.5 text-sm leading-relaxed text-ink-1 placeholder:text-ink-2 focus-visible:border-accent focus-visible:bg-elevated"
+              className="mt-4 w-full resize-none rounded-xl border border-separator bg-ink-1/[0.06] px-3.5 py-2.5 text-base leading-relaxed text-ink-1 placeholder:text-ink-2 focus-visible:border-accent focus-visible:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             />
           ) : (
             <input
@@ -92,7 +92,7 @@ function DialogFrame({ request, sheet, failure, panelRef, inputRef, onConfirm, o
               placeholder={request.placeholder}
               aria-invalid={failure?.request === request || undefined}
               spellCheck={false}
-              className="mt-4 h-10 w-full rounded-xl border border-separator bg-ink-1/[0.06] px-3.5 text-sm text-ink-1 placeholder:text-ink-2 focus-visible:border-accent focus-visible:bg-elevated"
+              className="mt-4 h-10 w-full rounded-xl border border-separator bg-ink-1/[0.06] px-3.5 text-base text-ink-1 placeholder:text-ink-2 focus-visible:border-accent focus-visible:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             />
           ))}
         {failure?.request === request && (
@@ -105,7 +105,7 @@ function DialogFrame({ request, sheet, failure, panelRef, inputRef, onConfirm, o
             <button
               type="button"
               onClick={onDismiss}
-              className={`hit-area ${buttonHeight} rounded-xl px-4 text-meta font-medium text-ink-2 transition-colors hover:bg-hover hover:text-ink-1`}
+              className={`hit-area ${buttonHeight} rounded-xl px-4 text-meta font-medium text-ink-2 transition-colors hover:bg-hover hover:text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus`}
             >
               {request.cancelLabel ?? t("dialog.cancel")}
             </button>
@@ -113,10 +113,12 @@ function DialogFrame({ request, sheet, failure, panelRef, inputRef, onConfirm, o
           <button
             type="button"
             onClick={onConfirm}
-            className={`hit-area ${buttonHeight} rounded-xl px-4 text-meta font-medium transition-opacity hover:opacity-90 ${
+            className={`hit-area ${buttonHeight} rounded-xl px-4 text-meta font-medium transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
               request.danger
                 ? "bg-danger text-white"
-                : "bg-accent text-on-accent"
+                : sheet
+                  ? "bg-primary text-on-primary"
+                  : "bg-accent text-on-accent"
             }`}
           >
             {request.confirmLabel ?? (request.danger ? "Delete" : "Confirm")}
@@ -134,6 +136,20 @@ export function Dialog({ sheet = false }: { sheet?: boolean }) {
   const [failure, setFailure] = useState<Failure | null>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const [keyboardInset, setKeyboardInset] = useState(0);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const update = () => setKeyboardInset(Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop));
+    update();
+    viewport.addEventListener("resize", update);
+    viewport.addEventListener("scroll", update);
+    return () => {
+      viewport.removeEventListener("resize", update);
+      viewport.removeEventListener("scroll", update);
+    };
+  }, []);
 
   useEffect(() => {
     const active = request;
@@ -227,6 +243,7 @@ export function Dialog({ sheet = false }: { sheet?: boolean }) {
           inputRef={inputRef}
           onConfirm={confirm}
           onDismiss={closeDialog}
+          keyboardInset={keyboardInset}
         />
       )}
     </AnimatePresence>

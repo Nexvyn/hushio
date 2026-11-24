@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+const streamState = vi.hoisted(() => ({ loading: false, done: false, error: null as string | null, loadMore: vi.fn() }));
 const { audio, playStream, seekTo, refreshHome } = vi.hoisted(() => ({
   audio: new Audio(),
   playStream: vi.fn(),
@@ -10,6 +11,9 @@ const { audio, playStream, seekTo, refreshHome } = vi.hoisted(() => ({
 }));
 
 vi.mock("../lib/usePhone", () => ({ usePhone: () => true }));
+vi.mock("../lib/useHomeStream", () => ({
+  useHomeStream: () => ({ shelves: [], ...streamState }),
+}));
 
 vi.mock("../lib/audio", () => ({
   audio,
@@ -62,6 +66,10 @@ describe("HomeView on the phone", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     refreshHome.mockResolvedValue([]);
+    streamState.loading = false;
+    streamState.done = false;
+    streamState.error = null;
+    streamState.loadMore.mockReset();
     usePlayer.setState(initialPlayer, true);
     useUI.setState({ toasts: [], pendingToasts: [], searchQuery: "" });
     useHomeCache.setState({ market: null, shelves: [], fetchedAt: null });
@@ -142,5 +150,18 @@ describe("HomeView on the phone", () => {
 
     expect(screen.getByRole("button", { name: /Recent album/ }).className).toContain("h-14");
     expect(screen.getByRole("button", { name: /Recent playlist/ }).className).toContain("h-14");
+  });
+
+  it("loads the next feed page from Show more and removes the action when the stream ends", async () => {
+    useHomeCache.setState({ market: "US", shelves: [quickPicks], fetchedAt: Date.now() });
+    const user = userEvent.setup();
+    const view = render(<HomeView />);
+    await screen.findByRole("button", { name: "Show more music" });
+    await user.click(screen.getByRole("button", { name: "Show more music" }));
+    expect(streamState.loadMore).toHaveBeenCalledOnce();
+
+    streamState.done = true;
+    view.rerender(<HomeView />);
+    expect(screen.queryByRole("button", { name: "Show more music" })).toBeNull();
   });
 });

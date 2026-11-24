@@ -24,7 +24,6 @@ vi.mock("../lib/persist", () => ({
 import { LibraryView } from "./LibraryView";
 import { type LibraryTrack, useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
-import { useSettings } from "../stores/settings";
 import { useUI } from "../stores/ui";
 
 const song = (i: number): LibraryTrack => ({
@@ -40,17 +39,11 @@ const song = (i: number): LibraryTrack => ({
 const initialLibrary = useLibrary.getState();
 const initialNavigation = useNavigation.getState();
 const initialUI = useUI.getState();
-const initialLayout = useSettings.getState().libraryLayout;
 
 beforeEach(() => {
   useLibrary.setState(initialLibrary, true);
   useNavigation.setState(initialNavigation, true);
   useUI.setState({ ...initialUI, dialog: null }, true);
-  useSettings.setState({ libraryLayout: "grid" });
-});
-
-afterEach(() => {
-  useSettings.setState({ libraryLayout: initialLayout });
 });
 
 afterEach(cleanup);
@@ -73,25 +66,27 @@ describe("Library on phone", () => {
     expect(screen.queryAllByRole("button", { name: "Playlists" })).toHaveLength(0);
   });
 
-  it("draws the Liked Songs heart filled on its accent tile", () => {
+  it("uses a compact flat row with a neutral 48px Liked Songs glyph", () => {
     render(<LibraryView />);
-    const liked = screen.getByText("Liked Songs").closest("button") as HTMLElement;
-    expect(liked.querySelector("svg")?.getAttribute("fill")).toBe("currentColor");
+    const liked = screen.getByRole("button", { name: "Liked Songs" });
+    expect(liked.className).toContain("h-16");
+    expect(liked.querySelector("span.bg-elevated")).toBeTruthy();
+    expect(liked.querySelector("span.bg-accent")).toBeNull();
+    expect(liked.querySelector("svg")?.getAttribute("width")).toBe("24");
   });
 
   it("shows the liked song count and the On this device subtitle", () => {
     useLibrary.setState({ liked: [song(1), song(2)] });
     render(<LibraryView />);
-    const liked = within(screen.getByText("Liked Songs").closest("button") as HTMLElement);
-    expect(liked.getByText("Pinned,")).toBeTruthy();
+    const liked = within(screen.getByRole("button", { name: "Liked Songs" }));
     expect(liked.getByText("2 songs")).toBeTruthy();
-    expect(screen.getByText("On this device")).toBeTruthy();
+    expect(screen.getByText(/songs on this device/)).toBeTruthy();
   });
 
-  it("explains the liked row when nothing is liked yet", () => {
+  it("shows a plain zero count when nothing is liked yet", () => {
     useLibrary.setState({ liked: [], pinnedSingles: { ...initialLibrary.pinnedSingles, liked: false } });
     render(<LibraryView />);
-    expect(screen.getByText("Songs you like land here")).toBeTruthy();
+    expect(within(screen.getByRole("button", { name: "Liked Songs" })).getByText("0 songs")).toBeTruthy();
   });
 
   it("starts a new playlist from the empty Playlists row", () => {
@@ -101,7 +96,7 @@ describe("Library on phone", () => {
     expect(useUI.getState().dialog?.title).toBe("New playlist");
   });
 
-  it("opens Import from a tile in the grid", () => {
+  it("opens Import from its Library row", () => {
     render(<LibraryView />);
     fireEvent.click(screen.getByRole("button", { name: "Import" }));
     expect(useNavigation.getState().view).toEqual({ name: "import" });
@@ -127,21 +122,21 @@ describe("Library on phone", () => {
     expect(section.getByText("Playlist · 0 songs")).toBeTruthy();
   });
 
-  it("marks a pinned playlist with a pin glyph and a Pinned label for screen readers", () => {
+  it("keeps pinned playlists flat and shows their song count", () => {
     useLibrary.setState({
       playlists: [{ id: "a", name: "Road", folderId: null, pinned: true, tracks: [song(1), song(2)] }],
       folders: [],
     });
     render(<LibraryView />);
     const tile = screen.getByRole("button", { name: "Road" });
-    expect(within(tile).getByText("Pinned,")).toBeTruthy();
+    expect(within(tile).queryByText("Pinned,")).toBeNull();
     expect(within(tile).getByText("Playlist · 2 songs")).toBeTruthy();
     expect(tile.querySelector("svg")).toBeTruthy();
     const section = within(screen.getByRole("region", { name: "Playlists" }));
     expect(section.queryByText("Start one with songs you like")).toBeTruthy();
   });
 
-  it("draws the grid by default with an outlined New playlist tile at the end", () => {
+  it("shows New playlist as the last flat row", () => {
     useLibrary.setState({
       playlists: [{ id: "a", name: "Road", folderId: null, pinned: false, tracks: [] }],
       folders: [],
@@ -149,30 +144,9 @@ describe("Library on phone", () => {
     render(<LibraryView />);
     const section = screen.getByRole("region", { name: "Playlists" });
     const list = section.querySelector("ul");
-    expect(list?.className).toContain("grid-cols-2");
     const newPlaylist = within(section).getByRole("button", { name: "New playlist" });
-    expect(newPlaylist.querySelector(".border-line.bg-surface.text-accent")).toBeTruthy();
+    expect(list?.className).not.toContain("grid-cols-2");
     expect(list?.lastElementChild?.contains(newPlaylist)).toBe(true);
   });
 
-  it("switches to rows and back, and keeps the choice in the device settings", () => {
-    render(<LibraryView />);
-    fireEvent.click(screen.getByRole("button", { name: "Switch to list view" }));
-    expect(useSettings.getState().libraryLayout).toBe("list");
-    expect(screen.getByRole("button", { name: "Switch to grid view" })).toBeTruthy();
-    expect(screen.getByRole("region", { name: "Playlists" }).querySelector("ul")?.className ?? "").not.toContain(
-      "grid-cols-2",
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Switch to grid view" }));
-    expect(useSettings.getState().libraryLayout).toBe("grid");
-  });
-
-  it("renders the saved list layout on mount", () => {
-    useSettings.setState({ libraryLayout: "list" });
-    render(<LibraryView />);
-    expect(screen.getByRole("button", { name: "Switch to grid view" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Liked Songs" }).closest("li")?.parentElement?.className ?? "").not.toContain(
-      "grid-cols-2",
-    );
-  });
 });

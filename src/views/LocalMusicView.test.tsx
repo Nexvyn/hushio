@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
+const device = vi.hoisted(() => ({ phone: false }));
 const player = vi.hoisted(() => ({
   playQueue: vi.fn(),
   shuffle: false,
@@ -13,6 +14,7 @@ const bridge = vi.hoisted(() => ({
 }));
 
 vi.mock("../stores/player", () => ({ usePlayer: { getState: () => player } }));
+vi.mock("../lib/usePhone", () => ({ usePhone: () => device.phone }));
 vi.mock("../lib/bridge", () => ({
   platform: "windows",
   pickFolder: bridge.pickFolder,
@@ -80,6 +82,7 @@ function setup(param?: string, extra: Partial<{ opened: LocalTrack[]; missing: s
 
 beforeEach(() => {
   cleanup();
+  device.phone = false;
   vi.clearAllMocks();
   player.shuffle = false;
   useUI.setState({ dialog: null, toasts: [] });
@@ -94,6 +97,14 @@ describe("LocalMusicView index", () => {
     expect(screen.getByText("Play your own files")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Choose a folder" }));
     expect(bridge.pickFolder).toHaveBeenCalledWith("Choose a music folder");
+  });
+
+  it("centers the empty prompt in the remaining phone page space", () => {
+    device.phone = true;
+    useLocalLibrary.setState({ library: { folders: [], scannedAt: 0, tracks: [], unplayable: [] }, opened: [], loaded: true });
+    useNavigation.setState({ view: { name: "local" } });
+    render(<LocalMusicView />);
+    expect(screen.getByText("Play your own files").closest("section")?.className).toContain("min-h-[calc(100dvh-var(--phone-empty-offset,240px))]");
   });
 
   it("lists All songs, each folder and the left-out count", () => {

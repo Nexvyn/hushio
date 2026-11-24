@@ -20,9 +20,11 @@ export function PhoneArt({ src, round = false, radius = "rounded-[12px]", classN
   const failed = state?.ok === false;
   return (
     <span aria-hidden="true" className={`${className} relative overflow-hidden bg-wash text-ink-2 ${shape}`}>
-      <span className="absolute inset-0 grid place-items-center">
-        <PhoneIcon icon={MusicNote} />
-      </span>
+      {(!src || failed) && (
+        <span className="absolute inset-0 grid place-items-center">
+          <PhoneIcon icon={MusicNote} />
+        </span>
+      )}
       {src && !failed && (
         <img
           src={src}

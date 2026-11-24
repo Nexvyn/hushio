@@ -350,7 +350,21 @@ export function HomeView() {
         {filterEmpty && <p className="py-10 text-center text-meta text-ink-2">{t("home.filterEmpty")}</p>}
         {canDiscover && (!stream.done || hasContent || initialRemote.length > 0 || stream.shelves.length > 0) && <div className="home-feed-footer" ref={moreRef}>
           <span role="status" className="sr-only">{!stream.loading && stream.shelves.length ? `${stream.shelves.reduce((sum, shelf) => sum + shelf.items.length, 0)} additional recommendations loaded.` : ""}</span>
-          {stream.error ? <div role="alert"><Button variant="ghost" onClick={() => void stream.loadMore()}>{t("home.showMore")}</Button></div> : !stream.done && <div aria-hidden="true" className="home-shelf-skeleton"><span className="home-shelf-skeleton-title bt-skeleton" />{Array.from({ length: 6 }, (_, index) => <span key={index} className="home-shelf-skeleton-card bt-skeleton" />)}</div>}
+          {stream.error ? (
+            <div role="alert">
+              <Button variant="ghost" onClick={() => void stream.loadMore()}>{t("home.showMore")}</Button>
+            </div>
+          ) : stream.loading ? (
+            <div aria-hidden="true" className="home-shelf-skeleton"><span className="home-shelf-skeleton-title bt-skeleton" />{Array.from({ length: 6 }, (_, index) => <span key={index} className="home-shelf-skeleton-card bt-skeleton" />)}</div>
+          ) : !stream.done && (
+            <button
+              type="button"
+              onClick={() => void stream.loadMore()}
+              className="flex h-12 w-full items-center justify-center rounded-[12px] [corner-shape:squircle] bg-primary text-body font-semibold text-on-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            >
+              {t("home.showMore")}
+            </button>
+          )}
         </div>}
       </div>
       </motion.div>

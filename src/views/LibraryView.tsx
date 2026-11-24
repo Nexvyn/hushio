@@ -1,11 +1,11 @@
 import { t, useT } from "../lib/i18n";
 import type { ReactNode } from "react";
-import { ArrowSquareIn, CaretRight, ClockCounterClockwise, DownloadSimple, Folder, Heart, HardDrive, ListBullets, Queue, Playlist, Plus, SquaresFour, VinylRecord, type Icon as PhosphorIcon } from "@phosphor-icons/react";
+import { ArrowSquareIn, CaretRight, ClockCounterClockwise, DownloadSimple, Folder, Heart, HardDrive, Queue, Playlist, Plus, VinylRecord, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { ActionMenu } from "../components/ActionMenu";
 import { openMenuAtPointer } from "../components/ContextMenu";
 import { Icon } from "../components/Icon";
 import { PhoneIcon } from "../components/phone/PhoneIcon";
-import { PhoneCollage, PhoneLibraryRow, PhoneLibraryTile } from "../components/phone/PhoneLibraryRows";
+import { PhoneCollage, PhoneLibraryRow } from "../components/phone/PhoneLibraryRows";
 import { PhoneSectionHeader } from "../components/phone/PhoneShelf";
 import { CollectionHero } from "../components/CollectionHero";
 import { PhoneHeader } from "../components/phone/PhoneHeader";
@@ -35,7 +35,6 @@ import { useFailedCovers } from "../stores/coverErrors";
 import { useNavigation } from "../stores/navigation";
 import { useLocalLibrary } from "../stores/localLibrary";
 import { useRecentItems } from "../stores/recents";
-import { useSettings } from "../stores/settings";
 import { type MenuItem, useUI } from "../stores/ui";
 
 type Collection = {
@@ -53,16 +52,12 @@ type PhoneEntry = {
   key: string;
   title: string;
   subtitle: string;
-  pinned: boolean;
   covers: string[];
   fallback: PhosphorIcon;
   heart?: boolean;
-  outlined?: boolean;
   open: () => void;
   menu?: (point: Point) => void;
 };
-
-const PHONE_TILE_GRID = "grid grid-cols-2 gap-4 min-[600px]:grid-cols-3";
 
 function CollectionRow({ collection }: { collection: Collection }) {
   const phone = usePhone();
@@ -149,8 +144,6 @@ export function LibraryView() {
   const recents = useRecentItems((state) => state.items);
   const navigate = useNavigation((state) => state.navigate);
   const phone = usePhone();
-  const libraryLayout = useSettings((state) => state.libraryLayout);
-  const setValue = useSettings((state) => state.setValue);
 
   const unfiled = unfiledPlaylists(playlists);
   const saved = Object.values(downloads).filter((item) => item.status === "done");
@@ -233,21 +226,22 @@ export function LibraryView() {
   const grid = phone ? "grid grid-cols-1" : "-mx-2 grid grid-cols-[repeat(auto-fill,minmax(232px,1fr))] gap-1";
 
   if (phone) {
-    const isGrid = libraryLayout === "grid";
     const createItems = createMenuItems();
     const unfiledSorted = pinnedFirst(unfiled, (playlist) => playlist.pinned);
     const phoneCollections = collections.filter((collection) => collection.key !== "playlists");
-    const collectionSubtitle = (collection: Collection) => {
-      if (collection.key !== "liked") return collection.subtitle;
-      return liked.length > 0 ? plural(liked.length, "song", "songs") : "Songs you like land here";
+    const phoneSubtitle = (collection: Collection) => {
+      if (collection.key === "liked") return plural(liked.length, "song", "songs");
+      if (collection.key === "downloads") return plural(saved.length, "song", "songs");
+      if (collection.key === "history") return plural(recents.length, "recent item", "recent items");
+      if (collection.key === "local") return `${plural(onDevice.length, "song", "songs")} on this device`;
+      return collection.subtitle;
     };
     const collectionEntries: PhoneEntry[] = phoneCollections.map((collection) => {
       const pin = collection.pin;
       return {
         key: collection.key,
         title: collection.title,
-        subtitle: collectionSubtitle(collection),
-        pinned: collection.pinned,
+        subtitle: phoneSubtitle(collection),
         covers: collection.covers,
         fallback: collection.fallback,
         heart: collection.key === "liked",
@@ -259,7 +253,6 @@ export function LibraryView() {
       key: "import",
       title: t("nav.import"),
       subtitle: t("library.importFromApps"),
-      pinned: false,
       covers: [],
       fallback: ArrowSquareIn,
       open: () => navigate({ name: "import" }),
@@ -271,7 +264,6 @@ export function LibraryView() {
           key: `folder:${folder.id}`,
           title: folder.name,
           subtitle: `Folder · ${plural(inside.length, "playlist", "playlists")}`,
-          pinned: false,
           covers: distinctCovers([coversOf(inside.flatMap((playlist) => playlist.tracks))], 4),
           fallback: Folder,
           open: () => navigate({ name: "folder", param: folder.id }),
@@ -282,7 +274,6 @@ export function LibraryView() {
         key: `playlist:${playlist.id}`,
         title: playlist.name,
         subtitle: `Playlist · ${plural(playlist.tracks.length, "song", "songs")}`,
-        pinned: playlist.pinned,
         covers: distinctCovers([playlistCovers(playlist, undefined, failed)], 4),
         fallback: Playlist,
         open: () => navigate({ name: "playlist", param: playlist.id }),
@@ -292,43 +283,24 @@ export function LibraryView() {
         key: "new-playlist",
         title: t("library.newPlaylist"),
         subtitle: t("library.startOne"),
-        pinned: false,
         covers: [],
         fallback: Plus,
-        outlined: true,
         open: openCreatePlaylist,
       },
     ];
-
-    const renderGridTile = (entry: PhoneEntry) => (
-      <li key={entry.key}>
-        <PhoneLibraryTile
-          title={entry.title}
-          subtitle={entry.subtitle}
-          pinned={entry.pinned}
-          covers={entry.covers}
-          fallback={entry.fallback}
-          heart={entry.heart}
-          outlined={entry.outlined}
-          onOpen={entry.open}
-          onLongPress={entry.menu}
-        />
-      </li>
-    );
 
     const renderListRow = (entry: PhoneEntry) => (
       <li key={entry.key}>
         <PhoneLibraryRow
           title={entry.title}
           subtitle={entry.subtitle}
-          pinned={entry.pinned}
           art={
             entry.heart ? (
-              <span className="grid size-[52px] shrink-0 place-items-center rounded-[8px] bg-accent text-on-accent [corner-shape:squircle]">
-                <PhoneIcon icon={Heart} fill="currentColor" />
+              <span className="grid size-12 shrink-0 place-items-center rounded-[8px] bg-elevated text-ink-1 [corner-shape:squircle]">
+                <PhoneIcon icon={Heart} />
               </span>
             ) : (
-              <PhoneCollage covers={entry.covers} fallback={entry.fallback} sizeClass="size-[52px]" radiusClass="rounded-[8px]" />
+              <PhoneCollage covers={entry.covers} fallback={entry.fallback} sizeClass="size-12" radiusClass="rounded-[8px]" />
             )
           }
           onOpen={entry.open}
@@ -337,28 +309,15 @@ export function LibraryView() {
       </li>
     );
 
-    const renderEntries = (entries: PhoneEntry[]) =>
-      isGrid ? (
-        <ul className={PHONE_TILE_GRID}>{entries.map(renderGridTile)}</ul>
-      ) : (
-        <ul>{entries.map(renderListRow)}</ul>
-      );
+    const renderEntries = (entries: PhoneEntry[]) => <ul>{entries.map(renderListRow)}</ul>;
 
     return (
-      <div className="pb-16">
+      <div>
         <PhoneHeader
           title={t("library.title")}
           actions={
             <>
               <ActionMenu items={createItems} label="Create" icon={Plus} triggerClass={PHONE_HEADER_ICON} phoneIcon />
-              <button
-                type="button"
-                onClick={() => setValue("libraryLayout", isGrid ? "list" : "grid")}
-                aria-label={isGrid ? "Switch to list view" : "Switch to grid view"}
-                className={PHONE_HEADER_ICON}
-              >
-                <PhoneIcon icon={isGrid ? SquaresFour : ListBullets} />
-              </button>
               <PhoneProfileButton />
             </>
           }
@@ -373,14 +332,13 @@ export function LibraryView() {
         {savedAlbums.length > 0 && (
           <section aria-label="Albums" className="mt-7">
             <PhoneSectionHeader title={t("library.albums")} />
-            <ul className={PHONE_TILE_GRID}>
+            <ul>
               {savedAlbums.map((album) => (
                 <li key={album.id}>
-                  <PhoneLibraryTile
+                  <PhoneLibraryRow
                     title={album.title}
                     subtitle={album.artist}
-                    covers={coversOf([album], 1)}
-                    fallback={VinylRecord}
+                    art={<PhoneCollage covers={coversOf([album], 1)} fallback={VinylRecord} sizeClass="size-12" radiusClass="rounded-[8px]" />}
                     onOpen={() => navigate({ name: "album", param: album.id })}
                     onLongPress={openMenuAt(() => savedAlbumMenu(album))}
                   />

@@ -842,9 +842,9 @@ export function LocalMusicView() {
 
   if (!param && library.folders.length === 0 && opened.length === 0 && !hasDownloads) {
     return (
-      <div className="pb-14">
+      <div className={phone ? "" : "pb-14"}>
         <PageHeader title="Local music" />
-        <div className={phone ? "" : "mt-6 flex min-h-[50vh] flex-col"}>
+        <div className={phone ? "flex flex-col" : "mt-6 flex min-h-[50vh] flex-col"}>
           <EmptyState
             centered
             icon={FolderOpen}

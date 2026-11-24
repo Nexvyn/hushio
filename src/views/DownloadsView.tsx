@@ -293,13 +293,14 @@ export function DownloadsView() {
   );
 
   return (
-    <div className="pb-14">
+    <div className={phone ? "" : "pb-14"}>
       <CollectionHero
         title="Downloads"
         covers={covers}
-        facts={facts}
+        facts={phone && none ? null : facts}
         icon={DownloadSimple}
         tile={{ icon: DownloadSimple }}
+        hideArtwork={phone && none}
         onBack={phone ? () => backOr({ name: "library" }) : undefined}
         footer={
           phone ? undefined : (
@@ -313,7 +314,7 @@ export function DownloadsView() {
           )
         }
       >
-        {phone && (
+        {phone && !none && (
           <>
             <button type="button" aria-label="Play Downloads" disabled={none} onClick={() => playSaved(saved, 0, false)} className={PHONE_PLAY}>
               <HeroIcon icon={Play} />
@@ -327,13 +328,14 @@ export function DownloadsView() {
         )}
       </CollectionHero>
 
-      <div className={phone && items.length === 0 ? "relative" : "relative mt-6"}>
+      <div className={phone && items.length === 0 ? "relative flex flex-col" : "relative mt-6"}>
         {items.length === 0 ? (
           <EmptyState
+            centered={phone}
             icon={DownloadSimple}
             title="No downloads yet"
             message="Use the download arrow on a song to keep it offline."
-            action={{ label: "Find songs", onClick: () => useNavigation.getState().navigate({ name: "search" }) }}
+            secondaryAction={{ label: "Find songs", onClick: () => useNavigation.getState().navigate({ name: "search" }) }}
           />
         ) : (
           <ol onKeyDown={(event) => selection.onListKeyDown(event)}>

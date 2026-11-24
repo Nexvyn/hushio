@@ -7,6 +7,7 @@ import { usePlayer } from "../stores/player";
 import { useUI } from "../stores/ui";
 import { ContextMenu } from "../components/ContextMenu";
 
+const device = vi.hoisted(() => ({ phone: false }));
 const bridge = vi.hoisted(() => ({
   platform: "windows",
   downloadCancel: vi.fn(),
@@ -24,6 +25,7 @@ const resolve = vi.hoisted(() => vi.fn());
 
 vi.mock("../lib/bridge", () => bridge);
 vi.mock("../lib/resolveStream", () => ({ resolveStream: resolve }));
+vi.mock("../lib/usePhone", () => ({ usePhone: () => device.phone }));
 
 function row(
   id: string,
@@ -55,6 +57,7 @@ function rowFor(title: string): HTMLElement {
 }
 
 beforeEach(() => {
+  device.phone = false;
   useLibrary.setState({ downloads: {} });
   useUI.setState({ toasts: [], pendingToasts: [], contextMenu: null });
   resolve.mockReset().mockResolvedValue({ url: "https://rr.test/s", mime: "audio/mp4", lufs: null });
@@ -77,6 +80,19 @@ describe("Downloads view states", () => {
     expect(screen.getByText("No downloads yet")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Play Downloads" }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: "Shuffle" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("shows one centered empty state without hero art or disabled playback controls on phone", () => {
+    device.phone = true;
+    render(<DownloadsView />);
+
+    expect(screen.getByRole("heading", { name: "Downloads" })).toBeTruthy();
+    expect(screen.getByText("No downloads yet")).toBeTruthy();
+    expect(screen.queryByText("Nothing saved yet")).toBeNull();
+    expect(screen.queryByTestId("page-tile")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Play Downloads" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Shuffle" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Find songs" }).className).not.toContain("bg-primary");
   });
 
   it("lists every status with its text, sorted by title", () => {

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
+const device = vi.hoisted(() => ({ phone: false }));
 const { audio, playStream, play, pause, seekTo, setVolume, setMuted } = vi.hoisted(() => ({
   audio: new Audio(),
   playStream: vi.fn(),
@@ -10,6 +11,8 @@ const { audio, playStream, play, pause, seekTo, setVolume, setMuted } = vi.hoist
   setVolume: vi.fn(),
   setMuted: vi.fn(),
 }));
+
+vi.mock("../lib/usePhone", () => ({ usePhone: () => device.phone }));
 
 vi.mock("../lib/audio", () => ({
   audio,
@@ -53,6 +56,7 @@ const initialPlayer = usePlayer.getState();
 const initialNavigation = useNavigation.getState();
 
 beforeEach(() => {
+  device.phone = false;
   vi.clearAllMocks();
   playStream.mockResolvedValue(undefined);
   useLibrary.setState(initialLibrary, true);
@@ -70,6 +74,17 @@ describe("Liked Songs with nothing liked", () => {
     expect(screen.getByText("No liked songs yet").closest("section")?.className).toContain("place-items-center");
     expect((screen.getByRole("button", { name: "Play Liked Songs" }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: "Shuffle" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("shows one centered phone empty state without artwork or disabled transport", () => {
+    device.phone = true;
+    render(<LikedView />);
+
+    expect(screen.getByText("No liked songs yet")).toBeTruthy();
+    expect(screen.queryByTestId("page-tile")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Play Liked Songs" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Shuffle" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Find songs" }).className).not.toContain("bg-primary");
   });
 
   it("opens search from the empty state button", () => {

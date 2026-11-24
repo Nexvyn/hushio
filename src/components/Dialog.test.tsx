@@ -94,3 +94,20 @@ describe("Dialog Enter on a focused button", () => {
     expect(onConfirm).not.toHaveBeenCalled();
   });
 });
+
+describe("phone dialog keyboard inset", () => {
+  it("moves the sheet above the visual keyboard viewport", () => {
+    const viewport = Object.assign(new EventTarget(), { height: 500, offsetTop: 0 });
+    Object.defineProperty(window, "visualViewport", { configurable: true, value: viewport });
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 });
+    render(<Dialog sheet />);
+    act(() => {
+      useUI.getState().openDialog({ title: "New playlist", initialValue: "My Playlist #1", onConfirm });
+    });
+
+    viewport.height = 300;
+    act(() => viewport.dispatchEvent(new Event("resize")));
+    expect(screen.getByRole("dialog").parentElement?.style.bottom).toBe(`${window.innerHeight - viewport.height - viewport.offsetTop}px`);
+    expect(screen.getByRole("textbox").className).toContain("text-base");
+  });
+});

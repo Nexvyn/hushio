@@ -14,14 +14,15 @@ type CollectionHeroProps = {
   footer?: ReactNode;
   description?: string;
   onEdit?: () => void;
+  hideArtwork?: boolean;
 };
 
-export function CollectionHero({ title, covers, facts, children, icon, tile, onBack, eyebrow, footer, description, onEdit }: CollectionHeroProps) {
+export function CollectionHero({ title, covers, facts, children, icon, tile, onBack, eyebrow, footer, description, onEdit, hideArtwork }: CollectionHeroProps) {
   return (
     <PageHeader
       title={title}
       meta={facts}
-      artwork={covers[0] ?? null}
+      artwork={hideArtwork ? undefined : covers[0] ?? null}
       actions={children}
       icon={icon}
       tile={tile}
