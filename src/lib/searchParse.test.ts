@@ -486,8 +486,8 @@ describe("topResult and searchSections", () => {
       "Artists",
       "Albums",
       "Playlists",
-      "More",
     ]);
+    expect(searchSections(rows, "all").flatMap((section) => section.rows)).toHaveLength(4);
   });
 
   it("returns one untitled list on the other filters and nothing when empty", () => {

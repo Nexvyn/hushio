@@ -71,6 +71,7 @@ type SearchSuggestionsProps = {
   onPick: (row: SuggestionRow) => void;
   onFill: (text: string) => void;
   onSubmitTyped: () => void;
+  inline?: boolean;
 };
 
 export function SearchSuggestions({
@@ -81,6 +82,7 @@ export function SearchSuggestions({
   onPick,
   onFill,
   onSubmitTyped,
+  inline = false,
 }: SearchSuggestionsProps) {
   const typed = query.trim();
   const keepFocus = (event: MouseEvent) => event.preventDefault();
@@ -94,16 +96,19 @@ export function SearchSuggestions({
       initial={reduced ? false : "initial"}
       animate="animate"
       exit="exit"
-      className="no-scrollbar pointer-events-none absolute left-0 right-0 top-0 z-50"
+      className={inline ? "relative mt-1" : "no-scrollbar pointer-events-none absolute left-0 right-0 top-0 z-50"}
     >
-      <motion.div variants={stretch} data-goo-panel="" aria-hidden="true" className="pointer-events-none absolute inset-0 origin-top">
-        <div data-goo-layer="" className="absolute inset-0" style={GOO_LAYER_STYLE}>
-          <div className={`${GOO_SHAPE} top-0 h-10`} />
-          <div className={`${GOO_SHAPE} bottom-0 top-10`} />
-        </div>
-      </motion.div>
-      <motion.div variants={reveal} className="pointer-events-none relative pt-10">
-      <div className="pointer-events-auto relative p-2">
+      {!inline && (
+        <motion.div variants={stretch} data-goo-panel="" aria-hidden="true" className="pointer-events-none absolute inset-0 origin-top">
+          <div data-goo-layer="" className="absolute inset-0" style={GOO_LAYER_STYLE}>
+            <div className={`${GOO_SHAPE} top-0 h-10`} />
+            <div className={`${GOO_SHAPE} bottom-0 top-10`} />
+          </div>
+        </motion.div>
+      )}
+      <motion.div variants={reveal} className={inline ? "relative" : "pointer-events-none relative pt-10"}>
+      <div className={`${inline ? "" : "pointer-events-auto "}relative p-2`}>
+      {typed && (
       <div
         id={optionId(listId, 0)}
         role="option"
@@ -117,6 +122,7 @@ export function SearchSuggestions({
         </span>
         <span className="min-w-0 truncate text-body font-medium text-ink-1">{`Search “${typed}”`}</span>
       </div>
+      )}
       {rows.map((row, index) => {
         const active = activeIndex === index + 1;
         if (row.kind === "completion") {

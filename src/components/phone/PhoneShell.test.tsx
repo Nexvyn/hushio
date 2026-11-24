@@ -55,6 +55,18 @@ afterEach(() => {
 });
 
 describe("PhoneShell", () => {
+  it("hides the tab bar and mini player while search is focused", () => {
+    render(<PhoneShell />);
+    const chrome = document.querySelector("[data-phone-chrome]") as HTMLElement;
+    expect(chrome.getAttribute("aria-hidden")).toBeNull();
+
+    act(() => useUI.setState({ searchFocused: true }));
+    expect(chrome.getAttribute("aria-hidden")).toBe("true");
+
+    act(() => useUI.setState({ searchFocused: false }));
+    expect(chrome.getAttribute("aria-hidden")).toBeNull();
+  });
+
   it("shows the current screen above the tab bar", () => {
     render(<PhoneShell />);
     expect(screen.getByText("Screen home")).toBeTruthy();

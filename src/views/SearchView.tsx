@@ -1,5 +1,5 @@
 import { t, useT, type TKey } from "../lib/i18n";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { VinylRecord, X, GridFour, CircleNotch, MusicNote, Play, ListPlus, Playlist, MagnifyingGlass, User, Globe, HardDrives, PuzzlePiece, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { Artwork, BrowseCard, BrowseRow } from "../components/SearchRows";
 import { TrackRow } from "../components/TrackRow";
@@ -522,8 +522,16 @@ function ScopedResults({ scope, query, sources, phone }: { scope: SearchScope; q
 }
 
 function PhoneFilterChips({ filter, onPick }: { filter: SearchFilter; onPick: (filter: SearchFilter) => void }) {
+  const row = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState(false);
+  const measure = () => {
+    const el = row.current;
+    if (el) setMore(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  };
+  useLayoutEffect(measure, []);
+  const fade = more ? { maskImage: "linear-gradient(to right, #000 calc(100% - 32px), transparent)" } : undefined;
   return (
-    <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
+    <div ref={row} onScroll={measure} className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pr-4" style={fade}>
       {FILTER_TABS.map((tab) => (
         <button
           key={tab.filter}
@@ -531,7 +539,7 @@ function PhoneFilterChips({ filter, onPick }: { filter: SearchFilter; onPick: (f
           aria-pressed={filter === tab.filter}
           onClick={() => onPick(tab.filter)}
           className={`relative inline-flex h-[34px] shrink-0 items-center whitespace-nowrap rounded-[10px] px-3 text-body font-medium before:absolute before:inset-x-0 before:-inset-y-[5px] before:content-[''] motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
-            filter === tab.filter ? "bg-accent text-on-accent" : "bg-wash text-ink-2 hover:bg-hover"
+            filter === tab.filter ? "bg-primary text-on-primary" : "bg-wash text-ink-2 hover:bg-hover"
           }`}
         >
           {t(tab.labelKey)}
@@ -596,6 +604,8 @@ export function SearchView() {
     </div>
   );
 
+  const searchFocused = useUI((state) => state.searchFocused);
+  const suggesting = phone && online && searchFocused;
   const field = phone ? (
     <PhoneSearchField suggest={online} />
   ) : null;
@@ -615,8 +625,8 @@ export function SearchView() {
       <div>
         {header}
         {field}
-        {scopeBar}
-        {idle}
+        {!suggesting && scopeBar}
+        {!suggesting && idle}
       </div>
     );
   }
@@ -753,7 +763,7 @@ export function SearchView() {
     <div>
       {header}
       {field}
-      {body}
+      {!suggesting && body}
     </div>
   );
 }

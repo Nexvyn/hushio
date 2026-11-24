@@ -99,6 +99,8 @@ type UIState = {
   dialog: DialogRequest | null;
   searchQuery: string;
   searchFilter: SearchFilter;
+  searchFocused: boolean;
+  setSearchFocused: (focused: boolean) => void;
   setSearchQuery: (query: string) => void;
   setSearchFilter: (filter: SearchFilter) => void;
   toast: (message: string, kind?: ToastKind, duration?: number, action?: ToastAction, options?: ToastOptions) => number;
@@ -144,6 +146,7 @@ export const useUI = create<UIState>()((set) => ({
   dialog: null,
   searchQuery: "",
   searchFilter: "all",
+  searchFocused: false,
 
   openContextMenu: (x, y, items, options = {}) => {
     if (items.length === 0) return;
@@ -151,6 +154,8 @@ export const useUI = create<UIState>()((set) => ({
   },
 
   closeContextMenu: () => set({ contextMenu: null }),
+
+  setSearchFocused: (focused) => set({ searchFocused: focused }),
 
   setSearchQuery: (query) => set({ searchQuery: query }),
 

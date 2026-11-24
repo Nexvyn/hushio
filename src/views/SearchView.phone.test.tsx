@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const {
@@ -91,7 +91,7 @@ describe("SearchView on the phone", () => {
       },
     );
     usePlayer.setState(initialPlayer, true);
-    useUI.setState({ toasts: [], pendingToasts: [], searchQuery: "", searchFilter: "all" });
+    useUI.setState({ toasts: [], pendingToasts: [], searchQuery: "", searchFilter: "all", searchFocused: false });
     useRecents.setState({ searches: [] });
     useRecentItems.setState({ items: [] });
     useNavigation.setState({ view: { name: "search" } });
@@ -127,7 +127,9 @@ describe("SearchView on the phone", () => {
     const user = userEvent.setup();
     render(<SearchView />);
 
-    await user.type(screen.getByRole("combobox", { name: "Search" }), "phys");
+    const field = screen.getByRole("combobox", { name: "Search" });
+    await user.type(field, "phys");
+    fireEvent.keyDown(field, { key: "Escape" });
 
     expect(await screen.findByRole("button", { name: /^Physical/ }, { timeout: 2000 })).toBeTruthy();
     expect(cachedSearchPage).toHaveBeenCalledWith("phys", "all");
@@ -201,5 +203,58 @@ describe("SearchView on the phone", () => {
 
     expect(screen.queryByRole("heading", { name: "Browse all" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Charts" })).toBeNull();
+  });
+
+  it("selects the existing text when the field is tapped so typing replaces it", () => {
+    useUI.setState({ searchQuery: "arijit" });
+    render(<SearchView />);
+
+    const field = screen.getByRole("combobox", { name: "Search" }) as HTMLInputElement;
+    act(() => field.focus());
+
+    expect(field.selectionStart).toBe(0);
+    expect(field.selectionEnd).toBe("arijit".length);
+  });
+
+  it("Cancel restores the previous query, blurs the field and brings the results back", async () => {
+    cachedSearchPage.mockResolvedValue({ rows: [{ kind: "track", track: song("s1", "Physical") }] as SearchRow[], continuation: null });
+    useUI.setState({ searchQuery: "arijit" });
+    const user = userEvent.setup();
+    render(<SearchView />);
+
+    const field = screen.getByRole("combobox", { name: "Search" });
+    act(() => field.focus());
+    await user.keyboard("zz");
+    expect(useUI.getState().searchQuery).toBe("zz");
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(useUI.getState().searchQuery).toBe("arijit");
+    expect(useUI.getState().searchFocused).toBe(false);
+    expect(document.activeElement).not.toBe(field);
+    expect(await screen.findByRole("button", { name: /^Physical/ }, { timeout: 2000 })).toBeTruthy();
+  });
+
+  it("replaces the results with suggestions while the field is focused", async () => {
+    cachedSearchPage.mockResolvedValue({ rows: [{ kind: "track", track: song("s1", "Physical") }] as SearchRow[], continuation: null });
+    typeAhead.mockResolvedValue([{ kind: "completion", text: "arijit singh" }]);
+    useUI.setState({ searchQuery: "arijit" });
+    render(<SearchView />);
+
+    expect(await screen.findByRole("button", { name: /^Physical/ }, { timeout: 2000 })).toBeTruthy();
+    act(() => screen.getByRole("combobox", { name: "Search" }).focus());
+
+    expect(await screen.findByRole("option", { name: "arijit singh" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Physical/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "All" })).toBeNull();
+  });
+
+  it("offers recent searches when the empty field is focused", () => {
+    useRecents.setState({ searches: ["daft punk"] });
+    render(<SearchView />);
+
+    act(() => screen.getByRole("combobox", { name: "Search" }).focus());
+
+    expect(screen.getByRole("option", { name: "daft punk" })).toBeTruthy();
   });
 });

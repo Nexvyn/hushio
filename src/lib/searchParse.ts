@@ -75,7 +75,6 @@ const BROWSE_SECTIONS: [string, BrowseType][] = [
   ["Artists", "artist"],
   ["Albums", "album"],
   ["Playlists", "playlist"],
-  ["More", "other"],
 ];
 
 function browseTypeOf(browseId: string, pageType: unknown): BrowseType {

@@ -15,7 +15,7 @@ import { opennessOf, pageCardOf, sheetY, watchSheetInterruptions } from "./sheet
 import { TabBar } from "./TabBar";
 import { useEdgeBack } from "./useEdgeBack";
 import { CurrentView } from "../../views/CurrentView";
-import { PHONE_MS, fade, gate, phoneSmooth, phoneTween, reducedMotion } from "../../lib/motion";
+import { PHONE_MS, fade, gate, phoneSmooth, phoneSnappy, phoneTween, reducedMotion } from "../../lib/motion";
 import { navDirection, type NavDirection, type NavSnapshot } from "../../lib/navDirection";
 import { useScrimMounted } from "../../lib/useScrimMounted";
 import { INSET_TOP, INSET_BOTTOM, phoneBottomPad } from "../../lib/phoneNav";
@@ -32,6 +32,7 @@ export function PhoneShell() {
   const future = useNavigation((state) => state.navFuture.length);
   const goBack = useNavigation((state) => state.goBack);
   const nowPlayingOpen = useUI((state) => state.nowPlayingOpen);
+  const searchFocused = useUI((state) => state.searchFocused);
   const sheetOpen = useSheetOpen();
   const overlayOpen = sheetOpen || nowPlayingOpen;
   const edge = useEdgeBack({ enabled: past > 0 && !overlayOpen, onBack: goBack });
@@ -126,11 +127,18 @@ export function PhoneShell() {
           </div>
           <motion.div aria-hidden="true" className="pointer-events-none absolute inset-0 z-10 bg-scrim" style={{ opacity: edge.shade }} />
         </motion.main>
-        <div className="absolute inset-x-0 bottom-0 z-20 overflow-hidden rounded-t-[24px] border-t border-separator bg-surface shadow-[0_-4px_24px_rgb(0_0_0/0.12)]">
+        <motion.div
+          data-phone-chrome
+          aria-hidden={searchFocused || undefined}
+          initial={false}
+          animate={{ y: searchFocused ? "100%" : "0%", opacity: searchFocused ? 0 : 1 }}
+          transition={gate(reduced, phoneSnappy)}
+          className={`absolute inset-x-0 bottom-0 z-20 overflow-hidden rounded-t-[24px] border-t border-separator bg-surface shadow-[0_-4px_24px_rgb(0_0_0/0.12)] ${searchFocused ? "pointer-events-none" : ""}`}
+        >
           <MiniPlayer />
           <TabBar />
           <div aria-hidden="true" className="bg-surface" style={{ height: INSET_BOTTOM }} />
-        </div>
+        </motion.div>
         {scrimOn && <motion.div aria-hidden="true" data-page-shade className="pointer-events-none absolute inset-0 z-30 bg-black will-change-[opacity]" style={{ opacity: pageShade }} />}
       </motion.div>
 
