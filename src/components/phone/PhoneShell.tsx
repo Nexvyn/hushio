@@ -15,15 +15,13 @@ import { pageCardOf, sheetProgress, watchSheetInterruptions } from "./sheetTrave
 import { TabBar } from "./TabBar";
 import { useEdgeBack } from "./useEdgeBack";
 import { CurrentView } from "../../views/CurrentView";
-import { PHONE_MS, fade, gate, phoneSmooth, phoneSnappy, phoneTween, reducedMotion } from "../../lib/motion";
+import { MS_FADE, SPRING_NAV, fade, gate, phoneSnappy, phoneTween, reducedMotion } from "../../lib/motion";
 import { navDirection, type NavDirection, type NavSnapshot } from "../../lib/navDirection";
 import { useScrimMounted } from "../../lib/useScrimMounted";
 import { INSET_TOP, INSET_BOTTOM, phoneBottomPad } from "../../lib/phoneNav";
 import { currentTrack, usePlayer } from "../../stores/player";
 import { useNavigation } from "../../stores/navigation";
 import { useUI } from "../../stores/ui";
-
-const SLIDE_PX = 24;
 
 export function PhoneShell() {
   const view = useNavigation((state) => state.view);
@@ -57,7 +55,7 @@ export function PhoneShell() {
     last.current = { key: historyKey, snap, direction: last.current.key === "" ? "none" : navDirection(last.current.snap, snap) };
   }
   const direction = last.current.direction;
-  const slide = direction === "push" ? SLIDE_PX : direction === "pop" ? -SLIDE_PX : 0;
+  const slide = direction === "push" ? window.innerWidth * 0.12 : direction === "pop" ? -window.innerWidth * 0.12 : 0;
 
   useEffect(watchSheetInterruptions, []);
 
@@ -113,13 +111,13 @@ export function PhoneShell() {
               <AnimatePresence mode="popLayout">
                 <motion.div
                   key={screenKey}
-                  initial={reduced ? false : { opacity: 0, x: slide }}
+                  initial={reduced ? { opacity: 0 } : direction === "tab" ? { opacity: 0 } : { opacity: 0, x: slide }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, transition: gate(reduced, fade) }}
+                  exit={reduced ? { opacity: 0, transition: fade } : direction === "tab" ? { opacity: 0, transition: phoneTween(MS_FADE) } : { opacity: 0, x: -slide, transition: SPRING_NAV }}
                   transition={
                     direction === "push" || direction === "pop"
-                      ? { x: phoneSmooth, opacity: phoneTween(PHONE_MS.navFade) }
-                      : phoneTween(PHONE_MS.tab)
+                      ? { x: SPRING_NAV, opacity: phoneTween(MS_FADE) }
+                      : phoneTween(MS_FADE)
                   }
                   className="px-4"
                   style={{ paddingTop: `calc(${INSET_TOP} + 12px)` }}

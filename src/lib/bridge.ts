@@ -244,8 +244,8 @@ export function exitApp(): Promise<void> {
   return playerCall("player_exit");
 }
 
-export function hapticTick(): Promise<void> {
-  return playerCall("player_haptic_tick");
+export function hapticTick(kind: "tick" | "select" | "success" | "warning"): Promise<void> {
+  return playerCall("player_haptic_tick", { kind });
 }
 
 export function playerKeepAwake(on: boolean): Promise<void> {

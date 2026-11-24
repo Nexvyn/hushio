@@ -160,6 +160,7 @@ function AlbumContent({ page }: { page: ReleasePage }) {
         footer={phone ? undefined : desktopFooter}
         titleTooltip={headline === album.title ? undefined : album.title}
         artwork={heroCover(album.thumb)}
+      sharedArtworkId={`cover:album:${album.id}`}
         icon={VinylRecord}
         meta={
           <>

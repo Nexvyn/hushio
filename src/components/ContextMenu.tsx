@@ -196,9 +196,10 @@ const MenuPanel = forwardRef<HTMLDivElement, PanelProps>(function MenuPanel(
         onPanelLeave?.();
       }}
       style={{ transformOrigin: flipped ? "top right" : "top left", ...style }}
-      {...(attached
-        ? { variants: goo.reveal, initial: reduced ? false : "initial", animate: "animate", exit: "exit" }
-        : { initial: presence.initial, animate: presence.animate, exit: presence.exit, transition: presence.transition })}
+      initial={presence.initial}
+      animate={presence.animate}
+      exit={presence.exit}
+      transition={presence.transition}
       className={`${attached ? ATTACHED_PANEL : submenu ? SUB_PANEL : PANEL}${above ? " is-above" : ""}${flipped ? " is-flipped" : ""}`}
     >
       {attached && (

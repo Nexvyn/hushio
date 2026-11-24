@@ -159,9 +159,9 @@ function ToastCard({ toast, depth, placement, expanded, paused, phone, reduced }
         {toast.progress !== undefined && (
           <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-[2px] bg-white/10">
             <motion.span
-              className="block h-full bg-accent"
+              className="block h-full origin-left bg-accent"
               initial={false}
-              animate={{ width: `${progressPercent(toast.progress)}%` }}
+              animate={{ scaleX: progressPercent(toast.progress) / 100 }}
               transition={reduced ? instant : progressFill}
             />
           </span>

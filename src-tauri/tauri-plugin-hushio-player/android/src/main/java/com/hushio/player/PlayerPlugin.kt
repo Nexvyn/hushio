@@ -46,7 +46,18 @@ class PlayerPlugin(private val activity: Activity) : Plugin(activity) {
 
     @Command
     fun playerHapticTick(invoke: Invoke) {
-        activity.runOnUiThread { webView?.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS) }
+        val kind = invoke.getArgs().optString("kind", "tick")
+        activity.runOnUiThread {
+            val view = webView ?: return@runOnUiThread
+            val feedback = when (kind) {
+                "select" -> HapticFeedbackConstants.LONG_PRESS
+                "success" -> if (android.os.Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.VIRTUAL_KEY
+                "warning" -> if (android.os.Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.REJECT else HapticFeedbackConstants.LONG_PRESS
+                else -> HapticFeedbackConstants.CLOCK_TICK
+            }
+            view.performHapticFeedback(feedback)
+            if (kind == "success") mainHandler.postDelayed({ webView?.performHapticFeedback(feedback) }, 55)
+        }
         invoke.resolve()
     }
 

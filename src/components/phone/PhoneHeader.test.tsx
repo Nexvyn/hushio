@@ -15,17 +15,18 @@ describe("PhoneHeader", () => {
     expect(title.className).toContain("text-phone-page-title");
   });
 
-  it("paints no band while the cover colour is not ready", () => {
+  it("reserves the final header geometry before the cover colour is ready", () => {
     const { container } = render(<PhoneHeader title="Mix" artwork="https://example.test/cover.jpg" />);
     const header = container.querySelector("header") as HTMLElement;
     expect(header.style.backgroundColor).toBe("");
-    expect(header.className).not.toContain("rounded-b-[24px]");
+    expect(header.className).toContain("rounded-b-[24px]");
+    expect(header.className).toContain("px-4");
     const title = screen.getByRole("heading", { name: "Mix" });
     expect(title.className).toContain("text-ink-1");
     expect(title.className).toContain("font-title");
   });
 
-  it("leaves the status strip on its default colour without a band", () => {
+  it("keeps the status strip on its default colour", () => {
     render(<PhoneHeader title="Mix" artwork="https://example.test/cover.jpg" />);
     expect(document.documentElement.style.getPropertyValue("--phone-status-bg")).toBe("");
   });

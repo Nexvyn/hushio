@@ -15,14 +15,16 @@ type CollectionHeroProps = {
   description?: string;
   onEdit?: () => void;
   hideArtwork?: boolean;
+  sharedArtworkId?: string;
 };
 
-export function CollectionHero({ title, covers, facts, children, icon, tile, onBack, eyebrow, footer, description, onEdit, hideArtwork }: CollectionHeroProps) {
+export function CollectionHero({ title, covers, facts, children, icon, tile, onBack, eyebrow, footer, description, onEdit, hideArtwork, sharedArtworkId }: CollectionHeroProps) {
   return (
     <PageHeader
       title={title}
       meta={facts}
       artwork={hideArtwork ? undefined : covers[0] ?? null}
+      sharedArtworkId={sharedArtworkId}
       actions={children}
       icon={icon}
       tile={tile}

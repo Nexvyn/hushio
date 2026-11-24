@@ -17,7 +17,7 @@ export const DURATION_MS = {
   sheen: 1300,
   spin: 850,
   intro: 160,
-  press: 50,
+  press: 120,
   pageIn: 240,
   reveal: 280,
   stagger: 40,
@@ -41,6 +41,18 @@ export type DurationName = keyof typeof DURATION_MS;
 export const LOOPING_DURATIONS: readonly DurationName[] = ["eq", "sheen", "spin"];
 
 export const MOTION_MAX_MS = 500;
+
+export const SPRING_SHEET: Transition = { type: "spring", stiffness: 400, damping: 40, mass: 1 };
+export const SPRING_GESTURE: Transition = { type: "spring", stiffness: 300, damping: 34, mass: 1 };
+export const SPRING_CONTROL: Transition = { type: "spring", stiffness: 420, damping: 36, mass: 1 };
+export const SPRING_NAV: Transition = { type: "spring", stiffness: 300, damping: 34, mass: 1 };
+export const MS_PRESS_IN = 120;
+export const MS_PRESS_OUT = 160;
+export const MS_ICON = 140;
+export const MS_FADE = 120;
+export const MS_POPOVER_IN = 160;
+export const MS_POPOVER_OUT = 120;
+export const MS_IMAGE = 140;
 
 export const INTRO_HOLD_MS = 800;
 export const INTRO_READY_CAP_MS = 6000;
@@ -125,28 +137,18 @@ export const INTRO_FLIGHT_EASE: [number, number, number, number] = [0.65, 0, 0.3
 export const phoneSnappy: Transition = { type: "spring", stiffness: 420, damping: 36, mass: 1 };
 export const phoneSmooth: Transition = { type: "spring", stiffness: 260, damping: 30, mass: 1 };
 export const phoneBouncy: Transition = { type: "spring", stiffness: 380, damping: 29, mass: 1 };
-export const SPRING_SHEET: Transition = { type: "spring", stiffness: 400, damping: 40, mass: 1 };
-export const SPRING_GESTURE: Transition = { type: "spring", stiffness: 300, damping: 34, mass: 1 };
-export const SPRING_CONTROL: Transition = { type: "spring", stiffness: 420, damping: 36, mass: 1 };
-export const MS_PRESS_IN = 120;
-export const MS_PRESS_OUT = 160;
-export const MS_ICON = 140;
-export const MS_FADE = 120;
-export const MS_POPOVER_IN = 160;
-export const MS_POPOVER_OUT = 120;
-export const MS_IMAGE = 140;
 export const phoneShared: Transition = SPRING_GESTURE;
 export const nowPlayingEnter = phoneShared;
 
 export const PHONE_MS = {
   scrim: 160,
-  tab: 140,
-  navFade: 160,
+  tab: 120,
+  navFade: 120,
   artIn: 180,
   artOut: 120,
   text: 150,
   icon: 160,
-  press: 50,
+  press: 120,
   likeHold: 290,
   likeFade: 160,
   likeBeat: 120,
@@ -177,8 +179,6 @@ export const pressIn: Transition = { duration: PHONE_MS.press / 1000, ease: EASE
 export const MARQUEE = { pxPerS: 26, gapPx: 48, restS: 5, artistDelayS: 3 } as const;
 
 const PRESS_SCALE = 0.97;
-const PRESS_DIM = 0.82;
-
 export function pressTap(reduced: boolean) {
-  return reduced ? undefined : { scale: PRESS_SCALE, opacity: PRESS_DIM, transition: pressIn };
+  return reduced ? undefined : { scale: PRESS_SCALE, transition: pressIn };
 }

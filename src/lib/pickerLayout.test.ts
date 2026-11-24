@@ -54,14 +54,15 @@ describe("pickerMotion", () => {
     expect(motion.initial).toEqual({ opacity: 0, scale: 0.96 });
     expect(motion.animate).toEqual({ opacity: 1, scale: 1 });
     expect(motion.exit).toMatchObject({ opacity: 0, scale: 0.98 });
-    expect(motion.transition).toMatchObject({ duration: 0.18 });
+    expect(motion.transition).toMatchObject({ duration: 0.16 });
     expect((motion.exit as { transition: { duration: number } }).transition.duration).toBe(0.12);
   });
 
-  it("drops the scale, the fade and the exit under Reduce Motion", () => {
+  it("uses a fade only under Reduce Motion", () => {
     const motion = pickerMotion(true);
-    expect(motion.initial).toBe(false);
-    expect(motion.exit).toBeUndefined();
-    expect(motion.transition).toEqual({ duration: 0 });
+    expect(motion.initial).toEqual({ opacity: 0 });
+    expect(motion.animate).toEqual({ opacity: 1 });
+    expect(motion.exit).toMatchObject({ opacity: 0, transition: { duration: 0.12 } });
+    expect(motion.transition).toMatchObject({ duration: 0.12 });
   });
 });

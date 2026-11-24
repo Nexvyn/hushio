@@ -1,9 +1,10 @@
-import { useEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { type CSSProperties, type ReactNode } from "react";
+import { motion } from "motion/react";
 import { CaretLeft, MusicNote, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { PhoneIcon } from "./PhoneIcon";
 import { useCoverFill } from "./useCoverFill";
-import { INSET_TOP } from "../../lib/phoneNav";
 import { useImageReveal } from "../useImageReveal";
+import { EASE_OUT, MS_FADE, MS_IMAGE, SPRING_GESTURE, reducedMotion } from "../../lib/motion";
 
 export type PhoneHeaderProps = {
   title: string;
@@ -17,6 +18,7 @@ export type PhoneHeaderProps = {
   backLabel?: string;
   description?: string;
   onEdit?: () => void;
+  sharedArtworkId?: string;
 };
 
 const BACK =
@@ -32,52 +34,6 @@ export function PhoneBackRow({ onBack, label = "Back" }: { onBack: () => void; l
   );
 }
 
-function bandStyle(fill: string): CSSProperties {
-  return {
-    backgroundColor: fill,
-    marginTop: `calc(-1 * (${INSET_TOP} + 12px))`,
-    paddingTop: `calc(${INSET_TOP} + 12px)`,
-    "--hero-icon": "rgb(var(--on-art))",
-    "--hero-play-bg": "rgb(var(--on-art))",
-    "--hero-play-ink": fill,
-    "--hero-shuffle-bg": "rgb(var(--on-art) / 0.16)",
-    "--hero-shuffle-ink": "rgb(var(--on-art))",
-  } as CSSProperties;
-}
-
-function useStatusBand(ref: RefObject<HTMLElement | null>, fill: string | null) {
-  useEffect(() => {
-    if (fill === null) return;
-    const root = document.documentElement;
-    const scroller = document.getElementById("view-scroll");
-    const sync = () => {
-      const band = ref.current;
-      const strip = document.querySelector<HTMLElement>("[data-status-strip]");
-      if (!band || !strip) return;
-      if (band.getBoundingClientRect().bottom > strip.getBoundingClientRect().bottom) {
-        root.style.setProperty("--phone-status-bg", fill);
-      } else {
-        root.style.removeProperty("--phone-status-bg");
-      }
-    };
-    let frame = 0;
-    const schedule = () => {
-      if (frame !== 0) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        sync();
-      });
-    };
-    sync();
-    scroller?.addEventListener("scroll", schedule, { passive: true });
-    return () => {
-      scroller?.removeEventListener("scroll", schedule);
-      cancelAnimationFrame(frame);
-      root.style.removeProperty("--phone-status-bg");
-    };
-  }, [fill, ref]);
-}
-
 export function PhoneHeader({
   title,
   meta,
@@ -90,11 +46,10 @@ export function PhoneHeader({
   backLabel = "Back",
   description,
   onEdit,
+  sharedArtworkId,
 }: PhoneHeaderProps) {
-  const ref = useRef<HTMLElement>(null);
   const fill = useCoverFill(artwork ?? "");
   const art = useImageReveal(artwork);
-  useStatusBand(ref, fill);
 
   if (artwork === undefined) {
     return (
@@ -119,23 +74,29 @@ export function PhoneHeader({
     );
   }
 
-  const tone = fill ? "text-art" : "text-ink-1";
-  const dim = fill ? "text-art/[0.72]" : "text-ink-2";
-  const topGap = onBack || fill ? "" : "mt-2 ";
+  const tone = "text-ink-1";
+  const dim = "text-ink-2";
+  const topGap = onBack ? "" : "mt-2 ";
 
   return (
     <header
-      ref={ref}
-      style={fill ? bandStyle(fill) : undefined}
-      className={`flex min-w-0 flex-col items-center text-center ${fill ? "relative -mx-4 mb-4 rounded-b-[24px] px-4 pb-5" : ""}`}
+      style={{
+        "--hero-icon": "rgb(var(--ink-1))",
+        "--hero-play-bg": "rgb(var(--ink-1))",
+        "--hero-play-ink": "rgb(var(--base))",
+        "--hero-shuffle-bg": "rgb(var(--ink-1) / 0.08)",
+        "--hero-shuffle-ink": "rgb(var(--ink-1))",
+      } as CSSProperties}
+      className="relative -mx-4 mb-4 flex min-w-0 flex-col items-center rounded-b-[24px] px-4 pb-5 text-center"
     >
+      {fill && <motion.span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-b-[24px]" style={{ backgroundColor: fill }} initial={{ opacity: 0 }} animate={{ opacity: 0.12 }} transition={reducedMotion() ? { duration: 0.12, ease: EASE_OUT } : { duration: MS_IMAGE / 1000, ease: EASE_OUT }} />}
       {onBack && <PhoneBackRow onBack={onBack} label={backLabel} />}
       {artwork && onEdit ? (
         <button type="button" aria-label="Edit details" onClick={onEdit} className={`${topGap}size-52 shrink-0 rounded-[12px] [corner-shape:squircle]`}>
-          <img loading="lazy" decoding="async" src={artwork} alt="" onLoad={art.onLoad} className={`size-full rounded-[12px] [corner-shape:squircle] object-cover ${art.className}`} />
+        <motion.img layoutId={reducedMotion() ? undefined : sharedArtworkId} transition={reducedMotion() ? { duration: MS_FADE / 1000, ease: EASE_OUT } : { layout: SPRING_GESTURE, opacity: { duration: MS_IMAGE / 1000, ease: EASE_OUT } }} loading="lazy" decoding="async" src={artwork} alt="" onLoad={art.onLoad} initial={false} animate={{ opacity: art.shown ? 1 : 0 }} className="size-full rounded-[12px] [corner-shape:squircle] object-cover" />
         </button>
       ) : artwork ? (
-        <img loading="lazy" decoding="async" src={artwork} alt="" onLoad={art.onLoad} className={`${topGap}size-52 shrink-0 rounded-[12px] [corner-shape:squircle] object-cover ${art.className}`} />
+        <motion.img layoutId={reducedMotion() ? undefined : sharedArtworkId} transition={reducedMotion() ? { duration: MS_FADE / 1000, ease: EASE_OUT } : { layout: SPRING_GESTURE, opacity: { duration: MS_IMAGE / 1000, ease: EASE_OUT } }} loading="lazy" decoding="async" src={artwork} alt="" onLoad={art.onLoad} initial={false} animate={{ opacity: art.shown ? 1 : 0 }} className={`${topGap}size-52 shrink-0 rounded-[12px] [corner-shape:squircle] object-cover`} />
       ) : (
         <span
           aria-hidden="true"

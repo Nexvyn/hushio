@@ -169,6 +169,7 @@ export function PlaylistView() {
       <CollectionHero
         title={playlist.name}
         covers={playlistCovers(playlist, Number.POSITIVE_INFINITY, failed)}
+        sharedArtworkId={`cover:ytplaylist:${playlist.id}`}
         facts={facts}
         icon={PlaylistIcon}
         eyebrow="Playlist"

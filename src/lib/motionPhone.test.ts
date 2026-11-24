@@ -66,10 +66,10 @@ describe("phone spring presets", () => {
 });
 
 describe("press feedback", () => {
-  it("starts the pressed state within 50ms", () => {
-    expect(DURATION_MS.press).toBeLessThanOrEqual(50);
-    expect(PHONE_MS.press).toBeLessThanOrEqual(50);
-    expect(pressIn).toMatchObject({ duration: 0.05 });
+  it("uses a 120ms press-in timing", () => {
+    expect(DURATION_MS.press).toBe(120);
+    expect(PHONE_MS.press).toBe(120);
+    expect(pressIn).toMatchObject({ duration: 0.12 });
   });
 
   it("uses one press scale for every tappable phone control", () => {

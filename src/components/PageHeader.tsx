@@ -22,6 +22,7 @@ export type PageHeaderProps = {
   footer?: ReactNode;
   description?: string;
   onEdit?: () => void;
+  sharedArtworkId?: string;
 };
 
 export function monogram(title: string): string {
@@ -68,7 +69,7 @@ export function goBackOrTabRoot() {
   else nav.navigate(tabRoot(nav.tab));
 }
 
-export function PageHeader({ title, meta, artwork, actions, titleId, titleTooltip, icon, tile, onBack, eyebrow, footer, description, onEdit }: PageHeaderProps) {
+export function PageHeader({ title, meta, artwork, actions, titleId, titleTooltip, icon, tile, onBack, eyebrow, footer, description, onEdit, sharedArtworkId }: PageHeaderProps) {
   const phone = usePhone();
   const view = useNavigation((state) => state.view);
   if (phone) {
@@ -83,6 +84,7 @@ export function PageHeader({ title, meta, artwork, actions, titleId, titleToolti
         titleTooltip={titleTooltip}
         description={description}
         onEdit={onEdit}
+        sharedArtworkId={sharedArtworkId}
         onBack={onBack ?? (isTabRoot(view) ? undefined : goBackOrTabRoot)}
       />
     );

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import type { Variants } from "motion/react";
-import { DURATION_MS, EASE_OUT, glide } from "../lib/motion";
+import { DURATION_MS, EASE_OUT, MS_FADE, MS_POPOVER_OUT, glide } from "../lib/motion";
 
 const GOO_FILTER_ID = "goo";
 
@@ -40,6 +40,7 @@ export function GooFilter() {
 
 export function gooVariants(reduced: boolean): { stretch: Variants; reveal: Variants } {
   if (reduced) {
+    const fade = { duration: MS_FADE / 1000, ease: EASE_OUT };
     const instant = { duration: 0 };
     return {
       stretch: {
@@ -48,9 +49,9 @@ export function gooVariants(reduced: boolean): { stretch: Variants; reveal: Vari
         exit: { scaleY: 1, transition: instant },
       },
       reveal: {
-        initial: { opacity: 1 },
-        animate: { opacity: 1, transition: instant },
-        exit: { opacity: 1, transition: instant },
+        initial: { opacity: 0 },
+        animate: { opacity: 1, transition: fade },
+        exit: { opacity: 0, transition: fade },
       },
     };
   }
@@ -58,7 +59,7 @@ export function gooVariants(reduced: boolean): { stretch: Variants; reveal: Vari
     stretch: {
       initial: { scaleY: 0 },
       animate: { scaleY: 1, transition: glide },
-      exit: { scaleY: 0, transition: { duration: DURATION_MS.gooOut / 1000, ease: EASE_OUT } },
+        exit: { scaleY: 0.98, transition: { duration: MS_POPOVER_OUT / 1000, ease: EASE_OUT } },
     },
     reveal: {
       initial: { opacity: 0 },
@@ -66,7 +67,7 @@ export function gooVariants(reduced: boolean): { stretch: Variants; reveal: Vari
         opacity: 1,
         transition: { duration: DURATION_MS.gooFade / 1000, delay: DURATION_MS.gooDelay / 1000, ease: EASE_OUT },
       },
-      exit: { opacity: 0, transition: { duration: DURATION_MS.gooOut / 1000, ease: EASE_OUT } },
+      exit: { opacity: 0, transition: { duration: MS_POPOVER_OUT / 1000, ease: EASE_OUT } },
     },
   };
 }

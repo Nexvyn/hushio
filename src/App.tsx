@@ -1,5 +1,5 @@
 import { GooFilter } from "./components/Goo";
-import { useEffect, useLayoutEffect } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { AnimatePresence, motion, useTransform } from "motion/react";
 import { EdgeFades } from "./components/EdgeFades";
 import { SongInfoSheet } from "./components/SongInfoSheet";
@@ -41,9 +41,13 @@ import { useUI } from "./stores/ui";
 import { CurrentView } from "./views/CurrentView";
 import { AmbientSync } from "./components/AmbientBackdrop";
 import { ViewTransition } from "./components/ViewTransition";
+import { navDirection, type NavDirection, type NavSnapshot } from "./lib/navDirection";
 
 export default function App() {
   const view = useNavigation((state) => state.view);
+  const tab = useNavigation((state) => state.tab);
+  const past = useNavigation((state) => state.navPast.length);
+  const future = useNavigation((state) => state.navFuture.length);
   const pendingScroll = useNavigation((state) => state.pendingScroll);
   const viewReloadNonce = useNavigation((state) => state.viewReloadNonce);
   const clearPendingScroll = useNavigation((state) => state.clearPendingScroll);
@@ -55,6 +59,16 @@ export default function App() {
   const width = useViewportWidth();
   const shortSide = useShortSide();
   const android = platform === "android";
+  const nav = useRef<{ key: string; snapshot: NavSnapshot; direction: NavDirection }>({
+    key: "",
+    snapshot: { view, past, future, tab },
+    direction: "none",
+  });
+  const navKey = `${view.name}:${view.param ?? ""}|${past}|${future}|${tab}`;
+  if (nav.current.key !== navKey) {
+    const snapshot: NavSnapshot = { view, past, future, tab };
+    nav.current = { key: navKey, snapshot, direction: nav.current.key === "" ? "none" : navDirection(nav.current.snapshot, snapshot) };
+  }
 
   const reducedRoll = reducedMotion();
   const roll = useTransform(nowPlayingRoll, (p) => rollStyles(p, window.innerHeight, reducedRoll));
@@ -128,6 +142,7 @@ export default function App() {
             <EdgeFades id="view-scroll" className="no-scrollbar h-full overflow-x-hidden">
               <ViewTransition
                 routeKey={`${viewReloadNonce}:${view.name}:${view.name === "settings" ? "" : (view.param ?? "")}`}
+                direction={nav.current.direction}
                 className="app-view-content px-6 pb-8 pt-4"
               >
                 <ErrorBoundary

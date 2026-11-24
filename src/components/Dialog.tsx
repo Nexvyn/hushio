@@ -2,7 +2,7 @@ import { t, useT } from "../lib/i18n";
 import { type MutableRefObject, type RefObject, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { type DialogRequest, useUI } from "../stores/ui";
-import { fade, pickerIn, pickerOut, restartClass, sheetSpring } from "../lib/motion";
+import { EASE_OUT, MS_POPOVER_IN, MS_POPOVER_OUT, SPRING_SHEET, fade, restartClass, reducedMotion } from "../lib/motion";
 
 type Failure = { request: DialogRequest; message: string };
 
@@ -27,6 +27,9 @@ function commit(request: DialogRequest, value: string, fail: (message: string) =
 }
 
 function DialogFrame({ request, sheet, failure, panelRef, inputRef, onConfirm, onDismiss, keyboardInset }: FrameProps & { keyboardInset: number }) {
+  const reduced = reducedMotion();
+  const popoverIn = { duration: MS_POPOVER_IN / 1000, ease: EASE_OUT };
+  const popoverOut = { duration: MS_POPOVER_OUT / 1000, ease: EASE_OUT };
   const shell = sheet ? "fixed inset-0 z-[120] flex items-end" : "fixed inset-0 z-[120] grid place-items-center";
   const panelShape = sheet
     ? "relative w-full rounded-t-[16px] border-t border-separator bg-elevated p-6 outline-none"
@@ -53,10 +56,10 @@ function DialogFrame({ request, sheet, failure, panelRef, inputRef, onConfirm, o
         tabIndex={-1}
         className={panelShape}
         style={sheet ? { paddingBottom: "calc(24px + var(--inset-bottom, env(safe-area-inset-bottom, 0px)))" } : undefined}
-        initial={sheet ? { y: "100%" } : { opacity: 0, scale: 0.96 }}
-        animate={sheet ? { y: 0 } : { opacity: 1, scale: 1 }}
-        exit={sheet ? { y: "100%", transition: pickerOut } : { opacity: 0, scale: 0.98, transition: pickerOut }}
-        transition={sheet ? sheetSpring : pickerIn}
+        initial={reduced ? { opacity: 0 } : sheet ? { y: "100%" } : { opacity: 0, scale: 0.96 }}
+        animate={reduced ? { opacity: 1 } : sheet ? { y: 0 } : { opacity: 1, scale: 1 }}
+        exit={reduced ? { opacity: 0, transition: fade } : sheet ? { y: "100%", transition: { duration: MS_POPOVER_OUT / 1000, ease: EASE_OUT } } : { opacity: 0, scale: 0.98, transition: popoverOut }}
+        transition={reduced ? fade : sheet ? SPRING_SHEET : popoverIn}
       >
         <h2
           className={`font-display text-lg font-bold ${
