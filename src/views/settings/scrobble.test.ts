@@ -8,6 +8,7 @@ const OFF = {
   username: null,
   enabled: false,
   awaitingApproval: false,
+  reconnect: false,
 };
 
 function context(overrides: Partial<ScrobbleContext> = {}): ScrobbleContext {
@@ -70,6 +71,15 @@ describe("scrobbling rows", () => {
     expect(account.value).toBe("On");
     expect(row(ctx, "listenbrainz-enabled").toggle?.checked).toBe(true);
     expect(scrobbleRows(ctx).some((item) => item.id === "listenbrainz-connect")).toBe(false);
+  });
+
+  it("asks to sign in again when a stored secret was lost", () => {
+    const ctx = context();
+    ctx.status.lastfm.available = true;
+    ctx.status.lastfm.reconnect = true;
+    ctx.status.listenbrainz.reconnect = true;
+    expect(row(ctx, "lastfm-connect").note).toBe("Sign in again to reconnect Last.fm.");
+    expect(row(ctx, "listenbrainz-connect").note).toBe("Sign in again to reconnect ListenBrainz.");
   });
 
   it("turns a service on through the switch", () => {

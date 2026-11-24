@@ -247,11 +247,12 @@ describe("song restore, removal and tombstones", () => {
   it("queues an add on YouTube when a removed song is restored", () => {
     const id = useLibrary.getState().createPlaylist("Synced");
     const { addToPlaylist, removeFromPlaylist, restoreTrackInPlaylist } = useLibrary.getState();
-    addToPlaylist(id, track(5));
-    removeFromPlaylist(id, "t5");
+    const youtube = { ...library(5), id: "dQw4w9WgXcQ" };
+    addToPlaylist(id, youtube);
+    removeFromPlaylist(id, youtube.id);
     queueYtJobs.mockClear();
-    restoreTrackInPlaylist(id, library(5), 0);
-    expect(queueYtJobs).toHaveBeenCalledWith([{ kind: "add", localPlaylistId: id, videoId: "t5" }]);
+    restoreTrackInPlaylist(id, youtube, 0);
+    expect(queueYtJobs).toHaveBeenCalledWith([{ kind: "add", localPlaylistId: id, videoId: "dQw4w9WgXcQ" }]);
   });
 
   it("ignores a restore of a song that is already in the playlist", () => {

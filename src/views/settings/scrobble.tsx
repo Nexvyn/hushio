@@ -73,9 +73,11 @@ function lastfmRows(context: ScrobbleContext): ScrobbleRowSpec[] {
       id: "lastfm-connect",
       icon: LinkSimple,
       title: "Last.fm",
-      note: status.lastfm.available
-        ? "Opens a browser page where you allow access."
-        : "Last.fm isn't set up in this build.",
+      note: status.lastfm.reconnect
+        ? "Sign in again to reconnect Last.fm."
+        : status.lastfm.available
+          ? "Opens a browser page where you allow access."
+          : "Last.fm isn't set up in this build.",
       disabled: !status.lastfm.available || busy,
       control: (
         <Button disabled={!status.lastfm.available || busy} onClick={context.beginLastfm}>
@@ -120,7 +122,9 @@ function listenbrainzRows(context: ScrobbleContext): ScrobbleRowSpec[] {
       id: "listenbrainz-connect",
       icon: LinkSimple,
       title: "ListenBrainz",
-      note: "Paste the user token from your ListenBrainz settings page.",
+      note: status.listenbrainz.reconnect
+        ? "Sign in again to reconnect ListenBrainz."
+        : "Paste the user token from your ListenBrainz settings page.",
       disabled: busy,
       control: (
         <Button disabled={busy} onClick={() => openTokenDialog(context)}>

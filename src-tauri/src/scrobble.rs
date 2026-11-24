@@ -77,6 +77,8 @@ struct Stored {
     lastfm_enabled: bool,
     listenbrainz: Option<ListenbrainzAccount>,
     listenbrainz_enabled: bool,
+    lastfm_sign_in_needed: bool,
+    listenbrainz_sign_in_needed: bool,
     queue: Vec<Queued>,
 }
 
@@ -113,6 +115,7 @@ pub struct ServiceStatus {
     pub username: Option<String>,
     pub enabled: bool,
     pub awaiting_approval: bool,
+    pub reconnect: bool,
 }
 
 #[derive(Serialize, Clone, Debug, PartialEq, Eq)]
@@ -287,6 +290,46 @@ fn migrate(stored: &mut Stored, vault: &dyn Vault) -> bool {
     moved
 }
 
+fn drop_unreadable(stored: &mut Stored, vault: &dyn Vault) -> bool {
+    let mut dropped = false;
+    for target in [Target::LastFm, Target::ListenBrainz] {
+        let kept = match target {
+            Target::LastFm => stored.lastfm.as_ref().map(|account| account.session_key.clone()),
+            Target::ListenBrainz => stored.listenbrainz.as_ref().map(|account| account.token.clone()),
+        };
+        if let Some(kept) = kept {
+            if resolve_secret(vault, slot_of(target), kept.as_deref()).is_none() {
+                remove_account(stored, target);
+                *sign_in_needed(stored, target) = true;
+                dropped = true;
+            }
+        }
+    }
+    dropped
+}
+
+fn sign_in_needed(stored: &mut Stored, target: Target) -> &mut bool {
+    match target {
+        Target::LastFm => &mut stored.lastfm_sign_in_needed,
+        Target::ListenBrainz => &mut stored.listenbrainz_sign_in_needed,
+    }
+}
+
+fn remove_account(stored: &mut Stored, target: Target) {
+    match target {
+        Target::LastFm => {
+            stored.lastfm = None;
+            stored.lastfm_pending_token = None;
+            stored.lastfm_enabled = false;
+        }
+        Target::ListenBrainz => {
+            stored.listenbrainz = None;
+            stored.listenbrainz_enabled = false;
+        }
+    }
+    stored.queue.retain(|item| item.target != target);
+}
+
 fn cap_queue(queue: &mut Vec<Queued>) {
     let overflow = queue.len().saturating_sub(QUEUE_CAP);
     queue.drain(..overflow);
@@ -300,6 +343,7 @@ fn status_of(stored: &Stored) -> ScrobbleStatus {
             username: stored.lastfm.as_ref().map(|account| account.username.clone()),
             enabled: stored.lastfm_enabled,
             awaiting_approval: stored.lastfm_pending_token.is_some(),
+            reconnect: stored.lastfm_sign_in_needed,
         },
         listenbrainz: ServiceStatus {
             available: true,
@@ -310,6 +354,7 @@ fn status_of(stored: &Stored) -> ScrobbleStatus {
                 .map(|account| account.username.clone()),
             enabled: stored.listenbrainz_enabled,
             awaiting_approval: false,
+            reconnect: stored.listenbrainz_sign_in_needed,
         },
     }
 }
@@ -339,6 +384,7 @@ impl Service {
             })
             .unwrap_or_default();
         let moved = migrate(&mut stored, vault.as_ref());
+        let dropped = drop_unreadable(&mut stored, vault.as_ref());
         let service = Self {
             root,
             http: client(),
@@ -346,7 +392,7 @@ impl Service {
             save_lock: tokio::sync::Mutex::new(()),
             vault,
         };
-        if moved {
+        if moved || dropped {
             service.save().await;
         }
         service
@@ -371,11 +417,20 @@ impl Service {
         if !active(&self.lock().stored).contains(&target) {
             return None;
         }
-        let secret = self.secret(target)?;
+        let Some(secret) = self.secret(target) else {
+            self.lose(target);
+            return None;
+        };
         Some(match target {
             Target::LastFm => Credentials::LastFm(secret),
             Target::ListenBrainz => Credentials::ListenBrainz(secret),
         })
+    }
+
+    fn lose(&self, target: Target) {
+        let mut inner = self.lock();
+        remove_account(&mut inner.stored, target);
+        *sign_in_needed(&mut inner.stored, target) = true;
     }
 
     async fn save(&self) {
@@ -430,7 +485,10 @@ impl Service {
             Some(Credentials::ListenBrainz(token)) => {
                 listenbrainz::now_playing(&self.http, &token, scrobble).await
             }
-            None => return,
+            None => {
+                self.save().await;
+                return;
+            }
         };
         if let Err(error) = result {
             tracing::warn!("now playing not sent: {error:?}");
@@ -445,7 +503,10 @@ impl Service {
             Some(Credentials::ListenBrainz(token)) => {
                 listenbrainz::submit(&self.http, &token, std::slice::from_ref(scrobble)).await
             }
-            None => return,
+            None => {
+                self.save().await;
+                return;
+            }
         };
         match result {
             Ok(()) => {}
@@ -534,20 +595,7 @@ impl Service {
     }
 
     fn clear(&self, target: Target) {
-        let mut inner = self.lock();
-        match target {
-            Target::LastFm => {
-                inner.stored.lastfm = None;
-                inner.stored.lastfm_pending_token = None;
-                inner.stored.lastfm_enabled = false;
-            }
-            Target::ListenBrainz => {
-                inner.stored.listenbrainz = None;
-                inner.stored.listenbrainz_enabled = false;
-            }
-        }
-        inner.stored.queue.retain(|item| item.target != target);
-        drop(inner);
+        remove_account(&mut self.lock().stored, target);
         forget_secret(self.vault.as_ref(), slot_of(target));
     }
 
@@ -571,6 +619,7 @@ impl Service {
             let mut inner = self.lock();
             inner.stored.listenbrainz = Some(ListenbrainzAccount { token: kept, username });
             inner.stored.listenbrainz_enabled = true;
+            inner.stored.listenbrainz_sign_in_needed = false;
         }
         self.save().await;
         Ok(self.status())
@@ -609,6 +658,7 @@ impl Service {
                     inner.stored.lastfm = Some(LastfmAccount { session_key: kept, username });
                     inner.stored.lastfm_pending_token = None;
                     inner.stored.lastfm_enabled = true;
+                    inner.stored.lastfm_sign_in_needed = false;
                 }
                 self.save().await;
                 Ok(self.status())

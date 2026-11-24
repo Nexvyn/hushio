@@ -991,6 +991,7 @@ export type ScrobbleServiceStatus = {
   username: string | null;
   enabled: boolean;
   awaitingApproval: boolean;
+  reconnect: boolean;
 };
 
 export type ScrobbleStatus = {

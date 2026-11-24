@@ -12,8 +12,8 @@ import {
 import { useUI } from "./ui";
 
 const EMPTY: ScrobbleStatus = {
-  lastfm: { available: false, connected: false, username: null, enabled: false, awaitingApproval: false },
-  listenbrainz: { available: false, connected: false, username: null, enabled: false, awaitingApproval: false },
+  lastfm: { available: false, connected: false, username: null, enabled: false, awaitingApproval: false, reconnect: false },
+  listenbrainz: { available: false, connected: false, username: null, enabled: false, awaitingApproval: false, reconnect: false },
 };
 
 type ScrobbleState = {

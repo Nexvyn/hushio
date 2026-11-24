@@ -335,4 +335,61 @@ mod secrets_migration {
         assert!(vault.get(LISTENBRAINZ_TOKEN).is_none());
         assert!(stored_file(dir.path()).await["state"]["listenbrainz"].is_null());
     }
+
+    #[tokio::test]
+    async fn a_lost_key_store_entry_disconnects_the_account_and_asks_to_sign_in() {
+        let dir = tempfile::tempdir().unwrap();
+        data_file(dir.path(), listenbrainz_state()).await;
+        let _first = Service::load(dir.path().to_path_buf(), Arc::new(MemoryVault::default())).await;
+
+        let service = Service::load(dir.path().to_path_buf(), Arc::new(MemoryVault::default())).await;
+
+        let status = service.status();
+        assert!(!status.listenbrainz.connected);
+        assert!(status.listenbrainz.reconnect);
+        assert!(service.credentials_for(Target::ListenBrainz).is_none());
+        assert!(stored_file(dir.path()).await["state"]["listenbrainz"].is_null());
+        let later = Service::load(dir.path().to_path_buf(), Arc::new(MemoryVault::default())).await;
+        assert!(later.status().listenbrainz.reconnect);
+    }
+
+    #[tokio::test]
+    async fn a_secret_lost_while_running_disconnects_the_account() {
+        let dir = tempfile::tempdir().unwrap();
+        data_file(dir.path(), listenbrainz_state()).await;
+        let vault = Arc::new(MemoryVault::default());
+        let service = Service::load(dir.path().to_path_buf(), vault.clone()).await;
+        assert!(service.status().listenbrainz.connected);
+
+        crate::secrets::Vault::clear(vault.as_ref(), LISTENBRAINZ_TOKEN).unwrap();
+
+        assert!(service.credentials_for(Target::ListenBrainz).is_none());
+        let status = service.status();
+        assert!(!status.listenbrainz.connected);
+        assert!(status.listenbrainz.reconnect);
+    }
+
+    #[tokio::test]
+    async fn a_token_refused_by_the_key_store_reconnects_on_the_next_launch() {
+        let dir = tempfile::tempdir().unwrap();
+        data_file(dir.path(), listenbrainz_state()).await;
+        let _refused = Service::load(dir.path().to_path_buf(), MemoryVault::refusing()).await;
+
+        let service = Service::load(dir.path().to_path_buf(), Arc::new(MemoryVault::default())).await;
+
+        assert!(service.status().listenbrainz.connected);
+        assert!(!service.status().listenbrainz.reconnect);
+    }
+
+    #[tokio::test]
+    async fn disconnecting_on_purpose_does_not_ask_to_sign_in_again() {
+        let dir = tempfile::tempdir().unwrap();
+        data_file(dir.path(), listenbrainz_state()).await;
+        let service = Service::load(dir.path().to_path_buf(), Arc::new(MemoryVault::default())).await;
+
+        let status = service.listenbrainz_disconnect().await;
+
+        assert!(!status.listenbrainz.connected);
+        assert!(!status.listenbrainz.reconnect);
+    }
 }

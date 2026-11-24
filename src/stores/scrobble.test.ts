@@ -22,6 +22,7 @@ const OFF = {
   username: null,
   enabled: false,
   awaitingApproval: false,
+  reconnect: false,
 };
 
 function status(overrides: Partial<ScrobbleStatus> = {}): ScrobbleStatus {

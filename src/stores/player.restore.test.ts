@@ -101,6 +101,23 @@ describe("restored position", () => {
   });
 });
 
+describe("restart shows the position it plays from", () => {
+  it("shows and plays from the same saved position after a restart", async () => {
+    stored.value = {
+      state: { queue: [track], index: 0, position: 63, duration: 239, volume: 0.8, muted: false, shuffle: false, repeat: "off", unshuffled: null, playingFrom: null, autoplayCount: 0 },
+      version: 0,
+    };
+    await usePlayer.persist.rehydrate();
+    playStream.mockResolvedValue(undefined);
+    expect(usePlayer.getState().position).toBe(63);
+
+    usePlayer.getState().toggle();
+
+    expect(playStream).toHaveBeenLastCalledWith("t0", "Track 0", 63, expect.any(Object));
+    expect(usePlayer.getState().position).toBe(63);
+  });
+});
+
 describe("resumeFrom", () => {
   it("restarts from zero when the position is at the end", () => {
     expect(resumeFrom(274.362, 274.352)).toBe(0);
