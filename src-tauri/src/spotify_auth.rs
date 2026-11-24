@@ -94,6 +94,7 @@ pub struct SpotifyAccount {
     pub own_client_id: Option<String>,
     pub redirect_uri: String,
     pub expired: bool,
+    pub reconnect: bool,
     pub signed_in: bool,
     pub name: Option<String>,
 }
@@ -124,6 +125,7 @@ struct Session {
 struct Inner {
     account: StoredAccount,
     loaded: bool,
+    unreadable: bool,
     pending: bool,
     generation: u64,
 }
@@ -137,17 +139,11 @@ fn valid_id(value: &str) -> bool {
 fn api_error(status: u16, body: &str, profile: bool) -> &'static str {
     let reason = body.to_ascii_lowercase();
     match status {
-        403 if reason.contains("premium") => "Spotify Premium is required.",
+        403 if reason.contains("premium") => "Spotify Premium is needed for this.",
         403 if profile
-            || [
-                "not registered",
-                "not_registered",
-                "user registration",
-                "not added",
-                "allowlist",
-            ]
-            .iter()
-            .any(|hint| reason.contains(*hint)) =>
+            || ["registered", "registration", "not added", "allowlist"]
+                .iter()
+                .any(|hint| reason.contains(*hint)) =>
         {
             "This Spotify app hasn't added your account. Ask its owner to add you, or use your own Spotify app."
         }
@@ -233,29 +229,37 @@ impl SpotifyAuth {
 
     fn loaded(&self) -> Result<MutexGuard<'_, Inner>, String> {
         let mut inner = self.lock();
-        if !inner.loaded {
-            if let Some(raw) = self
-                .store
-                .read()
-                .map_err(|_| "Couldn't read your Spotify settings.")?
-            {
-                let value: serde_json::Value = serde_json::from_str(&raw).map_err(|_| MSG_SAVE)?;
-                let legacy = value.get("refresh_token").is_some();
-                let mut account: StoredAccount = serde_json::from_value(value).map_err(|_| MSG_SAVE)?;
-                if legacy
-                    || account
-                        .session
-                        .as_ref()
-                        .is_some_and(|s| s.client_id != self.selected(&account))
-                {
-                    account.session = None;
-                    account.expired = true;
-                    self.write(&account)?;
-                }
-                inner.account = account;
-            }
-            inner.loaded = true;
+        if inner.loaded {
+            return Ok(inner);
         }
+        let Ok(raw) = self.store.read() else {
+            inner.unreadable = true;
+            return Ok(inner);
+        };
+        if let Some(raw) = raw {
+            let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) else {
+                inner.unreadable = true;
+                return Ok(inner);
+            };
+            let legacy = value.get("refresh_token").is_some();
+            let Ok(mut account) = serde_json::from_value::<StoredAccount>(value) else {
+                inner.unreadable = true;
+                return Ok(inner);
+            };
+            if legacy
+                || account
+                    .session
+                    .as_ref()
+                    .is_some_and(|s| s.client_id != self.selected(&account))
+            {
+                account.session = None;
+                account.expired = true;
+                self.write(&account)?;
+            }
+            inner.account = account;
+        }
+        inner.unreadable = false;
+        inner.loaded = true;
         Ok(inner)
     }
 
@@ -267,7 +271,7 @@ impl SpotifyAuth {
         self.store.write(&raw).map_err(|_| MSG_SAVE.to_owned())
     }
 
-    fn status(&self, account: &StoredAccount) -> SpotifyAccount {
+    fn status(&self, account: &StoredAccount, reconnect: bool) -> SpotifyAccount {
         SpotifyAccount {
             configured: valid_id(self.selected(account)),
             own_client_id: account.own_client_id.clone(),
@@ -277,20 +281,24 @@ impl SpotifyAuth {
                 "http://127.0.0.1/callback".to_owned()
             },
             expired: account.expired,
+            reconnect,
             signed_in: account.session.is_some(),
             name: account.session.as_ref().and_then(|s| s.name.clone()),
         }
     }
 
     pub fn account(&self) -> Result<SpotifyAccount, String> {
-        Ok(self.status(&self.loaded()?.account))
+        let inner = self.loaded()?;
+        Ok(self.status(&inner.account, inner.unreadable))
     }
 
     fn commit(&self, inner: &mut Inner, next: StoredAccount) -> Result<SpotifyAccount, String> {
         self.write(&next)?;
         inner.account = next;
         inner.generation += 1;
-        Ok(self.status(&inner.account))
+        inner.loaded = true;
+        inner.unreadable = false;
+        Ok(self.status(&inner.account, false))
     }
 
     pub fn set_client_id(&self, value: String) -> Result<SpotifyAccount, String> {
@@ -302,7 +310,7 @@ impl SpotifyAuth {
         let mut next = inner.account.clone();
         next.own_client_id = (!value.is_empty()).then_some(value);
         if next.own_client_id == inner.account.own_client_id {
-            return Ok(self.status(&inner.account));
+            return Ok(self.status(&inner.account, inner.unreadable));
         }
         if self.selected(&next) != self.selected(&inner.account) {
             next.session = None;
@@ -770,14 +778,6 @@ mod tests {
         assert!(store.saved().is_none());
     }
 
-    #[test]
-    fn explains_spotify_errors() {
-        assert!(api_error(403, "USER_NOT_REGISTERED", false).contains("hasn't added"));
-        assert!(api_error(403, "PREMIUM_REQUIRED", true).contains("Premium"));
-        assert!(api_error(429, "QUOTA_EXCEEDED", false).contains("limit for this app"));
-        assert!(api_error(429, "", false).contains("busy"));
-    }
-
     fn expired_account(client_id: &str) -> StoredAccount {
         StoredAccount {
             own_client_id: Some(client_id.to_owned()),
@@ -880,13 +880,60 @@ mod tests {
     }
 
     #[test]
-    fn a_failed_read_is_retried_on_the_next_call() {
+    fn a_failed_read_shows_reconnect_and_is_retried_on_the_next_call() {
         let store = Arc::new(FlakyStore {
             reads: Mutex::new(0),
             saved: r#"{"refresh_token":"r-1","name":"Ada"}"#.to_owned(),
         });
         let auth = SpotifyAuth::new(config(), store);
-        assert!(auth.account().is_err());
-        assert!(auth.account().unwrap().expired);
+        let first = auth.account().unwrap();
+        assert!(first.reconnect);
+        assert!(!first.signed_in);
+        let second = auth.account().unwrap();
+        assert!(!second.reconnect);
+        assert!(second.expired);
+    }
+
+    #[test]
+    fn an_unparseable_stored_account_asks_to_reconnect() {
+        let auth = SpotifyAuth::new(config(), Arc::new(MemoryStore::with("not json")));
+        let account = auth.account().unwrap();
+        assert!(account.reconnect);
+        assert!(!account.signed_in);
+        assert!(!account.expired);
+    }
+
+    #[test]
+    fn a_missing_entry_is_a_plain_disconnect() {
+        let auth = SpotifyAuth::new(config(), Arc::new(MemoryStore::default()));
+        let account = auth.account().unwrap();
+        assert!(!account.reconnect);
+        assert!(!account.signed_in);
+        assert!(!account.expired);
+    }
+
+    #[test]
+    fn sign_in_error_messages_match_the_spotify_responses() {
+        assert_eq!(
+            api_error(403, "USER_NOT_REGISTERED", false),
+            "This Spotify app hasn't added your account. Ask its owner to add you, or use your own Spotify app."
+        );
+        assert_eq!(
+            api_error(403, "Check settings on developer.spotify.com/dashboard, the user may not be registered.", false),
+            "This Spotify app hasn't added your account. Ask its owner to add you, or use your own Spotify app."
+        );
+        assert_eq!(
+            api_error(403, "", true),
+            "This Spotify app hasn't added your account. Ask its owner to add you, or use your own Spotify app."
+        );
+        assert_eq!(api_error(403, "PREMIUM_REQUIRED", false), "Spotify Premium is needed for this.");
+        assert_eq!(
+            api_error(429, "{\"error\":{\"reason\":\"QUOTA_EXCEEDED\"}}", false),
+            "Spotify's limit for this app is used up for now. Try later or use your own Spotify app."
+        );
+        assert_eq!(api_error(429, "", false), "Spotify is busy right now. Try again later.");
+        assert_eq!(api_error(403, "", false), "Spotify didn't allow access to this library item.");
+        assert_eq!(api_error(500, "", false), "Couldn't read your Spotify library. Try again.");
+        assert_eq!(MSG_SIGN_IN_AGAIN, "Spotify signed you out. Sign in again.");
     }
 }

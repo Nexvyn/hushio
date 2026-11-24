@@ -14,7 +14,7 @@ import { useSettings } from "../../stores/settings";
 
 const IDLE = { state: "idle" as const, done: 0, total: 0, playlistName: null, backend: "official" as const, quotaUsedToday: 0, quotaLimit: 10000, failedJobs: 0, lastError: null, lastSyncedAt: null, pulledPlaylists: 0 };
 
-const ACCOUNT = { googleSub: null, name: null, email: null, pictureUrl: null, configured: true, keyringAvailable: true };
+const ACCOUNT = { googleSub: null, name: null, email: null, pictureUrl: null, configured: true, keyringAvailable: true, reconnect: false };
 
 function context(mode: "guest" | "google", requestSignOut = vi.fn(), syncNow = vi.fn(), state: "idle" | "running" = "idle"): BuildContext {
   return {

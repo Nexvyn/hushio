@@ -8,6 +8,7 @@ vi.mock("../lib/bridge", () => ({
   persistRead: async () => null,
   persistWrite: async () => true,
   scrobbleStatus: async () => null,
+  spotifyStatus: () => new Promise(() => {}),
   discordStatus: async () => null,
   networkServers: async () => null,
 }));

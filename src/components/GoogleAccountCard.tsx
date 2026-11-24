@@ -48,7 +48,9 @@ export function GoogleAccountCard({ account, signingIn, onSignIn, onCancelSignIn
       <div>
         <p className="text-body font-semibold text-ink-1">Using Hushio as a guest</p>
         <p className="mt-1 text-meta leading-snug text-ink-2">
-          Your library stays on this {deviceNoun(platform)}. Sign in with Google to sync your playlists to your YouTube account.
+          {account.reconnect
+            ? "Sign in again to reconnect Google."
+            : `Your library stays on this ${deviceNoun(platform)}. Sign in with Google to sync your playlists to your YouTube account.`}
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-end gap-3">

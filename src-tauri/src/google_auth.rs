@@ -230,6 +230,7 @@ pub struct GoogleAccount {
     pub picture_url: Option<String>,
     pub configured: bool,
     pub keyring_available: bool,
+    pub reconnect: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -260,6 +261,7 @@ struct Inner {
     session: Option<Session>,
     pending: Option<CancellationToken>,
     keyring_available: bool,
+    reconnect: bool,
 }
 
 pub struct GoogleAuth {
@@ -362,6 +364,7 @@ impl GoogleAuth {
         let inner = self.lock();
         let configured = !self.config.client_id.is_empty();
         let keyring_available = inner.keyring_available;
+        let reconnect = inner.reconnect;
         match &inner.session {
             Some(session) => GoogleAccount {
                 mode: Mode::Google,
@@ -371,6 +374,7 @@ impl GoogleAuth {
                 picture_url: session.picture.clone(),
                 configured,
                 keyring_available,
+                reconnect,
             },
             None => GoogleAccount {
                 mode: Mode::Guest,
@@ -380,6 +384,7 @@ impl GoogleAuth {
                 picture_url: None,
                 configured,
                 keyring_available,
+                reconnect,
             },
         }
     }
@@ -487,6 +492,7 @@ impl GoogleAuth {
     fn install(&self, session: Session, keyring_available: bool) {
         let mut inner = self.lock();
         inner.keyring_available = keyring_available;
+        inner.reconnect = false;
         inner.session = Some(session);
     }
 
@@ -521,6 +527,7 @@ impl GoogleAuth {
             Ok(None) => return false,
             Err(error) => {
                 self.set_keyring(false, &error);
+                self.lock().reconnect = true;
                 return false;
             }
         };
@@ -539,6 +546,7 @@ impl GoogleAuth {
             }
             Err(error) => {
                 tracing::warn!(%error, "stored Google session is unreadable");
+                self.lock().reconnect = true;
                 false
             }
         }
@@ -684,7 +692,11 @@ impl GoogleAuth {
     }
 
     pub fn forget(&self) {
-        self.lock().session = None;
+        {
+            let mut inner = self.lock();
+            inner.session = None;
+            inner.reconnect = false;
+        }
         if let Err(error) = self.store.clear() {
             tracing::warn!(%error, "could not delete the stored Google sign-in");
         }
@@ -1652,6 +1664,7 @@ mod tests {
         let auth = GoogleAuth::new(config("http://127.0.0.1:1"), Arc::new(MemoryStore::default()));
         assert!(matches!(auth.resume().await, Resume::Nothing));
         assert_eq!(auth.account().mode, Mode::Guest);
+        assert!(!auth.account().reconnect);
     }
 
     #[tokio::test]
@@ -1659,6 +1672,16 @@ mod tests {
         let auth = GoogleAuth::new(config("http://127.0.0.1:1"), Arc::new(MemoryStore::failing()));
         assert!(matches!(auth.resume().await, Resume::Nothing));
         assert!(!auth.account().keyring_available);
+        assert!(auth.account().reconnect);
+    }
+
+    #[tokio::test]
+    async fn corrupt_stored_session_asks_to_reconnect() {
+        let auth = GoogleAuth::new(config("http://127.0.0.1:1"), Arc::new(MemoryStore::with("not json")));
+        assert!(matches!(auth.resume().await, Resume::Nothing));
+        let account = auth.account();
+        assert_eq!(account.mode, Mode::Guest);
+        assert!(account.reconnect);
     }
 
     #[tokio::test]

@@ -98,7 +98,8 @@ export function SpotifyLibrary() {
     return (
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-body text-ink-2">
-          {account.status === "unavailable" ? UNAVAILABLE : account.account.expired
+          {account.status === "unavailable" ? UNAVAILABLE : account.account.reconnect
+            ? "Sign in again to reconnect Spotify." : account.account.expired
             ? "Spotify signed you out. Sign in again." : "Connect Spotify in Account settings to import your library."}
         </p>
         <Button onClick={() => navigate({ name: "settings", param: "account" })}>Account settings</Button>

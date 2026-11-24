@@ -19,6 +19,7 @@ export const GUEST_ACCOUNT: GoogleAccount = {
   pictureUrl: null,
   configured: false,
   keyringAvailable: true,
+  reconnect: false,
 };
 
 const SESSION_ENDED = "Your Google session ended. Sign in again to keep your library in sync.";

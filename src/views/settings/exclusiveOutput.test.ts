@@ -21,7 +21,7 @@ function context(platform: BuildContext["platform"], nativeAudio?: boolean): Bui
     nativeAudio,
     updates: { state: INITIAL_UPDATE_STATE, check: vi.fn(), install: vi.fn(), restart: vi.fn(), openPage: vi.fn() },
     auth: {
-      account: { mode: "guest", googleSub: null, name: null, email: null, pictureUrl: null, configured: true, keyringAvailable: true },
+      account: { mode: "guest", googleSub: null, name: null, email: null, pictureUrl: null, configured: true, keyringAvailable: true, reconnect: false },
       signingIn: false,
       signIn: vi.fn(),
       cancelSignIn: vi.fn(),

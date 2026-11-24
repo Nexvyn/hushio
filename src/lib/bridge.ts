@@ -625,6 +625,7 @@ export type GoogleAccount = {
   pictureUrl: string | null;
   configured: boolean;
   keyringAvailable: boolean;
+  reconnect: boolean;
 };
 
 export function googleAccountGet(): Promise<GoogleAccount> {
@@ -650,6 +651,7 @@ export function listenGoogleAuthChanged(onChange: (account: GoogleAccount) => vo
 export type SpotifyAccount = {
   ownClientId: string | null;
   expired: boolean;
+  reconnect: boolean;
   redirectUri: string;
   configured: boolean;
   signedIn: boolean;

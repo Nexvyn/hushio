@@ -6,8 +6,50 @@ import {
   readPages,
   readSource,
   songOfTrack,
+  spotifyStatusText,
   type Getter,
 } from "./spotifyLibrary";
+import type { SpotifyAccount } from "./bridge";
+
+const DISCONNECTED: SpotifyAccount = {
+  ownClientId: null,
+  expired: false,
+  reconnect: false,
+  redirectUri: "http://127.0.0.1/callback",
+  configured: true,
+  signedIn: false,
+  name: null,
+};
+
+describe("spotifyStatusText", () => {
+  it("shows the account name when connected", () => {
+    expect(spotifyStatusText({ ...DISCONNECTED, signedIn: true, name: "Ada" }, false)).toBe("Connected as Ada");
+  });
+
+  it("names the account generically when Spotify gave no name", () => {
+    expect(spotifyStatusText({ ...DISCONNECTED, signedIn: true }, false)).toBe("Connected as your account");
+  });
+
+  it("says it is signing in while the browser flow runs", () => {
+    expect(spotifyStatusText(DISCONNECTED, true)).toBe("Signing in. Check your browser.");
+  });
+
+  it("says it is disconnected when nothing is stored", () => {
+    expect(spotifyStatusText(DISCONNECTED, false)).toBe("Disconnected");
+  });
+
+  it("asks for a new sign-in after a refresh failure", () => {
+    expect(spotifyStatusText({ ...DISCONNECTED, expired: true }, false)).toBe("Spotify signed you out. Sign in again.");
+  });
+
+  it("asks to reconnect when the stored sign-in can't be read", () => {
+    expect(spotifyStatusText({ ...DISCONNECTED, reconnect: true }, false)).toBe("Sign in again to reconnect Spotify.");
+  });
+
+  it("is empty before the status loads", () => {
+    expect(spotifyStatusText(null, false)).toBe("");
+  });
+});
 
 const PLAYLIST_PAGE_1 = {
   items: [

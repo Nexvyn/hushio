@@ -11,6 +11,7 @@ const GUEST: GoogleAccount = {
   pictureUrl: null,
   configured: true,
   keyringAvailable: true,
+  reconnect: false,
 };
 
 const SIGNED_IN: GoogleAccount = {
@@ -21,6 +22,7 @@ const SIGNED_IN: GoogleAccount = {
   pictureUrl: "https://img.example/ada.png",
   configured: true,
   keyringAvailable: true,
+  reconnect: false,
 };
 
 function renderCard(props: Partial<Parameters<typeof GoogleAccountCard>[0]> = {}) {
@@ -80,5 +82,11 @@ describe("GoogleAccountCard", () => {
         "No keyring found, so Hushio can't keep you signed in. Install GNOME Keyring or KWallet, then sign in again.",
       ),
     ).toBeTruthy();
+  });
+
+  it("asks guests to sign in again when the stored sign-in can't be read", () => {
+    renderCard({ account: { ...GUEST, reconnect: true } });
+    expect(screen.getByText("Sign in again to reconnect Google.")).toBeTruthy();
+    expect(screen.queryByText(/Using Hushio as a guest/)).toBeTruthy();
   });
 });

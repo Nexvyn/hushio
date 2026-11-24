@@ -24,6 +24,7 @@ const SIGNED_IN: GoogleAccount = {
   pictureUrl: null,
   configured: true,
   keyringAvailable: true,
+  reconnect: false,
 };
 
 function messages() {

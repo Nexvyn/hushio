@@ -14,7 +14,7 @@ import { useSettings } from "../../stores/settings";
 
 function auth(mode: "guest" | "google" = "guest"): BuildContext["auth"] {
   return {
-    account: { mode, googleSub: null, name: null, email: null, pictureUrl: null, configured: true, keyringAvailable: true },
+    account: { mode, googleSub: null, name: null, email: null, pictureUrl: null, configured: true, keyringAvailable: true, reconnect: false },
     signingIn: false,
     signIn: vi.fn(),
     cancelSignIn: vi.fn(),

@@ -1,4 +1,4 @@
-import { spotifyLibraryPage } from "./bridge";
+import { spotifyLibraryPage, type SpotifyAccount } from "./bridge";
 import { clip, durationOf, MAX_SONGS, type ImportSong } from "./importParse";
 import type { StagedImport } from "./importStage";
 
@@ -45,6 +45,15 @@ export type SpotifySource = { kind: "liked" } | { kind: "playlist"; playlist: Sp
 export type SpotifyImportList = Omit<StagedImport, "fromSpotify">;
 
 export type Getter = (url: string) => Promise<unknown>;
+
+export function spotifyStatusText(account: SpotifyAccount | null, signingIn: boolean): string {
+  if (signingIn) return "Signing in. Check your browser.";
+  if (!account) return "";
+  if (account.signedIn) return `Connected as ${account.name ?? "your account"}`;
+  if (account.reconnect) return "Sign in again to reconnect Spotify.";
+  if (account.expired) return "Spotify signed you out. Sign in again.";
+  return "Disconnected";
+}
 
 export function coverOf(images: SpotifyImage[] | null | undefined): string | null {
   const ranked = (images ?? [])

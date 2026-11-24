@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "../../components/Button";
 import { spotifySetClientId, spotifySignIn, spotifySignOut, spotifyStatus, type SpotifyAccount } from "../../lib/bridge";
+import { spotifyStatusText } from "../../lib/spotifyLibrary";
 
 export function SpotifySettings() {
   const [account, setAccount] = useState<SpotifyAccount | null>(null);
@@ -56,8 +57,7 @@ export function SpotifySettings() {
         <div>
           <h3 className="text-body font-medium">Spotify</h3>
           <p role="status" className="text-meta text-ink-2">
-            {busy === "signIn" ? "Signing in. Check your browser." : account?.signedIn ? `Connected as ${account.name}`
-              : account?.expired ? "Spotify signed you out. Sign in again." : account ? "Disconnected" : ""}
+            {spotifyStatusText(account, busy === "signIn")}
           </p>
         </div>
         {account && (account.signedIn
@@ -68,7 +68,7 @@ export function SpotifySettings() {
         <details>
           <summary className="cursor-pointer text-body">Use your own Spotify app</summary>
           <ol className="my-3 list-decimal space-y-2 pl-5 text-meta text-ink-2">
-            <li>Create a Web API app in the Spotify developer dashboard. Spotify Premium is required.</li>
+            <li>Create a Web API app in the Spotify developer dashboard. Spotify Premium is needed.</li>
             <li>Add this redirect URI to the app settings.
               <div className="flex flex-wrap items-center gap-2">
                 <code className="select-all break-all">{account.redirectUri}</code>
