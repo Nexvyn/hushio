@@ -296,7 +296,7 @@ export function LibraryView() {
           subtitle={entry.subtitle}
           art={
             entry.heart ? (
-              <span className="grid size-12 shrink-0 place-items-center rounded-[8px] bg-elevated text-ink-1 [corner-shape:squircle]">
+              <span className="grid size-12 shrink-0 place-items-center text-ink-2">
                 <PhoneIcon icon={Heart} />
               </span>
             ) : (

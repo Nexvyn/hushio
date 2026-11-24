@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { ContextMenu } from "../components/ContextMenu";
 
 const { audio, playStream, play, pause, seekTo, setVolume, setMuted } = vi.hoisted(() => ({
   audio: new Audio(),
@@ -70,9 +71,32 @@ describe("Library on phone", () => {
     render(<LibraryView />);
     const liked = screen.getByRole("button", { name: "Liked Songs" });
     expect(liked.className).toContain("h-16");
-    expect(liked.querySelector("span.bg-elevated")).toBeTruthy();
+    expect(liked.querySelector("span.bg-elevated")).toBeNull();
     expect(liked.querySelector("span.bg-accent")).toBeNull();
     expect(liked.querySelector("svg")?.getAttribute("width")).toBe("24");
+  });
+
+  it("keeps category glyphs neutral and the phone library in flat lists", () => {
+    render(<LibraryView />);
+    const rows = screen.getAllByRole("button").filter((button) => button.querySelector("svg"));
+    expect(rows.some((row) => row.querySelector("span.bg-accent, span.bg-elevated"))).toBe(false);
+    expect(document.querySelector("ul.grid-cols-2")).toBeNull();
+  });
+
+  it("opens the pinned collection menu on long press and updates its pin state", async () => {
+    vi.useFakeTimers();
+    try {
+      useLibrary.setState({ pinnedSingles: { ...initialLibrary.pinnedSingles, liked: false } });
+      render(<><LibraryView /><ContextMenu /></>);
+      const liked = screen.getByRole("button", { name: "Liked Songs" });
+      fireEvent.pointerDown(liked, { pointerId: 1, clientX: 20, clientY: 20 });
+      await vi.advanceTimersByTimeAsync(300);
+      expect(screen.getByRole("menuitem", { name: "Pin to top" })).toBeTruthy();
+      fireEvent.click(screen.getByRole("menuitem", { name: "Pin to top" }));
+      expect(useLibrary.getState().pinnedSingles.liked).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("shows the liked song count and the On this device subtitle", () => {

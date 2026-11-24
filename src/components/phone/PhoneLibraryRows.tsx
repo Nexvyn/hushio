@@ -33,10 +33,10 @@ export function PhoneCollage({ covers, fallback, sizeClass, radiusClass }: Phone
     .map((cover) => thumbArtwork(cover, TILE_PIXELS))
     .filter((url) => url !== "")
     .slice(0, 4);
-  const shape = `${sizeClass} relative shrink-0 overflow-hidden bg-elevated text-ink-1 ${radiusClass} [corner-shape:squircle]`;
+  const shape = `${sizeClass} relative shrink-0 overflow-hidden ${radiusClass} [corner-shape:squircle]`;
   if (urls.length === 0) {
     return (
-      <span aria-hidden="true" className={`${shape} grid place-items-center`}>
+      <span aria-hidden="true" className={`${sizeClass} grid shrink-0 place-items-center text-ink-2`}>
         <PhoneIcon icon={fallback} />
       </span>
     );
