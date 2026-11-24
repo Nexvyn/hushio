@@ -98,13 +98,13 @@ describe("NowPlaying", () => {
     expect(setFullScreen).not.toHaveBeenCalled();
   });
 
-  it("keeps the close control below the roll strip", () => {
+  it("keeps the close control inside the edge-to-edge player without a roll strip", () => {
     render(<NowPlaying />);
     openView();
     const close = screen.getByRole("button", { name: "Close Now Playing" });
     expect(region()?.contains(close)).toBe(true);
-    expect(region()?.style.paddingTop).toBe("84px");
-    expect(screen.getByRole("button", { name: "Hide Now Playing" })).toBeTruthy();
+    expect(region()?.style.paddingTop).toBe("");
+    expect(screen.queryByRole("button", { name: "Hide Now Playing" })).toBeNull();
   });
 
   it("opens with the track, the Esc hint and a request for full screen", () => {
@@ -130,6 +130,7 @@ describe("NowPlaying", () => {
     useUI.setState({ osFullscreen: true });
     render(<NowPlaying />);
     openView();
+    expect(setFullScreen).not.toHaveBeenCalledWith(true);
     fireEvent.click(screen.getByRole("button", { name: "Close Now Playing" }));
     await waitFor(() => expect(region()).toBeNull());
     expect(setFullScreen).not.toHaveBeenCalledWith(false);
