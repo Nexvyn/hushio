@@ -222,12 +222,13 @@ describe("MiniPlayer", () => {
     expect(fill?.parentElement?.className).toContain("bg-separator");
   });
 
-  it("shows a high-contrast 44px playback control in theme ink", () => {
+  it("shows a plain 40px playback glyph", () => {
     render(<MiniPlayer />);
     const play = screen.getByRole("button", { name: "Play" });
-    expect(play.className).toContain("size-11");
-    expect(play.className).toContain("bg-ink-1");
-    expect(play.className).toContain("text-surface");
+    expect(play.className).toContain("size-10");
+    expect(play.className).toContain("rounded-full");
+    expect(play.className).not.toContain("bg-ink-1");
+    expect(play.className).not.toContain("text-surface");
     expect(play.className).not.toMatch(/bg-white|bg-primary/);
   });
 

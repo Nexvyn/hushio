@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type KeyboardEvent, type MutableRefObject } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { animate, motion, useMotionValue, useTransform, type AnimationPlaybackControls } from "motion/react";
 import { getPlaybackPosition } from "../lib/audio";
 import type { LyricsResult, SyncedLyricLine, SyncedLyricWord } from "../lib/bridge";
 import {
@@ -14,7 +15,7 @@ import {
   type WordSpan,
 } from "../lib/lyricsLines";
 import { LYRICS_LOADING_LINES, pickLyricsLine } from "../lib/lyricsPhrases";
-import { LYRIC_EASE, reducedMotion } from "../lib/motion";
+import { EASE_MOVE, reducedMotion } from "../lib/motion";
 import { romanize } from "../lib/romanize";
 import { usePhone } from "../lib/usePhone";
 import { usePlayer } from "../stores/player";
@@ -22,17 +23,14 @@ import { useSettings } from "../stores/settings";
 
 const ANCHOR = 0.5;
 const ART_ANCHOR = 0.4;
-const GLIDE_MS = 600;
 const LOADING_DELAY_MS = 300;
 const GLIDE_CANCEL_SCREENS = 1.5;
 const DEPTH_TRANSITION = "opacity var(--dur-quick) var(--ease-out)";
 const LINE_BLUR_PX = [0, 0, 1.5, 3];
 const DESKTOP_BLUR_MAX_PX = 2;
 const ART_TRANSITION = "opacity var(--dur-quick) var(--ease-out), color var(--dur-quick) var(--ease-out), transform var(--dur-quick) var(--ease-out)";
-const BROWSE_IDLE_MS = 3000;
 const BROWSE_DRAG_PX = 6;
 const CLICK_MOVE_PX = 5;
-const MANUAL_SCROLL_GUARD_MS = 250;
 const EDGE_MASK = "linear-gradient(to right, transparent 0%, black 24px, black calc(100% - 24px), transparent 100%)";
 const FADE_MASK = "linear-gradient(to bottom, transparent 0%, black 14%, black 86%, transparent 100%)";
 const ART_FADE_MASK = "linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%)";
@@ -45,15 +43,12 @@ const SUB_CLASS = "font-display text-[calc(22px*var(--lyric-scale))] leading-[1.
 const ART_SUB_CLASS = "text-[calc(22px*var(--lyric-scale))] leading-[1.3] font-medium [font-family:var(--font-lyric)] font-synthesis-none";
 const PHONE_ANCHOR = 0.34;
 const PHONE_LINE_CLASS = "text-section font-semibold";
-const PHONE_ACTIVE_CLASS = "text-[28px] leading-[36px] tracking-[-0.01em] font-semibold";
 const PHONE_SUB_CLASS = "text-body leading-[22px] font-medium";
 const TRANSLATION_CLASS = "text-body font-medium";
 const BROWSING_OPACITY = 0.8;
 const WORD_LIFT = "translateY(-2px)";
 const RTL_SCRIPT = /[֐-ࣿיִ-﷿ﹰ-﻿]/;
 
-type Glide = { frame: number; from: number; to: number; start: number };
-type GlideRef = MutableRefObject<Glide | null>;
 type Words = NonNullable<SyncedLyricLine["words"]>;
 
 type SyncedLyricsProps = {
@@ -64,29 +59,6 @@ type SyncedLyricsProps = {
   onArt?: boolean;
   translate?: boolean;
 };
-
-function stopGlide(glideRef: GlideRef) {
-  const glide = glideRef.current;
-  if (glide) cancelAnimationFrame(glide.frame);
-  glideRef.current = null;
-}
-
-function stepGlide(glideRef: GlideRef, scroller: HTMLElement) {
-  const glide = glideRef.current;
-  if (!glide) return;
-  const frame = (now: number) => {
-    const current = glideRef.current;
-    if (!current) return;
-    const t = Math.min(1, (now - current.start) / GLIDE_MS);
-    scroller.scrollTop = current.from + (current.to - current.from) * (1 - (1 - t) ** 4);
-    if (t >= 1) {
-      glideRef.current = null;
-      return;
-    }
-    current.frame = requestAnimationFrame(frame);
-  };
-  glide.frame = requestAnimationFrame(frame);
-}
 
 function scrollTargetFor(scroller: HTMLElement, line: HTMLElement, anchor: number): number {
   const lineBox = line.getBoundingClientRect();
@@ -167,7 +139,7 @@ function WordLine({
                   : {
                       display: "inline-block",
                       transform: percent > 0 && percent < 100 ? WORD_LIFT : undefined,
-                      transition: `transform var(--dur-lyric) ${LYRIC_EASE}`,
+                      transition: "transform 160ms cubic-bezier(0.4, 0, 0.2, 1)",
                     }),
               }}
             >
@@ -246,40 +218,35 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
   const contentRef = useRef<HTMLDivElement>(null);
   const [fits, setFits] = useState(false);
   const activeRef = useRef<HTMLButtonElement | null>(null);
-  const glideRef: GlideRef = useRef<Glide | null>(null);
+  const autoOffset = useMotionValue(0);
+  const contentY = useTransform(autoOffset, (value) => -value);
+  const glideRef = useRef<AnimationPlaybackControls | null>(null);
   const lastActive = useRef(-1);
   const [browsing, setBrowsing] = useState(false);
   const browsingRef = useRef(false);
-  const idleTimer = useRef<number | null>(null);
   const pressAt = useRef<{ x: number; y: number } | null>(null);
   const dragged = useRef(false);
-  const manualAt = useRef(Number.NEGATIVE_INFINITY);
 
   const endBrowsing = useCallback(() => {
-    if (idleTimer.current !== null) window.clearTimeout(idleTimer.current);
-    idleTimer.current = null;
     browsingRef.current = false;
     setBrowsing(false);
   }, []);
 
   const markBrowsing = useCallback(() => {
-    stopGlide(glideRef);
-    manualAt.current = performance.now();
-    if (idleTimer.current !== null) window.clearTimeout(idleTimer.current);
-    idleTimer.current = window.setTimeout(endBrowsing, BROWSE_IDLE_MS);
+    glideRef.current?.stop();
+    glideRef.current = null;
+    const scroller = scrollerRef.current;
+    if (scroller && autoOffset.get() !== 0) {
+      scroller.scrollTop += autoOffset.get();
+      autoOffset.set(0);
+    }
     if (browsingRef.current) return;
     browsingRef.current = true;
     lastActive.current = -1;
     setBrowsing(true);
-  }, [endBrowsing]);
+  }, [autoOffset]);
 
-  useEffect(
-    () => () => {
-      stopGlide(glideRef);
-      if (idleTimer.current !== null) window.clearTimeout(idleTimer.current);
-    },
-    [],
-  );
+  useEffect(() => () => glideRef.current?.stop(), []);
 
   useEffect(() => {
     if (activeIndex < 0 || browsing) return;
@@ -290,22 +257,18 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
       const line = activeRef.current;
       if (!scroller || !line) return;
       const target = scrollTargetFor(scroller, line, anchor);
-      if (!moved) {
-        if (glideRef.current) glideRef.current.to = target;
-        else scroller.scrollTop = target;
+      if (!moved && !glideRef.current) return;
+      glideRef.current?.stop();
+      glideRef.current = null;
+      if (still || Math.abs(target) > scroller.clientHeight * GLIDE_CANCEL_SCREENS) {
+        scroller.scrollTop += target;
+        autoOffset.set(0);
         return;
       }
-      stopGlide(glideRef);
-      const from = scroller.scrollTop;
-      if (still || Math.abs(target - from) > scroller.clientHeight * GLIDE_CANCEL_SCREENS) {
-        scroller.scrollTop = target;
-        return;
-      }
-      glideRef.current = { frame: 0, from, to: target, start: performance.now() };
-      stepGlide(glideRef, scroller);
+      glideRef.current = animate(autoOffset, autoOffset.get() + target, { duration: 0.16, ease: EASE_MOVE });
     });
     return () => cancelAnimationFrame(frame);
-  }, [activeIndex, lines, still, browsing, anchor]);
+  }, [activeIndex, lines, still, browsing, anchor, autoOffset]);
 
   useEffect(() => {
     const scroller = scrollerRef.current;
@@ -354,10 +317,9 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
     const fall = lyricFalloff(index - anchorIndex);
     const opacity = phone ? (browsing ? BROWSING_OPACITY : fall.opacity) : 1;
     const phoneMotion = still
-      ? { transition: "none" }
+      ? { transition: "opacity 120ms ease-out" }
       : {
-          transition: `opacity var(--dur-lyric) ${LYRIC_EASE}, transform var(--dur-lyric) ${LYRIC_EASE}, filter var(--dur-lyric) ${LYRIC_EASE}`,
-          transitionDelay: `calc(var(--dur-lyric) * ${Math.min(distance, 3) * 0.06})`,
+          transition: "opacity 160ms cubic-bezier(0.4, 0, 0.2, 1), transform 160ms cubic-bezier(0.4, 0, 0.2, 1)",
         };
     const motionStyle = phone
       ? phoneMotion
@@ -380,7 +342,7 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
     }
 
     const artBlur = focus && !still && !reduceBlur && distance > 2 ? 1 : 0;
-    const phoneBlur = !still && !reduceBlur && focus && playing ? fall.blurPx : 0;
+    const phoneBlur = 0;
     const deskBlur = focus && blurLines && playing && distance <= 3 ? Math.min(LINE_BLUR_PX[distance], DESKTOP_BLUR_MAX_PX) : 0;
     const blurPx = phone ? phoneBlur : onArt ? artBlur : deskBlur;
     const filters = [blurPx > 0 ? `blur(${blurPx}px)` : "", !onArt && current && focus && blurLines ? GLOW : ""].filter(Boolean).join(" ");
@@ -393,30 +355,31 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
       : onArt ? (active ? "text-art" : "text-art/[0.45]") : current ? "text-ink-1" : distance <= 2 ? "text-ink-2" : "text-ink-3";
     const subInk = onArt ? "text-art/[0.45]" : "text-ink-2";
     const subClass = phone ? PHONE_SUB_CLASS : onArt ? ART_SUB_CLASS : SUB_CLASS;
-    const phoneEnlarged = phone && active && focus;
     const lineClass = phone
-      ? phoneEnlarged ? PHONE_ACTIVE_CLASS : PHONE_LINE_CLASS
+      ? PHONE_LINE_CLASS
       : onArt ? (active ? ART_ACTIVE_CLASS : ART_LINE_CLASS) : LINE_CLASS;
-    const lineStyle: CSSProperties | undefined = phone && !still ? { transition: `font-size var(--dur-lyric) ${LYRIC_EASE}` } : undefined;
+    const lineStyle: CSSProperties | undefined = undefined;
     const rtl = RTL_SCRIPT.test(line.text);
     const translation = translate ? line.translation : undefined;
     return (
-      <button
+      <motion.button
         key={index}
         ref={active ? activeRef : undefined}
         type="button"
         data-line
         title="Jump here"
         onClick={() => {
-          if (dragged.current || performance.now() - manualAt.current < MANUAL_SCROLL_GUARD_MS) return;
+          if (dragged.current) return;
           endBrowsing();
           seek(Math.max(0, line.time + offset - SEEK_LEAD_IN_S));
         }}
         dir="auto"
         className={`group block w-full text-start ${ink} ${FOCUS_RING}`}
+        animate={phone ? { opacity, scale: still ? 1 : current ? 1 : 0.96 } : undefined}
+        transition={phone ? still ? { opacity: { duration: 0.12 }, scale: { duration: 0 } } : { duration: 0.16, ease: EASE_MOVE } : undefined}
         style={{
-          ...motionStyle,
-          opacity,
+          ...(phone ? {} : motionStyle),
+          opacity: phone ? undefined : opacity,
           filter: filters || undefined,
           transform: phone
             ? undefined
@@ -446,7 +409,7 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
           {roman && <span className={`mt-1 block ${subInk} ${subClass}`}>{roman}</span>}
           {translation && <span className={`mt-1 block ${subInk} ${TRANSLATION_CLASS}`}>{translation}</span>}
         </span>
-      </button>
+      </motion.button>
     );
   };
 
@@ -459,8 +422,17 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
         style={{ maskImage: fadeMask, WebkitMaskImage: fadeMask }}
         onWheel={markBrowsing}
         onTouchMove={markBrowsing}
+        onScroll={() => {
+          if (!browsingRef.current) return;
+          const scroller = scrollerRef.current;
+          const line = activeRef.current;
+          if (!scroller || !line) return;
+          const lineBox = line.getBoundingClientRect();
+          const box = scroller.getBoundingClientRect();
+          if (lineBox.bottom >= box.top - scroller.clientHeight && lineBox.top <= box.bottom + scroller.clientHeight) endBrowsing();
+        }}
         onPointerDown={(event) => {
-          stopGlide(glideRef);
+          glideRef.current?.stop();
           dragged.current = false;
           pressAt.current = { x: event.clientX, y: event.clientY };
         }}
@@ -480,9 +452,9 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
       >
         {!(onArt && fits) && <div style={{ height: "calc(10% + 4px)" }} />}
         <div className={onArt && fits ? "flex min-h-full flex-col justify-center" : undefined}>
-          <div ref={contentRef} className={`flex flex-col ${phone ? "space-y-3.5" : "space-y-5"}`} onKeyDown={moveFocus}>
+          <motion.div ref={contentRef} data-lyrics-follow="" style={{ y: contentY }} className={`flex flex-col ${phone ? "space-y-3.5" : "space-y-5"}`} onKeyDown={moveFocus}>
             {lines.map(renderLine)}
-          </div>
+          </motion.div>
           <SourceCredit source={source} onArt={onArt} />
         </div>
         {!(onArt && fits) && <div style={{ height: `max(12px, calc(${anchor * 100}% - 28px))` }} />}

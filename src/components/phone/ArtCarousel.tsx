@@ -3,7 +3,7 @@ import { AnimatePresence, animate, motion, useMotionValue, useTransform, type An
 import { MusicNote } from "@phosphor-icons/react";
 import { PhoneIcon } from "./PhoneIcon";
 import { thumbArtwork } from "../../lib/artwork";
-import { PHONE_MS, artPauseSpring, coverSnapSpring, fade, gate, phoneSmooth, phoneTween, reducedMotion } from "../../lib/motion";
+import { artPauseSpring, coverSnapSpring, fade, gate, phoneSmooth, phoneTween, reducedMotion } from "../../lib/motion";
 import { haptic } from "../../lib/haptics";
 import { rubberBand } from "../../lib/gesturePhysics";
 import { swipeAxis, trackSwipeChange, type Axis, type TrackChange } from "../../lib/trackSwipe";
@@ -16,7 +16,7 @@ import { viewportHeight, viewportWidth } from "../../lib/viewport";
 import { VelocityTracker } from "../../lib/velocity";
 
 const GAP_PX = 24;
-const COVER_SIZE = "min(88vw, 56vh, 100cqw, max(0px, calc(100cqh - 32px)), 460px)";
+const COVER_SIZE = "min(88vw, 56vh, 100cqw, max(0px, calc(100cqh - 80px)), 460px)";
 const SKIP_PX = 72;
 const DRAG_SHARE = 0.35;
 export const PAUSED_SCALE = 0.86;
@@ -66,7 +66,7 @@ type CoverCustom = { instant: boolean };
 const coverVariants: Variants = {
   initial: ({ instant }: CoverCustom) => (instant ? { opacity: 1 } : { opacity: 0 }),
   animate: { opacity: 1, transition: fade },
-  exit: { opacity: 0, transition: phoneTween(PHONE_MS.artOut) },
+  exit: { opacity: 0, transition: phoneTween(160) },
 };
 
 type FaceProps = { track: Track; clip?: string | null; playing?: boolean; lead?: boolean; radius?: MotionValue<number> };

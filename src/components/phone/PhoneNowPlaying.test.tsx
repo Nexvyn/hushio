@@ -109,6 +109,20 @@ describe("PhoneNowPlaying", () => {
     expect(screen.queryByLabelText(/nudge|timing/i)).toBeNull();
   });
 
+  it("keeps transport and a slim seek bar visible in lyrics", () => {
+    useUI.setState({ phoneLyricsOpen: true });
+    render(<PhoneNowPlaying />);
+    expect(screen.getByRole("group", { name: "Lyrics transport" })).toBeTruthy();
+    expect(screen.getAllByRole("slider", { name: "Seek" })).toHaveLength(2);
+  });
+
+  it("opens Cast discovery in the shared bottom sheet", () => {
+    render(<PhoneNowPlaying />);
+    fireEvent.click(screen.getByRole("button", { name: "Cast" }));
+    expect(screen.getByRole("dialog", { name: "Cast to a device" })).toBeTruthy();
+    expect(screen.getByText("Looking for devices...")).toBeTruthy();
+  });
+
   it("has exactly one more button, in the header", () => {
     render(<PhoneNowPlaying />);
     const more = screen.getAllByRole("button", { name: /more/i });

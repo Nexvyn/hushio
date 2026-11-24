@@ -310,10 +310,10 @@ describe("SyncedLyrics", () => {
     });
     act(() => flushFrames(0));
 
-    expect(scroller.scrollTop).toBe(20);
+    expect(container.querySelector("[data-lyrics-follow]")).toBeTruthy();
   });
 
-  it("glides to the active line on a quartic ease-out curve", () => {
+  it("glides to the active line over 160 ms", () => {
     vi.spyOn(performance, "now").mockReturnValue(1000);
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
       if (this.hasAttribute("data-line")) {
@@ -330,10 +330,10 @@ describe("SyncedLyrics", () => {
       usePlayer.setState({ position: 2.2 });
     });
     act(() => flushFrames(1000));
-    act(() => flushFrames(1300));
-    expect(scroller.scrollTop).toBeCloseTo(20 * (1 - 0.5 ** 4), 5);
-    act(() => flushFrames(1600));
-    expect(scroller.scrollTop).toBeCloseTo(20, 5);
+    act(() => flushFrames(1150));
+    expect(container.querySelector("[data-lyrics-follow]")).toBeTruthy();
+    act(() => flushFrames(1200));
+    expect(scroller.scrollTop).toBe(0);
   });
 
   it("turns off the depth transition when reduce motion is on", () => {
@@ -371,7 +371,7 @@ describe("SyncedLyrics", () => {
     expect(lineButtons().some((button) => button.style.filter.includes("blur"))).toBe(false);
   });
 
-  it("clears focus mode while the list is scrolled by hand and restores it 3 s after the last scroll", () => {
+  it("keeps manual browse active until playback returns within one viewport", () => {
     vi.useFakeTimers();
     const { container } = render(<SyncedLyrics lyrics={lyricsWith(SIX_LINES)} loading={false} />);
     act(() => {
@@ -384,19 +384,11 @@ describe("SyncedLyrics", () => {
     expect(lineButtons()[5].style.opacity).toBe("1");
     expect(lineButtons()[0].style.opacity).toBe("1");
 
-    act(() => {
-      vi.advanceTimersByTime(2900);
-    });
-    fireEvent.wheel(scrollerOf(container));
-    act(() => {
-      vi.advanceTimersByTime(2900);
-    });
+    act(() => { usePlayer.setState({ position: 5.2 }); });
+    fireEvent.scroll(scrollerOf(container));
     expect(lineButtons()[5].style.filter).toBe("");
 
-    act(() => {
-      vi.advanceTimersByTime(200);
-    });
-    expect(lineButtons()[5].style.filter).toBe("blur(2px)");
+    expect(lineButtons()[5].style.filter).toBe("");
   });
 
   it("restores focus mode at once when a line is clicked", () => {
@@ -449,14 +441,11 @@ describe("SyncedLyrics", () => {
     for (const line of lineButtons()) expect(line.style.transform).not.toContain("translate");
   });
 
-  it("ignores a line click within 250 ms of a manual scroll", () => {
+  it("seeks when a line is tapped immediately after manual browsing", () => {
     const now = vi.spyOn(performance, "now").mockReturnValue(1000);
     const { container } = render(<SyncedLyrics lyrics={lyricsWith(FOUR_LINES)} loading={false} />);
     fireEvent.wheel(scrollerOf(container));
-    now.mockReturnValue(1200);
-    fireEvent.click(lineButtons()[1]);
-    expect(seekTo).not.toHaveBeenCalled();
-    now.mockReturnValue(1300);
+    now.mockReturnValue(1001);
     fireEvent.click(lineButtons()[1]);
     expect(seekTo.mock.calls.at(-1)?.[0]).toBeCloseTo(1.85, 5);
   });

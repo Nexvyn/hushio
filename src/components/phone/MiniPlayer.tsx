@@ -321,11 +321,11 @@ export function MiniPlayer() {
           onClick={() => { haptic("tick"); toggle(); }}
           whileTap={pressTap(reduced)}
           transition={phoneSnappy}
-          className={`grid size-11 shrink-0 place-items-center rounded-[15px] bg-ink-1 text-surface ${FOCUS}`}
+          className={`grid size-10 shrink-0 place-items-center rounded-full text-ink-1 ${FOCUS}`}
         >
           <PlayPauseGlyph playing={playing} buffering={buffering} />
         </motion.button>
-        <div aria-hidden="true" className="absolute inset-x-0 bottom-0 h-[2px] overflow-hidden bg-separator">
+        <div aria-hidden="true" className="absolute inset-x-2 bottom-2 h-[2px] overflow-hidden rounded-full bg-separator">
           <motion.div data-progress-fill className="h-full origin-left bg-[rgb(var(--accent))]" style={{ scaleX: played }} />
         </div>
       </motion.div>

@@ -114,8 +114,8 @@ function formatFill([r, g, b]: Rgb): string {
 
 type Layer = { fill: string };
 
-function FlatLayer({ fill, animate }: { fill: string; animate: boolean }) {
-  return <div className={`absolute inset-0 ${animate ? "bt-ambient-in" : ""}`} style={{ backgroundColor: fill }} />;
+function FlatLayer({ fill, animate, opacity = 1 }: { fill: string; animate: boolean; opacity?: number }) {
+  return <div className={`absolute inset-0 ${animate ? "bt-ambient-in" : ""}`} style={{ backgroundColor: fill, opacity }} />;
 }
 
 type AmbientBackdropProps = {
@@ -123,9 +123,10 @@ type AmbientBackdropProps = {
   src?: string;
   variant?: AmbientVariant;
   className?: string;
+  lightOpacity?: number;
 };
 
-export function AmbientBackdrop({ primary, src = "", variant = "full", className = "" }: AmbientBackdropProps) {
+export function AmbientBackdrop({ primary, src = "", variant = "full", className = "", lightOpacity = 1 }: AmbientBackdropProps) {
   const reduced = reducedMotion();
   const light = isLightTheme();
   const fill = src ? flatFillFor(primary, light) : formatFill(light ? LIGHT_NEUTRAL : DARK_NEUTRAL);
@@ -159,8 +160,8 @@ export function AmbientBackdrop({ primary, src = "", variant = "full", className
       className={`pointer-events-none isolate overflow-hidden ${VARIANT_CLASS[variant]} ${className}`}
       style={{ maskImage: mask, WebkitMaskImage: mask }}
     >
-      {stack.previous && <FlatLayer key={`p-${stack.id}`} fill={stack.previous.fill} animate={false} />}
-      <FlatLayer key={stack.id} fill={stack.current.fill} animate={crossFade} />
+      {stack.previous && <FlatLayer key={`p-${stack.id}`} fill={stack.previous.fill} animate={false} opacity={light ? lightOpacity : 1} />}
+      <FlatLayer key={stack.id} fill={stack.current.fill} animate={crossFade} opacity={light ? lightOpacity : 1} />
     </div>
   );
 }

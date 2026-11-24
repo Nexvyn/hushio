@@ -15,6 +15,7 @@ import type { ToggleKind } from "../../lib/toggleMotion";
 import { sheetReleaseCloses, useSheetDrag } from "./useSheetDrag";
 import { coverFlight, coverRadiusOf, glideSheet, heldBox, measureCover, measureMini, measureMiniBar, measureWithin, mountSheet, nowPlayingDriver, sheetClipOf, sheetProgress, sheetY, titleFadeOf, travelPx, unmountSheet, type Box, type Bounds, type Geometry } from "./sheetTravel";
 import { PhoneQueueList } from "./PhoneQueueSheet";
+import { Sheet } from "./Sheet";
 import { PANEL_TRAVEL_SHARE, lyricsHintVisible, panelGestureMode, panelReleaseTarget, scrollHoldsDrag, type PanelKind, type PanelMode } from "./nowPlayingPanel";
 import { useTrackLyrics } from "../../lib/useTrackLyrics";
 import { haptic } from "../../lib/haptics";
@@ -27,7 +28,7 @@ import { viewportHeight, viewportWidth } from "../../lib/viewport";
 import { VelocityTracker } from "../../lib/velocity";
 import { useHeldPalette } from "./useHeldPalette";
 import { OnArtContext } from "../../lib/onArt";
-import { DURATION_MS, MARQUEE, PHONE_MS, QUEUE_EASE, fade, gate, phoneSmooth, phoneSnappy, phoneTween, pressTap, reducedMotion, scrubSpring } from "../../lib/motion";
+import { DURATION_MS, MARQUEE, PHONE_MS, QUEUE_EASE, fade, gate, phoneSnappy, phoneTween, pressTap, reducedMotion, scrubSpring } from "../../lib/motion";
 import { INSET_BOTTOM, INSET_TOP } from "../../lib/phoneNav";
 import { songOf, trackMenuItems } from "../../lib/trackActions";
 import { neighbourTracks, swipeAxis, type Axis } from "../../lib/trackSwipe";
@@ -256,7 +257,7 @@ function LyricsHint({ visible, onOpen }: { visible: boolean; onOpen: () => void 
   );
 }
 
-function SeekBar({ current }: { current: Track | null }) {
+function SeekBar({ current, slim = false }: { current: Track | null; slim?: boolean }) {
   const position = usePlayer((state) => state.position);
   const duration = usePlayer((state) => state.duration);
   const seek = usePlayer((state) => state.seek);
@@ -318,7 +319,7 @@ function SeekBar({ current }: { current: Track | null }) {
   const fillTone = onArt ? "bg-art/[0.92]" : "bg-ink-1";
 
   return (
-    <div className="shrink-0">
+    <div className={slim ? "shrink-0" : "shrink-0"}>
       <div
         ref={track}
         role="slider"
@@ -350,10 +351,10 @@ function SeekBar({ current }: { current: Track | null }) {
           />
         </motion.div>
       </div>
-      <div className={`mt-1 flex justify-between text-meta leading-4 tabular-nums ${onArt ? "text-art/[0.72]" : "text-ink-2"}`}>
+      {!slim && <div className={`mt-1 flex justify-between text-meta leading-4 tabular-nums ${onArt ? "text-art/[0.72]" : "text-ink-2"}`}>
         <span>{fmtTime(shown * max)}</span>
         <span>{max > 0 ? fmtTime(max) : "--:--"}</span>
-      </div>
+      </div>}
     </div>
   );
 }
@@ -392,6 +393,7 @@ function NowPlayingSheet() {
   const playingFrom = usePlayer((state) => state.playingFrom);
   const sheet = useRef<HTMLElement>(null);
   const [panelKind, setPanelKind] = useState<PanelKind | null>(null);
+  const [castSheetOpen, setCastSheetOpen] = useState(false);
   const drag = useSheetDrag(closeNowPlaying, () => "grab", nowPlayingDriver);
   const geometry = useRef<Geometry | null>(null);
   const clipBounds = useRef<Bounds | null>(null);
@@ -662,7 +664,7 @@ function NowPlayingSheet() {
       className={`fixed inset-0 z-40 overflow-hidden text-ink-1 will-change-[clip-path,opacity] ${present ? "" : "pointer-events-none"}`}
     >
       <motion.div aria-hidden="true" className="absolute inset-0 overflow-hidden bg-base">
-        {onArt && <AmbientBackdrop primary={palette.primary} src={paletteSrc} className="absolute inset-0" />}
+        {onArt && <AmbientBackdrop primary={palette.primary} src={paletteSrc} className="absolute inset-0" lightOpacity={0.08} />}
       </motion.div>
       <OnArtContext.Provider value={onArt}>
         <div data-sheet-body className="relative z-10 flex h-full flex-col" style={{ paddingTop: INSET_TOP, paddingBottom: INSET_BOTTOM }}>
@@ -694,7 +696,7 @@ function NowPlayingSheet() {
                 {...artHandlers}
               >
                 <div className="flex h-full w-full min-h-0 flex-col">
-                  <div className="min-h-[16px] flex-1" />
+                  <div className="h-6 shrink-0" />
                   <div className="relative shrink-0" {...coverGestures.handlers}>
                     <ArtCarousel
                       current={track}
@@ -706,7 +708,7 @@ function NowPlayingSheet() {
                     />
                     <CoverLikeBurst count={coverGestures.burst} />
                   </div>
-                  <div className="min-h-[16px] flex-1" />
+                  <div className="h-6 shrink-0" />
                 </div>
               </motion.div>
             </div>
@@ -719,10 +721,10 @@ function NowPlayingSheet() {
                     <motion.div
                       key={track?.id ?? "none"}
                       className="col-start-1 row-start-1 min-w-0"
-                      initial={reduced ? { opacity: 0 } : { opacity: 0, x: 24 }}
-                      animate={reduced ? { opacity: 1 } : { opacity: 1, x: 0 }}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      transition={reduced ? fade : phoneSmooth}
+                      transition={reduced ? fade : phoneTween(160)}
                     >
                       <p className="block">
                         <Marquee
@@ -814,7 +816,7 @@ function NowPlayingSheet() {
               </div>
 
               <div className={`mt-4 flex items-center justify-between pb-2 ${ROW}`}>
-                <Control label="Cast" icon={Screencast} size={48} strong disabled={empty} onClick={() => void castFromNowPlaying()} />
+                <Control label="Cast" icon={Screencast} size={48} strong disabled={empty} onClick={() => setCastSheetOpen(true)} />
                 <LyricsHint visible={hintVisible} onOpen={() => openPanelKind("lyrics")} />
                 <Control label="Queue" icon={Queue} size={48} strong onClick={() => openPanelKind("queue")} />
               </div>
@@ -834,6 +836,16 @@ function NowPlayingSheet() {
               {panelKind === "lyrics" ? (
                 <motion.div className="flex min-h-0 flex-1 flex-col px-6 will-change-transform" style={{ y: panelListY }} {...artHandlers}>
                   <PhoneLyrics />
+                  <div className="shrink-0 border-t border-separator/50 pb-2 pt-1">
+                    <SeekBar current={track} slim />
+                    <div role="group" aria-label="Lyrics transport" className="flex h-12 items-center justify-center gap-8">
+                      <Control label="Previous" icon={SkipBack} size={44} disabled={empty} onClick={() => prev()} />
+                      <motion.button type="button" aria-label={playLabel} onClick={() => toggle()} whileTap={empty ? undefined : pressTap(reduced)} transition={phoneSnappy} className={`grid size-11 place-items-center rounded-full bg-ink-1 text-surface ${FOCUS}`}>
+                        <PlayPauseGlyph playing={playing} buffering={buffering} />
+                      </motion.button>
+                      <Control label="Next" icon={SkipForward} size={44} disabled={empty} onClick={() => next(true)} />
+                    </div>
+                  </div>
                 </motion.div>
               ) : (
                 <motion.div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 will-change-transform" style={{ y: panelListY }}>
@@ -841,6 +853,18 @@ function NowPlayingSheet() {
                 </motion.div>
               )}
             </motion.div>
+            <AnimatePresence>
+              {castSheetOpen && (
+                <Sheet label="Cast to a device" onClose={() => setCastSheetOpen(false)} height="240px" header={<div className="flex h-12 items-center text-section font-semibold">Cast to a device</div>}>
+                  <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+                    <PhoneIcon icon={Screencast} size={24} />
+                    <p className="text-body font-medium">Looking for devices...</p>
+                    <p className="text-meta text-ink-2">Keep your phone and Cast device on the same Wi-Fi network.</p>
+                    <button type="button" className="mt-2 min-h-11 px-4 text-body font-medium text-ink-1" onClick={() => void castFromNowPlaying()}>Open device picker</button>
+                  </div>
+                </Sheet>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </OnArtContext.Provider>
