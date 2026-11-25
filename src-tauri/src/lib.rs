@@ -260,25 +260,6 @@ async fn lyrics_get(
 }
 
 #[tauri::command]
-async fn lyrics_search(
-    state: State<'_, lyrics::Service>,
-    query: String,
-    duration: Option<f64>,
-) -> Result<Vec<lyrics::LyricsCandidate>, String> {
-    state.search(&query, duration).await
-}
-
-#[tauri::command]
-async fn lyrics_pick(
-    state: State<'_, lyrics::Service>,
-    song_id: String,
-    provider: String,
-    candidate_id: String,
-) -> Result<lyrics::LyricsResult, String> {
-    state.pick(&song_id, &provider, &candidate_id).await
-}
-
-#[tauri::command]
 async fn lyrics_reset(state: State<'_, lyrics::Service>, song_id: String) -> Result<(), String> {
     state.reset(&song_id).await;
     Ok(())
@@ -743,7 +724,6 @@ pub fn run() {
         builder = builder.plugin(plugin);
     }
     let app = builder
-        .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
@@ -931,8 +911,6 @@ pub fn run() {
             #[cfg(desktop)]
             playback::desktop_playback_available,
             lyrics_get,
-            lyrics_search,
-            lyrics_pick,
             lyrics_reset,
             track_analysis,
             download_start,

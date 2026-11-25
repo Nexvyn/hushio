@@ -23,7 +23,7 @@ const SHELF_ITEM_MAX = 24;
 const SHELF_MIN_ITEMS = 3;
 const FALLBACK_TITLE = "For you";
 const SEPARATOR = " • ";
-const TYPE_WORDS = new Set(["song", "video", "episode", "album", "single", "ep", "artist", "playlist", "podcast"]);
+const TYPE_WORDS = new Set(["song", "video", "episode", "album", "single", "ep", "artist", "playlist"]);
 
 export type HomeItem =
   | { kind: "track"; track: Track }

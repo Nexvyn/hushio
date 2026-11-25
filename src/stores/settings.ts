@@ -8,10 +8,11 @@ import { DEFAULT_FONT, isAppFont, type AppFontId } from "../lib/fonts";
 import { applyTheme, type ThemeMode } from "../lib/theme";
 import { parseAddonSources } from "../lib/addons/registry";
 import type { AddonSource } from "../lib/addons/types";
-import { DEFAULT_IMAGE_CACHE_MB } from "../lib/cacheStats";
 import type { LanguageSetting } from "../lib/i18n";
 import { ZOOM_STEPS } from "../lib/zoom";
 import type { LibrarySort } from "../lib/librarySort";
+
+const DEFAULT_IMAGE_CACHE_MB = 256;
 
 export const DEVICE_SETTINGS_KEYS = [
   "downloadDir",

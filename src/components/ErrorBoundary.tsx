@@ -53,7 +53,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             Something went wrong
           </h1>
           <p className="mb-1.5 text-sm text-ink-2">
-            Hushio hit an unexpected error. Your library is safe — reloading usually fixes it.
+            Hushio hit an unexpected error. Your library is safe. Reloading usually fixes it.
           </p>
           <details className="mt-4 text-left">
             <summary className="cursor-pointer select-none text-xs text-ink-2 transition-colors hover:text-ink-1">

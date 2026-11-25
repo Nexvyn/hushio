@@ -14,7 +14,6 @@
     "core:window:allow-close",
     "core:webview:allow-set-webview-zoom",
     "opener:default",
-    "store:default",
     "process:allow-restart",
     "clipboard-manager:allow-write-image",
     "hushio-player:default",

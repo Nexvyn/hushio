@@ -98,7 +98,6 @@ export async function typeAhead(query: string): Promise<SuggestionRow[]> {
   if (!q) return [];
   const cached = peekTypeAhead(q);
   if (cached) return cached;
-  // Show completions immediately; a full search is only a fallback.
   const items = await getSuggestions(q).catch(() => null);
   let rows = items ?? [];
   if (rows.length === 0) {
