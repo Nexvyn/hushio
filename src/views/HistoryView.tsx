@@ -184,7 +184,7 @@ export function HistoryView() {
       {phone ? (
         <>
           <PhoneHeader title="History" meta={facts} onBack={backToLibrary} />
-          <div className="flex">{playButton(`${PHONE_PLAY} !flex-none px-6`)}</div>
+          {!none && <div className="flex">{playButton(`${PHONE_PLAY} !flex-none px-6`)}</div>}
         </>
       ) : (
         <CollectionHero
@@ -212,9 +212,11 @@ export function HistoryView() {
         )}
         {none && (
           <EmptyState
+            centered={phone}
             icon={ClockCounterClockwise}
             title="No listening history yet"
             message="Songs you play show up here. Turn history off under Settings, Your data, to stop recording."
+            action={phone ? { label: "Find songs", onClick: () => useNavigation.getState().navigate({ name: "search" }) } : undefined}
           />
         )}
         {groups.map((group) => (

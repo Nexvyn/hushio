@@ -205,18 +205,17 @@ describe("SearchView on the phone", () => {
     expect(screen.queryByRole("button", { name: "Charts" })).toBeNull();
   });
 
-  it("selects the existing text when the field is tapped so typing replaces it", () => {
+  it("leaves the caret where the user tapped instead of selecting the query", () => {
     useUI.setState({ searchQuery: "arijit" });
     render(<SearchView />);
 
     const field = screen.getByRole("combobox", { name: "Search" }) as HTMLInputElement;
     act(() => field.focus());
 
-    expect(field.selectionStart).toBe(0);
-    expect(field.selectionEnd).toBe("arijit".length);
+    expect(field.selectionStart).toBe(field.selectionEnd);
   });
 
-  it("Cancel restores the previous query, blurs the field and brings the results back", async () => {
+  it("tapping outside blurs the field and keeps the typed query, with no Cancel button", async () => {
     cachedSearchPage.mockResolvedValue({ rows: [{ kind: "track", track: song("s1", "Physical") }] as SearchRow[], continuation: null });
     useUI.setState({ searchQuery: "arijit" });
     const user = userEvent.setup();
@@ -225,11 +224,12 @@ describe("SearchView on the phone", () => {
     const field = screen.getByRole("combobox", { name: "Search" });
     act(() => field.focus());
     await user.keyboard("zz");
-    expect(useUI.getState().searchQuery).toBe("zz");
+    expect(useUI.getState().searchQuery).toBe("arijitzz");
 
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
+    document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
 
-    expect(useUI.getState().searchQuery).toBe("arijit");
+    expect(useUI.getState().searchQuery).toBe("arijitzz");
     expect(useUI.getState().searchFocused).toBe(false);
     expect(document.activeElement).not.toBe(field);
     expect(await screen.findByRole("button", { name: /^Physical/ }, { timeout: 2000 })).toBeTruthy();

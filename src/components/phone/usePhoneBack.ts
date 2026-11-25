@@ -14,6 +14,10 @@ export function usePhoneBack(enabled = true) {
 
     const onBack = () => {
       const ui = useUI.getState();
+      if (ui.searchFocused) {
+        document.getElementById("phone-search")?.blur();
+        return;
+      }
       const nav = useNavigation.getState();
       const now = Date.now();
       const action = resolveBack({

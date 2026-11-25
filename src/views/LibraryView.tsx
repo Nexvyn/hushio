@@ -10,7 +10,6 @@ import { PhoneSectionHeader } from "../components/phone/PhoneShelf";
 import { CollectionHero } from "../components/CollectionHero";
 import { PhoneHeader } from "../components/phone/PhoneHeader";
 import { PhoneProfileButton } from "../components/phone/PhoneProfileButton";
-import { PHONE_HEADER_ICON } from "../components/phone/heroButtons";
 import { SectionHeader } from "../components/SectionHeader";
 import { CoverStack, STACK_GRID } from "../components/CoverStack";
 import { EmptyState } from "../components/EmptyState";
@@ -226,7 +225,6 @@ export function LibraryView() {
   const grid = phone ? "grid grid-cols-1" : "-mx-2 grid grid-cols-[repeat(auto-fill,minmax(232px,1fr))] gap-1";
 
   if (phone) {
-    const createItems = createMenuItems();
     const unfiledSorted = pinnedFirst(unfiled, (playlist) => playlist.pinned);
     const phoneCollections = collections.filter((collection) => collection.key !== "playlists");
     const phoneSubtitle = (collection: Collection) => {
@@ -315,12 +313,7 @@ export function LibraryView() {
       <div>
         <PhoneHeader
           title={t("library.title")}
-          actions={
-            <>
-              <ActionMenu items={createItems} label="Create" icon={Plus} triggerClass={PHONE_HEADER_ICON} phoneIcon />
-              <PhoneProfileButton />
-            </>
-          }
+          actions={<PhoneProfileButton />}
         />
 
         {renderEntries([...collectionEntries, importEntry])}

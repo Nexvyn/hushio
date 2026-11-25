@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, useTransform } from "motion/react";
 import { PageHeader } from "../components/PageHeader";
 import { Cover, focusRing } from "../components/HomeShelves";
@@ -12,7 +12,7 @@ import { marketValue } from "../lib/market";
 import type { Market } from "../lib/innertube";
 import { PhoneArt } from "../components/phone/PhoneArt";
 import { PhoneProfileButton } from "../components/phone/PhoneProfileButton";
-import { PhoneSectionHeader, PhoneShelfCard, PhoneShelfRow } from "../components/phone/PhoneShelf";
+import { PhoneSectionHeader, PhoneShelfCard } from "../components/phone/PhoneShelf";
 import { PhoneSongRow } from "../components/phone/PhoneTrackRow";
 import { useFirstLoadStagger } from "../components/phone/useFirstLoadStagger";
 import { PullIndicator } from "../components/phone/PullIndicator";
@@ -40,6 +40,22 @@ function marketKey(market: Market): string {
 
 export function clearChartsCache() {
   chartsCache = null;
+}
+
+function matchesQuery(query: string, ...fields: string[]): boolean {
+  return fields.some((field) => field.toLowerCase().includes(query));
+}
+
+function filterShelves(shelves: ChartShelf[], filter: string): ChartShelf[] {
+  const query = filter.trim().toLowerCase();
+  if (!query) return shelves;
+  return shelves
+    .map((shelf) => ({
+      ...shelf,
+      songs: shelf.songs.filter((song) => matchesQuery(query, song.title, song.artist)),
+      albums: shelf.albums.filter((album) => matchesQuery(query, album.title, album.artist)),
+    }))
+    .filter((shelf) => shelf.songs.length > 0 || shelf.albums.length > 0);
 }
 
 function AlbumCard({ album }: { album: ChartShelf["albums"][number] }) {
@@ -107,7 +123,7 @@ function PhoneChartShelf({ shelf }: { shelf: ChartShelf }) {
         </ol>
       )}
       {shelf.albums.length > 0 && (
-        <PhoneShelfRow>
+        <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-4">
           {shelf.albums.map((album) => (
             <PhoneShelfCard
               key={album.id}
@@ -118,7 +134,7 @@ function PhoneChartShelf({ shelf }: { shelf: ChartShelf }) {
               onActivate={() => navigate({ name: "album", param: album.id })}
             />
           ))}
-        </PhoneShelfRow>
+      </div>
       )}
     </section>
   );
@@ -148,7 +164,7 @@ function Shelf({ shelf }: { shelf: ChartShelf }) {
         </ol>
       )}
       {shelf.albums.length > 0 && (
-        <div className="no-scrollbar shelf-row mt-3 flex items-start gap-3 overflow-x-auto pb-3">
+        <div className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-x-4 gap-y-6 pb-3">
           {shelf.albums.map((album) => (
             <AlbumCard key={album.id} album={album} />
           ))}
@@ -166,6 +182,8 @@ export function ChartsView() {
   const [shelves, setShelves] = useState<ChartShelf[]>(cached?.shelves ?? []);
   const [status, setStatus] = useState<LoadStatus>(cached ? "loaded" : "loading");
   const [attempt, setAttempt] = useState(0);
+  const [filter, setFilter] = useState("");
+  const visible = useMemo(() => filterShelves(shelves, filter), [shelves, filter]);
   const refresh = () => {
     chartsCache = null;
     setAttempt((count) => count + 1);
@@ -199,6 +217,18 @@ export function ChartsView() {
       {phone && <PullIndicator distance={pull.distance} spinning={pull.refreshing} />}
       <motion.div style={phone ? { y: pull.distance, willChange: pullWillChange } : undefined}>
       <PageHeader title={phone ? "Hotlist" : "Charts"} meta={phone ? undefined : "What's playing everywhere"} actions={phone ? <PhoneProfileButton /> : undefined} />
+      <div className="mt-5">
+        <input
+          type="search"
+          aria-label="Filter charts"
+          placeholder="Filter charts"
+          value={filter}
+          onChange={(event) => setFilter(event.target.value)}
+          spellCheck={false}
+          autoComplete="off"
+          className="h-11 w-full rounded-[12px] bg-wash px-4 text-body text-ink-1 placeholder:text-ink-3 motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus [&::-webkit-search-cancel-button]:appearance-none"
+        />
+      </div>
       <SkeletonSwap
         loading={status === "loading" && shelves.length === 0}
         skeleton={
@@ -209,9 +239,14 @@ export function ChartsView() {
           </div>
         }
       >
-        {shelves.map((shelf, index) => (
+        {visible.map((shelf, index) => (
           <Shelf key={`${shelf.title}-${index}`} shelf={shelf} />
         ))}
+        {filter.trim() && shelves.length > 0 && visible.length === 0 && (
+          <div className="mt-6">
+            <EmptyState title={`No charts match “${filter.trim()}”`} message="Try another song or artist." />
+          </div>
+        )}
       </SkeletonSwap>
       {status === "failed" && shelves.length === 0 && (
         <div className="mt-6">

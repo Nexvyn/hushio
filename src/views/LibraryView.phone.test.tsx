@@ -53,7 +53,7 @@ describe("Library on phone", () => {
   it("shows a Library title with Create and the profile button, and no stats line", () => {
     render(<LibraryView />);
     expect(screen.getByRole("heading", { level: 1, name: "Library" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Create" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Create" })).toBeNull();
     expect(screen.getByRole("button", { name: "Profile and settings" })).toBeTruthy();
     expect(screen.queryByText(/playlists · .* folders/)).toBeNull();
   });

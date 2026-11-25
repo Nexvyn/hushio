@@ -9,9 +9,6 @@ import type { SuggestionRow } from "../../lib/searchParse";
 import { useRecents } from "../../stores/recents";
 import { useUI } from "../../stores/ui";
 
-const ICON_BUTTON =
-  "absolute top-0 z-10 grid h-12 w-12 place-items-center rounded-full text-ink-2 motion-safe:transition-colors hover:text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-[var(--disabled-opacity)]";
-
 const RECENT_LIMIT = 6;
 
 export function PhoneSearchField({ suggest = true }: { suggest?: boolean }) {
@@ -21,8 +18,8 @@ export function PhoneSearchField({ suggest = true }: { suggest?: boolean }) {
   const setFocused = useUI((state) => state.setSearchFocused);
   const recents = useRecents((state) => state.searches);
   const listId = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const startQuery = useRef("");
   const [activeIndex, setActiveIndex] = useState(-1);
   const typed = query.trim();
   const typeRows = useTypeAhead(query, focused && suggest);
@@ -31,6 +28,15 @@ export function PhoneSearchField({ suggest = true }: { suggest?: boolean }) {
   const open = focused && suggest && (typed.length > 0 || rows.length > 0);
 
   useEffect(() => () => setFocused(false), [setFocused]);
+
+  useEffect(() => {
+    if (!focused) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) inputRef.current?.blur();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [focused]);
 
   const close = () => {
     setFocused(false);
@@ -45,11 +51,6 @@ export function PhoneSearchField({ suggest = true }: { suggest?: boolean }) {
 
   const submitTyped = () => {
     if (typed) submitSearch(query);
-    close();
-  };
-
-  const cancel = () => {
-    setSearchQuery(startQuery.current);
     close();
   };
 
@@ -78,65 +79,54 @@ export function PhoneSearchField({ suggest = true }: { suggest?: boolean }) {
   };
 
   return (
-    <>
-      <div
-        className="sticky z-20 -mx-4 flex items-center gap-2 bg-base px-4 py-2"
-        style={{ top: INSET_TOP }}
-      >
-        <div className="relative min-w-0 flex-1">
-          <span aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-10 grid h-12 w-12 place-items-center text-ink-2">
-            <PhoneIcon icon={MagnifyingGlass} />
-          </span>
-          <input
-            ref={inputRef}
-            id="phone-search"
-            type="search"
-            role="combobox"
-            aria-expanded={open}
-            aria-label="Search"
-            aria-controls={open ? listId : undefined}
-            aria-activedescendant={open && activeIndex >= 0 ? optionId(listId, activeIndex) : undefined}
-            aria-autocomplete="list"
-            inputMode="search"
-            enterKeyHint="search"
-            placeholder="What do you want to play?"
-            maxLength={200}
-            spellCheck={false}
-            autoComplete="off"
-            autoCapitalize="off"
-            value={query}
-            onChange={(event) => {
-              setSearchQuery(event.target.value);
-              setActiveIndex(-1);
-            }}
-            onFocus={(event) => {
-              startQuery.current = query;
-              setFocused(true);
-              event.currentTarget.select();
-            }}
-            onBlur={() => {
-              setFocused(false);
-              setActiveIndex(-1);
-            }}
-            onKeyDown={onKeyDown}
-            className={`h-10 w-full rounded-field border-0 bg-wash pl-12 text-[16px] text-ink-1 placeholder:text-ink-3 motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus [&::-webkit-search-cancel-button]:appearance-none pr-12`}
-          />
-          {query && (
-            <button type="button" aria-label="Clear search" title="Clear search" onClick={clear} className={`${ICON_BUTTON} right-0`}>
-              <PhoneIcon icon={X} />
-            </button>
-          )}
-        </div>
-        {focused && (
+    <div ref={rootRef}>
+      <div className="sticky z-20 -mx-4 bg-base px-4 py-2" style={{ top: INSET_TOP }}>
+      <div className="relative">
+        <span aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-ink-2">
+          <PhoneIcon icon={MagnifyingGlass} />
+        </span>
+        <input
+          ref={inputRef}
+          id="phone-search"
+          type="search"
+          role="combobox"
+          aria-expanded={open}
+          aria-label="Search"
+          aria-controls={open ? listId : undefined}
+          aria-activedescendant={open && activeIndex >= 0 ? optionId(listId, activeIndex) : undefined}
+          aria-autocomplete="list"
+          inputMode="search"
+          enterKeyHint="search"
+          placeholder="What do you want to play?"
+          maxLength={200}
+          spellCheck={false}
+          autoComplete="off"
+          autoCapitalize="off"
+          value={query}
+          onChange={(event) => {
+            setSearchQuery(event.target.value);
+            setActiveIndex(-1);
+          }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => {
+            setFocused(false);
+            setActiveIndex(-1);
+          }}
+          onKeyDown={onKeyDown}
+          className="h-11 w-full rounded-field border-0 bg-wash pl-12 pr-12 text-[16px] text-ink-1 placeholder:text-ink-2 motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus [&::-webkit-search-cancel-button]:appearance-none"
+        />
+        {query && (
           <button
             type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={cancel}
-            className="h-11 shrink-0 rounded-field px-2 text-body font-medium text-ink-1 animate-fade-in motion-safe:transition-[color,transform] active:scale-[0.97] hover:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            aria-label="Clear search"
+            title="Clear search"
+            onClick={clear}
+            className="absolute right-1.5 top-1/2 z-10 grid size-11 -translate-y-1/2 place-items-center rounded-full text-ink-2 hover:text-ink-1 motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
-            Cancel
+            <PhoneIcon icon={X} />
           </button>
         )}
+      </div>
       </div>
       <AnimatePresence>
         {open && (
@@ -156,6 +146,6 @@ export function PhoneSearchField({ suggest = true }: { suggest?: boolean }) {
           />
         )}
       </AnimatePresence>
-    </>
+    </div>
   );
 }

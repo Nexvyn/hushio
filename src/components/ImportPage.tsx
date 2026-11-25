@@ -1,4 +1,4 @@
-import { Archive, ClipboardText } from "@phosphor-icons/react";
+import { Archive } from "@phosphor-icons/react";
 import { AnimatePresence } from "motion/react";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { PageHeader } from "./PageHeader";
@@ -55,7 +55,7 @@ function ActionRow({ glyph, title, description, action }: ActionRowProps) {
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
     >
-      <span className="relative grid w-6 shrink-0 place-items-center text-accent">{glyph(!phone && hovered)}</span>
+      <span className="relative grid w-6 shrink-0 place-items-center text-ink-2">{glyph(!phone && hovered)}</span>
       <div className="min-w-0 flex-1">
         <h3 className="text-body font-medium text-ink-1">{title}</h3>
         <p className="truncate text-meta text-ink-2">{description}</p>
@@ -160,35 +160,28 @@ export function ImportPage() {
 
   const pasteForm = (
     <form onSubmit={onSubmit}>
-      <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-[11px] text-ink-2">
-          {phone ? <PhoneIcon icon={ClipboardText} /> : <Icon icon={ClipboardText} />}
-        </span>
-        <label htmlFor={labelId} className="sr-only">
-          Playlist or songs
-        </label>
-        <textarea
-          id={labelId}
-          ref={field}
-          rows={1}
-          aria-describedby={hintId}
-          value={text}
-          spellCheck={false}
-          autoComplete="off"
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="Paste a playlist link or a list of songs"
-          className="block w-full resize-none rounded-[10px] border border-separator bg-surface py-2.5 pl-10 pr-3 text-body leading-relaxed text-ink-1 placeholder:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-        />
-      </div>
+      <label htmlFor={labelId} className="sr-only">
+        Playlist or songs
+      </label>
+      <textarea
+        id={labelId}
+        ref={field}
+        rows={1}
+        aria-describedby={hintId}
+        value={text}
+        spellCheck={false}
+        autoComplete="off"
+        onChange={(event) => setText(event.target.value)}
+        onKeyDown={onKeyDown}
+        placeholder="Paste a playlist link or a list of songs"
+        className="block w-full resize-none rounded-[12px] bg-wash px-4 py-3 text-body leading-relaxed text-ink-1 placeholder:text-ink-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+      />
       <p id={hintId} className="mt-2 text-meta text-ink-2">
         Spotify or Apple Music links, or one song per line as Artist - Title. Up to 5000 songs.
       </p>
-      <div className="mt-4 flex justify-end">
-        <ImportButton type="submit" disabled={!text.trim() || busy}>
-          {busy ? "Reading…" : "Import"}
-        </ImportButton>
-      </div>
+      <ImportButton type="submit" className="mt-4 w-full" disabled={!text.trim() || busy}>
+        {busy ? "Reading…" : "Import"}
+      </ImportButton>
     </form>
   );
 

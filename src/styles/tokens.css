@@ -30,9 +30,9 @@
   --edge-a: 0;
   --tint-a: 0.10;
 
-  --accent: 255 107 74;
+  --accent: 124 155 255;
   --on-accent: 28 28 30;
-  --primary: 255 107 74;
+  --primary: 124 155 255;
   --on-primary: 28 28 30;
   --on-danger: 255 255 255;
   --on-scrim: 255 255 255;
@@ -87,9 +87,9 @@
   --edge-a: 0;
   --tint-a: 0.08;
 
-  --accent: 213 65 32;
+  --accent: 58 91 217;
   --on-accent: 255 255 255;
-  --primary: 213 65 32;
+  --primary: 58 91 217;
   --on-primary: 255 255 255;
   --on-danger: 255 255 255;
   --on-scrim: 255 255 255;
@@ -139,9 +139,9 @@
     --edge-a: 0;
     --tint-a: 0.08;
 
-    --accent: 213 65 32;
+    --accent: 58 91 217;
     --on-accent: 255 255 255;
-    --primary: 213 65 32;
+    --primary: 58 91 217;
     --on-primary: 255 255 255;
     --on-danger: 255 255 255;
     --on-scrim: 255 255 255;

@@ -591,15 +591,24 @@ export function SearchView() {
   const addonSources = useSettings((state) => state.addonSources);
   const addonsOn = addonsAvailable(addonSources);
   const [picked, setScope] = useState<SearchScope>("online");
-  const scope: SearchScope = picked === "addons" && !addonsOn ? "online" : picked;
+  const scope: SearchScope = phone || (picked === "addons" && !addonsOn) ? "online" : picked;
   const online = scope === "online";
   const { results, sentinel, retry, loadMore } = useSearchResults(online ? settled : "", filter);
   const jiosaavnOn = useSettings((state) => state.jiosaavnEnabled);
   const jiosaavnSongs = useJioSaavnSongs(online ? settled : "", jiosaavnOn && (filter === "all" || filter === "songs"));
   const jiosaavnRows: SearchRow[] = jiosaavnSongs.map((track) => ({ kind: "track", track }));
+  const localTracks = useLocalLibrary((state) => state.library.tracks);
+  const addonState = useAddonSongs(phone && addonsOn ? settled : "", addonSources);
+  const phoneSongFilter = filter === "all" || filter === "songs";
+  const localRows: SearchRow[] = phone && phoneSongFilter
+    ? deviceSongs(localTracks, settled).map((track) => ({ kind: "track", track }))
+    : [];
+  const addonRows: SearchRow[] = phone && phoneSongFilter && addonState.status === "ready"
+    ? addonState.songs.map((track) => ({ kind: "track", track }))
+    : [];
   const scopes: SearchScope[] = addonsOn ? ["online", "device", "addons"] : ["online", "device"];
-  const scopeBar = (
-    <div className={phone ? "mt-3" : undefined}>
+  const scopeBar = phone ? null : (
+    <div>
       <ScopeControl scope={scope} scopes={scopes} onPick={setScope} phone={phone} />
     </div>
   );
@@ -651,6 +660,8 @@ export function SearchView() {
   const sections = [
     ...searchSections(top.rest, filter),
     ...(jiosaavnRows.length > 0 ? [{ title: "JioSaavn", rows: jiosaavnRows }] : []),
+    ...(localRows.length > 0 ? [{ title: "On this device", rows: localRows }] : []),
+    ...(addonRows.length > 0 ? [{ title: "Add-ons", rows: addonRows }] : []),
   ];
   const loading = trimmed !== settled || results.key !== `${filter}:${settled}` || results.status === "loading" || results.status === "idle";
   const announcement = loading
@@ -700,7 +711,7 @@ export function SearchView() {
           message="Search is unavailable. Check your connection and try again. If other pages work, the music service may be temporarily unavailable."
           action={{ label: "Try again", onClick: retry }}
         />
-      ) : results.rows.length === 0 && jiosaavnRows.length === 0 ? (
+      ) : results.rows.length === 0 && jiosaavnRows.length === 0 && localRows.length === 0 && addonRows.length === 0 ? (
         <EmptyState icon={MagnifyingGlass} title={`No results for “${settled}”`} message="Check the spelling or try another keyword." />
       ) : (
         <div className={phone ? "animate-fade-in space-y-7" : "animate-fade-in space-y-8"}>

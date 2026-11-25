@@ -127,6 +127,10 @@ export function parseChartsPage(data: unknown): ChartsPage {
     const title = shelfTitleOf(node, ["header", "gridHeaderRenderer", "title"]) || "Charts";
     shelves.push(shelfOf(node, title));
   }
+  for (const node of collect(data, "musicShelfRenderer")) {
+    const title = shelfTitleOf(node, ["title"]) || "Charts";
+    shelves.push(shelfOf(node, title));
+  }
   const continuation =
     [
       ...collect(data, "nextContinuationData").map((next) => at(next, "continuation")),
