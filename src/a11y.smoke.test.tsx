@@ -102,6 +102,8 @@ describe("touch targets", () => {
       expect(fs.readFileSync(`${SRC_DIR}${file}`, "utf8"), file).toContain("hit-area");
     }
     const css = fs.readFileSync(`${SRC_DIR}index.css`, "utf8");
+    expect(css).toContain("--hit-min: 40px");
+    expect(css).toContain("@media (pointer: coarse)");
     expect(css).toContain("--hit-min: 44px");
     expect(css).toContain(".platform-android");
     expect(css).toContain("--hit-min: 48px");

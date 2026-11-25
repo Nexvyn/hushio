@@ -213,8 +213,14 @@ textarea:focus-visible {
 }
 
 :root {
-  --hit-min: 44px;
+  --hit-min: 40px;
   --lyric-scale: 1;
+}
+
+@media (pointer: coarse) {
+  :root {
+    --hit-min: 44px;
+  }
 }
 
 :root.platform-android {

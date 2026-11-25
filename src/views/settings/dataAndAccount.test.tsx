@@ -67,7 +67,8 @@ describe("Account erase row", () => {
     const button = screen.getByRole("button", { name: "Erase" });
     expect(button.className).toContain("border-separator");
     expect(button.className).toContain("text-danger-text");
-    expect(button.className).toContain("h-11");
+    expect(button.className).toContain("h-10");
+    expect(button.className).toContain("[@media(pointer:coarse)]:min-h-11");
   });
 });
 
