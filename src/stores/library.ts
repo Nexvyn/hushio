@@ -12,7 +12,16 @@ import {
 import { moveKey } from "../lib/libraryOrder";
 import { isTestSong } from "../lib/devSong";
 import { playlistCoverRemove, scrobbleLove, type YtSyncJob } from "../lib/bridge";
-import { queueYtJobs, rateYtSong, unlinkYtPlaylist, videoIdOf } from "../lib/ytSync";
+import {
+  mergeYtRemote,
+  queueYtJobs,
+  queueYtMove,
+  rateYtSong,
+  unlinkYtPlaylist,
+  videoIdOf,
+  ytMoveJob,
+  type YtPending,
+} from "../lib/ytSync";
 import { persistStorage } from "../lib/persist";
 import { useSettings } from "./settings";
 import type { Track } from "../types";
@@ -67,7 +76,8 @@ export type Playlist = {
   folderId: string | null;
   pinned: boolean;
   tracks: LibraryTrack[];
-  remote?: { ytPlaylistId: string; imported?: true };
+  remote?: { ytPlaylistId: string; imported?: true; refreshedAt?: number };
+  pendingYt?: YtPending;
   description?: string;
   coverPath?: string;
 };
@@ -128,6 +138,7 @@ type LibraryState = LibraryValues & {
   addToPlaylist: (playlistId: string, track: LikeInput) => boolean;
   removeFromPlaylist: (playlistId: string, trackId: string) => void;
   linkRemote: (playlistId: string, ytPlaylistId: string) => void;
+  unlinkRemote: (playlistId: string) => void;
   importLinkedPlaylist: (id: string, name: string, ytPlaylistId: string, tracks: LikeInput[]) => void;
   restoreTrackInPlaylist: (playlistId: string, track: LibraryTrack, index: number) => void;
   moveInPlaylist: (playlistId: string, from: number, to: number) => void;
@@ -281,6 +292,21 @@ function removeSavedAlbumUpdate(id: string): Update {
 
 function mapPlaylist(state: LibraryValues, id: string, change: (playlist: Playlist) => Playlist): Playlist[] {
   return state.playlists.map((playlist) => (playlist.id === id ? change(playlist) : playlist));
+}
+
+function pendingUpdate(playlistId: string, change: { add?: string; remove?: string }): Update {
+  return (state) => ({
+    playlists: mapPlaylist(state, playlistId, (playlist) => {
+      if (!playlist.remote) return playlist;
+      const current = playlist.pendingYt ?? { add: [], remove: [] };
+      const videoId = change.add ?? change.remove ?? "";
+      const without = (ids: string[]) => ids.filter((id) => id !== videoId);
+      const pendingYt: YtPending = change.add
+        ? { add: [...without(current.add), videoId], remove: without(current.remove) }
+        : { add: without(current.add), remove: [...without(current.remove), videoId] };
+      return { ...playlist, pendingYt };
+    }),
+  });
 }
 
 function hasFolder(state: LibraryValues, folderId: string | null): boolean {
@@ -666,19 +692,24 @@ export const useLibrary = create<LibraryState>()(
           apply((state) => ({
             playlists: mapPlaylist(state, playlistId, (playlist) => ({ ...playlist, remote: { ytPlaylistId } })),
           })),
+        unlinkRemote: (playlistId) =>
+          apply((state) => ({
+            playlists: mapPlaylist(state, playlistId, (playlist) => ({ ...playlist, remote: undefined, pendingYt: undefined })),
+          })),
         importLinkedPlaylist: (id, name, ytPlaylistId, tracks) => {
           const unique = tracks.filter((track, index) => tracks.findIndex((other) => other.id === track.id) === index);
           const libraryTracks = unique.map(toLibraryTrack);
           apply((state) => {
             const existing = state.playlists.find((playlist) => playlist.remote?.ytPlaylistId === ytPlaylistId);
             if (existing) {
+              const merged = mergeYtRemote(existing.tracks, libraryTracks, existing.pendingYt);
               const currentIds = new Set(existing.tracks.map((track) => track.id));
-              const nextIds = new Set(libraryTracks.map((track) => track.id));
+              const nextIds = new Set(merged.tracks.map((track) => track.id));
               const changes: DeletionChange[] = [
                 ...existing.tracks
                   .filter((track) => !nextIds.has(track.id))
                   .map((track): DeletionChange => ({ kind: "delete", group: "tracks", id: track.id, parent: existing.id })),
-                ...libraryTracks
+                ...merged.tracks
                   .filter((track) => !currentIds.has(track.id))
                   .map((track): DeletionChange => ({ kind: "add", group: "tracks", id: track.id, parent: existing.id })),
               ];
@@ -688,8 +719,9 @@ export const useLibrary = create<LibraryState>()(
                   playlists: mapPlaylist(state, existing.id, (playlist) => ({
                     ...playlist,
                     name: name.trim(),
-                    tracks: libraryTracks,
-                    remote: { ytPlaylistId, imported: true },
+                    tracks: merged.tracks,
+                    pendingYt: merged.pending,
+                    remote: { ytPlaylistId, imported: true, refreshedAt: Date.now() },
                   })),
                 },
                 changes,
@@ -705,7 +737,7 @@ export const useLibrary = create<LibraryState>()(
                     folderId: null,
                     pinned: false,
                     tracks: libraryTracks,
-                    remote: { ytPlaylistId, imported: true },
+                    remote: { ytPlaylistId, imported: true, refreshedAt: Date.now() },
                   },
                   ...state.playlists,
                 ],
@@ -726,7 +758,10 @@ export const useLibrary = create<LibraryState>()(
           if (!playlist || playlist.tracks.some((item) => item.id === track.id)) return false;
           apply(addTrackUpdate(playlistId, track));
           const videoId = videoIdOf(track);
-          if (videoId) queueYtJobs([{ kind: "add", localPlaylistId: playlistId, videoId }]);
+          if (videoId) {
+            queueYtJobs([{ kind: "add", localPlaylistId: playlistId, videoId }]);
+            apply(pendingUpdate(playlistId, { add: videoId }));
+          }
           notifyPlaylistTracksAdded(playlistId, [track.id]);
           return true;
         },
@@ -736,16 +771,27 @@ export const useLibrary = create<LibraryState>()(
             ?.tracks.find((item) => item.id === trackId);
           apply(removeTrackUpdate(playlistId, trackId));
           const videoId = track && videoIdOf(track);
-          if (videoId) queueYtJobs([{ kind: "remove", localPlaylistId: playlistId, videoId }]);
+          if (videoId) {
+            queueYtJobs([{ kind: "remove", localPlaylistId: playlistId, videoId }]);
+            apply(pendingUpdate(playlistId, { remove: videoId }));
+          }
         },
         restoreTrackInPlaylist: (playlistId, track, index) => {
           const playlist = get().playlists.find((item) => item.id === playlistId);
           if (!playlist || playlist.tracks.some((item) => item.id === track.id)) return;
           apply(restoreTrackUpdate(playlistId, track, index));
           const videoId = videoIdOf(track);
-          if (videoId) queueYtJobs([{ kind: "add", localPlaylistId: playlistId, videoId }]);
+          if (videoId) {
+            queueYtJobs([{ kind: "add", localPlaylistId: playlistId, videoId }]);
+            apply(pendingUpdate(playlistId, { add: videoId }));
+          }
         },
-        moveInPlaylist: (playlistId, from, to) => apply(movePlaylistTrackUpdate(playlistId, from, to)),
+        moveInPlaylist: (playlistId, from, to) => {
+          const playlist = get().playlists.find((item) => item.id === playlistId);
+          const track = playlist?.tracks[from];
+          apply(movePlaylistTrackUpdate(playlistId, from, to));
+          if (playlist?.remote && track) queueYtMove(ytMoveJob(playlistId, track, to));
+        },
         setPlaylistTracks: (playlistId, tracks) => {
           const before = new Set(get().playlists.find((item) => item.id === playlistId)?.tracks.map((item) => item.id));
           apply(setPlaylistTracksUpdate(playlistId, tracks));

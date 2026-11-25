@@ -6,7 +6,19 @@ const enqueue = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock("./bridge", () => ({ ytEnqueue: enqueue }));
 
 import { useAuth, GUEST_ACCOUNT } from "../stores/auth";
-import { failedText, quotaText, queueYtJobs, relativeTime, syncStatusText, videoIdOf } from "./ytSync";
+import {
+  failedText,
+  isYtRefreshDue,
+  mapLimited,
+  mergeYtRemote,
+  quotaText,
+  queueYtJobs,
+  relativeTime,
+  skippedText,
+  syncStatusText,
+  videoIdOf,
+  ytMoveJob,
+} from "./ytSync";
 
 const status = (patch: Partial<YtSyncStatus> = {}): YtSyncStatus => ({
   state: "idle",
@@ -70,5 +82,50 @@ describe("videoIdOf", () => {
     expect(videoIdOf({ id: "local:abc" })).toBeNull();
     expect(videoIdOf({ id: "jiosaavn:abc123" })).toBeNull();
     expect(videoIdOf({ id: "ep1", episode: true })).toBeNull();
+  });
+});
+
+describe("pulling changes from YouTube", () => {
+  const local = (id: string) => ({ id, title: id, artist: "A", thumb: null, duration: 1 });
+
+  it("keeps a local add that is still queued and drops a queued remove once YouTube has it", () => {
+    const merged = mergeYtRemote(
+      [local("dQw4w9WgXcQ"), local("aaaaaaaaaaa")],
+      [local("bbbbbbbbbbb"), local("ccccccccccc")],
+      { add: ["aaaaaaaaaaa", "bbbbbbbbbbb"], remove: ["ccccccccccc", "ddddddddddd"] },
+    );
+    expect(merged.tracks.map((track) => track.id)).toEqual(["bbbbbbbbbbb", "aaaaaaaaaaa"]);
+    expect(merged.pending).toEqual({ add: ["aaaaaaaaaaa"], remove: ["ccccccccccc"] });
+  });
+
+  it("refreshes a linked playlist only after six hours", () => {
+    expect(isYtRefreshDue(undefined, NOW)).toBe(true);
+    expect(isYtRefreshDue(NOW - 6 * 60 * 60 * 1000 + 1, NOW)).toBe(false);
+    expect(isYtRefreshDue(NOW - 6 * 60 * 60 * 1000, NOW)).toBe(true);
+  });
+
+  it("runs at most three tasks at once", async () => {
+    let running = 0;
+    let peak = 0;
+    await mapLimited([1, 2, 3, 4, 5, 6, 7], 3, async () => {
+      running += 1;
+      peak = Math.max(peak, running);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      running -= 1;
+    });
+    expect(peak).toBe(3);
+  });
+
+  it("builds a move job only for YouTube songs and words the skipped count", () => {
+    expect(ytMoveJob("local-1", { id: "dQw4w9WgXcQ" }, 2)).toEqual({
+      kind: "move",
+      localPlaylistId: "local-1",
+      videoId: "dQw4w9WgXcQ",
+      payload: "2",
+    });
+    expect(ytMoveJob("local-1", { id: "local:abc" }, 2)).toBeNull();
+    expect(skippedText(1)).toBe("Skipped 1 unavailable song");
+    expect(skippedText(3)).toBe("Skipped 3 unavailable songs");
+    expect(skippedText(0)).toBeNull();
   });
 });

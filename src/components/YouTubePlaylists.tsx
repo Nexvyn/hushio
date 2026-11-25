@@ -1,11 +1,12 @@
 import { useEffect, useId, useState } from "react";
 import { ImportButton as Button } from "./importControls";
 import { useAuth } from "../stores/auth";
-import { newId, useLibrary, type LikeInput } from "../stores/library";
+import { newId, useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
 import { useUI } from "../stores/ui";
-import { ytLikedVideos, ytLinkPlaylist, ytMyPlaylists, ytPlaylistVideos, type YtRemotePlaylist, type YtRemoteVideo } from "../lib/bridge";
+import { ytLikedVideos, ytLinkPlaylist, ytMyPlaylists, ytPlaylistVideos, type YtRemotePlaylist } from "../lib/bridge";
 import { plural } from "../lib/plural";
+import { remoteVideoTrack, skippedText } from "../lib/ytSync";
 
 type ListState =
   | { status: "loading" }
@@ -14,16 +15,6 @@ type ListState =
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function toTrack(video: YtRemoteVideo): LikeInput {
-  return {
-    id: video.videoId,
-    title: video.title,
-    artist: video.artist,
-    thumb: video.thumbnail,
-    duration: video.durationSeconds ?? 0,
-  };
 }
 
 export function YouTubePlaylists() {
@@ -69,7 +60,9 @@ export function YouTubePlaylists() {
       const videos = await ytPlaylistVideos(playlist.id);
       const id = linked.get(playlist.id) ?? newId();
       await ytLinkPlaylist(id, playlist.id);
-      importLinked(id, playlist.title, playlist.id, videos.map(toTrack));
+      importLinked(id, playlist.title, playlist.id, videos.map(remoteVideoTrack));
+      const skipped = skippedText(Math.max(0, playlist.count - videos.length));
+      if (skipped) toast(skipped, "info");
       return true;
     } catch (error) {
       toast(errorText(error), "error");
@@ -88,7 +81,7 @@ export function YouTubePlaylists() {
     setLikedBusy(true);
     try {
       const videos = await ytLikedVideos();
-      importLikedTracks(videos.map(toTrack));
+      importLikedTracks(videos.map(remoteVideoTrack));
       toast(`Imported ${plural(videos.length, "liked song", "liked songs")}`, "success");
     } catch (error) {
       toast(errorText(error), "error");

@@ -707,7 +707,7 @@ export type YtSyncStatus = {
 };
 
 export type YtSyncJob = {
-  kind: "create" | "rename" | "add" | "remove" | "delete" | "like" | "unlike";
+  kind: "create" | "rename" | "add" | "remove" | "delete" | "like" | "unlike" | "move";
   localPlaylistId?: string | null;
   ytPlaylistId?: string | null;
   videoId?: string | null;

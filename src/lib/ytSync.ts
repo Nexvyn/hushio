@@ -2,8 +2,15 @@ import { useAuth } from "../stores/auth";
 import { useUI } from "../stores/ui";
 import { ytEnqueue, ytRate, ytUnlinkPlaylist, type YtSyncJob, type YtSyncStatus } from "./bridge";
 import { LOCAL_ID_PREFIX } from "./localLibrary";
+import { plural } from "./plural";
+import type { LikeInput } from "../stores/library";
+import type { YtRemoteVideo } from "./bridge";
 
 const YT_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
+export const YT_REFRESH_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+export const YT_REFRESH_CONCURRENCY = 3;
+
+export type YtPending = { add: string[]; remove: string[] };
 
 export function videoIdOf(track: { id: string; episode?: true }): string | null {
   if (track.episode || track.id.startsWith(LOCAL_ID_PREFIX) || !YT_VIDEO_ID.test(track.id)) return null;
@@ -62,4 +69,61 @@ export function quotaText(status: YtSyncStatus): string {
 
 export function failedText(count: number): string {
   return `${count} changes couldn't be saved. Sync now to try again.`;
+}
+
+export function skippedText(count: number): string | null {
+  return count > 0 ? `Skipped ${plural(count, "unavailable song", "unavailable songs")}` : null;
+}
+
+export function remoteVideoTrack(video: YtRemoteVideo): LikeInput {
+  return {
+    id: video.videoId,
+    title: video.title,
+    artist: video.artist,
+    thumb: video.thumbnail,
+    duration: video.durationSeconds ?? 0,
+  };
+}
+
+export function isYtRefreshDue(refreshedAt: number | undefined, now: number): boolean {
+  return refreshedAt === undefined || now - refreshedAt >= YT_REFRESH_MAX_AGE_MS;
+}
+
+export function mergeYtRemote<T extends { id: string }>(
+  local: T[],
+  remote: T[],
+  pending: YtPending | undefined,
+): { tracks: T[]; pending: YtPending | undefined } {
+  const remoteIds = new Set(remote.map((track) => track.id));
+  const add = (pending?.add ?? []).filter((id) => !remoteIds.has(id));
+  const remove = (pending?.remove ?? []).filter((id) => remoteIds.has(id));
+  const addIds = new Set(add);
+  const removeIds = new Set(remove);
+  const tracks = [
+    ...remote.filter((track) => !removeIds.has(track.id)),
+    ...local.filter((track) => addIds.has(track.id) && !remoteIds.has(track.id)),
+  ];
+  return { tracks, pending: add.length > 0 || remove.length > 0 ? { add, remove } : undefined };
+}
+
+export function ytMoveJob(localPlaylistId: string, track: { id: string; episode?: true }, index: number): YtSyncJob | null {
+  const videoId = videoIdOf(track);
+  return videoId ? { kind: "move", localPlaylistId, videoId, payload: String(index) } : null;
+}
+
+export function queueYtMove(job: YtSyncJob | null): void {
+  // The Rust sync queue has no move kind yet, so reorders stay local until it does.
+  void job;
+}
+
+export async function mapLimited<T>(items: T[], limit: number, task: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const item = items[next];
+      next += 1;
+      await task(item);
+    }
+  });
+  await Promise.all(workers);
 }

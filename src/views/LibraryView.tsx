@@ -1,5 +1,6 @@
 import { t, useT } from "../lib/i18n";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
+import { refreshStaleYtPlaylists } from "../stores/sync";
 import { ArrowSquareIn, CaretRight, ClockCounterClockwise, DownloadSimple, Folder, Heart, HardDrive, Queue, Playlist, Plus, VinylRecord, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { ActionMenu } from "../components/ActionMenu";
 import { openMenuAtPointer } from "../components/ContextMenu";
@@ -132,6 +133,9 @@ function Shelf({ label, children }: { label: string; children: ReactNode }) {
 
 export function LibraryView() {
   useT();
+  useEffect(() => {
+    void refreshStaleYtPlaylists();
+  }, []);
   const liked = useLibrary((state) => state.liked);
   const playlists = useLibrary((state) => state.playlists);
   const savedAlbums = useLibrary((state) => state.savedAlbums);

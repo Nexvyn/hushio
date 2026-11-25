@@ -3,6 +3,8 @@ import {
   listenYtPlaylistLinked,
   listenYtSyncProgress,
   listenYtTvCode,
+  ytMyPlaylists,
+  ytPlaylistVideos,
   ytSyncNow,
   ytSyncStatus,
   ytTvCancel,
@@ -13,9 +15,53 @@ import {
   type YtSyncStatus,
   type YtTvCode,
 } from "../lib/bridge";
+import { isYtRefreshDue, mapLimited, remoteVideoTrack, skippedText, unlinkYtPlaylist, YT_REFRESH_CONCURRENCY } from "../lib/ytSync";
+import { useAuth } from "./auth";
 import { useLibrary } from "./library";
 import { useSettings } from "./settings";
 import { useUI } from "./ui";
+
+let refreshing = false;
+
+export async function refreshStaleYtPlaylists(now = Date.now()): Promise<void> {
+  if (refreshing || useAuth.getState().account.mode !== "google") return;
+  const due = useLibrary.getState().playlists.filter(
+    (playlist) => playlist.remote && isYtRefreshDue(playlist.remote.refreshedAt, now),
+  );
+  if (due.length === 0) return;
+  refreshing = true;
+  try {
+    const remote = new Map((await ytMyPlaylists()).map((item) => [item.id, item]));
+    const live = [];
+    for (const playlist of due) {
+      if (!playlist.remote) continue;
+      if (remote.has(playlist.remote.ytPlaylistId)) {
+        live.push(playlist);
+        continue;
+      }
+      useLibrary.getState().unlinkRemote(playlist.id);
+      unlinkYtPlaylist(playlist.id);
+      useUI.getState().toast("This playlist was deleted on YouTube. Kept a copy here.", "warning");
+    }
+    let skipped = 0;
+    await mapLimited(live, YT_REFRESH_CONCURRENCY, async (playlist) => {
+      const ytPlaylistId = playlist.remote?.ytPlaylistId ?? "";
+      try {
+        const videos = await ytPlaylistVideos(ytPlaylistId);
+        useLibrary.getState().importLinkedPlaylist(playlist.id, playlist.name, ytPlaylistId, videos.map(remoteVideoTrack));
+        skipped += Math.max(0, (remote.get(ytPlaylistId)?.count ?? 0) - videos.length);
+      } catch (error) {
+        console.warn("Couldn't refresh a YouTube playlist.", error);
+      }
+    });
+    const text = skippedText(skipped);
+    if (text) useUI.getState().toast(text, "info");
+  } catch (error) {
+    console.warn("Couldn't check YouTube playlists.", error);
+  } finally {
+    refreshing = false;
+  }
+}
 
 export const IDLE_SYNC: YtSyncStatus = {
   state: "idle",
@@ -147,6 +193,16 @@ export function startYtSync(): () => void {
   keep(listenYtTvCode((code) => useSync.getState().applyTvCode(code)));
   void useSync.getState().load();
   void useSync.getState().loadTv();
+  if (useAuth.getState().loaded) {
+    void refreshStaleYtPlaylists();
+  } else {
+    const unsubscribe = useAuth.subscribe((state) => {
+      if (!state.loaded) return;
+      unsubscribe();
+      void refreshStaleYtPlaylists();
+    });
+    stops.push(unsubscribe);
+  }
   return () => {
     live = false;
     stops.forEach((stop) => stop());

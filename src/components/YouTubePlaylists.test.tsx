@@ -133,6 +133,17 @@ describe("YouTubePlaylists", () => {
     expect(await within(section()).findByText("Road")).toBeTruthy();
   });
 
+  it("says how many songs YouTube could not return when a playlist is imported", async () => {
+    signInAs("google");
+    vi.mocked(ytPlaylistVideos).mockResolvedValueOnce([videos.PL1[0], videos.PL1[1]]);
+    render(<YouTubePlaylists />);
+    await within(section()).findByText("Road");
+
+    await userEvent.click(within(section()).getAllByRole("button", { name: "Import" })[0]);
+
+    await waitFor(() => expect(useUI.getState().toasts.map((toast) => toast.message)).toContain("Skipped 1 unavailable song"));
+  });
+
   it("imports one playlist as a linked local playlist without a duplicate song", async () => {
     signInAs("google");
     render(<YouTubePlaylists />);
