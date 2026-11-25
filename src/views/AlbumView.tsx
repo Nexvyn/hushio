@@ -1,5 +1,6 @@
+import { PlayRound } from "../components/PlayRound";
 import { useEffect, useMemo, useState } from "react";
-import { VinylRecord, Check, Copy, DownloadSimple, Play, ListPlus, Plus, Shuffle, User } from "@phosphor-icons/react";
+import { VinylRecord, Check, Copy, DownloadSimple, ListPlus, Plus, Shuffle, User } from "@phosphor-icons/react";
 import { normalizeCredit } from "../lib/credits";
 import { AboutText } from "../components/AboutText";
 import { ActionMenu } from "../components/ActionMenu";
@@ -14,7 +15,7 @@ import { SkeletonSwap } from "../components/SkeletonSwap";
 import { ErrorState } from "../components/ErrorState";
 import type { MenuItem } from "../stores/ui";
 import { TrackRow } from "../components/TrackRow";
-import { PHONE_ICON, PHONE_PLAY, PHONE_SHUFFLE } from "../components/phone/heroButtons";
+import { PHONE_ICON, PHONE_SHUFFLE } from "../components/phone/heroButtons";
 import { PhoneSongRow } from "../components/phone/PhoneTrackRow";
 import { PhoneIcon } from "../components/phone/PhoneIcon";
 import { useFirstLoadStagger } from "../components/phone/useFirstLoadStagger";
@@ -194,10 +195,7 @@ function AlbumContent({ page }: { page: ReleasePage }) {
         actions={
           phone ? (
             <>
-              <button type="button" disabled={tracks.length === 0} onClick={() => playAt(0)} className={PHONE_PLAY}>
-                <HeroIcon icon={Play} />
-                Play
-              </button>
+              <PlayRound phone disabled={tracks.length === 0} onClick={() => playAt(0)} />
               <button
                 type="button"
                 aria-label="Shuffle"

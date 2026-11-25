@@ -1,5 +1,6 @@
+import { PlayRound } from "../components/PlayRound";
 import { useEffect, useMemo, useState } from "react";
-import { CaretDown, CaretUp, Heart, Play, ListPlus, Shuffle } from "@phosphor-icons/react";
+import { CaretDown, CaretUp, Heart, ListPlus, Shuffle } from "@phosphor-icons/react";
 import { ActionMenu } from "../components/ActionMenu";
 import { AboutText } from "../components/AboutText";
 import { CollectionActions } from "../components/TrackListControls";
@@ -14,7 +15,7 @@ import { Icon } from "../components/Icon";
 import { PhoneIcon } from "../components/phone/PhoneIcon";
 import { PhoneBackRow } from "../components/phone/PhoneHeader";
 import { goBackOrTabRoot } from "../components/PageHeader";
-import { PHONE_ICON, PHONE_PLAY, PHONE_SHUFFLE } from "../components/phone/heroButtons";
+import { PHONE_ICON, PHONE_SHUFFLE } from "../components/phone/heroButtons";
 import { PhoneArt } from "../components/phone/PhoneArt";
 import { PhoneSectionHeader, PhoneShelfArt, PhoneShelfCard, PhoneShelfRow } from "../components/phone/PhoneShelf";
 import { PhoneSongRow } from "../components/phone/PhoneTrackRow";
@@ -242,10 +243,7 @@ function ArtistContent({ page }: { page: ArtistPage }) {
           <h1 className="mt-4 line-clamp-2 max-w-full break-words text-phone-page-title text-ink-1">{artist.name}</h1>
           <div className="mt-1 text-phone-meta tabular-nums text-ink-2">{joinMeta([subscribers, listeners])}</div>
           <div className="mt-4 flex w-full min-w-0 items-center gap-3">
-            <button type="button" onClick={() => playAt(0)} disabled={top.length === 0} className={PHONE_PLAY}>
-              <HeroIcon icon={Play} />
-              Play
-            </button>
+            <PlayRound phone onClick={() => playAt(0)} disabled={top.length === 0} />
             <button type="button" aria-label="Shuffle" title="Shuffle" onClick={shuffle} disabled={top.length === 0} className={PHONE_SHUFFLE}>
               <HeroIcon icon={Shuffle} />
               Shuffle

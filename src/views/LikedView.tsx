@@ -1,12 +1,13 @@
+import { PlayRound } from "../components/PlayRound";
 import { useFirstLoadStagger } from "../components/phone/useFirstLoadStagger";
 import { useRef, useState } from "react";
-import { Heart, Play, ListPlus, Shuffle } from "@phosphor-icons/react";
+import { Heart, ListPlus, Shuffle } from "@phosphor-icons/react";
 import { CollectionHero } from "../components/CollectionHero";
 import { EmptyState } from "../components/EmptyState";
 import { HeroIcon } from "../components/HeroIcon";
 import { arrangeTracks, CollectionActions, TrackTools } from "../components/TrackListControls";
 import { TrackListHeader, TrackRow } from "../components/TrackRow";
-import { PHONE_PLAY, PHONE_SHUFFLE } from "../components/phone/heroButtons";
+import { PHONE_SHUFFLE } from "../components/phone/heroButtons";
 import { PhoneSongRow } from "../components/phone/PhoneTrackRow";
 import { coversOf, topArtist } from "../lib/collections";
 import { playCollection, toSong } from "../lib/collectionActions";
@@ -113,16 +114,7 @@ export function LikedView() {
       <CollectionHero title="Liked Songs" covers={covers} facts={phone && empty ? null : facts} icon={Heart} tile={{ icon: Heart, accent: true }} eyebrow={empty ? undefined : "Playlist"} hideArtwork={phone && empty} footer={footer}>
         {phone && !empty && (
           <>
-            <button
-              type="button"
-              aria-label="Play Liked Songs"
-              disabled={empty}
-              onClick={() => playCollection(visibleTracks, LIKED_SOURCE, false)}
-              className={PHONE_PLAY}
-            >
-              <HeroIcon icon={Play} />
-              Play
-            </button>
+            <PlayRound phone aria-label="Play Liked Songs" disabled={empty} onClick={() => playCollection(visibleTracks, LIKED_SOURCE, false)} />
             <button
               type="button"
               aria-label="Shuffle"

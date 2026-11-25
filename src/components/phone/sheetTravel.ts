@@ -4,7 +4,8 @@ import { useUI } from "../../stores/ui";
 import { viewportHeight } from "../../lib/viewport";
 import type { SheetDriver } from "./useSheetDrag";
 
-const MINI_FADE_END = 0.3;
+const MINI_FADE_END = 0.2;
+const MINI_BAR_RADIUS_PX = 24;
 const PAGE_SCALE_DROP = 0.06;
 const PAGE_RADIUS_PX = 12;
 const PAGE_SHADE = 0.4;
@@ -141,7 +142,7 @@ export function titleFadeOf(openness: number): number {
 }
 
 export function sheetWashOf(openness: number): number {
-  return clamp01(openness / MINI_FADE_END);
+  return clamp01(openness);
 }
 
 export function textFadeOf(progress: number): number {
@@ -161,13 +162,12 @@ export function sheetClipOf(box: Bounds | null, width: number, height: number, o
   const p = clamp01(openness);
   if (reduced) return { top: 0, right: 0, bottom: 0, left: 0, radius: 0 };
   if (!box || width <= 0 || height <= 0) return { top: 0, right: 0, bottom: 0, left: 0, radius: 0 };
-  const lift = clamp01((p - MINI_FADE_END) / (1 - MINI_FADE_END));
   return {
     top: box.top * (1 - p),
     right: (width - box.left - box.width) * (1 - p),
-    bottom: (height - box.top - box.height) * (1 - lift),
+    bottom: (height - box.top - box.height) * (1 - p),
     left: box.left * (1 - p),
-    radius: 14 * (1 - p),
+    radius: MINI_BAR_RADIUS_PX * (1 - p),
   };
 }
 
@@ -183,7 +183,7 @@ export function handedOff(openness: number): boolean {
 export function pageCardOf(openness: number, reduced: boolean): PageCard {
   if (reduced) return { scale: 1, radius: 0, shade: 0 };
   const p = clamp01(openness);
-  return { scale: 1 - PAGE_SCALE_DROP * p, radius: p > 0 ? PAGE_RADIUS_PX : 0, shade: PAGE_SHADE * p };
+  return { scale: 1 - PAGE_SCALE_DROP * p, radius: PAGE_RADIUS_PX * p, shade: PAGE_SHADE * p };
 }
 
 export function heldBox(box: Box, scale: number): Box {

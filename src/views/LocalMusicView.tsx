@@ -1,6 +1,7 @@
+import { PlayRound } from "../components/PlayRound";
 import { t } from "../lib/i18n";
 import { useEffect, useState } from "react";
-import { CaretLeft, Warning, X, Cloud, Trash, DownloadSimple, FileAudio, FolderPlus, FolderOpen, MusicNote, PencilSimple, Play, Playlist, ArrowClockwise, MagnifyingGlass, Shuffle, User } from "@phosphor-icons/react";
+import { CaretLeft, Warning, X, Cloud, Trash, DownloadSimple, FileAudio, FolderPlus, FolderOpen, MusicNote, PencilSimple, Playlist, ArrowClockwise, MagnifyingGlass, Shuffle, User } from "@phosphor-icons/react";
 import type { LocalFolderEntry, LocalTrack, NetworkServer, NetworkTrack } from "../lib/bridge";
 import { ActionMenu } from "../components/ActionMenu";
 import { GHOST_ICON, PILL, ROUND, SHUFFLE_PILL } from "../components/BrowseHero";
@@ -10,7 +11,7 @@ import { EmptyState } from "../components/EmptyState";
 import { HeroIcon } from "../components/HeroIcon";
 import { Icon } from "../components/Icon";
 import { PageHeader } from "../components/PageHeader";
-import { PHONE_ICON, PHONE_PLAY, PHONE_SHUFFLE } from "../components/phone/heroButtons";
+import { PHONE_ICON, PHONE_SHUFFLE } from "../components/phone/heroButtons";
 import { APP_NAME } from "../lib/app";
 import { removeDownload } from "../lib/downloads";
 import { isCueTrackId } from "../lib/clip";
@@ -281,14 +282,7 @@ function IndexView({ onOpen }: { onOpen: (param: string) => void }) {
           </>
         }
       >
-        <button
-          type="button"
-          className={phone ? PHONE_PLAY : PILL}
-          disabled={device.length === 0}
-          onClick={() => playTracks(device, 0, "Local music")}
-        >
-          <HeroIcon icon={Play} /> Play
-        </button>
+        <PlayRound phone={phone} disabled={device.length === 0} onClick={() => playTracks(device, 0, "Local music")} />
         <button
           type="button"
           className={phone ? PHONE_SHUFFLE : SHUFFLE_PILL}
@@ -589,15 +583,7 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
           </>
         }
       >
-        <button
-          type="button"
-          className={phone ? PHONE_PLAY : PILL}
-          disabled={list.length === 0}
-          aria-label={`Play ${title}`}
-          onClick={() => playTracks(list, 0, title)}
-        >
-          <HeroIcon icon={Play} /> Play
-        </button>
+        <PlayRound phone={phone} disabled={list.length === 0} aria-label={`Play ${title}`} onClick={() => playTracks(list, 0, title)} />
         <button
           type="button"
           className={phone ? PHONE_SHUFFLE : SHUFFLE_PILL}
@@ -901,15 +887,7 @@ function NetworkCollectionView({ id, onBack }: { id: string; onBack: () => void 
           </span>
         }
       >
-        <button
-          type="button"
-          className={phone ? PHONE_PLAY : PILL}
-          disabled={list.length === 0}
-          aria-label={`Play ${server?.name ?? "the server"}`}
-          onClick={() => playNetworkTracks(list, 0, server?.name ?? "Network server")}
-        >
-          <HeroIcon icon={Play} /> Play
-        </button>
+        <PlayRound phone={phone} disabled={list.length === 0} aria-label={`Play ${server?.name ?? "the server"}`} onClick={() => playNetworkTracks(list, 0, server?.name ?? "Network server")} />
         <button
           type="button"
           className={phone ? PHONE_SHUFFLE : SHUFFLE_PILL}

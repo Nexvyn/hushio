@@ -73,12 +73,13 @@ function NowPanel() {
       <div className="flex flex-col gap-4">
         <Cover thumb={null} className="aspect-square w-full rounded-[8px] bg-ink-1/[0.04]" />
         <p className="text-meta text-ink-2">Play something and it shows up here.</p>
+        <UpcomingQueue tab="queue" />
       </div>
     );
   }
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-4">
+      <section aria-label="Now playing" className="flex flex-col gap-4">
         <div className="relative mx-auto aspect-square w-full max-w-[260px] overflow-hidden rounded-[8px]">
           <Cover thumb={track.thumb} className="h-full w-full" />
           {clipUrl && <CanvasVideo key={clipUrl} src={clipUrl} playing={playing} className="absolute inset-0 h-full w-full object-cover" />}
@@ -90,7 +91,7 @@ function NowPanel() {
           </div>
           <LikeButton track={track} className={`hit-area grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-2 hover:text-ink-1 ${PRESS} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus`} />
         </div>
-      </div>
+      </section>
       <UpcomingQueue tab="queue" />
     </div>
   );
@@ -422,7 +423,7 @@ export function RightRail({ mode = "column" }: { mode?: "column" | "sheet" }) {
             exit={reduced ? undefined : { opacity: 0, x: panel === "queue" ? -12 : 12, transition: pickerOut }}
             transition={reduced ? instant : pickerIn}
           >
-            {panel === "queue" ? <QueuePanel tab={queueTab} /> : <NowPanel />}
+            {panel === "queue" && queueTab === "recent" ? <QueuePanel tab="recent" /> : <NowPanel />}
           </motion.div>
         </AnimatePresence>
       </div>

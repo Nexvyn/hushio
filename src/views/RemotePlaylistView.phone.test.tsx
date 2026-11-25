@@ -26,7 +26,7 @@ vi.mock("../lib/persist", () => ({
 }));
 
 import { RemotePlaylistView } from "./RemotePlaylistView";
-import { PHONE_PLAY, PHONE_SHUFFLE } from "../components/phone/heroButtons";
+import { PHONE_SHUFFLE } from "../components/phone/heroButtons";
 import type { SearchSong } from "../lib/searchParse";
 import { useNavigation } from "../stores/navigation";
 import { usePlayer } from "../stores/player";
@@ -78,7 +78,8 @@ describe("RemotePlaylistView on phone", () => {
     const play = await screen.findByRole("button", { name: "Play" });
     const shuffle = screen.getByRole("button", { name: "Shuffle" });
     expect(play.parentElement).toBe(shuffle.parentElement);
-    expect(play.className).toBe(PHONE_PLAY);
+    expect(play.className).toContain("rounded-full");
+    expect(play.textContent).toBe("");
     expect(shuffle.className).toBe(PHONE_SHUFFLE);
     expect(screen.getByRole("heading", { level: 1, name: "Late Night Mix" })).toBeTruthy();
   });

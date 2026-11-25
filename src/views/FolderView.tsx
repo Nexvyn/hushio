@@ -1,13 +1,14 @@
-import { Folder, FolderSimpleMinus, Play, Playlist, Plus, Shuffle } from "@phosphor-icons/react";
+import { PlayRound } from "../components/PlayRound";
+import { Folder, FolderSimpleMinus, Playlist, Plus, Shuffle } from "@phosphor-icons/react";
 import { ActionMenu } from "../components/ActionMenu";
 import { Button } from "../components/Button";
-import { GHOST_ICON, PILL, SHUFFLE_PILL } from "../components/BrowseHero";
+import { GHOST_ICON, SHUFFLE_PILL } from "../components/BrowseHero";
 import { CollectionHero } from "../components/CollectionHero";
 import { CoverStack, STACK_GRID } from "../components/CoverStack";
 import { EmptyState } from "../components/EmptyState";
 import { HeroIcon } from "../components/HeroIcon";
 import { Icon } from "../components/Icon";
-import { PHONE_ICON, PHONE_PLAY, PHONE_SHUFFLE } from "../components/phone/heroButtons";
+import { PHONE_ICON, PHONE_SHUFFLE } from "../components/phone/heroButtons";
 import { coversOf, pinnedFirst, playlistsIn } from "../lib/collections";
 import { playlistCovers } from "../lib/playlistCover";
 import { useFailedCovers } from "../stores/coverErrors";
@@ -59,16 +60,7 @@ export function FolderView() {
         facts={facts}
         icon={Folder}
       >
-        <button
-          type="button"
-          aria-label={`Play ${folder.name}`}
-          disabled={empty}
-          onClick={() => playCollection(tracks, folder.id, false)}
-          className={phone ? PHONE_PLAY : PILL}
-        >
-          <HeroIcon icon={Play} />
-          Play
-        </button>
+        <PlayRound phone={phone} aria-label={`Play ${folder.name}`} disabled={empty} onClick={() => playCollection(tracks, folder.id, false)} />
         <button
           type="button"
           aria-label="Shuffle"

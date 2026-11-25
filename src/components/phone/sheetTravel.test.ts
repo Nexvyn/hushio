@@ -45,10 +45,11 @@ describe("sheet travel", () => {
     expect(heldBox(geometry.from, 1)).toBe(geometry.from);
   });
 
-  it("fades the mini player row out over the first 30% of the travel", () => {
+  it("fades the mini player row out over the first 20% of the travel", () => {
     expect(miniFadeOf(0)).toBe(1);
-    expect(miniFadeOf(0.15)).toBeCloseTo(0.5);
-    expect(miniFadeOf(0.3)).toBe(0);
+    expect(miniFadeOf(0.1)).toBeCloseTo(0.5);
+    expect(miniFadeOf(0.2)).toBe(0);
+    expect(miniFadeOf(0.6)).toBe(0);
   });
 
   it("maps sheet position to one clamped progress value", () => {
@@ -61,17 +62,17 @@ describe("sheet travel", () => {
 
   it("expands the sheet clip from the mini bar to the full screen", () => {
     const bounds = { top: 680, left: 8, width: 384, height: 64 };
-    expect(sheetClipOf(bounds, 400, 800, 0)).toEqual({ top: 680, right: 8, bottom: 56, left: 8, radius: 14 });
-    expect(sheetClipOf(bounds, 400, 800, 0.5).top).toBe(340);
+    expect(sheetClipOf(bounds, 400, 800, 0)).toEqual({ top: 680, right: 8, bottom: 56, left: 8, radius: 24 });
+    expect(sheetClipOf(bounds, 400, 800, 0.5)).toEqual({ top: 340, right: 4, bottom: 28, left: 4, radius: 12 });
     expect(sheetClipOf(bounds, 400, 800, 1)).toEqual({ top: 0, right: 0, bottom: 0, left: 0, radius: 0 });
   });
 
-  it("keeps the dock below the mini bar uncovered for the last 30% of the close", () => {
+  it("moves every edge of the clip with the same progress value", () => {
     const bounds = { top: 680, left: 8, width: 384, height: 64 };
-    expect(sheetClipOf(bounds, 400, 800, 0.3).bottom).toBe(56);
-    expect(sheetClipOf(bounds, 400, 800, 0.15).bottom).toBe(56);
-    expect(sheetClipOf(bounds, 400, 800, 0.65).bottom).toBeCloseTo(28);
-    expect(sheetClipOf(bounds, 400, 800, 1).bottom).toBe(0);
+    const quarter = sheetClipOf(bounds, 400, 800, 0.25);
+    expect(quarter.top).toBeCloseTo(510);
+    expect(quarter.bottom).toBeCloseTo(42);
+    expect(quarter.left).toBeCloseTo(6);
   });
 
   it("keeps only fade motion when reduced motion is active", () => {
@@ -85,10 +86,9 @@ describe("sheet travel", () => {
     expect(titleFadeOf(1)).toBe(1);
   });
 
-  it("keeps the sheet wash opaque until the mini player row has faded in", () => {
+  it("fills the sheet in step with its travel instead of dissolving it in", () => {
     expect(sheetWashOf(0)).toBe(0);
-    expect(sheetWashOf(0.15)).toBeCloseTo(0.5);
-    expect(sheetWashOf(0.3)).toBe(1);
+    expect(sheetWashOf(0.15)).toBeCloseTo(0.15);
     expect(sheetWashOf(1)).toBe(1);
   });
 

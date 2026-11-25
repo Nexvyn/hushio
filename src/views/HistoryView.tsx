@@ -4,10 +4,9 @@ import { ClockCounterClockwise, Play, X } from "@phosphor-icons/react";
 import { ActionMenu } from "../components/ActionMenu";
 import { CollectionHero } from "../components/CollectionHero";
 import { EmptyState } from "../components/EmptyState";
-import { HeroIcon } from "../components/HeroIcon";
 import { PhoneHeader } from "../components/phone/PhoneHeader";
 import { CollectionActions } from "../components/TrackListControls";
-import { PHONE_PLAY } from "../components/phone/heroButtons";
+import { PlayRound } from "../components/PlayRound";
 import { replayJournal, replayJournalRemove } from "../lib/bridge";
 import { thumbArtwork } from "../lib/artwork";
 import { groupHistory, historyTracks, isSamePlay, playKey } from "../lib/history";
@@ -167,16 +166,13 @@ export function HistoryView() {
 
   const facts = error ? undefined : entries === null ? "Loading…" : none ? "Nothing played yet" : plural(ordered.length, "play", "plays");
   const playButton = (className: string) => (
-    <button
-      type="button"
+    <PlayRound
+      phone
       aria-label="Play history"
       disabled={none || entries === null}
       onClick={() => playFrom(ordered, 0)}
       className={className}
-    >
-      <HeroIcon icon={Play} />
-      Play
-    </button>
+    />
   );
 
   return (
@@ -184,7 +180,7 @@ export function HistoryView() {
       {phone ? (
         <>
           <PhoneHeader title="History" meta={facts} onBack={backToLibrary} />
-          {!none && <div className="flex">{playButton(`${PHONE_PLAY} !flex-none px-6`)}</div>}
+          {!none && <div className="flex">{playButton("!flex-none px-6")}</div>}
         </>
       ) : (
         <CollectionHero

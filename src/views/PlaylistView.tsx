@@ -1,12 +1,13 @@
+import { PlayRound } from "../components/PlayRound";
 import { useEffect, useRef, useState } from "react";
-import { Heart, Play, ListPlus, Playlist as PlaylistIcon, Shuffle, Trash } from "@phosphor-icons/react";
+import { Heart, ListPlus, Playlist as PlaylistIcon, Shuffle, Trash } from "@phosphor-icons/react";
 import { ActionMenu } from "../components/ActionMenu";
 import { CollectionHero } from "../components/CollectionHero";
 import { EmptyState } from "../components/EmptyState";
 import { HeroIcon } from "../components/HeroIcon";
 import { arrangeTracks, CollectionActions, FILTER_MIN_TRACKS, PhoneTrackFilter, TrackSortMenu, TrackTools } from "../components/TrackListControls";
 import { TrackListHeader, TrackRow } from "../components/TrackRow";
-import { PHONE_ICON, PHONE_PLAY, PHONE_SHUFFLE } from "../components/phone/heroButtons";
+import { PHONE_ICON, PHONE_SHUFFLE } from "../components/phone/heroButtons";
 import { PhoneSongRow } from "../components/phone/PhoneTrackRow";
 import { useFirstLoadStagger } from "../components/phone/useFirstLoadStagger";
 import { topArtist } from "../lib/collections";
@@ -179,15 +180,7 @@ export function PlaylistView() {
       >
         {phone && (
           <>
-            <button
-              type="button"
-              aria-label={`Play ${playlist.name}`}
-              onClick={() => playCollection(visibleTracks, playlist.id, false)}
-              className={PHONE_PLAY}
-            >
-              <HeroIcon icon={Play} />
-              Play
-            </button>
+            <PlayRound phone aria-label={`Play ${playlist.name}`} onClick={() => playCollection(visibleTracks, playlist.id, false)} />
             <button
               type="button"
               aria-label="Shuffle"

@@ -1,13 +1,14 @@
+import { PlayRound } from "../components/PlayRound";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { useNavigation, type View } from "../stores/navigation";
-import { Warning, X, Clock, DownloadSimple, FolderOpen, Play, ArrowClockwise, Shuffle, Check, WifiHigh, type Icon as PhosphorIcon } from "@phosphor-icons/react";
+import { Warning, X, Clock, DownloadSimple, FolderOpen, ArrowClockwise, Shuffle, Check, WifiHigh, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { ActionMenu } from "../components/ActionMenu";
 import { CollectionHero } from "../components/CollectionHero";
 import { EmptyState } from "../components/EmptyState";
 import { HeroIcon } from "../components/HeroIcon";
 import { Icon } from "../components/Icon";
 import { CollectionActions } from "../components/TrackListControls";
-import { PHONE_PLAY, PHONE_SHUFFLE } from "../components/phone/heroButtons";
+import { PHONE_SHUFFLE } from "../components/phone/heroButtons";
 import { thumbArtwork } from "../lib/artwork";
 import { usePhone } from "../lib/usePhone";
 import {
@@ -316,10 +317,7 @@ export function DownloadsView() {
       >
         {phone && !none && (
           <>
-            <button type="button" aria-label="Play Downloads" disabled={none} onClick={() => playSaved(saved, 0, false)} className={PHONE_PLAY}>
-              <HeroIcon icon={Play} />
-              Play
-            </button>
+            <PlayRound phone aria-label="Play Downloads" disabled={none} onClick={() => playSaved(saved, 0, false)} />
             <button type="button" aria-label="Shuffle" title="Shuffle" disabled={none} onClick={() => playSaved(saved, 0, true)} className={PHONE_SHUFFLE}>
               <HeroIcon icon={Shuffle} />
               Shuffle

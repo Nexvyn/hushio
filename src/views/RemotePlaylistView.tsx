@@ -1,4 +1,5 @@
-import { Copy, DownloadSimple, Play, ListPlus, Playlist, Shuffle } from "@phosphor-icons/react";
+import { PlayRound } from "../components/PlayRound";
+import { Copy, DownloadSimple, ListPlus, Playlist, Shuffle } from "@phosphor-icons/react";
 import { ActionMenu } from "../components/ActionMenu";
 import { HeroControls } from "../components/BrowseHero";
 import { BrowseSkeleton } from "../components/BrowseSkeleton";
@@ -7,7 +8,7 @@ import { CollectionHero } from "../components/CollectionHero";
 import { HeroIcon } from "../components/HeroIcon";
 import { PageHeader } from "../components/PageHeader";
 import { ErrorState } from "../components/ErrorState";
-import { PHONE_ICON, PHONE_PLAY, PHONE_SHUFFLE } from "../components/phone/heroButtons";
+import { PHONE_ICON, PHONE_SHUFFLE } from "../components/phone/heroButtons";
 import { PhoneSongRow } from "../components/phone/PhoneTrackRow";
 import { useFirstLoadStagger } from "../components/phone/useFirstLoadStagger";
 import type { MenuItem } from "../stores/ui";
@@ -99,10 +100,7 @@ function PlaylistContent({ page, playlistId }: { page: PlaylistPage; playlistId:
           facts={facts}
           icon={Playlist}
         >
-          <button type="button" onClick={() => playAt(0)} disabled={empty} className={PHONE_PLAY}>
-            <HeroIcon icon={Play} />
-            Play
-          </button>
+          <PlayRound phone onClick={() => playAt(0)} disabled={empty} />
           <button type="button" aria-label="Shuffle" title="Shuffle" disabled={empty} onClick={shuffle} className={PHONE_SHUFFLE}>
             <HeroIcon icon={Shuffle} />
             Shuffle
