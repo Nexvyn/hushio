@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { motion, useTransform } from "motion/react";
 import { fade, phoneSmooth, phoneTransition, reducedMotion } from "../../lib/motion";
 import { INSET_BOTTOM } from "../../lib/phoneNav";
@@ -37,8 +38,8 @@ export function Sheet({ label, onClose, header, height, zClass = "z-[115]", chil
     if (!reduced) drag.y.set(travel.current || viewportHeight());
   }, []);
 
-  return (
-    <motion.div className={`fixed inset-0 ${zClass} flex flex-col justify-end`}>
+  return createPortal(
+    <motion.div spellCheck={false} className={`fixed inset-0 ${zClass} flex select-none flex-col justify-end`}>
       <motion.div
         aria-hidden="true"
         className={reduced ? "absolute inset-0" : "absolute inset-0 will-change-[opacity]"}
@@ -72,6 +73,7 @@ export function Sheet({ label, onClose, header, height, zClass = "z-[115]", chil
         )}
         <div ref={body} className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">{children}</div>
       </motion.section>
-    </motion.div>
+    </motion.div>,
+    document.body,
   );
 }

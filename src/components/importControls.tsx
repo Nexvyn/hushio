@@ -7,7 +7,7 @@ import { Sheet } from "./phone/Sheet";
 type ImportButtonVariant = "primary" | "secondary" | "ghost";
 
 const BASE =
-  "inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-[8px] px-4 text-body font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-[var(--disabled-opacity)] motion-safe:transition-[opacity,transform,background-color] motion-safe:duration-quick motion-safe:ease-out motion-safe:active:scale-[0.96]";
+  "inline-flex h-11 min-w-[112px] shrink-0 items-center justify-center gap-2 rounded-[8px] px-4 text-body font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-[var(--disabled-opacity)] motion-safe:transition-[opacity,transform,background-color] motion-safe:duration-quick motion-safe:ease-out motion-safe:active:scale-[0.96]";
 
 const VARIANTS: Record<ImportButtonVariant, string> = {
   primary: "bg-accent text-on-accent hover:opacity-90",
