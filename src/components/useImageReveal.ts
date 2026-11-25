@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 const revealed = new Set<string>();
 
@@ -14,5 +14,13 @@ export function useImageReveal(src: string | null | undefined) {
     revealed.add(src);
     setLoaded(src);
   };
-  return { shown, onLoad, className: `${shown ? "opacity-100" : "opacity-0"} motion-safe:transition-opacity motion-safe:duration-reading` };
+  const attach = useCallback(
+    (image: HTMLImageElement | null) => {
+      if (!src || !image?.complete || image.naturalWidth === 0) return;
+      revealed.add(src);
+      setLoaded(src);
+    },
+    [src],
+  );
+  return { shown, onLoad, attach, className: `${shown ? "opacity-100" : "opacity-0"} motion-safe:transition-opacity motion-safe:duration-reading` };
 }

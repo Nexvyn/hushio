@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { motion } from "motion/react";
 import { MusicNote } from "@phosphor-icons/react";
 import { PhoneIcon } from "./PhoneIcon";
@@ -19,11 +19,20 @@ const loadedArt = new Set<string>();
 export function PhoneArt({ src, round = false, radius = "rounded-[12px]", className = "block aspect-square w-full", children, layoutId }: PhoneArtProps) {
   const shape = round ? "rounded-full" : `${radius} [corner-shape:squircle]`;
   const [settled, setSettled] = useState<{ src: string; ok: boolean } | null>(null);
+  const [fit, setFit] = useState<ArtFit>("cover");
   const state = settled?.src === src ? settled : null;
   const loaded = (src !== null && loadedArt.has(src)) || state?.ok === true;
   const failed = state?.ok === false;
-  const [fit, setFit] = useState<ArtFit>("cover");
   const reduced = reducedMotion();
+  const attach = useCallback(
+    (image: HTMLImageElement | null) => {
+      if (!src || !image?.complete || image.naturalWidth === 0) return;
+      loadedArt.add(src);
+      setFit(artFitFor(image));
+      setSettled({ src, ok: true });
+    },
+    [src],
+  );
   return (
     <span aria-hidden="true" className={`${className} relative overflow-hidden text-ink-2 ${shape} ${fit === "contain" ? "bg-base" : "bg-wash"}`}>
       {(!src || failed) && (
@@ -33,6 +42,7 @@ export function PhoneArt({ src, round = false, radius = "rounded-[12px]", classN
       )}
       {src && !failed && (
         <motion.img
+          ref={attach}
           src={src}
           layoutId={reduced ? undefined : layoutId}
           initial={false}
@@ -41,11 +51,7 @@ export function PhoneArt({ src, round = false, radius = "rounded-[12px]", classN
           alt=""
           loading="lazy"
           decoding="async"
-          onLoad={(event) => {
-            loadedArt.add(src);
-            setFit(artFitFor(event.currentTarget));
-            setSettled({ src, ok: true });
-          }}
+          onLoad={(event) => attach(event.currentTarget)}
           onError={() => setSettled({ src, ok: false })}
           className={`absolute inset-0 size-full ${fit === "contain" ? "object-contain" : "object-cover"} ${shape}`}
         />

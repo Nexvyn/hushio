@@ -462,6 +462,7 @@ function playbackCategory(context: BuildContext): SettingsCategory {
       <RadioGroup
         label="Song versions"
         options={MATCH_LANGUAGE_OPTIONS}
+        chips
         value={s.matchLanguage}
         onChange={(value) => s.setValue("matchLanguage", value)}
       />

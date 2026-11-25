@@ -35,7 +35,7 @@ export function EmptyState({ title, message, icon, action, secondaryAction, cent
               <button
                 type="button"
                 onClick={action.onClick}
-                className="inline-flex h-11 items-center justify-center rounded-[12px] [corner-shape:squircle] bg-primary px-5 text-body font-semibold text-on-primary hover:opacity-90 motion-safe:transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                className="inline-flex h-11 items-center justify-center rounded-[12px] [corner-shape:squircle] bg-wash px-5 text-body font-semibold text-ink-1 motion-safe:transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               >
                 {action.label}
               </button>
@@ -44,7 +44,7 @@ export function EmptyState({ title, message, icon, action, secondaryAction, cent
               <button
                 type="button"
                 onClick={secondaryAction.onClick}
-                className="inline-flex h-11 items-center justify-center rounded-[12px] px-5 text-body font-semibold text-ink-1 motion-safe:transition-colors hover:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                className="inline-flex h-11 items-center justify-center rounded-[12px] [corner-shape:squircle] bg-wash px-5 text-body font-semibold text-ink-1 motion-safe:transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               >
                 {secondaryAction.label}
               </button>
@@ -66,7 +66,7 @@ export function EmptyState({ title, message, icon, action, secondaryAction, cent
       {(action || secondaryAction) && (
         <div className="mt-4 flex items-center justify-center gap-2">
           {action && (
-            <Button variant="primary" onClick={action.onClick}>
+            <Button variant="secondary" onClick={action.onClick}>
               {action.label}
             </Button>
           )}

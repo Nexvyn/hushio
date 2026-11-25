@@ -539,7 +539,7 @@ function PhoneFilterChips({ filter, onPick }: { filter: SearchFilter; onPick: (f
           aria-pressed={filter === tab.filter}
           onClick={() => onPick(tab.filter)}
           className={`relative inline-flex h-[34px] shrink-0 items-center whitespace-nowrap rounded-[10px] px-3 text-body font-medium before:absolute before:inset-x-0 before:-inset-y-[5px] before:content-[''] motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
-            filter === tab.filter ? "bg-primary text-on-primary" : "bg-wash text-ink-2 hover:bg-hover"
+            filter === tab.filter ? "bg-ink-1 text-base" : "bg-wash text-ink-2 hover:bg-hover"
           }`}
         >
           {t(tab.labelKey)}

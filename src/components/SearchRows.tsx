@@ -37,7 +37,7 @@ export function Artwork({
   }
   const shape = radius ?? (round ? "rounded-full" : "rounded-md");
   if (!src) return <span aria-hidden="true" className={`${size} ${shape} shrink-0 bg-wash`} />;
-  return <img src={src} alt="" loading="lazy" decoding="async" onLoad={reveal.onLoad} className={`${size} ${shape} shrink-0 object-cover ${reveal.className}`} />;
+  return <img ref={reveal.attach} src={src} alt="" loading="lazy" decoding="async" onLoad={reveal.onLoad} className={`${size} ${shape} shrink-0 object-cover ${reveal.className}`} />;
 }
 
 export function BrowseCard({ item, query }: { item: BrowseItem; query: string }) {

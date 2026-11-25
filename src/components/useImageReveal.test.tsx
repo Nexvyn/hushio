@@ -23,6 +23,14 @@ describe("useImageReveal", () => {
     expect(again.result.current.shown).toBe(true);
   });
 
+  it("shows an image that finished loading before React attached its load handler", () => {
+    const src = "https://img.test/cached-before-mount.jpg";
+    const image = { complete: true, naturalWidth: 300 } as HTMLImageElement;
+    const { result } = renderHook(() => useImageReveal(src));
+    act(() => result.current.attach(image));
+    expect(result.current.shown).toBe(true);
+  });
+
   it("never shows a missing source", () => {
     const { result } = renderHook(() => useImageReveal(null));
     expect(result.current.shown).toBe(false);
