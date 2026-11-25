@@ -226,7 +226,7 @@ function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, 
 
 function accentRgb(): string {
   const parts = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim().split(/\s+/).map(Number);
-  return parts.length >= 3 && parts.slice(0, 3).every(Number.isFinite) ? `${parts[0]}, ${parts[1]}, ${parts[2]}` : "255, 107, 74";
+  return parts.length >= 3 && parts.slice(0, 3).every(Number.isFinite) ? `${parts[0]}, ${parts[1]}, ${parts[2]}` : "124, 155, 255";
 }
 
 function curvePath(ctx: CanvasRenderingContext2D, samples: Point[]) {

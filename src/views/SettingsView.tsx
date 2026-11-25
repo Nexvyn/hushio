@@ -132,7 +132,7 @@ function CategoryNav({ categories, active, onSelect }: CategoryNavProps) {
     <nav aria-label="Settings categories" className="relative flex flex-col gap-0.5">
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 rounded-[12px] [corner-shape:squircle] bg-ink-1/[0.08] motion-safe:transition-transform motion-safe:duration-swap motion-safe:ease-out"
+        className="pointer-events-none absolute inset-x-0 rounded-[12px] [corner-shape:squircle] bg-ink-1/10 motion-safe:transition-transform motion-safe:duration-swap motion-safe:ease-out"
         style={{ transform: `translateY(${light.top}px)`, height: light.height }}
       />
       {categories.map((category, index) => {
