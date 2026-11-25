@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("../lib/bridge", () => ({
@@ -32,12 +32,19 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("phone settings", () => {
-  it("opens as the settings root with a back arrow and a Downloads row", () => {
+  it("opens as the settings root with a back arrow and no Downloads row", () => {
     render(<SettingsView />);
     expect(screen.getByRole("heading", { name: "Settings" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Back" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Downloads" }));
-    expect(useNavigation.getState().view).toEqual({ name: "downloads" });
+    expect(screen.queryByRole("button", { name: "Downloads" })).toBeNull();
+  });
+
+  it("slides the category page in with the push transition and back out with pop", () => {
+    const { container } = render(<SettingsView />);
+    fireEvent.click(container.querySelector('[data-cat="playback"]') as HTMLElement);
+    expect(container.querySelector('[data-route-transition="push"]')).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Back to settings" }));
+    expect(container.querySelector('[data-route-transition="pop"]')).toBeTruthy();
   });
 
   it("opens Account from the profile row", () => {
@@ -67,7 +74,7 @@ describe("phone settings", () => {
 
     expect(screen.getByRole("heading", { name: "Playback" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Back to settings" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Lyrics/ })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("button", { name: /Lyrics/ })).toBeNull());
     expect(screen.queryByText("Coming in a later version")).toBeNull();
     expect(screen.queryByText("Crossfade")).toBeNull();
     expect(screen.queryByText("Automix")).toBeNull();

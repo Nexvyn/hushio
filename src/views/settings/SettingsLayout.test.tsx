@@ -22,7 +22,7 @@ describe("GroupView on desktop", () => {
     expect(section?.querySelector("[class*='rounded-[14px]']")).toBeNull();
     expect(section?.querySelector("[class*='bg-surface']")).toBeNull();
     expect(section?.querySelector("[class*='divide-']")).toBeNull();
-    const rows = container.querySelectorAll('[class*="min-h-[56px]"]');
+    const rows = container.querySelectorAll('[class*="min-h-14"]');
     expect(rows).toHaveLength(2);
   });
 

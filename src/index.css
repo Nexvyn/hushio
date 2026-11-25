@@ -213,7 +213,7 @@ textarea:focus-visible {
 }
 
 :root {
-  --hit-min: 40px;
+  --hit-min: 44px;
   --lyric-scale: 1;
 }
 

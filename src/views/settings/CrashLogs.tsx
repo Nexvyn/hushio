@@ -48,7 +48,7 @@ export function CrashLogs() {
       ) : logs.length === 0 ? (
         <p className="py-3 text-body text-ink-2">No crashes recorded</p>
       ) : (
-        <ul className="divide-y divide-separator">
+        <ul className="flex flex-col gap-2">
           {logs.map((log, index) => (
             <li key={`${log.at}-${index}`} className="py-3">
               <div className="flex min-h-10 items-center justify-between gap-3">

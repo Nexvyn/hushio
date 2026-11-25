@@ -1,5 +1,8 @@
-import { useId, type MouseEvent, type ReactNode } from "react";
+import { isValidElement, useId, type MouseEvent, type ReactNode } from "react";
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
+import { SETTINGS_SIZE, SETTINGS_SPACE, SETTINGS_TYPE } from "../lib/settingsDesign";
+import { usePhone } from "../lib/usePhone";
+import { Slider } from "./Slider";
 import { Switch } from "./Switch";
 
 export type SettingRowProps = {
@@ -15,8 +18,9 @@ export type SettingRowProps = {
   stacked?: boolean;
 };
 
-export const CONTROL_CLASSES =
-  "[&_.app-control]:h-11 [&_.app-control]:min-h-11 [&_.app-control]:rounded-[8px] [&_.app-control]:px-3 [&_.app-control:not(.bg-accent)]:bg-transparent [&_.app-control:not(.bg-accent)]:border [&_.app-control:not(.bg-accent)]:border-separator [&_.app-control:not(.bg-accent):hover]:bg-hover [&_[role=radiogroup]]:bg-transparent [&_[role=radiogroup]]:gap-1 [&_[role=radiogroup]]:p-0 [&_[role=radio]]:h-8 [&_[role=radio]]:rounded-[8px] [&_[role=radio][aria-checked=true]]:bg-ink-1 [&_[role=radio][aria-checked=true]]:text-[rgb(var(--base))] [&_[role=radio][aria-checked=false]:hover]:bg-hover [&_select]:h-9 [&_select]:rounded-[8px] [&_select]:border [&_select]:border-separator [&_select]:bg-transparent [&_select]:px-3";
+function isSlider(control: ReactNode): boolean {
+  return isValidElement(control) && control.type === Slider;
+}
 
 export function SettingRow({
   title,
@@ -29,9 +33,19 @@ export function SettingRow({
   stacked = false,
 }: SettingRowProps) {
   const titleId = useId();
+  const phone = usePhone();
+  const column = stacked || (phone && isSlider(control));
+  const tone = danger ? "text-danger-text" : disabled ? "text-ink-3" : "text-ink-1";
+
   const controls = (
-    <div className={`flex items-center gap-3 ${stacked ? "" : "shrink-0"} ${CONTROL_CLASSES}`}>
-      {value && <span className="text-meta tabular-nums text-ink-2">{value}</span>}
+    <div
+      className={`flex items-center ${SETTINGS_SPACE.controls} ${
+        column
+          ? "w-full [&_[role=radiogroup]]:max-w-full [&_[role=radiogroup]]:flex-wrap [&_input[type=range]]:w-auto [&_input[type=range]]:flex-1"
+          : "shrink-0"
+      }`}
+    >
+      {value && <span className={SETTINGS_TYPE.value}>{value}</span>}
       {toggle ? (
         <Switch checked={toggle.checked} disabled={disabled} aria-labelledby={titleId} onCheckedChange={toggle.onChange} />
       ) : (
@@ -49,18 +63,15 @@ export function SettingRow({
   return (
     <div
       onClick={onRowClick}
-      className={`flex min-h-[56px] py-2 ${stacked ? "flex-col gap-2" : "items-center gap-4"} ${
-        toggle && !disabled ? "cursor-pointer" : ""
-      }`}
+      className={`flex ${SETTINGS_SIZE.row} py-2 ${
+        column ? `flex-col items-stretch ${SETTINGS_SPACE.rows}` : `items-center ${SETTINGS_SPACE.row}`
+      } ${toggle && !disabled ? "cursor-pointer" : ""}`}
     >
-      <div className={`min-w-0 ${stacked ? "" : "flex-1"}`}>
-        <p
-          id={titleId}
-          className={`text-body ${danger ? "text-danger-text" : disabled ? "text-ink-2" : "text-ink-1"}`}
-        >
+      <div className={`min-w-0 ${column ? "" : "flex-1"}`}>
+        <p id={titleId} className={`${SETTINGS_TYPE.body} ${tone}`}>
           {title}
         </p>
-        {note && <p className="mt-0.5 text-meta text-ink-2">{note}</p>}
+        {note && <p className={`mt-0.5 ${SETTINGS_TYPE.note}`}>{note}</p>}
       </div>
       {controls}
     </div>

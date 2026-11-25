@@ -1,4 +1,5 @@
 import { useRef, type KeyboardEvent } from "react";
+import { SETTINGS_RADIUS, SETTINGS_SIZE, SETTINGS_TYPE } from "../lib/settingsDesign";
 
 export type RadioOption<T extends string> = { value: T; label: string };
 
@@ -29,7 +30,11 @@ export function RadioGroup<T extends string>({ label, options, value, onChange }
   }
 
   return (
-    <div role="radiogroup" aria-label={label} className="flex h-10 shrink-0 gap-0.5 rounded-[12px] bg-wash p-0.5">
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className={`flex shrink-0 gap-0.5 bg-wash ${SETTINGS_RADIUS.control} ${SETTINGS_SIZE.control}`}
+    >
       {options.map((option, index) => {
         const checked = option.value === value;
         return (
@@ -44,7 +49,7 @@ export function RadioGroup<T extends string>({ label, options, value, onChange }
             tabIndex={checked ? 0 : -1}
             onClick={() => onChange(option.value)}
             onKeyDown={(event) => onKeyDown(event, index)}
-            className={`shrink-0 whitespace-nowrap rounded-[10px] px-3 text-meta font-medium motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out ${
+            className={`${SETTINGS_TYPE.segment} ${SETTINGS_RADIUS.segment} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out ${
               checked ? "bg-ink-1 text-[rgb(var(--base))]" : "text-ink-2 hover:text-ink-1"
             }`}
           >

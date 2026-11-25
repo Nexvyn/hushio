@@ -50,7 +50,7 @@ export function HomeSectionsSettings() {
         onBack={() => navigate({ name: "settings", param: "display" })}
       />
 
-      <ul ref={listRef} className="divide-y divide-separator rounded-[12px] bg-ink-1/[0.04] px-4" {...sortable.listProps}>
+      <ul ref={listRef} className="flex flex-col gap-2" {...sortable.listProps}>
         {keys.map((key) => {
           const bound = sortable.bind(key);
           const shown = !hidden.includes(key);

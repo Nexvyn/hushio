@@ -153,7 +153,7 @@ export function AddonSourcesSettings() {
         {ordered.length === 0 ? (
           <p className="text-body text-ink-2">No add-ons yet. Add one to get lossless audio when it is available.</p>
         ) : (
-          <ul className="divide-y divide-separator rounded-[12px] bg-ink-1/[0.04] px-4">
+          <ul className="flex flex-col gap-2">
             {ordered.map((source, index) => (
               <li key={source.id} className="flex min-h-[52px] flex-wrap items-center gap-x-4 gap-y-2 py-2">
                 <span className="flex min-w-0 flex-1 items-center gap-3">

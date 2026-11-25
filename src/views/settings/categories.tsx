@@ -200,9 +200,6 @@ function tvRows(visible: boolean, tv: TvContext): RowSpec[] {
   ];
 }
 
-const DANGER_BUTTON =
-  "inline-flex h-11 items-center justify-center rounded-[8px] border border-separator bg-transparent px-3 text-body font-medium text-danger-text motion-safe:transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
-
 function accountCategory({ settings: s, auth, sync, platform }: BuildContext): SettingsCategory {
   const device = deviceNoun(platform);
   const signedIn = auth.account.mode === "google";
@@ -327,15 +324,10 @@ function accountCategory({ settings: s, auth, sync, platform }: BuildContext): S
         note: signedIn
           ? `Removes this ${device}'s Google sign-in and erases ${APP_NAME}'s data on this ${device}. Your YouTube playlists and Liked Songs are kept unless you choose otherwise.`
           : `Deletes everything ${APP_NAME} stores on this ${device}. This can't be undone.`,
-        danger: true,
         control: (
-          <button
-            type="button"
-            onClick={() => useErase.getState().open(signedIn ? "google" : "guest")}
-            className={DANGER_BUTTON}
-          >
+          <Button variant="danger" onClick={() => useErase.getState().open(signedIn ? "google" : "guest")}>
             {signedIn ? "Disconnect & erase" : "Erase"}
-          </button>
+          </Button>
         ),
       },
     ],
@@ -514,6 +506,7 @@ function soundCategory(context: BuildContext): SettingsCategory {
             icon: WifiHigh,
             title: t("settings.row.wifiQuality"),
             searchTerms: ["streaming"],
+            stacked: true,
             control: (
               <RadioGroup
                 label="Wi-Fi quality"
@@ -530,6 +523,7 @@ function soundCategory(context: BuildContext): SettingsCategory {
                   icon: DeviceMobile,
                   title: t("settings.row.mobileQuality"),
                   searchTerms: ["streaming"],
+                  stacked: true,
                   control: (
                     <RadioGroup
                       label="Mobile data quality"
@@ -721,7 +715,7 @@ function displayCategory(context: BuildContext): SettingsCategory {
                   const value = event.target.value;
                   if (value === "system" || value === "en" || value === "hi") s.setValue("language", value);
                 }}
-                className="hit-area h-9 rounded-[8px] border border-separator bg-wash px-3 text-meta text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                className="hit-area h-11 rounded-[8px] border border-separator bg-wash px-3 text-body text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               >
                 <option value="system">{t("settings.languageSystem")}</option>
                 {LANGUAGES.map((option) => (
@@ -794,6 +788,7 @@ function displayCategory(context: BuildContext): SettingsCategory {
             id: "app-font",
             icon: TextT,
             title: t("settings.row.appFont"),
+            stacked: true,
             control: (
               <RadioGroup
                 label="App font"
@@ -991,6 +986,7 @@ function dataCategory(context: BuildContext): SettingsCategory {
     icon: Database,
     groups: [
       {
+        title: "Privacy",
         rows: [
           {
             id: "pause-listening-history",
@@ -1008,6 +1004,7 @@ function dataCategory(context: BuildContext): SettingsCategory {
         ],
       },
       {
+        title: "Backup and reset",
         rows: [
           {
             id: "export-data",
@@ -1028,11 +1025,10 @@ function dataCategory(context: BuildContext): SettingsCategory {
             icon: Trash,
             title: "Reset app data (local)",
             note: "Erase library, playlists, history and settings on this device. Downloads and YouTube data are kept.",
-            danger: true,
             control: (
-              <button type="button" onClick={() => useErase.getState().open("reset")} className={DANGER_BUTTON}>
+              <Button variant="danger" onClick={() => useErase.getState().open("reset")}>
                 Reset
-              </button>
+              </Button>
             ),
           },
         ],

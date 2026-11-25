@@ -133,7 +133,7 @@ export function NetworkServersSettings() {
         {servers.length === 0 ? (
           <p className="text-body text-ink-2">{t("network.empty")}</p>
         ) : (
-          <ul className="divide-y divide-separator rounded-[12px] bg-ink-1/[0.04] px-4">
+          <ul className="flex flex-col gap-2">
             {servers.map((server) => (
               <li key={server.id} className="flex min-h-[52px] items-center gap-4 py-2">
                 <span className="min-w-0 flex-1">

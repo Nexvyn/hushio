@@ -1,12 +1,15 @@
 import { useT } from "../lib/i18n";
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
-import { CaretRight, X, DownloadSimple, MagnifyingGlass } from "@phosphor-icons/react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { CaretRight, X, MagnifyingGlass } from "@phosphor-icons/react";
 import { Icon } from "../components/Icon";
 import { PhoneIcon } from "../components/phone/PhoneIcon";
 import { SectionHeader } from "../components/SectionHeader";
+import { ViewTransition } from "../components/ViewTransition";
 import { appVersion, platform, type GoogleAccount } from "../lib/bridge";
 import { usePhone } from "../lib/usePhone";
 import { usesNativeAudio } from "../lib/nativeAudioDeck";
+import type { NavDirection } from "../lib/navDirection";
+import { SETTINGS_RADIUS, SETTINGS_SIZE, SETTINGS_SPACE, SETTINGS_TYPE } from "../lib/settingsDesign";
 import { useAuth } from "../stores/auth";
 import { useDiscord } from "../stores/discord";
 import { useScrobble } from "../stores/scrobble";
@@ -73,18 +76,16 @@ function SearchBox({ value, onChange, phone = false }: { value: string; onChange
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={onKeyDown}
-        className={
-          phone
-            ? "h-11 w-full rounded-[12px] [corner-shape:squircle] bg-elevated pl-10 pr-10 text-base text-ink-1 placeholder:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-            : "h-10 w-full rounded-[12px] [corner-shape:squircle] border border-separator bg-surface pl-10 pr-10 text-base text-ink-1 md:text-body placeholder:text-ink-2 focus-visible:border-focus focus-visible:outline-none"
-        }
+        className={`${SETTINGS_SIZE.control} w-full ${SETTINGS_RADIUS.control} [corner-shape:squircle] pl-10 pr-10 text-base text-ink-1 placeholder:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+          phone ? "bg-elevated" : "border border-separator bg-surface md:text-body"
+        }`}
       />
       {value && (
         <button
           type="button"
           aria-label="Clear search"
           onClick={() => onChange("")}
-          className="hit-area absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-[12px] [corner-shape:squircle] text-ink-2 motion-safe:transition-colors hover:text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          className={`hit-area absolute right-0 top-1/2 flex ${SETTINGS_SIZE.tap} -translate-y-1/2 items-center justify-center ${SETTINGS_RADIUS.control} [corner-shape:squircle] text-ink-2 motion-safe:transition-colors hover:text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus`}
         >
           <Icon icon={X} />
         </button>
@@ -148,7 +149,7 @@ function CategoryNav({ categories, active, onSelect }: CategoryNavProps) {
             aria-current={current ? "page" : undefined}
             onClick={() => onSelect(category.id)}
             onKeyDown={(event) => onKeyDown(event, index)}
-            className={`relative flex w-full items-center gap-3 rounded-[12px] [corner-shape:squircle] px-3 py-2.5 text-left text-body font-medium motion-safe:transition-colors ${
+            className={`relative flex ${SETTINGS_SIZE.tap} w-full items-center gap-3 rounded-[12px] [corner-shape:squircle] px-3 py-2.5 text-left ${SETTINGS_TYPE.body} font-medium motion-safe:transition-colors ${
               current ? "text-ink-1" : "text-ink-2 hover:text-ink-1"
             }`}
           >
@@ -168,8 +169,7 @@ const PHONE_GROUPS: CategoryId[][] = [
   ["about"],
 ];
 
-const PHONE_BOX = "divide-y divide-separator rounded-[12px] bg-ink-1/[0.04] px-4";
-const PHONE_ROW = "-mx-4 flex w-[calc(100%+2rem)] items-center gap-4 px-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+const PHONE_ROW = `-mx-4 flex w-[calc(100%+2rem)] ${SETTINGS_SIZE.row} items-center gap-4 px-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus`;
 
 function backOr(fallback: View) {
   const nav = useNavigation.getState();
@@ -185,7 +185,6 @@ type PhoneSettingsProps = {
   open: SettingsCategory | undefined;
   account: GoogleAccount;
   onOpen: (id: CategoryId) => void;
-  onDownloads: () => void;
   onBack: () => void;
 };
 
@@ -197,20 +196,15 @@ function PhoneSettings({
   open,
   account,
   onOpen,
-  onDownloads,
   onBack,
 }: PhoneSettingsProps) {
   const searching = query.trim() !== "";
-
-  if (!searching && open) {
-    return (
-      <div key={open.id} className="settings-pane pb-6">
-        <PhoneHeader title={open.label} onBack={onBack} backLabel="Back to settings" />
-        {open.groups.map((group, index) => (
-          <GroupView key={group.title ?? index} group={group} phone />
-        ))}
-      </div>
-    );
+  const [pane, setPane] = useState<{ id: CategoryId | undefined; direction: NavDirection }>({
+    id: open?.id,
+    direction: "none",
+  });
+  if (pane.id !== open?.id) {
+    setPane({ id: open?.id, direction: open ? "push" : "pop" });
   }
 
   const signedIn = account.mode === "google";
@@ -219,67 +213,67 @@ function PhoneSettings({
     ids.flatMap((id) => categories.filter((category) => category.id === id)),
   ).filter((items) => items.length > 0);
 
-  return (
-    <div className="pb-6">
-      <PhoneHeader title="Settings" onBack={() => backOr({ name: "home" })} />
-      <div className="mb-6">
-        <SearchBox value={query} onChange={onQueryChange} phone />
+  let content: ReactNode;
+  if (!searching && open) {
+    content = (
+      <div className="pb-6">
+        <PhoneHeader title={open.label} onBack={onBack} backLabel="Back to settings" />
+        <div className={SETTINGS_SPACE.groups}>
+          {open.groups.map((group, index) => (
+            <GroupView key={group.title ?? index} group={group} />
+          ))}
+        </div>
       </div>
-      {searching && results.length === 0 && (
-        <p className="pt-4 text-body text-ink-2">No settings match “{query.trim()}”</p>
-      )}
-      {searching ? (
-        results.map((category) => (
-          <section key={category.id} className="mt-7 first:mt-0">
+    );
+  } else {
+    content = (
+      <div className="pb-6">
+        <PhoneHeader title="Settings" onBack={() => backOr({ name: "home" })} />
+        <div className="mb-6">
+          <SearchBox value={query} onChange={onQueryChange} phone />
+        </div>
+        {searching && results.length === 0 && (
+          <p className={`pt-4 ${SETTINGS_TYPE.body} text-ink-2`}>No settings match “{query.trim()}”</p>
+        )}
+        {searching && results.map((category) => (
+          <section key={category.id} className="mt-8 first:mt-0">
             <SectionHeader title={category.label} />
-            <div className="space-y-6">
+            <div className={SETTINGS_SPACE.groups}>
               {category.groups.map((group, index) => (
-                <GroupView key={group.title ?? index} group={group} phone />
+                <GroupView key={group.title ?? index} group={group} />
               ))}
             </div>
           </section>
-        ))
-      ) : (
-        <div className="space-y-6">
-          <div className={PHONE_BOX}>
-            <button type="button" onClick={() => onOpen("account")} className={`${PHONE_ROW} h-[64px]`}>
-              <span className="grid w-8 shrink-0 place-items-center">
-                <AccountAvatar size={32} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-title text-card-title font-semibold leading-[22px] tracking-[-0.02em] text-ink-1">{name}</span>
-                <span className="block truncate text-meta leading-[18px] text-ink-2">
-                  {signedIn ? "Signed in with Google" : "Sign in to sync playlists and likes"}
-                </span>
-              </span>
-              <span aria-hidden="true" className="shrink-0 text-ink-2">
-                <Icon icon={CaretRight} />
-              </span>
-            </button>
-            <button type="button" onClick={onDownloads} className={`${PHONE_ROW} h-[52px]`}>
-              <span className="grid w-8 shrink-0 place-items-center text-ink-1">
-                <PhoneIcon icon={DownloadSimple} />
-              </span>
-              <span className="min-w-0 flex-1 truncate text-body leading-[22px] text-ink-1">Downloads</span>
-              <span aria-hidden="true" className="shrink-0 text-ink-2">
-                <Icon icon={CaretRight} />
-              </span>
-            </button>
-          </div>
+        ))}
+        {!searching && <button type="button" onClick={() => onOpen("account")} className={PHONE_ROW}>
+          <span className="grid w-8 shrink-0 place-items-center">
+            <AccountAvatar size={32} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-title text-card-title font-semibold leading-[22px] tracking-[-0.02em] text-ink-1">{name}</span>
+            <span className={`block truncate ${SETTINGS_TYPE.note}`}>
+              {signedIn ? "Signed in with Google" : "Sign in to sync playlists and likes"}
+            </span>
+          </span>
+          <span aria-hidden="true" className="shrink-0 text-ink-2">
+            <Icon icon={CaretRight} />
+          </span>
+        </button>}
+        {!searching && <div className="mt-6 space-y-8">
           {groups.map((items) => (
-            <ul key={items[0].id} className={PHONE_BOX}>
+            <ul key={items[0].id} className="flex flex-col">
               {items.map((category) => (
                 <li key={category.id}>
                   <button
                     type="button"
                     data-cat={category.id}
                     onClick={() => onOpen(category.id)}
-                    className={`${PHONE_ROW} h-[52px] motion-safe:transition-opacity active:opacity-70`}
+                    className={`${PHONE_ROW} motion-safe:transition-opacity active:opacity-70`}
                   >
                     <span className="grid w-8 shrink-0 place-items-center text-ink-1">
                       <PhoneIcon icon={category.icon} />
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-body leading-[22px] text-ink-1">{category.label}</span>
+                    <span className={`min-w-0 flex-1 truncate ${SETTINGS_TYPE.body} text-ink-1`}>{category.label}</span>
                     <span aria-hidden="true" className="shrink-0 text-ink-2">
                       <Icon icon={CaretRight} />
                     </span>
@@ -288,9 +282,15 @@ function PhoneSettings({
               ))}
             </ul>
           ))}
-        </div>
-      )}
-    </div>
+        </div>}
+      </div>
+    );
+  }
+
+  return (
+    <ViewTransition routeKey={searching ? "search" : (open?.id ?? "root")} direction={pane.direction}>
+      {content}
+    </ViewTransition>
   );
 }
 
@@ -414,7 +414,6 @@ export function SettingsView() {
         open={categories.find((category) => category.id === view.param)}
         account={account}
         onOpen={(id) => navigate({ name: "settings", param: id })}
-        onDownloads={() => navigate({ name: "downloads" })}
         onBack={backToSettingsList}
       />
     );
@@ -430,11 +429,11 @@ export function SettingsView() {
       <div className="min-w-0 max-w-[680px] flex-1">
         {searching ? (
           results.length > 0 ? (
-            <div className="space-y-10">
+            <div className={SETTINGS_SPACE.groups}>
               {results.map((category) => (
                 <section key={category.id}>
                   <SectionHeader title={category.label} />
-                  <div className="space-y-10">
+                  <div className={SETTINGS_SPACE.groups}>
                     {category.groups.map((group, index) => (
                       <GroupView key={group.title ?? index} group={group} />
                     ))}
@@ -443,13 +442,13 @@ export function SettingsView() {
               ))}
             </div>
           ) : (
-            <p className="pt-2 text-body text-ink-2">No settings match “{query.trim()}”</p>
+            <p className={`pt-2 ${SETTINGS_TYPE.body} text-ink-2`}>No settings match “{query.trim()}”</p>
           )
         ) : (
           current && (
             <div key={current.id} className="animate-fade-in">
               <PageHeader title={current.label} />
-              <div className="space-y-10">
+              <div className={SETTINGS_SPACE.groups}>
                 {current.groups.map((group, index) => (
                   <GroupView key={group.title ?? index} group={group} />
                 ))}

@@ -26,6 +26,19 @@ describe("SettingRow", () => {
   it("does not render the icon tile", () => {
     const { container } = render(<SettingRow icon={Trash} title="Import" />);
     expect(container.querySelector("span.rounded-\\[9px\\]")).toBeNull();
-    expect(screen.getByText("Import").className).toContain("text-body");
+    expect(screen.getByText("Import").className).toContain("text-[0.9375rem]");
+  });
+
+  it("gives the value label a fixed width and tabular figures", () => {
+    render(<SettingRow icon={Trash} title="Playback speed" value="1.25x" control={<button type="button">Set</button>} />);
+    const value = screen.getByText("1.25x");
+    expect(value.className).toContain("w-24");
+    expect(value.className).toContain("tabular-nums");
+    expect(value.className).toContain("text-right");
+  });
+
+  it("gives an unchecked switch's title the tertiary text colour when disabled", () => {
+    render(<SettingRow icon={Trash} title="Gapless" disabled toggle={{ checked: false, onChange: () => {} }} />);
+    expect(screen.getByText("Gapless").className).toContain("text-ink-3");
   });
 });
