@@ -68,6 +68,28 @@ describe("motion budget (F-285)", () => {
     }
   });
 
+  it("animates width or position only for the named sidebar and queue moves", () => {
+    const named = [
+      { name: "sidebar width", file: "components/Sidebar.tsx", pattern: /animate=\{\{ width: rail \? SIDEBAR_RAIL_PX : SIDEBAR_FULL_PX \}\}/ },
+      { name: "queue move", file: "lib/useSortable.ts", pattern: /animate\(row, \{ y: \[delta, 0\] \}/ },
+    ];
+    const code = walk(SRC_DIR)
+      .filter((path) => /\.(ts|tsx)$/.test(path) && !/\.test\.tsx?$/.test(path))
+      .map((path) => ({
+        file: path.slice(SRC_DIR.length).split("\\").join("/"),
+        text: fs.readFileSync(path, "utf8"),
+      }));
+    for (const { name, file, pattern } of named) {
+      const source = code.find((item) => item.file === file);
+      expect(source?.text.match(pattern) ? 1 : 0, name).toBe(1);
+    }
+    const geometry = /animate(?:=\{\{|\(\w+, \{)[^}]*\b(width|height|top|left)\s*:/;
+    for (const { file, text } of code) {
+      if (file === "components/Sidebar.tsx") continue;
+      expect(text.match(geometry)?.[0] ?? null, file).toBeNull();
+    }
+  });
+
   it("has no literal durations outside the token file and the keyframe file", () => {
     for (const { file, text } of sources) {
       if (file === KEYFRAME_FILE) continue;

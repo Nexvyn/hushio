@@ -76,6 +76,12 @@ function scrollParent(node: HTMLElement | null): HTMLElement | null {
   return null;
 }
 
+function rowFor(list: HTMLElement | null, key: string): HTMLElement | undefined {
+  return Array.from(list?.querySelectorAll<HTMLElement>("[data-row-key]") ?? []).find(
+    (element) => element.dataset.rowKey === key,
+  );
+}
+
 function focusTarget(row: HTMLElement | undefined): HTMLElement | null {
   if (!row) return null;
   return row.matches("button") ? row : row.querySelector<HTMLElement>("button") ?? row;
@@ -87,6 +93,7 @@ export function useSortable(options: SortableOptions) {
   const dragRef = useRef<Drag | null>(null);
   const suppressClick = useRef(false);
   const pendingFocus = useRef<string | null>(null);
+  const pendingFlip = useRef<{ key: string; top: number } | null>(null);
   const settleTimer = useRef<number | undefined>(undefined);
   const selfMove = useRef(false);
 
@@ -94,11 +101,14 @@ export function useSortable(options: SortableOptions) {
     const key = pendingFocus.current;
     if (key === null) return;
     pendingFocus.current = null;
-    const list = optionsRef.current.listRef.current;
-    const row = Array.from(list?.querySelectorAll<HTMLElement>("[data-row-key]") ?? []).find(
-      (element) => element.dataset.rowKey === key,
-    );
+    const flip = pendingFlip.current;
+    pendingFlip.current = null;
+    const row = rowFor(optionsRef.current.listRef.current, key);
     focusTarget(row)?.focus();
+    if (row && flip?.key === key && !reducedMotion()) {
+      const delta = flip.top - row.getBoundingClientRect().top;
+      if (delta !== 0) animate(row, { y: [delta, 0] }, SPRING_CONTROL);
+    }
   });
 
   useEffect(
@@ -353,6 +363,8 @@ export function useSortable(options: SortableOptions) {
     event.stopPropagation();
     const to = Math.min(keys.length - 1, Math.max(0, from + (event.key === "ArrowUp" ? -1 : 1)));
     if (to === from) return;
+    const row = rowFor(optionsRef.current.listRef.current, key);
+    pendingFlip.current = row ? { key, top: row.getBoundingClientRect().top } : null;
     pendingFocus.current = key;
     onMove?.(from, to);
   }

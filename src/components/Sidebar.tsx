@@ -1,4 +1,6 @@
 import { useMemo, useRef, useState } from "react";
+import { motion } from "motion/react";
+import { SPRING_SHEET, instant, reducedMotion } from "../lib/motion";
 import { CaretDown, CaretLeft, CaretRight, DownloadSimple, Heart, Folder, Books, ListBullets, MusicNote, MusicNotes, Rows, PushPin, Playlist, Plus, MagnifyingGlass, SquaresFour, User, VinylRecord, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { ActionMenu } from "./ActionMenu";
 import { t, useT, type TKey } from "../lib/i18n";
@@ -29,6 +31,9 @@ import { type View, useNavigation } from "../stores/navigation";
 import { SIDEBAR_LAYOUTS, type SidebarLayout, useSettings } from "../stores/settings";
 import { type MenuItem, useUI } from "../stores/ui";
 import { useImageReveal } from "./useImageReveal";
+
+const SIDEBAR_RAIL_PX = 64;
+const SIDEBAR_FULL_PX = 272;
 
 function SidebarThumb({ src }: { src: string }) {
   const reveal = useImageReveal(src);
@@ -327,8 +332,11 @@ export function Sidebar({ mode = "full" }: { mode?: SidebarMode }) {
   }
 
   return (
-    <aside
-      className={`shell-sidebar flex min-h-0 shrink-0 flex-col overflow-hidden rounded-[8px] bg-surface ${rail ? "w-16" : "w-[272px]"}`}
+    <motion.aside
+      initial={false}
+      animate={{ width: rail ? SIDEBAR_RAIL_PX : SIDEBAR_FULL_PX }}
+      transition={reducedMotion() ? instant : SPRING_SHEET}
+      className="shell-sidebar flex min-h-0 shrink-0 flex-col overflow-hidden rounded-[8px] bg-surface"
       onContextMenu={(event) => openMenuAtPointer(event, panelMenuItems())}
     >
       <section aria-label={t("nav.library")} className="flex min-h-0 flex-1 flex-col pt-2">
@@ -427,6 +435,6 @@ export function Sidebar({ mode = "full" }: { mode?: SidebarMode }) {
           </ul>
         </nav>
       </section>
-    </aside>
+    </motion.aside>
   );
 }
