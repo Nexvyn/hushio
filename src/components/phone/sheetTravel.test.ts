@@ -66,6 +66,14 @@ describe("sheet travel", () => {
     expect(sheetClipOf(bounds, 400, 800, 1)).toEqual({ top: 0, right: 0, bottom: 0, left: 0, radius: 0 });
   });
 
+  it("keeps the dock below the mini bar uncovered for the last 30% of the close", () => {
+    const bounds = { top: 680, left: 8, width: 384, height: 64 };
+    expect(sheetClipOf(bounds, 400, 800, 0.3).bottom).toBe(56);
+    expect(sheetClipOf(bounds, 400, 800, 0.15).bottom).toBe(56);
+    expect(sheetClipOf(bounds, 400, 800, 0.65).bottom).toBeCloseTo(28);
+    expect(sheetClipOf(bounds, 400, 800, 1).bottom).toBe(0);
+  });
+
   it("keeps only fade motion when reduced motion is active", () => {
     expect(sheetClipOf({ top: 680, left: 8, width: 384, height: 64 }, 400, 800, 0.4, true)).toEqual({ top: 0, right: 0, bottom: 0, left: 0, radius: 0 });
     expect(pageCardOf(1, true)).toEqual({ scale: 1, radius: 0, shade: 0 });

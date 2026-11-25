@@ -1,6 +1,6 @@
 import { useEffect, useContext, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { AnimatePresence, animate, motion, useMotionValue, usePresence, useTransform, type AnimationPlaybackControls } from "motion/react";
-import { CaretDown, CaretUp, Screencast, DownloadSimple, DotsThree, SkipForward, SkipBack, Queue, Repeat, Shuffle, type Icon as PhosphorIcon } from "@phosphor-icons/react";
+import { CaretDown, CaretUp, Screencast, DownloadSimple, DotsThree, SkipForward, SkipBack, Queue, Repeat, Shuffle, SpeakerHigh, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { PhoneIcon } from "./PhoneIcon";
 import { AmbientBackdrop, isLightTheme, paletteCoverFor } from "../AmbientBackdrop";
 import { LikeButton } from "../LikeButton";
@@ -843,6 +843,11 @@ function NowPlayingSheet() {
                   <p className={`truncate font-title text-card-title font-semibold leading-[22px] ${titleTone}`}>{track?.title ?? "Nothing playing"}</p>
                   <p className={`truncate text-body leading-[20px] ${artistTone}`}>{track?.artist ?? ""}</p>
                 </div>
+                {panelKind === "queue" && (
+                  <span className={`shrink-0 ${titleTone}`}>
+                    <PhoneIcon icon={SpeakerHigh} />
+                  </span>
+                )}
               </div>
               {panelKind === "lyrics" ? (
                 <motion.div className="flex min-h-0 flex-1 flex-col px-6 will-change-transform" style={{ y: panelListY }} {...artHandlers}>

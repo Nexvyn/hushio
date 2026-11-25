@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { Track } from "../../types";
 import { INSET_TOP } from "../../lib/phoneNav";
 
@@ -228,6 +228,13 @@ describe("PhoneNowPlaying", () => {
     fireEvent.click(screen.getByRole("button", { name: "Queue" }));
     expect(useUI.getState().phoneQueueOpen).toBe(true);
     expect(useUI.getState().phoneLyricsOpen).toBe(false);
+  });
+
+  it("shows the current song once in the queue header", () => {
+    render(<PhoneNowPlaying />);
+    fireEvent.click(screen.getByRole("button", { name: "Queue" }));
+    const overlay = document.querySelector("[data-queue-thumb]")?.closest(".absolute") as HTMLElement;
+    expect(within(overlay).getAllByText("Track 1")).toHaveLength(1);
   });
 
   it("opens the lyrics from the centre Lyrics label when the track has lyrics", () => {

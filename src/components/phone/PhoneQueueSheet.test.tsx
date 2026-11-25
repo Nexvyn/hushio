@@ -40,14 +40,14 @@ afterEach(() => {
 });
 
 describe("PhoneQueueList rows", () => {
-  it("draws the now playing row on the page with no background block", () => {
-    const { container } = render(<PhoneQueueList />);
+  it("does not repeat the current song as a row under the sheet header", () => {
+    render(<PhoneQueueList />);
 
-    expect(screen.getByRole("heading", { name: "Now playing" })).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: "Play First" })).toHaveLength(1);
-    const row = container.querySelector('[data-index="0"]');
-    expect(row).toBeTruthy();
-    expect(row?.className).not.toContain("bg-base");
+    expect(screen.queryByRole("heading", { name: "Now playing" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Play First" })).toBeNull();
+    expect(screen.queryByText("First")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Up next" })).toBeTruthy();
+    expect(screen.getByText("Second")).toBeTruthy();
   });
 
   it("keeps the row content transparent so the tinted page shows through", () => {

@@ -161,10 +161,11 @@ export function sheetClipOf(box: Bounds | null, width: number, height: number, o
   const p = clamp01(openness);
   if (reduced) return { top: 0, right: 0, bottom: 0, left: 0, radius: 0 };
   if (!box || width <= 0 || height <= 0) return { top: 0, right: 0, bottom: 0, left: 0, radius: 0 };
+  const lift = clamp01((p - MINI_FADE_END) / (1 - MINI_FADE_END));
   return {
     top: box.top * (1 - p),
     right: (width - box.left - box.width) * (1 - p),
-    bottom: (height - box.top - box.height) * (1 - p),
+    bottom: (height - box.top - box.height) * (1 - lift),
     left: box.left * (1 - p),
     radius: 14 * (1 - p),
   };

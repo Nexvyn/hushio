@@ -253,18 +253,6 @@ export function PhoneQueueList() {
           />
         </motion.div>
       )}
-      {current && (
-        <>
-          <h3 className={HEADING}>Now playing</h3>
-          <PhoneTrackRow
-            track={current}
-            index={index}
-            active
-            onPress={() => jumpTo(index)}
-            onMore={(event) => menuFor(current, event)}
-          />
-        </>
-      )}
       {playingFrom && sourceName ? <p className="px-4 pb-2 text-meta text-ink-2">Playing from {sourceName}</p> : null}
       <div className="flex items-center justify-between pr-4">
         <h3 className={HEADING}>Up next</h3>
