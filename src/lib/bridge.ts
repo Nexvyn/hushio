@@ -94,6 +94,10 @@ export function persistWrite(name: string, data: unknown, owner: string): Promis
   return call<boolean>("persist_write", { name, data, owner });
 }
 
+export function readImportText(path: string): Promise<string> {
+  return call<string>("import_read_text", { path });
+}
+
 export function updatesState(): Promise<UpdateState> {
   return call<UpdateState>("updates_state");
 }

@@ -1,6 +1,7 @@
 import { Archive } from "@phosphor-icons/react";
 import { AnimatePresence } from "motion/react";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { OWNED_DROP } from "./FileDrop";
 import { PageHeader } from "./PageHeader";
 import { ExportPanel } from "./ExportPanel";
 import { Icon } from "./Icon";
@@ -9,9 +10,9 @@ import { ImportGlyph } from "./importGlyphs";
 import { PhoneIcon } from "./phone/PhoneIcon";
 import { SpotifyLibrary } from "./SpotifyLibrary";
 import { YouTubePlaylists } from "./YouTubePlaylists";
-import { spotifyStatus } from "../lib/bridge";
+import { readImportText, spotifyStatus } from "../lib/bridge";
 import { exportBackup } from "../lib/importBackup";
-import { importFiles, importFromText, pendingImport } from "../lib/importStage";
+import { importFiles, importFromText, pendingImport, type ImportFile } from "../lib/importStage";
 import { usePhone } from "../lib/usePhone";
 import { useAuth } from "../stores/auth";
 import { useNavigation } from "../stores/navigation";
@@ -74,6 +75,7 @@ export function ImportPage() {
   const youtubeConnected = useAuth((state) => state.account.mode === "google");
   const fileInput = useRef<HTMLInputElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
+  const root = useRef<HTMLDivElement>(null);
   const navigate = useNavigation((state) => state.navigate);
   const phone = usePhone();
   const labelId = useId();
@@ -127,19 +129,47 @@ export function ImportPage() {
     }
   }
 
-  async function readFiles(picked: File[]) {
-    if (picked.length === 0 || busy) return;
+  async function importFileList(load: () => Promise<ImportFile[]>) {
+    if (busy) return;
     setBusy(true);
-    const files = await Promise.all(picked.map(async (file) => ({ name: file.name, text: await file.text() })));
-    const id = await importFiles(files);
+    const files = await load();
+    const id = files.length > 0 ? await importFiles(files) : null;
     setBusy(false);
     if (id) openResult(id);
   }
 
+  function readPicked(picked: File[]): Promise<ImportFile[]> {
+    return Promise.all(picked.map(async (file) => ({ name: file.name, text: await file.text() })));
+  }
+
+  async function readNativePaths(paths: string[]): Promise<ImportFile[]> {
+    const loaded = await Promise.all(
+      paths.map(async (path) => {
+        try {
+          return { name: path.split(/[\\/]/).pop() ?? path, text: await readImportText(path) };
+        } catch {
+          return null;
+        }
+      }),
+    );
+    return loaded.filter((file): file is ImportFile => file !== null);
+  }
+
+  useEffect(() => {
+    const element = root.current;
+    if (!element) return;
+    function onOwnedDrop(event: Event) {
+      const paths = (event as CustomEvent<{ paths: string[] }>).detail.paths;
+      void importFileList(() => readNativePaths(paths));
+    }
+    element.addEventListener(OWNED_DROP, onOwnedDrop);
+    return () => element.removeEventListener(OWNED_DROP, onOwnedDrop);
+  });
+
   function onFileChange(event: ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(event.target.files ?? []);
     event.target.value = "";
-    void readFiles(picked);
+    if (picked.length > 0) void importFileList(() => readPicked(picked));
   }
 
   function onDragOver(event: DragEvent<HTMLDivElement>) {
@@ -155,7 +185,7 @@ export function ImportPage() {
   function onDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
     setDragOver(false);
-    void readFiles(Array.from(event.dataTransfer.files));
+    void importFileList(() => readPicked(Array.from(event.dataTransfer.files)));
   }
 
   const pasteForm = (
@@ -187,6 +217,7 @@ export function ImportPage() {
 
   return (
     <div
+      ref={root}
       data-owns-drop
       className={`max-w-[680px] rounded-[12px] pb-16 motion-safe:transition-shadow motion-safe:duration-quick ${dragOver ? "ring-2 ring-accent" : ""}`}
       onDragOver={onDragOver}

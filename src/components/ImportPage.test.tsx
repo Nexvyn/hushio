@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 vi.mock("../lib/bridge", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/bridge")>();
-  return { ...actual, spotifyStatus: vi.fn(actual.spotifyStatus) };
+  return { ...actual, spotifyStatus: vi.fn(actual.spotifyStatus), readImportText: vi.fn(async () => "Artist - One") };
 });
 vi.mock("../lib/persist", () => ({
   persistStorage: () => ({
@@ -54,7 +54,7 @@ import { useNavigation } from "../stores/navigation";
 import { useUI } from "../stores/ui";
 import { exportBackup } from "../lib/importBackup";
 import { exportPlaylist } from "../lib/collectionActions";
-import { spotifyStatus } from "../lib/bridge";
+import { readImportText, spotifyStatus } from "../lib/bridge";
 
 const initialLibrary = useLibrary.getState();
 
@@ -233,6 +233,16 @@ describe("ImportPage", () => {
     fireEvent.drop(root, { dataTransfer: { files: [file], types: ["Files"] } });
 
     await waitFor(() => expect(useNavigation.getState().view.param).toBeTruthy());
+    expect(pendingImport(useNavigation.getState().view.param ?? "")?.name).toBe("Dropped");
+  });
+
+  it("imports a file from a native drop that the window hands to the page", async () => {
+    const { container } = render(<ImportPage />);
+    const root = container.firstElementChild as HTMLElement;
+    root.dispatchEvent(new CustomEvent("hushio-owned-drop", { detail: { paths: ["C:\\Music\\Dropped.txt"] } }));
+
+    await waitFor(() => expect(useNavigation.getState().view.param).toBeTruthy());
+    expect(readImportText).toHaveBeenCalledWith("C:\\Music\\Dropped.txt");
     expect(pendingImport(useNavigation.getState().view.param ?? "")?.name).toBe("Dropped");
   });
 

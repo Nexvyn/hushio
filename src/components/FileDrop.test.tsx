@@ -55,6 +55,28 @@ describe("FileDrop", () => {
     expect(screen.queryByText("Drop to play")).toBeNull();
   });
 
+  it("gives a native drop over an owner to that owner instead of playing it", async () => {
+    const owner = document.createElement("div");
+    owner.setAttribute("data-owns-drop", "");
+    const inside = document.createElement("span");
+    owner.appendChild(inside);
+    document.body.appendChild(owner);
+    const original = document.elementFromPoint;
+    document.elementFromPoint = vi.fn(() => inside);
+    const received = vi.fn();
+    owner.addEventListener("hushio-owned-drop", (event) => received((event as CustomEvent).detail));
+    try {
+      render(<FileDrop />);
+      await act(async () => {});
+      emit({ type: "drop", paths: ["C:\\Music\\a.txt"], position: { x: 10, y: 10 } });
+      expect(received).toHaveBeenCalledWith({ paths: ["C:\\Music\\a.txt"] });
+      expect(drop.dropPaths).not.toHaveBeenCalled();
+    } finally {
+      document.elementFromPoint = original;
+      owner.remove();
+    }
+  });
+
   it("unsubscribes from window drops on unmount", async () => {
     const view = render(<FileDrop />);
     await act(async () => {});

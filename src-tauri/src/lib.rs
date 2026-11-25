@@ -290,6 +290,18 @@ fn allow_file(app: &AppHandle, path: &str) {
 }
 
 #[tauri::command]
+fn import_read_text(path: String) -> Result<String, String> {
+    const LIMIT: u64 = 16 * 1024 * 1024;
+    let size = std::fs::metadata(&path).map_err(|error| error.to_string())?.len();
+    if size > LIMIT {
+        return Err("File is too large".into());
+    }
+    std::fs::read(&path)
+        .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 async fn local_library_get(
     state: State<'_, local_library::Service>,
 ) -> Result<local_library::LocalLibrary, String> {
@@ -915,6 +927,7 @@ pub fn run() {
             audio_output::audio_output_state,
             persist_read,
             persist_write,
+            import_read_text,
             menu::menu_set_playback_state,
             stream_proxy_port,
             stream_register,
