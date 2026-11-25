@@ -13,7 +13,7 @@ import { ActiveDot, ToggleIcon } from "../motion/ToggleIcon";
 import { DownloadRing } from "../motion/DownloadRing";
 import type { ToggleKind } from "../../lib/toggleMotion";
 import { sheetReleaseCloses, useSheetDrag } from "./useSheetDrag";
-import { coverFlight, coverRadiusOf, glideSheet, heldBox, measureCover, measureMini, measureMiniBar, measureWithin, mountSheet, nowPlayingDriver, sheetClipOf, sheetProgress, sheetY, textBlurOf, textFadeOf, titleFadeOf, titleRevealOf, travelPx, unmountSheet, type Box, type Bounds, type Geometry } from "./sheetTravel";
+import { coverFlight, coverRadiusOf, glideSheet, heldBox, measureCover, measureMini, measureMiniBar, measureWithin, mountSheet, nowPlayingDriver, sheetClipOf, sheetProgress, sheetWashOf, sheetY, textBlurOf, textFadeOf, titleFadeOf, titleRevealOf, travelPx, unmountSheet, type Box, type Bounds, type Geometry } from "./sheetTravel";
 import { PhoneQueueList } from "./PhoneQueueSheet";
 import { Sheet } from "./Sheet";
 import { PANEL_TRAVEL_SHARE, lyricsHintVisible, panelGestureMode, panelReleaseTarget, scrollHoldsDrag, type PanelKind, type PanelMode } from "./nowPlayingPanel";
@@ -421,7 +421,8 @@ function NowPlayingSheet() {
   const coverScale = useTransform([flightScale, panelFlightScale], ([a, b]: number[]) => a * b);
   const neighbourFade = useTransform(panelP, (p) => 1 - p);
   const contentFade = useTransform(openness, titleFadeOf);
-  const controlFade = useTransform(openness, (p) => titleFadeOf(p, 0.03));
+  const controlFade = useTransform(openness, titleFadeOf);
+  const washOpacity = useTransform(openness, sheetWashOf);
   const lowerFade = useTransform([panelP, controlFade], ([panelProgress, sheetProgress]: number[]) => Math.min(1 - Math.min(1, panelProgress / 0.4), sheetProgress));
   const overlayOpacity = useTransform(panelP, [0, 0.2], [0, 1]);
   const panelListY = useTransform(panelP, [0, 1], ["100%", "0%"]);
@@ -669,7 +670,7 @@ function NowPlayingSheet() {
       style={{ clipPath }}
       className={`fixed inset-0 z-40 overflow-hidden text-ink-1 will-change-[clip-path,opacity] ${present ? "" : "pointer-events-none"}`}
     >
-      <motion.div aria-hidden="true" className="absolute inset-0 overflow-hidden bg-base">
+      <motion.div aria-hidden="true" className="absolute inset-0 overflow-hidden bg-base" style={{ opacity: washOpacity }}>
         {onArt && !lightTheme && <AmbientBackdrop primary={palette.primary} src={paletteSrc} className="absolute inset-0" />}
       </motion.div>
       <OnArtContext.Provider value={onArt}>
@@ -693,12 +694,11 @@ function NowPlayingSheet() {
                 />
               </motion.header>
 
-            <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-col">
               <motion.div
                 role="group"
                 aria-label="Now playing pages"
-                style={{ opacity: contentFade }}
-                className="flex min-h-0 flex-1 touch-none flex-col px-6 [container-type:size]"
+                className="flex touch-none flex-col px-6"
                 {...artHandlers}
               >
                 <div className="flex h-full w-full min-h-0 flex-col">
@@ -724,7 +724,7 @@ function NowPlayingSheet() {
               </motion.div>
             </div>
 
-            <motion.div className="shrink-0 touch-none will-change-[opacity]" style={{ opacity: lowerFade }} {...artHandlers}>
+            <motion.div className="flex min-h-0 flex-1 touch-none flex-col will-change-[opacity]" style={{ opacity: lowerFade }} {...artHandlers}>
             <div className={`flex items-center gap-2 ${ROW}`}>
                   <DownloadButton track={track} />
                 <motion.div className="grid min-w-0 flex-1 text-center" style={{ opacity: titleOpacity, filter: titleFilter }}>

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { coverFlight, coverRadiusOf, glideSheet, heldBox, miniFadeOf, mountSheet, opennessOf, pageCardOf, settleSheet, sheetClipOf, sheetProgressOf, sheetRadiusOf, sheetY, textBlurOf, textFadeOf, titleFadeOf, titleRevealOf, travelPx, unmountSheet, watchSheetInterruptions, type Geometry } from "./sheetTravel";
+import { coverFlight, coverRadiusOf, glideSheet, heldBox, miniFadeOf, mountSheet, opennessOf, pageCardOf, settleSheet, sheetClipOf, sheetProgressOf, sheetRadiusOf, sheetWashOf, sheetY, textBlurOf, textFadeOf, titleFadeOf, titleRevealOf, travelPx, unmountSheet, watchSheetInterruptions, type Geometry } from "./sheetTravel";
 import { useUI } from "../../stores/ui";
 
 const geometry: Geometry = { from: { top: 700, left: 12, size: 40 }, to: { top: 120, left: 24, size: 320 } };
@@ -71,10 +71,30 @@ describe("sheet travel", () => {
     expect(pageCardOf(1, true)).toEqual({ scale: 1, radius: 0, shade: 0 });
   });
 
-  it("fades full player text and controls in after the cover travel begins", () => {
-    expect(titleFadeOf(0.55)).toBe(0);
-    expect(titleFadeOf(0.775)).toBeCloseTo(0.5);
+  it("fades full player text and controls in only over the last 30% of the travel", () => {
+    expect(titleFadeOf(0.7)).toBe(0);
+    expect(titleFadeOf(0.85)).toBeCloseTo(0.5);
     expect(titleFadeOf(1)).toBe(1);
+  });
+
+  it("keeps the sheet wash opaque until the mini player row has faded in", () => {
+    expect(sheetWashOf(0)).toBe(0);
+    expect(sheetWashOf(0.15)).toBeCloseTo(0.5);
+    expect(sheetWashOf(0.3)).toBe(1);
+    expect(sheetWashOf(1)).toBe(1);
+  });
+
+  it("interpolates the cover rect from the mini thumb to the big cover", () => {
+    const rect = (p: number) => {
+      const f = coverFlight(geometry, p);
+      return { top: geometry.to.top + f.y, left: geometry.to.left + f.x, size: geometry.to.size * f.scale };
+    };
+    expect(rect(0)).toEqual({ top: geometry.from.top, left: geometry.from.left, size: geometry.from.size });
+    expect(rect(1)).toEqual(geometry.to);
+    const mid = rect(0.5);
+    expect(mid.top).toBeCloseTo((geometry.from.top + geometry.to.top) / 2);
+    expect(mid.left).toBeCloseTo((geometry.from.left + geometry.to.left) / 2);
+    expect(mid.size).toBeCloseTo((geometry.from.size + geometry.to.size) / 2);
   });
 
   it("scales, rounds and dims the page with the sheet and leaves it untouched under reduced motion", () => {

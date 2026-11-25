@@ -256,6 +256,17 @@ describe("PhoneNowPlaying", () => {
     expect(usePlayer.getState().index).toBe(0);
   });
 
+  it("keeps the sheet root and the cover group fully opaque while dragging", () => {
+    render(<PhoneNowPlaying />);
+    const section = screen.getByRole("dialog", { name: "Now playing" });
+    const pages = screen.getByRole("group", { name: "Now playing pages" });
+    pointer("pointerDown", header(), 100, 1000);
+    pointer("pointerMove", header(), 300, 1500);
+    expect(section.style.opacity === "" || Number(section.style.opacity) === 1).toBe(true);
+    expect(pages.style.opacity === "" || Number(pages.style.opacity) === 1).toBe(true);
+    pointer("pointerUp", header(), 300, 1500);
+  });
+
   it("follows a downward drag from the header and closes past 40%", async () => {
     render(<PhoneNowPlaying />);
     pointer("pointerDown", header(), 100, 1000);

@@ -13,7 +13,7 @@ const COVER_ROUND_END = 0.5;
 const SHEET_RADIUS_PX = 16;
 const SHEET_SQUARE_FROM = 0.85;
 const HANDOFF_AT = 0.001;
-const TITLE_FADE_START = 0.55;
+const TITLE_FADE_START = 0.7;
 const TEXT_FADE_END = 0.25;
 const TEXT_BLUR_PX = 4;
 const TITLE_REVEAL_FROM = 0.7;
@@ -136,9 +136,12 @@ export function miniFadeOf(openness: number): number {
   return 1 - clamp01(openness / MINI_FADE_END);
 }
 
-export function titleFadeOf(openness: number, delay = 0): number {
-  const start = TITLE_FADE_START + delay;
-  return clamp01((openness - start) / (1 - start));
+export function titleFadeOf(openness: number): number {
+  return clamp01((openness - TITLE_FADE_START) / (1 - TITLE_FADE_START));
+}
+
+export function sheetWashOf(openness: number): number {
+  return clamp01(openness / MINI_FADE_END);
 }
 
 export function textFadeOf(progress: number): number {
