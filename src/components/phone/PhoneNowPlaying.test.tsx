@@ -192,6 +192,28 @@ describe("PhoneNowPlaying", () => {
     expect(useUI.getState().phoneQueueOpen).toBe(false);
   });
 
+  it("opens the queue, not lyrics, on an upward swipe that starts in the right third", () => {
+    render(<PhoneNowPlaying />);
+    const pages = screen.getByRole("group", { name: "Now playing pages" });
+    fireEvent.pointerDown(pages, { clientX: 900, clientY: 400 });
+    fireEvent.pointerMove(pages, { clientX: 900, clientY: 200 });
+    fireEvent.pointerMove(pages, { clientX: 900, clientY: 50 });
+    fireEvent.pointerUp(pages, { clientX: 900, clientY: 50 });
+    expect(useUI.getState().phoneQueueOpen).toBe(true);
+    expect(useUI.getState().phoneLyricsOpen).toBe(false);
+  });
+
+  it("opens lyrics on an upward swipe that starts in the centre", () => {
+    render(<PhoneNowPlaying />);
+    const pages = screen.getByRole("group", { name: "Now playing pages" });
+    fireEvent.pointerDown(pages, { clientX: 512, clientY: 400 });
+    fireEvent.pointerMove(pages, { clientX: 512, clientY: 200 });
+    fireEvent.pointerMove(pages, { clientX: 512, clientY: 50 });
+    fireEvent.pointerUp(pages, { clientX: 512, clientY: 50 });
+    expect(useUI.getState().phoneLyricsOpen).toBe(true);
+    expect(useUI.getState().phoneQueueOpen).toBe(false);
+  });
+
   it("opens lyrics on an upward swipe over the transport and bottom row", () => {
     render(<PhoneNowPlaying />);
     const transport = screen.getByRole("group", { name: "Transport" });

@@ -11,7 +11,6 @@ export const en = {
   "tab.home": "Home",
   "tab.search": "Search",
   "tab.library": "Library",
-  "tab.hotlist": "Hotlist",
   "sidebar.sortBy": "Sort by",
   "sidebar.viewAs": "View as",
   "view.compact": "Compact",

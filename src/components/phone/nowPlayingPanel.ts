@@ -7,6 +7,10 @@ export const PANEL_FLICK_PX_S = 450;
 export type PanelKind = "lyrics" | "queue";
 export type PanelMode = "panel" | "sheet" | "scroll";
 
+export function panelKindAt(x: number, width: number): PanelKind {
+  return x >= (width * 2) / 3 ? "queue" : "lyrics";
+}
+
 export function panelGestureMode(input: { open: boolean; movedUp: boolean; held: boolean }): PanelMode {
   if (input.open) return input.held ? "scroll" : "panel";
   return input.movedUp ? "panel" : "sheet";

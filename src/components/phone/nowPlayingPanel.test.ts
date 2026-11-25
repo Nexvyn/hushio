@@ -4,10 +4,21 @@ import {
   hasLyricsText,
   lyricsHintVisible,
   panelGestureMode,
+  panelKindAt,
   panelReleaseTarget,
   scrollHoldsDrag,
 } from "./nowPlayingPanel";
 import type { LyricsResult } from "../../lib/bridge";
+
+describe("panelKindAt", () => {
+  it("opens the queue for a start in the right third and lyrics elsewhere", () => {
+    expect(panelKindAt(900, 1000)).toBe("queue");
+    expect(panelKindAt(666, 1000)).toBe("lyrics");
+    expect(panelKindAt(667, 1000)).toBe("queue");
+    expect(panelKindAt(500, 1000)).toBe("lyrics");
+    expect(panelKindAt(50, 1000)).toBe("lyrics");
+  });
+});
 
 const synced: LyricsResult = { synced: [{ time: 1, text: "line" }], plain: null, source: "LRCLIB", wordSynced: false };
 const plain: LyricsResult = { synced: null, plain: "words", source: "LRCLIB", wordSynced: false };

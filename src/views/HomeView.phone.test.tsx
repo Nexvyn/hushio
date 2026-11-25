@@ -91,7 +91,7 @@ describe("HomeView on the phone", () => {
     const user = userEvent.setup();
     render(<HomeView />);
 
-    await user.click(screen.getByRole("button", { name: "Profile and settings" }));
+    await user.click(screen.getByRole("button", { name: "Profile" }));
 
     expect(useNavigation.getState().view.name).toBe("settings");
   });

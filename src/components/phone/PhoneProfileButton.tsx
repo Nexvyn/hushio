@@ -33,8 +33,8 @@ export function PhoneProfileButton() {
   return (
     <button
       type="button"
-      aria-label="Profile and settings"
-      title="Profile and settings"
+      aria-label="Profile"
+      title="Profile"
       onClick={() => navigate({ name: "settings" })}
       className="grid size-11 shrink-0 place-items-center rounded-full motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
     >

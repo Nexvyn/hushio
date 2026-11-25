@@ -54,7 +54,7 @@ describe("Library on phone", () => {
     render(<LibraryView />);
     expect(screen.getByRole("heading", { level: 1, name: "Library" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Create" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Profile and settings" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Profile" })).toBeTruthy();
     expect(screen.queryByText(/playlists · .* folders/)).toBeNull();
   });
 

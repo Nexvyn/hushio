@@ -16,7 +16,7 @@ import { sheetReleaseCloses, useSheetDrag } from "./useSheetDrag";
 import { coverFlight, coverRadiusOf, glideSheet, heldBox, measureCover, measureMini, measureMiniBar, measureWithin, mountSheet, nowPlayingDriver, sheetClipOf, sheetProgress, sheetWashOf, sheetY, textBlurOf, textFadeOf, titleFadeOf, titleRevealOf, travelPx, unmountSheet, type Box, type Bounds, type Geometry } from "./sheetTravel";
 import { PhoneQueueList } from "./PhoneQueueSheet";
 import { Sheet } from "./Sheet";
-import { PANEL_TRAVEL_SHARE, lyricsHintVisible, panelGestureMode, panelReleaseTarget, scrollHoldsDrag, type PanelKind, type PanelMode } from "./nowPlayingPanel";
+import { PANEL_TRAVEL_SHARE, lyricsHintVisible, panelGestureMode, panelKindAt, panelReleaseTarget, scrollHoldsDrag, type PanelKind, type PanelMode } from "./nowPlayingPanel";
 import { useTrackLyrics } from "../../lib/useTrackLyrics";
 import { haptic } from "../../lib/haptics";
 import { castFromNowPlaying } from "../../lib/cast";
@@ -50,6 +50,7 @@ type PanelGesture = {
   p0: number;
   startOpen: boolean;
   held: boolean;
+  kind: PanelKind;
 };
 
 let lyricsHintNudged = false;
@@ -462,10 +463,10 @@ function NowPlayingSheet() {
     }
   };
 
-  const commitPanel = (target: 0 | 1, velocity: number) => {
+  const commitPanel = (target: 0 | 1, velocity: number, kind: PanelKind) => {
     if (target === 1 && !panel) {
       releaseVelocity.current = velocity;
-      openPanelKind("lyrics");
+      openPanelKind(kind);
     } else if (target === 0 && panel) {
       releaseVelocity.current = velocity;
       closePhoneQueue();
@@ -579,6 +580,7 @@ function NowPlayingSheet() {
         p0: 0,
         startOpen: panel !== null,
         held: scrollHoldsDrag(scroller ? scroller.scrollTop : null),
+        kind: panelKindAt(event.clientX, viewportWidth()),
       };
     },
     onPointerMove(event: PointerEvent) {
@@ -593,7 +595,7 @@ function NowPlayingSheet() {
       if (g.mode === null) {
         g.mode = panelGestureMode({ open: panel !== null, movedUp: event.clientY < g.y0, held: g.held });
         if (g.mode === "panel") {
-          setPanelKind(panel ?? "lyrics");
+          setPanelKind(panel ?? g.kind);
           measurePanel();
         } else if (g.mode === "sheet") {
           sheetHandlers.onPointerDown(g.down);
@@ -620,7 +622,7 @@ function NowPlayingSheet() {
       }
       g.tracker.add(event.timeStamp, event.clientY);
       const velocity = g.tracker.velocity(event.timeStamp);
-      commitPanel(panelReleaseTarget({ progress: panelP.get(), start: g.p0, velocity, startOpen: g.startOpen }), -velocity);
+      commitPanel(panelReleaseTarget({ progress: panelP.get(), start: g.p0, velocity, startOpen: g.startOpen }), -velocity, g.kind);
     },
     onPointerCancel(event: PointerEvent) {
       const g = gesture.current;

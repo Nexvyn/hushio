@@ -14,13 +14,13 @@ beforeEach(() => {
 });
 
 describe("TabBar", () => {
-  it("shows the four tabs in order", () => {
+  it("shows the three tabs in order", () => {
     render(<TabBar />);
     const nav = screen.getByRole("navigation", { name: "Main" });
     const labels = within(nav)
       .getAllByRole("button")
       .map((button) => button.textContent);
-    expect(labels).toEqual(["Home", "Search", "Library", "Hotlist"]);
+    expect(labels).toEqual(["Home", "Search", "Library"]);
   });
 
   it("marks the tab of the current view as the page", () => {
@@ -104,7 +104,7 @@ describe("TabBar", () => {
     expect(buttons[0].querySelector("svg")?.innerHTML).toBe(filled?.innerHTML);
     expect(buttons[1].querySelector("svg")?.innerHTML).not.toBe(filled?.innerHTML);
     expect(regular?.innerHTML).not.toBe(filled?.innerHTML);
-    expect(container.querySelectorAll("svg")).toHaveLength(4);
+    expect(container.querySelectorAll("svg")).toHaveLength(3);
   });
 
   it("sets the active label to semibold and the others to medium", () => {

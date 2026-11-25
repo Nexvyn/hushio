@@ -167,7 +167,7 @@ describe("SearchView on the phone", () => {
 
     const title = screen.getByRole("heading", { name: "Search" });
     expect(title.compareDocumentPosition(screen.getByRole("combobox", { name: "Search" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Profile and settings" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Profile" })).toBeTruthy();
   });
 
   it("hides the Search title while results are shown and keeps the field", async () => {

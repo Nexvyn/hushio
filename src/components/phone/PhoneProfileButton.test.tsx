@@ -30,7 +30,7 @@ afterEach(cleanup);
 describe("PhoneProfileButton", () => {
   it("is a labelled 44px target", () => {
     render(<PhoneProfileButton />);
-    const button = screen.getByRole("button", { name: "Profile and settings" });
+    const button = screen.getByRole("button", { name: "Profile" });
     expect(button.className).toContain("size-11");
   });
 
@@ -49,7 +49,7 @@ describe("PhoneProfileButton", () => {
 
   it("opens settings when tapped", () => {
     render(<PhoneProfileButton />);
-    fireEvent.click(screen.getByRole("button", { name: "Profile and settings" }));
+    fireEvent.click(screen.getByRole("button", { name: "Profile" }));
     expect(useNavigation.getState().view).toEqual({ name: "settings" });
   });
 });

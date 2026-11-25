@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { House, Books, MagnifyingGlass, Fire, type Icon as PhosphorIcon } from "@phosphor-icons/react";
+import { House, Books, MagnifyingGlass, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { PhoneIcon } from "./PhoneIcon";
 import { TAB_BAR_DP, TABS, type TabId } from "../../lib/phoneNav";
 import { t, useT } from "../../lib/i18n";
@@ -23,7 +23,6 @@ const ICONS: Record<TabId, PhosphorIcon> = {
   home: House,
   search: MagnifyingGlass,
   library: Books,
-  hotlist: Fire,
 };
 
 export function TabBar({ activeTab }: { activeTab?: TabId | null } = {}) {

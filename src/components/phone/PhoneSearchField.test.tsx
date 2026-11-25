@@ -36,6 +36,16 @@ describe("PhoneSearchField", () => {
     expect(screen.getByRole("combobox", { name: "Search" })).toBe(before);
   });
 
+  it("shows suggestions inline in the field, never as the desktop overlay", () => {
+    render(<PhoneSearchField />);
+    const input = screen.getByRole("combobox", { name: "Search" });
+    act(() => input.focus());
+    fireEvent.change(input, { target: { value: "ab" } });
+    const list = screen.getByRole("listbox", { name: "Search suggestions" });
+    expect(list.className).not.toContain("absolute");
+    expect(list.querySelector("[data-goo-panel]")).toBeNull();
+  });
+
   it("has no Cancel button and blurs when the user taps outside", () => {
     render(<PhoneSearchField suggest={false} />);
     const input = screen.getByRole("combobox", { name: "Search" });

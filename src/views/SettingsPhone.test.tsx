@@ -34,7 +34,7 @@ afterEach(cleanup);
 describe("phone settings", () => {
   it("opens as the settings root with a back arrow and no Downloads row", () => {
     render(<SettingsView />);
-    expect(screen.getByRole("heading", { name: "Settings" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Profile" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Back" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Downloads" })).toBeNull();
   });

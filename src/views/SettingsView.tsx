@@ -228,7 +228,7 @@ function PhoneSettings({
   } else {
     content = (
       <div className="pb-6">
-        <PhoneHeader title="Settings" onBack={() => backOr({ name: "home" })} />
+        <PhoneHeader title="Profile" onBack={() => backOr({ name: "home" })} />
         <div className="mb-6">
           <SearchBox value={query} onChange={onQueryChange} phone />
         </div>

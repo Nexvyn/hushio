@@ -13,7 +13,6 @@ export const hi: Partial<Catalog> = {
   "tab.home": "होम",
   "tab.search": "खोजें",
   "tab.library": "लाइब्रेरी",
-  "tab.hotlist": "हॉटलिस्ट",
   "sidebar.sortBy": "क्रम से लगाएं",
   "sidebar.viewAs": "ऐसे देखें",
   "view.compact": "छोटा",
