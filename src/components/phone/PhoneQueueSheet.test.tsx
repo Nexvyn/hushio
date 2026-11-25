@@ -57,20 +57,17 @@ describe("PhoneQueueList rows", () => {
     expect(container.querySelector('[role="group"][aria-label="Playback modes"]')?.className).not.toContain("bg-wash");
   });
 
-  it("shows drag handles only in edit mode and replaces the row menu action", () => {
+  it("shows a drag handle on each up next row beside its menu button", () => {
     render(<PhoneQueueList />);
-    expect(screen.queryByRole("button", { name: "Drag Second to reorder" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
     const handle = screen.getByRole("button", { name: "Drag Second to reorder" });
     expect(handle.className).toContain("touch-none");
-    expect(screen.queryByRole("button", { name: "More options for Second" })).toBeNull();
+    expect(screen.getByRole("button", { name: "More options for Second" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Drag First to reorder" })).toBeNull();
   });
 
   it("drags an up next row by its handle and drops it at the new slot", async () => {
     usePlayer.setState({ queue: [first, second, third], index: 0 });
     render(<PhoneQueueList />);
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
     const handle = screen.getByRole("button", { name: "Drag Third to reorder" });
 
     pointer("pointerDown", handle, 200);
@@ -84,7 +81,6 @@ describe("PhoneQueueList rows", () => {
   it("leaves the queue alone when the handle is released in place", () => {
     usePlayer.setState({ queue: [first, second, third], index: 0 });
     render(<PhoneQueueList />);
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
     const handle = screen.getByRole("button", { name: "Drag Second to reorder" });
 
     pointer("pointerDown", handle, 200);
@@ -127,7 +123,7 @@ describe("PhoneQueueList sections and modes", () => {
   it("puts the autoplay tail under its own heading with one explanation line", () => {
     usePlayer.setState({ index: 0, autoplayCount: 2 });
     render(<PhoneQueueList />);
-    expect(screen.queryByRole("button", { name: "Drag Second to reorder" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Drag Second to reorder" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Drag Third to reorder" })).toBeNull();
     expect(screen.getByRole("heading", { name: "Autoplay" })).toBeTruthy();
     expect(screen.getByText("Similar songs play after your queue ends.")).toBeTruthy();
@@ -143,7 +139,6 @@ describe("PhoneQueueList sections and modes", () => {
   it("does not let an upnext row drop into the autoplay tail", () => {
     usePlayer.setState({ queue: [first, second, third, fourth], index: 0, autoplayCount: 2 });
     render(<PhoneQueueList />);
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
     const handle = screen.getByRole("button", { name: "Drag Second to reorder" });
     pointer("pointerDown", handle, 200);
     pointer("pointerMove", handle, 400);

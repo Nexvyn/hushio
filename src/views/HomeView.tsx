@@ -360,7 +360,18 @@ export function HomeView() {
               <Button variant="ghost" onClick={() => void stream.loadMore()}>{t("home.showMore")}</Button>
             </div>
           ) : stream.loading ? (
-            <div aria-hidden="true" className="home-shelf-skeleton"><span className="home-shelf-skeleton-title bt-skeleton" />{Array.from({ length: 6 }, (_, index) => <span key={index} className="home-shelf-skeleton-card bt-skeleton" />)}</div>
+            <div aria-hidden="true" className="home-shelf-skeleton">
+              <span className="home-shelf-skeleton-title bt-skeleton" />
+              <div className="home-shelf-skeleton-row">
+                {Array.from({ length: 4 }, (_, index) => (
+                  <div key={index} className="home-shelf-skeleton-card">
+                    <span className="home-shelf-skeleton-art bt-skeleton" />
+                    <span className="home-shelf-skeleton-line bt-skeleton" />
+                    <span className="home-shelf-skeleton-line home-shelf-skeleton-line-short bt-skeleton" />
+                  </div>
+                ))}
+              </div>
+            </div>
           ) : !stream.done && (
             <button
               type="button"

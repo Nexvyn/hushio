@@ -14,6 +14,9 @@ const SHEET_RADIUS_PX = 16;
 const SHEET_SQUARE_FROM = 0.85;
 const HANDOFF_AT = 0.001;
 const TITLE_FADE_START = 0.55;
+const TEXT_FADE_END = 0.25;
+const TEXT_BLUR_PX = 4;
+const TITLE_REVEAL_FROM = 0.7;
 
 export type Box = { top: number; left: number; size: number };
 export type Bounds = { top: number; left: number; width: number; height: number };
@@ -136,6 +139,19 @@ export function miniFadeOf(openness: number): number {
 export function titleFadeOf(openness: number, delay = 0): number {
   const start = TITLE_FADE_START + delay;
   return clamp01((openness - start) / (1 - start));
+}
+
+export function textFadeOf(progress: number): number {
+  return 1 - clamp01(progress / TEXT_FADE_END);
+}
+
+export function titleRevealOf(openness: number): number {
+  return clamp01((openness - TITLE_REVEAL_FROM) / (1 - TITLE_REVEAL_FROM));
+}
+
+export function textBlurOf(amount: number, reduced: boolean): string {
+  if (reduced) return "none";
+  return `blur(${(TEXT_BLUR_PX * clamp01(amount)).toFixed(2)}px)`;
 }
 
 export function sheetClipOf(box: Bounds | null, width: number, height: number, openness: number, reduced = false): SheetClip {

@@ -17,7 +17,7 @@ import { playedFraction } from "../../lib/playbackProgress";
 import { RAIL_COMMIT_SHARE, railChange } from "../../lib/phoneGestures";
 import { haptic } from "../../lib/haptics";
 import { VelocityTracker } from "../../lib/velocity";
-import { glideSheet, handedOff, miniFadeOf, setPulling, sheetProgress, sheetY, travelPx } from "./sheetTravel";
+import { glideSheet, handedOff, miniFadeOf, setPulling, sheetProgress, sheetY, textBlurOf, textFadeOf, travelPx } from "./sheetTravel";
 import { warmCover } from "./ArtCarousel";
 import { warmPalette } from "./useHeldPalette";
 import { paletteCoverFor } from "../AmbientBackdrop";
@@ -57,6 +57,8 @@ export function MiniPlayer() {
   const reduced = reducedMotion();
   const rowFade = useTransform(sheetProgress, miniFadeOf);
   const handed = useTransform(sheetProgress, (p) => (handedOff(p) ? 0 : 1));
+  const textOpacity = useTransform(sheetProgress, textFadeOf);
+  const textFilter = useTransform(sheetProgress, (p) => textBlurOf(1 - textFadeOf(p), reduced));
   const body = useRef<HTMLButtonElement>(null);
   const x = useMotionValue(0);
   const opacity = useMotionValue(1);
@@ -286,7 +288,7 @@ export function MiniPlayer() {
           <motion.span data-mini-cover className={coverClass} style={{ opacity: handed }}>
             {coverArt}
           </motion.span>
-          <span className="grid min-w-0 flex-1">
+          <motion.span className="grid min-w-0 flex-1" style={{ opacity: textOpacity, filter: textFilter }}>
             <AnimatePresence initial={false}>
               <motion.span
                 key={track.id}
@@ -300,7 +302,7 @@ export function MiniPlayer() {
                 <span className="truncate text-meta leading-[17px] text-ink-2">{track.artist}</span>
               </motion.span>
             </AnimatePresence>
-          </span>
+          </motion.span>
         </motion.button>
         <motion.button
           type="button"

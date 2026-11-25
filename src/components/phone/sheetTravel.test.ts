@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { coverFlight, coverRadiusOf, glideSheet, heldBox, miniFadeOf, mountSheet, opennessOf, pageCardOf, settleSheet, sheetClipOf, sheetProgressOf, sheetRadiusOf, sheetY, titleFadeOf, travelPx, unmountSheet, watchSheetInterruptions, type Geometry } from "./sheetTravel";
+import { coverFlight, coverRadiusOf, glideSheet, heldBox, miniFadeOf, mountSheet, opennessOf, pageCardOf, settleSheet, sheetClipOf, sheetProgressOf, sheetRadiusOf, sheetY, textBlurOf, textFadeOf, titleFadeOf, titleRevealOf, travelPx, unmountSheet, watchSheetInterruptions, type Geometry } from "./sheetTravel";
 import { useUI } from "../../stores/ui";
 
 const geometry: Geometry = { from: { top: 700, left: 12, size: 40 }, to: { top: 120, left: 24, size: 320 } };
@@ -137,5 +137,26 @@ describe("interrupted sheet travel", () => {
     glideSheet(0, 0);
     settleSheet();
     expect(sheetY.get()).toBe(travelPx());
+  });
+});
+
+describe("drag text fades", () => {
+  it("fades the mini title out with a blur over the first quarter of the drag", () => {
+    expect(textFadeOf(0)).toBe(1);
+    expect(textFadeOf(0.125)).toBeCloseTo(0.5);
+    expect(textFadeOf(0.25)).toBe(0);
+    expect(textFadeOf(0.6)).toBe(0);
+    expect(textBlurOf(0, false)).toBe("blur(0.00px)");
+    expect(textBlurOf(1 - textFadeOf(0.25), false)).toBe("blur(4.00px)");
+  });
+
+  it("reveals the Now Playing title only near the end of the drag", () => {
+    expect(titleRevealOf(0.7)).toBe(0);
+    expect(titleRevealOf(0.85)).toBeCloseTo(0.5);
+    expect(titleRevealOf(1)).toBe(1);
+  });
+
+  it("drops the blur under reduced motion", () => {
+    expect(textBlurOf(1, true)).toBe("none");
   });
 });

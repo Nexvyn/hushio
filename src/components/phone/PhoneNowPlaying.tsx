@@ -13,7 +13,7 @@ import { ActiveDot, ToggleIcon } from "../motion/ToggleIcon";
 import { DownloadRing } from "../motion/DownloadRing";
 import type { ToggleKind } from "../../lib/toggleMotion";
 import { sheetReleaseCloses, useSheetDrag } from "./useSheetDrag";
-import { coverFlight, coverRadiusOf, glideSheet, heldBox, measureCover, measureMini, measureMiniBar, measureWithin, mountSheet, nowPlayingDriver, sheetClipOf, sheetProgress, sheetY, titleFadeOf, travelPx, unmountSheet, type Box, type Bounds, type Geometry } from "./sheetTravel";
+import { coverFlight, coverRadiusOf, glideSheet, heldBox, measureCover, measureMini, measureMiniBar, measureWithin, mountSheet, nowPlayingDriver, sheetClipOf, sheetProgress, sheetY, textBlurOf, textFadeOf, titleFadeOf, titleRevealOf, travelPx, unmountSheet, type Box, type Bounds, type Geometry } from "./sheetTravel";
 import { PhoneQueueList } from "./PhoneQueueSheet";
 import { Sheet } from "./Sheet";
 import { PANEL_TRAVEL_SHARE, lyricsHintVisible, panelGestureMode, panelReleaseTarget, scrollHoldsDrag, type PanelKind, type PanelMode } from "./nowPlayingPanel";
@@ -28,7 +28,7 @@ import { viewportHeight, viewportWidth } from "../../lib/viewport";
 import { VelocityTracker } from "../../lib/velocity";
 import { useHeldPalette } from "./useHeldPalette";
 import { OnArtContext } from "../../lib/onArt";
-import { DURATION_MS, MARQUEE, PHONE_MS, QUEUE_EASE, fade, gate, phoneSnappy, phoneTween, pressTap, reducedMotion, scrubSpring } from "../../lib/motion";
+import { DURATION_MS, MARQUEE, PHONE_MS, QUEUE_EASE, SPRING_SHEET, fade, gate, phoneSnappy, phoneTween, pressTap, reducedMotion, scrubSpring } from "../../lib/motion";
 import { INSET_BOTTOM, INSET_TOP } from "../../lib/phoneNav";
 import { songOf, trackMenuItems } from "../../lib/trackActions";
 import { neighbourTracks, swipeAxis, type Axis } from "../../lib/trackSwipe";
@@ -425,6 +425,9 @@ function NowPlayingSheet() {
   const lowerFade = useTransform([panelP, controlFade], ([panelProgress, sheetProgress]: number[]) => Math.min(1 - Math.min(1, panelProgress / 0.4), sheetProgress));
   const overlayOpacity = useTransform(panelP, [0, 0.2], [0, 1]);
   const panelListY = useTransform(panelP, [0, 1], ["100%", "0%"]);
+  const releaseVelocity = useRef<number | null>(null);
+  const titleOpacity = useTransform([openness, panelP], ([p, q]: number[]) => titleRevealOf(p) * textFadeOf(q));
+  const titleFilter = useTransform([openness, panelP], ([p, q]: number[]) => textBlurOf(Math.max(1 - titleRevealOf(p), 1 - textFadeOf(q)), reducedMotion()));
 
   const measurePanel = () => {
     const section = sheet.current;
@@ -433,7 +436,7 @@ function NowPlayingSheet() {
     panelGeo.current = from && to && !reducedMotion() ? { from, to } : null;
   };
 
-  const settlePanel = (target: 0 | 1) => {
+  const settlePanel = (target: 0 | 1, velocity?: number) => {
     panelCtl.current?.stop();
     const from = panelP.get();
     if (from === target) return;
@@ -442,10 +445,10 @@ function NowPlayingSheet() {
       panelP.set(target);
       return;
     }
-    panelCtl.current = animate(panelP, target, {
-      duration: (DURATION_MS.queue * Math.abs(target - from)) / 1000,
-      ease: QUEUE_EASE,
-    });
+    panelCtl.current =
+      velocity === undefined
+        ? animate(panelP, target, { duration: (DURATION_MS.queue * Math.abs(target - from)) / 1000, ease: QUEUE_EASE })
+        : animate(panelP, target, { ...SPRING_SHEET, velocity: velocity / (viewportHeight() * PANEL_TRAVEL_SHARE) });
   };
 
   const openPanelKind = (kind: PanelKind) => {
@@ -458,21 +461,23 @@ function NowPlayingSheet() {
     }
   };
 
-  const commitPanel = (target: 0 | 1) => {
-    if (target === 1) {
-      if (panel) settlePanel(1);
-      else openPanelKind("lyrics");
-    } else if (panel) {
+  const commitPanel = (target: 0 | 1, velocity: number) => {
+    if (target === 1 && !panel) {
+      releaseVelocity.current = velocity;
+      openPanelKind("lyrics");
+    } else if (target === 0 && panel) {
+      releaseVelocity.current = velocity;
       closePhoneQueue();
       closePhoneLyrics();
     } else {
-      settlePanel(0);
+      settlePanel(target, velocity);
     }
   };
 
   useEffect(() => {
     if (panel) setPanelKind(panel);
-    settlePanel(panel ? 1 : 0);
+    settlePanel(panel ? 1 : 0, releaseVelocity.current ?? undefined);
+    releaseVelocity.current = null;
   }, [panel]);
 
   useEffect(() => {
@@ -614,7 +619,7 @@ function NowPlayingSheet() {
       }
       g.tracker.add(event.timeStamp, event.clientY);
       const velocity = g.tracker.velocity(event.timeStamp);
-      commitPanel(panelReleaseTarget({ progress: panelP.get(), start: g.p0, velocity, startOpen: g.startOpen }));
+      commitPanel(panelReleaseTarget({ progress: panelP.get(), start: g.p0, velocity, startOpen: g.startOpen }), -velocity);
     },
     onPointerCancel(event: PointerEvent) {
       const g = gesture.current;
@@ -722,7 +727,7 @@ function NowPlayingSheet() {
             <motion.div className="shrink-0 touch-none will-change-[opacity]" style={{ opacity: lowerFade }} {...artHandlers}>
             <div className={`flex items-center gap-2 ${ROW}`}>
                   <DownloadButton track={track} />
-                <div className="grid min-w-0 flex-1 text-center">
+                <motion.div className="grid min-w-0 flex-1 text-center" style={{ opacity: titleOpacity, filter: titleFilter }}>
                   <AnimatePresence initial={false}>
                     <motion.div
                       key={track?.id ?? "none"}
@@ -742,7 +747,7 @@ function NowPlayingSheet() {
                         <Marquee text={track?.artist ?? ""} className={`text-center text-body leading-[22px] ${artistTone}`} delayS={MARQUEE.artistDelayS} />
                     </motion.div>
                   </AnimatePresence>
-                </div>
+                </motion.div>
                   <LikeButton track={track} className={`h-11 w-11 ${likeTone}`} />
               </div>
 
@@ -842,7 +847,7 @@ function NowPlayingSheet() {
               {panelKind === "lyrics" ? (
                 <motion.div className="flex min-h-0 flex-1 flex-col px-6 will-change-transform" style={{ y: panelListY }} {...artHandlers}>
                   <PhoneLyrics />
-                  <div className="shrink-0 border-t border-separator/50 pb-2 pt-1">
+                  <div className="shrink-0 pb-2 pt-1">
                     <SeekBar current={track} slim />
                     <div role="group" aria-label="Lyrics transport" className="flex h-12 items-center justify-center gap-8">
                       <Control label="Previous" icon={SkipBack} size={44} disabled={empty} onClick={() => prev()} />

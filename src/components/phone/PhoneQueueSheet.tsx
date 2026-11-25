@@ -106,7 +106,6 @@ export function PhoneQueueList() {
   const openContextMenu = useUI((state) => state.openContextMenu);
   const [drag, setDrag] = useState<Drag>(null);
   const [showPrevious, setShowPrevious] = useState(false);
-  const [editing, setEditing] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const session = useRef<Session | null>(null);
   const dragging = drag !== null;
@@ -269,7 +268,6 @@ export function PhoneQueueList() {
       {playingFrom && sourceName ? <p className="px-4 pb-2 text-meta text-ink-2">Playing from {sourceName}</p> : null}
       <div className="flex items-center justify-between pr-4">
         <h3 className={HEADING}>Up next</h3>
-        {upcoming.length > 0 && <button type="button" aria-pressed={editing} onClick={() => setEditing((value) => !value)} className="min-h-12 px-3 text-meta font-medium text-ink-2">{editing ? "Done" : "Edit"}</button>}
         <button
           type="button"
           onClick={clearUpcoming}
@@ -294,11 +292,10 @@ export function PhoneQueueList() {
               dragging={drag?.from === at}
               dragOffset={reduced ? 0 : drag && drag.from !== at ? slideOffset(at, drag.from, drag.target, PHONE_ROW_DP) : 0}
               dragTransition={drag ? { duration: 0.18, ease: EASE_MOVE } : SPRING_CONTROL}
-              hideMore={editing}
               onPress={() => jumpTo(at)}
               onMore={(event) => menuFor(track, event)}
               swipeLeft={{ label: "Remove", icon: Trash, tone: "danger", run: () => removeUpcoming(at, track) }}
-              handle={editing ? (
+              handle={
                 <button
                   type="button"
                   aria-label={`Drag ${track.title} to reorder`}
@@ -307,7 +304,7 @@ export function PhoneQueueList() {
                 >
                   <PhoneIcon icon={DotsSixVertical} />
                 </button>
-              ) : undefined}
+              }
             />
           )}
         />

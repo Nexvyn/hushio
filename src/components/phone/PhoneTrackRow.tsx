@@ -42,7 +42,6 @@ type PhoneTrackRowProps = {
   swipeLeft?: RowAction;
   swipeRight?: RowAction;
   handle?: ReactNode;
-  hideMore?: boolean;
   dragTransition?: Transition;
 };
 
@@ -58,7 +57,6 @@ export function PhoneTrackRow({
   swipeLeft,
   swipeRight,
   handle,
-  hideMore = false,
   dragTransition,
 }: PhoneTrackRowProps) {
   const reduced = reducedMotion();
@@ -93,14 +91,14 @@ export function PhoneTrackRow({
             )}
           </PressRow>
           {handle}
-          {!hideMore && <button
+          <button
             type="button"
             aria-label={`More options for ${track.title}`}
             onClick={onMore}
             className="grid h-12 w-12 shrink-0 place-items-center rounded-full text-ink-2 motion-safe:transition-transform motion-safe:duration-press motion-safe:active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
             <PhoneIcon icon={DotsThree} />
-          </button>}
+          </button>
         </div>
       </SwipeRow>
     </motion.div>
