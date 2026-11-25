@@ -1,6 +1,7 @@
 mod analysis;
 mod crash;
 mod disconnect;
+mod import_read;
 mod android;
 mod audio_output;
 mod cache;
@@ -287,18 +288,6 @@ fn allow_file(app: &AppHandle, path: &str) {
     if let Err(error) = app.asset_protocol_scope().allow_file(path) {
         tracing::warn!(%error, path, "could not allow file for playback");
     }
-}
-
-#[tauri::command]
-fn import_read_text(path: String) -> Result<String, String> {
-    const LIMIT: u64 = 16 * 1024 * 1024;
-    let size = std::fs::metadata(&path).map_err(|error| error.to_string())?.len();
-    if size > LIMIT {
-        return Err("File is too large".into());
-    }
-    std::fs::read(&path)
-        .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
-        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -765,6 +754,7 @@ pub fn run() {
             {
                 window::on_window_event(window, event);
                 pip::on_window_event(window, event);
+                import_read::on_window_event(window, event);
             }
             #[cfg(not(desktop))]
             let _ = (window, event);
@@ -829,6 +819,7 @@ pub fn run() {
             app.manage(DataPaths { root });
             #[cfg(desktop)]
             app.manage(tray::Tray::default());
+            app.manage(import_read::RecentDrops::default());
             #[cfg(desktop)]
             {
                 let updates = updates::Service::shared(app.package_info().version.to_string());
@@ -927,7 +918,7 @@ pub fn run() {
             audio_output::audio_output_state,
             persist_read,
             persist_write,
-            import_read_text,
+            import_read::import_read_text,
             menu::menu_set_playback_state,
             stream_proxy_port,
             stream_register,
