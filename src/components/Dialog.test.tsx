@@ -93,6 +93,18 @@ describe("Dialog Enter on a focused button", () => {
 
     expect(onConfirm).not.toHaveBeenCalled();
   });
+
+  it("does not confirm a danger dialog when Enter arrives with Cancel focused", () => {
+    render(<Dialog />);
+    act(() => {
+      useUI.getState().openDialog({ title: "Remove it?", danger: true, confirmLabel: "Delete", onConfirm });
+    });
+
+    screen.getByRole("button", { name: /cancel/i }).focus();
+    fireEvent.keyDown(window, { key: "Enter" });
+
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
 });
 
 describe("phone dialog keyboard inset", () => {

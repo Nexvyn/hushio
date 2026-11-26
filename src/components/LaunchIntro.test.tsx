@@ -13,7 +13,7 @@ const motion = vi.hoisted(() => ({
 vi.mock("../lib/bridge", () => ({ ...bridge, platform: "windows" }));
 vi.mock("motion/react", () => motion);
 
-import { introFinished } from "../lib/intro";
+import { introFinished, resetIntroForTests } from "../lib/intro";
 import { LaunchIntro } from "./LaunchIntro";
 
 describe("LaunchIntro", () => {
@@ -42,6 +42,20 @@ describe("LaunchIntro", () => {
     expect(bridge.introDone).toHaveBeenCalledTimes(1);
     expect(introFinished()).toBe(true);
     expect(view.container.innerHTML).toBe("");
+  });
+
+  it("lets a click skip the intro at once", () => {
+    resetIntroForTests();
+    const view = render(<LaunchIntro ready={false} />);
+    expect(screen.getByRole("img", { name: "Hushio" })).toBeTruthy();
+
+    act(() => {
+      view.container.ownerDocument.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+    });
+
+    expect(view.container.innerHTML).toBe("");
+    expect(introFinished()).toBe(true);
+    expect(bridge.introDone).toHaveBeenCalledTimes(1);
   });
 
   it("does not play again in the same launch", () => {

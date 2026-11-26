@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import css from "./tokens.css?raw";
 
-function darkTokens(): Record<string, [number, number, number]> {
-  const start = css.indexOf(':root,\n:root[data-theme="dark"] {');
+function themeTokens(header: string): Record<string, [number, number, number]> {
+  const start = css.indexOf(header);
   const end = css.indexOf("\n}", start);
   const block = css.slice(start, end);
   const tokens: Record<string, [number, number, number]> = {};
@@ -25,7 +25,8 @@ function contrast(a: [number, number, number], b: [number, number, number]): num
   return (hi + 0.05) / (lo + 0.05);
 }
 
-const tokens = darkTokens();
+const tokens = themeTokens(':root,\n:root[data-theme="dark"] {');
+const lightTokens = themeTokens(':root[data-theme="light"] {');
 
 describe("dark theme token contrast", () => {
   it.each([
@@ -44,6 +45,10 @@ describe("dark theme token contrast", () => {
     ["on-primary", "primary"],
   ] as const)("%s on %s reaches 4.5:1", (text, ground) => {
     expect(contrast(tokens[text], tokens[ground])).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it.each(["base", "surface"] as const)("light ink-3 on %s reaches 4.5:1", (ground) => {
+    expect(contrast(lightTokens["ink-3"], lightTokens[ground])).toBeGreaterThanOrEqual(4.5);
   });
 
   it("keeps the ink steps ordered: ink-1 > ink-2 > ink-3", () => {

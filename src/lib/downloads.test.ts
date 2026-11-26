@@ -602,6 +602,8 @@ describe("downloadMenuItems", () => {
     downloadMenuItems(useLibrary.getState().downloads.abc123)
       .find((entry) => entry.label === "Remove from list")
       ?.onSelect?.();
+    expect(useLibrary.getState().downloads.abc123).toBeDefined();
+    useUI.getState().dialog?.onConfirm("");
     expect(useLibrary.getState().downloads.abc123).toBeUndefined();
   });
 });

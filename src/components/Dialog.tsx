@@ -191,7 +191,8 @@ export function Dialog({ sheet = false }: { sheet?: boolean }) {
         return;
       }
       if (event.key !== "Enter") return;
-      if (document.activeElement instanceof HTMLButtonElement) return;
+      const focused = document.activeElement;
+      if (focused instanceof HTMLElement && focused !== panelRef.current && focused.closest("button, a[href], [role='button']")) return;
       if (active.multiline && !event.ctrlKey && !event.metaKey) return;
       event.preventDefault();
       event.stopPropagation();

@@ -339,6 +339,16 @@ export function removeDownload(id: string): void {
   useLibrary.getState().removeDownload(id);
 }
 
+export function confirmRemoveDownload(track: { id: string; title: string }): void {
+  useUI.getState().openDialog({
+    title: `Remove "${track.title}"?`,
+    body: "The downloaded file is deleted from this device. This cannot be undone.",
+    confirmLabel: "Remove",
+    danger: true,
+    onConfirm: () => removeDownload(track.id),
+  });
+}
+
 export function downloadMenuItems(item: DownloadItem): MenuItem[] {
   const { track, status, path } = item;
   const busy = isPending(status);
@@ -363,7 +373,7 @@ export function downloadMenuItems(item: DownloadItem): MenuItem[] {
       icon: X,
       danger: true,
       separatorBefore: items.length > 0,
-      onSelect: () => removeDownload(track.id),
+      onSelect: () => confirmRemoveDownload(track),
     });
   }
   return [

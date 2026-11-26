@@ -25,6 +25,6 @@ describe("focus styling", () => {
     const css = sources.find((source) => source.file === "index.css")?.text ?? "";
     expect(css).toContain(":focus:not(:focus-visible)");
     expect(css).toContain("rgb(var(--focus) / 0.6)");
-    expect(css).toMatch(/textarea:focus-visible \{\s*outline: none;/);
+    expect(css).toMatch(/textarea:focus-visible \{\s*outline: 2px solid rgb\(var\(--focus\) \/ 0\.6\);/);
   });
 });

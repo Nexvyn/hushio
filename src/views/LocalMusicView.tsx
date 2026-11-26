@@ -13,7 +13,7 @@ import { Icon } from "../components/Icon";
 import { PageHeader } from "../components/PageHeader";
 import { PHONE_ICON, PHONE_SHUFFLE } from "../components/phone/heroButtons";
 import { APP_NAME } from "../lib/app";
-import { removeDownload } from "../lib/downloads";
+import { confirmRemoveDownload } from "../lib/downloads";
 import { isCueTrackId } from "../lib/clip";
 import { fmtTime, fmtTotal } from "../lib/format";
 import {
@@ -67,7 +67,7 @@ const TAB =
   "rounded-full px-3.5 py-1.5 text-meta font-medium motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 const ROW =
   "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left [@media(hover:hover)]:hover:bg-ink-1/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
-const WARNING = "rounded-xl bg-amber-500/10 px-4 py-3 text-body text-amber-300";
+const WARNING = "rounded-xl bg-warn/10 px-4 py-3 text-body text-warn";
 const CRUMB = "underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus rounded";
 
 type Filter = { kind: "album"; album: string; artist: string } | { kind: "artist"; artist: string } | null;
@@ -132,7 +132,7 @@ function LocalTrackRow({ track, onPlay, onRemove }: { track: LocalTrack; onPlay:
   const downloaded = isDownloadedTrack(track);
   const menu: MenuItem[] = [
     ...(canEditTags() && isLocalId(track.id) && !isCueTrackId(track.id) ? [{ label: "Edit info", icon: PencilSimple, onSelect: () => useTrackEdit.getState().open(track.id) }] : []),
-    ...(downloaded ? [{ label: "Remove download", icon: Trash, danger: true, onSelect: () => removeDownload(track.id) }] : []),
+    ...(downloaded ? [{ label: "Remove download", icon: Trash, danger: true, onSelect: () => confirmRemoveDownload(track) }] : []),
   ];
   return (
     <div className={phone ? "flex items-center gap-2" : "flex items-center gap-2"}>
@@ -911,7 +911,7 @@ function NetworkCollectionView({ id, onBack }: { id: string; onBack: () => void 
             key={track.id}
             type="button"
             onClick={() => playNetworkTracks(list, index, server?.name ?? "Network server")}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left [@media(hover:hover)]:hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left [@media(hover:hover)]:hover:bg-ink-1/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
             <span className="min-w-0 flex-1">
               <span className="block truncate text-body font-medium text-ink-1">{track.title}</span>

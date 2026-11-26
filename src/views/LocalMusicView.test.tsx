@@ -210,6 +210,8 @@ describe("LocalMusicView on this device", () => {
     const remove = useUI.getState().contextMenu?.items.find((entry) => entry.label === "Remove download");
     expect(remove).toBeTruthy();
     remove?.onSelect?.();
+    expect(bridge.downloadDeleteFile).not.toHaveBeenCalled();
+    useUI.getState().dialog?.onConfirm("");
     expect(bridge.downloadDeleteFile).toHaveBeenCalledWith("C:\\Downloads\\saved.m4a");
     expect(useLibrary.getState().downloads.dl1).toBeUndefined();
   });

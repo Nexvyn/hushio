@@ -57,6 +57,17 @@ export function LaunchIntro({ ready }: { ready: boolean }) {
   useEffect(() => {
     if (!active) return;
     let live = true;
+    let breath: AnimationPlaybackControls | null = null;
+    const finish = () => {
+      if (!live) return;
+      live = false;
+      breath?.stop();
+      setActive(false);
+      markIntroFinished();
+      void introDone().catch(() => {});
+    };
+    window.addEventListener("pointerdown", finish, true);
+    window.addEventListener("keydown", finish, true);
 
     const run = async () => {
       const overlay = overlayRef.current;
@@ -68,7 +79,6 @@ export function LaunchIntro({ ready }: { ready: boolean }) {
       const reduce = reducedMotion();
       const letters = Array.from(word.querySelectorAll<HTMLElement>("[data-letter]"));
 
-      let breath: AnimationPlaybackControls | null = null;
       if (reduce) {
         tile.style.opacity = "1";
         slider.style.transform = "translateX(0px)";
@@ -132,17 +142,12 @@ export function LaunchIntro({ ready }: { ready: boolean }) {
       await animate(overlay, { opacity: [1, 0] }, introFade);
     };
 
-    run()
-      .catch(() => {})
-      .finally(() => {
-        if (!live) return;
-        setActive(false);
-        markIntroFinished();
-        void introDone().catch(() => {});
-      });
+    run().catch(() => {}).finally(finish);
 
     return () => {
       live = false;
+      window.removeEventListener("pointerdown", finish, true);
+      window.removeEventListener("keydown", finish, true);
     };
   }, [active]);
 

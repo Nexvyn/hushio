@@ -50,7 +50,7 @@ export function TransportButton({ label, hint, icon, active = false, dot = true,
     : active
       ? "text-ink-1"
       : "text-ink-2 hover:text-ink-1";
-  const glyph = <Icon icon={icon} />;
+  const glyph = <Icon icon={icon} fill={filled ? "currentColor" : "none"} />;
   return (
     <button
       type="button"

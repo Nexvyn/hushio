@@ -235,6 +235,10 @@ describe("NowPlaying", () => {
     const liked = within(screen.getByRole("group", { name: "Transport" })).getByRole("button", { name: "Remove from Library" });
     expect(liked.getAttribute("aria-pressed")).toBe("true");
     expect(liked.className).toContain("[&_path]:fill-current");
+    const filledMarkup = liked.querySelector("svg")?.innerHTML;
+    fireEvent.click(liked);
+    const unliked = within(screen.getByRole("group", { name: "Transport" })).getByRole("button", { name: "Add to Library" });
+    expect(unliked.querySelector("svg")?.innerHTML).not.toBe(filledMarkup);
   });
 
   it("gives the exit chevron the 40px squircle shape of the search and tabs", () => {
@@ -505,7 +509,7 @@ describe("NowPlaying", () => {
     expect(region()?.innerHTML).not.toContain("font-extrabold");
   });
 
-  it("gives only the active lyric semibold weight", async () => {
+  it("keeps one lyric weight for the active and the other lines", async () => {
     lyricsGet.mockResolvedValue({
       synced: [
         { time: 0, text: "Opening line" },
@@ -518,8 +522,8 @@ describe("NowPlaying", () => {
     render(<NowPlaying />);
     openView();
     await screen.findByText("Opening line");
-    const semibold = Array.from(region()?.querySelectorAll("button[data-line] .font-semibold") ?? []);
-    expect(semibold.map((node) => node.textContent)).toEqual(["Opening line"]);
+    expect(region()?.querySelectorAll("button[data-line] .font-semibold").length).toBe(0);
+    expect(screen.getByText("Opening line").className).toContain("font-medium");
     expect(screen.getByText("Second line").className).toContain("font-medium");
   });
 

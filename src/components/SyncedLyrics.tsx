@@ -38,7 +38,6 @@ const GLOW = "drop-shadow(0 0 22px rgb(var(--ink-1) / 0.28))";
 const FOCUS_RING = "rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 const LINE_CLASS = "font-display text-[calc(40px*var(--lyric-scale))] leading-[1.25] tracking-[-0.03em] font-extrabold";
 const ART_LINE_CLASS = "text-[calc(30px*var(--lyric-scale))] leading-[1.28] tracking-[-0.01em] font-medium [font-family:var(--font-lyric)] font-synthesis-none";
-const ART_ACTIVE_CLASS = "text-[calc(30px*var(--lyric-scale))] leading-[1.28] tracking-[-0.01em] font-semibold [font-family:var(--font-lyric)] font-synthesis-none";
 const SUB_CLASS = "font-display text-[calc(22px*var(--lyric-scale))] leading-[1.3] font-bold";
 const ART_SUB_CLASS = "text-[calc(22px*var(--lyric-scale))] leading-[1.3] font-medium [font-family:var(--font-lyric)] font-synthesis-none";
 const PHONE_ANCHOR = 0.34;
@@ -358,7 +357,7 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
     const subClass = phone ? PHONE_SUB_CLASS : onArt ? ART_SUB_CLASS : SUB_CLASS;
     const lineClass = phone
       ? PHONE_LINE_CLASS
-      : onArt ? (active ? ART_ACTIVE_CLASS : ART_LINE_CLASS) : LINE_CLASS;
+      : onArt ? ART_LINE_CLASS : LINE_CLASS;
     const lineStyle: CSSProperties | undefined = undefined;
     const rtl = RTL_SCRIPT.test(line.text);
     const translation = translate ? line.translation : undefined;

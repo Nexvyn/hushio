@@ -29,6 +29,10 @@ export function markIntroFinished(): void {
   finishedThisLaunch = true;
 }
 
+export function resetIntroForTests(): void {
+  finishedThisLaunch = false;
+}
+
 export async function waitUntil(isReady: () => boolean, capMs: number, pollMs: number): Promise<boolean> {
   let waited = 0;
   while (!isReady()) {
