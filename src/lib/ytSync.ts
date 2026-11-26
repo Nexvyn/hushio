@@ -106,14 +106,26 @@ export function mergeYtRemote<T extends { id: string }>(
   return { tracks, pending: add.length > 0 || remove.length > 0 ? { add, remove } : undefined };
 }
 
-export function ytMoveJob(localPlaylistId: string, track: { id: string; episode?: true }, index: number): YtSyncJob | null {
+export type YtNeighbour = { track: { id: string; episode?: true }; after: boolean };
+
+export function ytMoveJob(
+  localPlaylistId: string,
+  track: { id: string; episode?: true },
+  neighbour: YtNeighbour | null,
+): YtSyncJob | null {
   const videoId = videoIdOf(track);
-  return videoId ? { kind: "move", localPlaylistId, videoId, payload: String(index) } : null;
+  const anchorId = neighbour ? videoIdOf(neighbour.track) : null;
+  if (!videoId || !neighbour || !anchorId) return null;
+  return {
+    kind: "move",
+    localPlaylistId,
+    videoId,
+    payload: `${neighbour.after ? "after" : "before"}:${anchorId}`,
+  };
 }
 
 export function queueYtMove(job: YtSyncJob | null): void {
-  // The Rust sync queue has no move kind yet, so reorders stay local until it does.
-  void job;
+  if (job) queueYtJobs([job]);
 }
 
 export async function mapLimited<T>(items: T[], limit: number, task: (item: T) => Promise<void>): Promise<void> {

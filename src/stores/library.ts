@@ -790,7 +790,12 @@ export const useLibrary = create<LibraryState>()(
           const playlist = get().playlists.find((item) => item.id === playlistId);
           const track = playlist?.tracks[from];
           apply(movePlaylistTrackUpdate(playlistId, from, to));
-          if (playlist?.remote && track) queueYtMove(ytMoveJob(playlistId, track, to));
+          if (!playlist?.remote || !track || from === to) return;
+          const tracks = get().playlists.find((item) => item.id === playlistId)?.tracks ?? [];
+          const next = tracks[to + 1];
+          const previous = tracks[to - 1];
+          const neighbour = next ? { track: next, after: false } : previous ? { track: previous, after: true } : null;
+          queueYtMove(ytMoveJob(playlistId, track, neighbour));
         },
         setPlaylistTracks: (playlistId, tracks) => {
           const before = new Set(get().playlists.find((item) => item.id === playlistId)?.tracks.map((item) => item.id));

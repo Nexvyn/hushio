@@ -39,6 +39,19 @@ type Minted = { poToken: string; visitorData: string; mintedAt: number };
 
 let cached: Minted | null = null;
 let inFlight: { visitorData: string; promise: Promise<Minted> } | null = null;
+let evalAllowed: boolean | null = null;
+
+export function canEvaluate(): boolean {
+  if (evalAllowed === null) {
+    try {
+      new Function("return 1")();
+      evalAllowed = true;
+    } catch {
+      evalAllowed = false;
+    }
+  }
+  return evalAllowed;
+}
 
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -171,6 +184,7 @@ async function mintWithChallenge(challenge: Challenge, visitorData: string): Pro
 }
 
 async function mint(visitorData: string): Promise<Minted> {
+  if (!canEvaluate()) throw new Error("the app's content security policy blocks running BotGuard");
   const homepage = await fetchChallengeFromHomepage();
   if (homepage) {
     try {

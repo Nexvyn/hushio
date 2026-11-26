@@ -6,11 +6,13 @@ import { marketValue } from "./market";
 import { isJioSaavnId, resolveJioSaavnStream } from "./jiosaavn";
 import { firstSuccess } from "./firstSuccess";
 import { traceMark } from "./streamTrace";
+import { canEvaluate } from "./poToken";
 
 type InnerTubeClient = NonNullable<NonNullable<Parameters<Innertube["getBasicInfo"]>[1]>["client"]>;
 export const MEDIA_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 const CLIENTS: readonly InnerTubeClient[] = ["VISIONOS", "IOS", "ANDROID_VR", "WEB", "YTMUSIC", "ANDROID", "TV"];
+const CIPHER_CLIENTS = new Set<InnerTubeClient>(["WEB", "YTMUSIC", "TV"]);
 const PIPED_BASES = [
   "https://pipedapi.kavin.rocks",
   "https://pipedapi.adminforge.de",
@@ -327,7 +329,7 @@ async function resolveUncached(videoId: string, options: ResolveOptions): Promis
       await resetSession(marketValue());
     }
     const { innertube, context } = await getSession(marketValue());
-    const order = clientOrder(options.exclude);
+    const order = clientOrder(options.exclude).filter((client) => canEvaluate() || !CIPHER_CLIENTS.has(client));
     try {
       const winner = await firstSuccess(
         order.length,

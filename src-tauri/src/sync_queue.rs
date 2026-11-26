@@ -34,6 +34,13 @@ pub trait Remote: Sync {
     fn delete(&self, playlist: &str) -> impl Future<Output = Result<(), ApiError>> + Send;
     fn add(&self, playlist: &str, video: &str) -> impl Future<Output = Result<(), ApiError>> + Send;
     fn remove(&self, playlist: &str, video: &str) -> impl Future<Output = Result<(), ApiError>> + Send;
+    fn move_item(
+        &self,
+        playlist: &str,
+        video: &str,
+        anchor: &str,
+        after: bool,
+    ) -> impl Future<Output = Result<(), ApiError>> + Send;
     fn rate(&self, video: &str, like: bool) -> impl Future<Output = Result<(), ApiError>> + Send;
     fn holds(&self, _playlist: &str, _video: &str) -> impl Future<Output = Result<bool, ApiError>> + Send {
         async { Ok(false) }
@@ -76,6 +83,19 @@ impl<T: AccessTokens> Remote for Official<'_, T> {
         }
     }
 
+    async fn move_item(&self, playlist: &str, video: &str, anchor: &str, after: bool) -> Result<(), ApiError> {
+        let items = self.api.list_items(self.tokens, playlist).await?;
+        let from = items.iter().position(|item| item.video_id == video);
+        let to = items.iter().position(|item| item.video_id == anchor);
+        let (Some(from), Some(to)) = (from, to) else {
+            return Ok(());
+        };
+        let position = move_position(from, to, after);
+        self.api
+            .move_item(self.tokens, playlist, &items[from].item_id, video, position)
+            .await
+    }
+
     async fn rate(&self, video: &str, like: bool) -> Result<(), ApiError> {
         self.api.rate(self.tokens, video, like).await
     }
@@ -116,6 +136,7 @@ pub enum Kind {
     Delete,
     Like,
     Unlike,
+    Move,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -172,17 +193,38 @@ pub fn backoff_ms(attempts: u32) -> Option<i64> {
 }
 
 fn needs_link(kind: Kind) -> bool {
-    matches!(kind, Kind::Rename | Kind::Add | Kind::Remove | Kind::Delete)
+    matches!(kind, Kind::Rename | Kind::Add | Kind::Remove | Kind::Delete | Kind::Move)
+}
+
+fn move_position(from: usize, anchor: usize, after: bool) -> usize {
+    match (from < anchor, after) {
+        (true, false) => anchor - 1,
+        (true, true) | (false, false) => anchor,
+        (false, true) => anchor + 1,
+    }
+}
+
+fn parse_move(payload: &str) -> Option<(bool, &str)> {
+    let (placement, anchor) = payload.split_once(':')?;
+    let after = match placement {
+        "before" => false,
+        "after" => true,
+        _ => return None,
+    };
+    is_video_id(anchor).then_some((after, anchor))
 }
 
 fn validate(input: &JobInput) -> Result<(), String> {
     let playlist_scoped = matches!(
         input.kind,
-        Kind::Create | Kind::Rename | Kind::Add | Kind::Remove | Kind::Delete
+        Kind::Create | Kind::Rename | Kind::Add | Kind::Remove | Kind::Delete | Kind::Move
     );
-    let video_scoped = matches!(input.kind, Kind::Add | Kind::Remove | Kind::Like | Kind::Unlike);
+    let video_scoped = matches!(input.kind, Kind::Add | Kind::Remove | Kind::Like | Kind::Unlike | Kind::Move);
     if (playlist_scoped && input.local_playlist_id.is_none()) || (video_scoped && input.video_id.is_none()) {
         return Err("The sync change is missing its playlist or video.".to_owned());
+    }
+    if input.kind == Kind::Move && input.payload.as_deref().and_then(parse_move).is_none() {
+        return Err("The sync change is missing where the song goes.".to_owned());
     }
     if matches!(input.kind, Kind::Create | Kind::Rename) && input.payload.is_none() {
         return Err("The sync change is missing the playlist name.".to_owned());
@@ -265,6 +307,11 @@ impl Queue {
                 if self.take_pending(|job| job.kind == opposite && job.video_id == video) {
                     return Ok(false);
                 }
+            }
+            Kind::Move => {
+                self.drop_pending(|job| {
+                    job.kind == Kind::Move && job.local_playlist_id == local && job.video_id == video
+                });
             }
             Kind::Delete => {
                 self.drop_pending(|job| job.local_playlist_id == local);
@@ -939,7 +986,7 @@ fn playlist_gone(kind: Kind, error: &ApiError) -> bool {
     match error {
         ApiError::Status { status: 404, reason, .. } => match kind {
             Kind::Add => matches!(reason.as_deref(), None | Some("playlistNotFound")),
-            Kind::Rename | Kind::Remove | Kind::Delete => true,
+            Kind::Rename | Kind::Remove | Kind::Delete | Kind::Move => true,
             Kind::Create | Kind::Like | Kind::Unlike => false,
         },
         _ => false,
@@ -967,6 +1014,10 @@ async fn perform_on<R: Remote>(remote: &R, job: &Job) -> Result<Option<String>, 
             remote.add(&playlist, &video).await.map(|()| None)
         }
         Kind::Remove => remote.remove(&playlist, &video).await.map(|()| None),
+        Kind::Move => match parse_move(&name) {
+            Some((after, anchor)) => remote.move_item(&playlist, &video, anchor, after).await.map(|()| None),
+            None => Ok(None),
+        },
         Kind::Delete => remote.delete(&playlist).await.map(|()| None),
         Kind::Like => remote.rate(&video, true).await.map(|()| None),
         Kind::Unlike => remote.rate(&video, false).await.map(|()| None),
@@ -1031,6 +1082,62 @@ mod tests {
     fn backoff_follows_the_prd_schedule() {
         let waits: Vec<Option<i64>> = (1..=5).map(backoff_ms).collect();
         assert_eq!(waits, vec![Some(1_000), Some(2_000), Some(4_000), Some(8_000), None]);
+    }
+
+    fn moved(local: &str, video: &str, placement: &str) -> JobInput {
+        JobInput {
+            kind: Kind::Move,
+            local_playlist_id: Some(local.to_owned()),
+            yt_playlist_id: None,
+            video_id: Some(video.to_owned()),
+            payload: Some(placement.to_owned()),
+        }
+    }
+
+    fn pending_moves(queue: &Queue) -> Vec<(String, String)> {
+        queue
+            .stored
+            .jobs
+            .iter()
+            .filter(|job| job.kind == Kind::Move)
+            .map(|job| (job.video_id.clone().unwrap_or_default(), job.payload.clone().unwrap_or_default()))
+            .collect()
+    }
+
+    #[test]
+    fn a_move_is_queued_only_for_a_linked_playlist_with_a_valid_anchor() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let mut queue = Queue { root: dir.path().to_path_buf(), stored: Stored::default() };
+        queue.link("L1", "PL1");
+        assert_eq!(queue.enqueue(moved("L1", "v1", "before:bbbbbbbbbbb"), 0), Ok(true));
+        assert_eq!(queue.enqueue(moved("L2", "v1", "before:bbbbbbbbbbb"), 0), Ok(false));
+        assert!(queue.enqueue(moved("L1", "v1", "sideways:bbbbbbbbbbb"), 0).is_err());
+        assert_eq!(pending_moves(&queue), vec![("v1".to_owned(), "before:bbbbbbbbbbb".to_owned())]);
+    }
+
+    #[test]
+    fn a_newer_move_of_the_same_song_replaces_the_pending_one() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let mut queue = Queue { root: dir.path().to_path_buf(), stored: Stored::default() };
+        queue.link("L1", "PL1");
+        queue.enqueue(moved("L1", "v1", "before:bbbbbbbbbbb"), 0).expect("first move queued");
+        queue.enqueue(moved("L1", "v9", "before:bbbbbbbbbbb"), 0).expect("other song queued");
+        queue.enqueue(moved("L1", "v1", "after:ccccccccccc"), 0).expect("second move queued");
+        assert_eq!(
+            pending_moves(&queue),
+            vec![
+                ("v9".to_owned(), "before:bbbbbbbbbbb".to_owned()),
+                ("v1".to_owned(), "after:ccccccccccc".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_moved_song_lands_on_the_chosen_side_of_its_anchor() {
+        assert_eq!(move_position(2, 1, false), 1);
+        assert_eq!(move_position(0, 2, false), 1);
+        assert_eq!(move_position(0, 1, true), 1);
+        assert_eq!(move_position(2, 1, true), 2);
     }
 
     #[tokio::test]

@@ -423,6 +423,28 @@ impl Remote for Innertube {
         self.edit(playlist, vec![action]).await
     }
 
+    async fn move_item(&self, playlist: &str, video: &str, anchor: &str, after: bool) -> Result<(), ApiError> {
+        let rows = self.rows(playlist).await?;
+        let set_id_of = |id: &str| rows.iter().find(|(row, _)| row.as_str() == id).map(|(_, set)| set.clone());
+        let (Some(set_id), Some(anchor_set_id)) = (set_id_of(video), set_id_of(anchor)) else {
+            return Ok(());
+        };
+        let action = if after {
+            json!({
+                "action": "ACTION_MOVE_VIDEO_AFTER",
+                "setVideoId": set_id,
+                "movedSetVideoIdPredecessor": anchor_set_id,
+            })
+        } else {
+            json!({
+                "action": "ACTION_MOVE_VIDEO_BEFORE",
+                "setVideoId": set_id,
+                "movedSetVideoIdSuccessor": anchor_set_id,
+            })
+        };
+        self.edit(playlist, vec![action]).await
+    }
+
     async fn rate(&self, video: &str, like: bool) -> Result<(), ApiError> {
         let path = if like { "like/like" } else { "like/removelike" };
         self.call(path, json!({ "target": { "videoId": video } }))

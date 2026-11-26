@@ -15,6 +15,7 @@ import {
   mergeYtRemote,
   quotaText,
   queueYtJobs,
+  queueYtMove,
   rateYtSong,
   relativeTime,
   skippedText,
@@ -63,6 +64,19 @@ describe("sync status text", () => {
   it("picks the largest whole unit for relative times", () => {
     expect(relativeTime(NOW - 3 * 3_600_000, NOW)).toBe("3 hours ago");
     expect(relativeTime(NOW - 2 * 86_400_000, NOW)).toBe("2 days ago");
+  });
+});
+
+describe("queueYtMove", () => {
+  it("enqueues the move for a linked playlist and nothing without a job", () => {
+    useAuth.setState({ account: { ...GUEST_ACCOUNT, mode: "google" } });
+    queueYtMove(ytMoveJob("L1", { id: "dQw4w9WgXcQ" }, { track: { id: "aaaaaaaaaaa" }, after: false }));
+    expect(enqueue).toHaveBeenCalledWith([
+      { kind: "move", localPlaylistId: "L1", videoId: "dQw4w9WgXcQ", payload: "before:aaaaaaaaaaa" },
+    ]);
+    enqueue.mockClear();
+    queueYtMove(null);
+    expect(enqueue).not.toHaveBeenCalled();
   });
 });
 
@@ -137,14 +151,15 @@ describe("pulling changes from YouTube", () => {
     expect(peak).toBe(3);
   });
 
-  it("builds a move job only for YouTube songs and words the skipped count", () => {
-    expect(ytMoveJob("local-1", { id: "dQw4w9WgXcQ" }, 2)).toEqual({
+  it("builds a move job only for YouTube songs and anchors it to a neighbour", () => {
+    expect(ytMoveJob("local-1", { id: "dQw4w9WgXcQ" }, { track: { id: "aaaaaaaaaaa" }, after: true })).toEqual({
       kind: "move",
       localPlaylistId: "local-1",
       videoId: "dQw4w9WgXcQ",
-      payload: "2",
+      payload: "after:aaaaaaaaaaa",
     });
-    expect(ytMoveJob("local-1", { id: "local:abc" }, 2)).toBeNull();
+    expect(ytMoveJob("local-1", { id: "local:abc" }, { track: { id: "aaaaaaaaaaa" }, after: false })).toBeNull();
+    expect(ytMoveJob("local-1", { id: "dQw4w9WgXcQ" }, null)).toBeNull();
     expect(skippedText(1)).toBe("Skipped 1 unavailable song");
     expect(skippedText(3)).toBe("Skipped 3 unavailable songs");
     expect(skippedText(0)).toBeNull();

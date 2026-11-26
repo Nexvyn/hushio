@@ -389,6 +389,27 @@ impl YtApi {
             .map(|_| ())
     }
 
+    pub async fn move_item<T: AccessTokens>(
+        &self,
+        tokens: &T,
+        playlist_id: &str,
+        item_id: &str,
+        video_id: &str,
+        position: usize,
+    ) -> Result<(), ApiError> {
+        let body = json!({
+            "id": item_id,
+            "snippet": {
+                "playlistId": playlist_id,
+                "resourceId": { "kind": "youtube#video", "videoId": video_id },
+                "position": position,
+            },
+        });
+        self.send(tokens, Method::PUT, "playlistItems", &[("part", "snippet")], Some(&body))
+            .await
+            .map(|_| ())
+    }
+
     pub async fn remove_item<T: AccessTokens>(&self, tokens: &T, item_id: &str) -> Result<(), ApiError> {
         self.send(tokens, Method::DELETE, "playlistItems", &[("id", item_id)], None)
             .await
