@@ -1,5 +1,5 @@
 import { LANGUAGES, t } from "../../lib/i18n";
-import { VinylRecord, Warning, ChartBar, Waveform, ChartLine, CloudArrowDown, Cloud, Copy, Gauge, Database, Trash, DownloadSimple, Drop, Export, FileArrowDown, FunnelSimple, Flashlight, Lightning, FolderPlus, FolderSimple, FolderOpen, CornersOut, GameController, Globe, Infinity, Info, LinkSimple, SignOut, ArrowsOut, DeviceMobile, List, Microphone, MusicNote, PaintBrush, PlayCircle, Radio, ArrowClockwise, Repeat, SidebarSimple, SlidersHorizontal, Sparkle, SpeakerHigh, TextT, Timer, Translate, User, VideoCamera, SpeakerX, WifiHigh, CircleHalf, type Icon as PhosphorIcon } from "@phosphor-icons/react";
+import { VinylRecord, Warning, ChartBar, Waveform, ChartLine, CloudArrowDown, Cloud, Copy, Gauge, Database, Trash, DownloadSimple, Drop, Export, FileArrowDown, FunnelSimple, Flashlight, Lightning, FolderPlus, FolderSimple, FolderOpen, CornersOut, GameController, Globe, Infinity, Info, LinkSimple, SignOut, ArrowsOut, DeviceMobile, List, Microphone, MusicNote, PaintBrush, PlayCircle, Radio, ArrowClockwise, Repeat, SidebarSimple, SlidersHorizontal, Sparkle, SpeakerHigh, TextT, Timer, Translate, User, VideoCamera, SpeakerX, WifiHigh, CircleHalf, CaretDown, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import type { ThemeMode } from "../../lib/theme";
 import { Button } from "../../components/Button";
@@ -10,6 +10,7 @@ import { SpotifySettings } from "./SpotifySettings";
 import { GoogleAccountCard } from "../../components/GoogleAccountCard";
 import { OutputDevicePicker } from "../../components/OutputDevicePicker";
 import { RadioGroup, type RadioOption } from "../../components/RadioGroup";
+import { ActionMenu } from "../../components/ActionMenu";
 import type { SettingRowProps } from "../../components/SettingRow";
 import { YouTubeMusicPrompt } from "../../components/YouTubeMusicPrompt";
 import { Slider } from "../../components/Slider";
@@ -58,6 +59,7 @@ export type SettingsGroup = {
   rows: RowSpec[];
   body?: ReactNode;
   plain?: boolean;
+  box?: boolean;
 };
 
 export type SettingsCategory = {
@@ -565,6 +567,7 @@ function soundCategory(context: BuildContext): SettingsCategory {
         ],
       },
       {
+        box: true,
         rows: [
           {
             id: "equalizer",
@@ -607,17 +610,11 @@ function lyricsCategory({ settings: s }: BuildContext): SettingsCategory {
             title: t("settings.row.syncedLyrics"),
             toggle: flag(s, "syncedLyrics"),
           },
-        ],
-      },
-      {
-        note: syncedOff
-          ? "Blur, romanized lyrics and timing work while synced lyrics are on."
-          : undefined,
-        rows: [
           {
             id: "blur-lyrics",
             icon: Drop,
             title: t("settings.row.blurLyrics"),
+            note: syncedOff ? "Works while synced lyrics are on." : undefined,
             toggle: flag(s, "blurUnfocusedLyrics"),
             disabled: syncedOff,
           },
@@ -664,7 +661,8 @@ function lyricsCategory({ settings: s }: BuildContext): SettingsCategory {
       },
       {
         title: t("settings.row.sources"),
-        note: "Hushio asks each source in turn and takes the first answer that has timings.",
+        box: true,
+        note:"Hushio asks each source in turn and takes the first answer that has timings.",
         rows: LYRICS_PROVIDERS.map((provider) => ({
           id: `lyrics-provider-${provider.id}`,
           icon: Microphone,
@@ -709,22 +707,29 @@ function displayCategory(context: BuildContext): SettingsCategory {
             title: t("settings.language"),
             note: t("settings.languageNote"),
             control: (
-              <select
-                aria-label={t("settings.language")}
-                value={s.language}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  if (value === "system" || value === "en" || value === "hi") s.setValue("language", value);
-                }}
-                className="hit-area h-11 rounded-[8px] border border-separator bg-wash px-3 text-body text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-              >
-                <option value="system">{t("settings.languageSystem")}</option>
-                {LANGUAGES.map((option) => (
-                  <option key={option.code} value={option.code}>
-                    {option.nativeName}
-                  </option>
-                ))}
-              </select>
+              <ActionMenu
+                label={t("settings.language")}
+                icon={CaretDown}
+                placement="down"
+                triggerText={
+                  s.language === "system"
+                    ? t("settings.languageSystem")
+                    : (LANGUAGES.find((option) => option.code === s.language)?.nativeName ?? s.language)
+                }
+                triggerClass="flex h-11 shrink-0 items-center gap-2 rounded-[12px] [corner-shape:squircle] border border-separator bg-wash px-3 text-body text-ink-1 hover:bg-hover motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                items={[
+                  {
+                    label: t("settings.languageSystem"),
+                    checked: s.language === "system",
+                    onSelect: () => s.setValue("language", "system"),
+                  },
+                  ...LANGUAGES.map((option) => ({
+                    label: option.nativeName,
+                    checked: s.language === option.code,
+                    onSelect: () => s.setValue("language", option.code),
+                  })),
+                ]}
+              />
             ),
           },
           {
@@ -793,6 +798,7 @@ function displayCategory(context: BuildContext): SettingsCategory {
             control: (
               <RadioGroup
                 label="App font"
+                chips
                 options={APP_FONTS.map((font) => ({ value: font.id, label: font.label }))}
                 value={s.appFont}
                 onChange={(value) => {

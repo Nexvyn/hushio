@@ -420,8 +420,8 @@ export function SettingsView() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-7rem)] gap-8">
-      <aside className="sticky top-0 flex w-[220px] shrink-0 flex-col gap-3 self-start">
+    <div className="flex gap-8">
+      <aside className="no-scrollbar sticky top-0 flex max-h-[calc(100vh-7rem)] w-[220px] shrink-0 flex-col gap-3 self-start overflow-y-auto">
         <SearchBox value={query} onChange={setQuery} />
         <CategoryNav categories={categories} active={active} onSelect={select} />
       </aside>

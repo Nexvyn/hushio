@@ -10,10 +10,28 @@ export function GroupView({ group }: { group: SettingsGroup }) {
   if (group.plain) {
     return <section>{group.body}</section>;
   }
-  return (
-    <section>
+  const heading = (
+    <>
       {group.title && <h2 className={`${SETTINGS_SPACE.heading} ${SETTINGS_TYPE.heading}`}>{group.title}</h2>}
       {group.note && <p className={`${SETTINGS_SPACE.heading} ${SETTINGS_TYPE.note}`}>{group.note}</p>}
+    </>
+  );
+  if (group.box) {
+    return (
+      <section>
+        {heading}
+        <div data-group-box="" className="flex flex-col gap-2 rounded-[12px] [corner-shape:squircle] bg-wash p-2">
+          {group.rows.map((row) => (
+            <SettingRow key={row.id} {...row} />
+          ))}
+          {group.body}
+        </div>
+      </section>
+    );
+  }
+  return (
+    <section>
+      {heading}
       {group.rows.length > 0 ? (
         <>
           <div className={`flex flex-col ${SETTINGS_SPACE.rows}`}>

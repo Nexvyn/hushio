@@ -52,7 +52,7 @@ function ActionRow({ glyph, title, description, action }: ActionRowProps) {
   const [hovered, setHovered] = useState(false);
   return (
     <div
-      className="flex min-h-[64px] items-center gap-4"
+      className={phone ? "flex min-h-[64px] items-center gap-4" : "grid min-h-[64px] grid-cols-[24px_minmax(0,1fr)_144px] items-center gap-4"}
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
     >
@@ -61,7 +61,7 @@ function ActionRow({ glyph, title, description, action }: ActionRowProps) {
         <h3 className="text-body font-medium text-ink-1">{title}</h3>
         <p className="truncate text-meta text-ink-2">{description}</p>
       </div>
-      <div className="shrink-0">{action}</div>
+      <div className={phone ? "shrink-0" : "flex justify-end [&>button]:w-full"}>{action}</div>
     </div>
   );
 }
@@ -219,7 +219,7 @@ export function ImportPage() {
     <div
       ref={root}
       data-owns-drop
-      className={`max-w-[680px] rounded-[12px] pb-16 motion-safe:transition-shadow motion-safe:duration-quick ${dragOver ? "ring-2 ring-accent" : ""}`}
+      className={`mx-auto max-w-[680px] rounded-[12px] pb-16 motion-safe:transition-shadow motion-safe:duration-quick ${dragOver ? "ring-2 ring-accent" : ""}`}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}

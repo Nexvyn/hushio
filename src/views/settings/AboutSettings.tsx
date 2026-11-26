@@ -1,6 +1,7 @@
 import { AppLogo } from "../../components/AppLogo";
 import { Button } from "../../components/Button";
 import { APP_NAME } from "../../lib/app";
+import { usePhone } from "../../lib/usePhone";
 
 export const GITHUB_URL = "https://github.com/Nexvyn/hushio";
 export const WEBSITE_URL = "https://hushio.nexvyn.dev";
@@ -17,15 +18,25 @@ export function AboutHeader({ version }: { version: string | null }) {
 }
 
 export function AboutMaker({ onOpen, onWebsite }: { onOpen: () => void; onWebsite: () => void }) {
-  return (
-    <div className="flex flex-col items-start gap-3">
-      <p className="text-body leading-[22px] text-ink-2">
-        Made by Nexvyn. A free, calm music player with no ads and no servers. Built because music apps got too noisy.
-      </p>
-      <div className="flex flex-wrap gap-2">
-        <Button onClick={onOpen}>GitHub</Button>
-        <Button onClick={onWebsite}>Website</Button>
-      </div>
+  const phone = usePhone();
+  const note = (
+    <p className="min-w-0 flex-1 text-body leading-[22px] text-ink-2">
+      Made by Nexvyn. A free, calm music player with no ads and no servers. Built because music apps got too noisy.
+    </p>
+  );
+  const buttons = (
+    <div className="flex shrink-0 gap-2">
+      <Button onClick={onOpen}>GitHub</Button>
+      <Button onClick={onWebsite}>Website</Button>
     </div>
   );
+  if (phone) {
+    return (
+      <div className="flex flex-col items-start gap-3">
+        {note}
+        {buttons}
+      </div>
+    );
+  }
+  return <div className="flex items-center justify-between gap-4">{note}{buttons}</div>;
 }
