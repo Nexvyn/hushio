@@ -16,7 +16,7 @@ import { viewportHeight, viewportWidth } from "../../lib/viewport";
 import { VelocityTracker } from "../../lib/velocity";
 
 const GAP_PX = 24;
-const COVER_SIZE = "min(88vw, 56vh, 460px)";
+const COVER_SIZE = "min(88vw, 56vh, 100cqw, max(0px, calc(100cqh - 32px)), 460px)";
 const SKIP_PX = 72;
 const DRAG_SHARE = 0.35;
 export const PAUSED_SCALE = 0.86;

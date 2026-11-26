@@ -660,7 +660,7 @@ function NowPlayingSheet() {
               <div
                 role="group"
                 aria-label="Now playing pages"
-                className="flex min-h-0 flex-1 touch-none flex-col px-6"
+                className="flex min-h-0 flex-1 touch-none flex-col px-6 [container-type:size]"
                 {...artHandlers}
               >
                 <div className="flex h-full w-full min-h-0 flex-col">
