@@ -351,7 +351,6 @@ function ArtistContent({ page }: { page: ArtistPage }) {
                   current={song.id === current}
                   playing={playing}
                   artwork
-                  dividerInset="after:left-[80px]"
                   menu={() => trackMenuItems(song)}
                   onPlay={() => playAt(index)}
                 />

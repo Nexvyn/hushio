@@ -45,7 +45,6 @@ type TrackRowProps = {
   onPlay: () => void;
   artwork?: boolean;
   showAlbum?: boolean;
-  dividerInset?: string;
   rowProps?: SortableRowProps;
   addedAt?: number;
   showAdded?: boolean;

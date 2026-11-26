@@ -490,7 +490,6 @@ function ScopedResults({ scope, query, sources, phone }: { scope: SearchScope; q
             current={song.id === current}
             playing={playing}
             artwork
-            dividerInset="after:left-[60px]"
             menu={() => trackMenuItems(song)}
             onPlay={() => playFromRow(songs, index)}
           />
@@ -537,7 +536,6 @@ function SongResult({ song, query }: { song: SearchSong; query: string }) {
       current={current === song.id}
       playing={playing}
       artwork
-      dividerInset="after:left-[60px]"
       menu={() => trackMenuItems(song)}
       onPlay={() => playSong(song, query)}
     />

@@ -7,6 +7,7 @@ import { usePhone } from "../../lib/usePhone";
 import type { SettingsGroup } from "./categories";
 
 export function GroupView({ group }: { group: SettingsGroup }) {
+  const phone = usePhone();
   if (group.plain) {
     return <section>{group.body}</section>;
   }
@@ -16,7 +17,7 @@ export function GroupView({ group }: { group: SettingsGroup }) {
       {group.note && <p className={`${SETTINGS_SPACE.heading} ${SETTINGS_TYPE.note}`}>{group.note}</p>}
     </>
   );
-  if (group.box) {
+  if (group.box && !phone) {
     return (
       <section>
         {heading}
