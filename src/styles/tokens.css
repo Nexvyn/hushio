@@ -58,7 +58,8 @@
   --shadow-list: none;
 
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --ease-in-out: cubic-bezier(0.42, 0, 0.58, 1);
   --ease-settle: linear(0, 0.074, 0.231, 0.407, 0.568, 0.701, 0.803, 0.877, 0.928, 0.962, 0.983, 0.995, 1.001, 1.004, 1.005, 1.005, 1.004, 1.003, 1.002, 1.002, 1.001, 1.001, 1, 1, 1);
 }

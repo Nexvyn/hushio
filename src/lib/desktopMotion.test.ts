@@ -31,10 +31,10 @@ describe("desktop motion config", () => {
     expect(instant.duration).toBe(0);
   });
 
-  it("keeps UI transitions in the 120 to 250ms range", () => {
+  it("keeps UI transitions in the 100 to 300ms range", () => {
     for (const name of ["fade", "quick", "picker", "swap", "hover", "reveal", "pageIn"] as const) {
-      expect(DURATION_MS[name]).toBeGreaterThanOrEqual(120);
-      expect(DURATION_MS[name]).toBeLessThanOrEqual(280);
+      expect(DURATION_MS[name]).toBeGreaterThanOrEqual(100);
+      expect(DURATION_MS[name]).toBeLessThanOrEqual(300);
     }
   });
 

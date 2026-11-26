@@ -39,6 +39,7 @@ export default {
       transitionDuration: {
         DEFAULT: "var(--dur-quick)",
         quick: "var(--dur-quick)",
+        instant: "var(--dur-instant)",
         fade: "var(--dur-fade)",
         swap: "var(--dur-swap)",
         reading: "var(--dur-reading)",

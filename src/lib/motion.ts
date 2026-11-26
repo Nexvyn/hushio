@@ -1,38 +1,43 @@
 import type { Transition } from "motion/react";
 
 export const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
-export const EASE_MOVE: [number, number, number, number] = [0.4, 0, 0.2, 1];
+export const EASE_IN: [number, number, number, number] = [0.4, 0, 1, 1];
 export const EASE_IN_OUT: [number, number, number, number] = [0.42, 0, 0.58, 1];
+export const EASE_MOVE = EASE_IN_OUT;
 
 export const DURATION_MS = {
-  quick: 140,
+  instant: 100,
+  quick: 175,
   fade: 120,
-  picker: 180,
+  picker: 175,
   pickerOut: 120,
-  swap: 220,
+  swap: 200,
   reading: 150,
-  settle: 500,
+  settle: 400,
   shake: 500,
   eq: 420,
-  sheen: 1300,
+  sheen: 500,
   spin: 850,
   intro: 160,
   press: 120,
-  pageIn: 240,
+  pageIn: 275,
   reveal: 280,
   hover: 200,
   nowPlayingExit: 210,
-  roll: 380,
+  roll: 400,
+  rollOut: 280,
+  dialogIn: 225,
+  dialogOut: 160,
   gooOut: 160,
   gooFade: 120,
   gooDelay: 60,
-  canvasFade: 500,
+  canvasFade: 300,
   lyric: 400,
   lyricFocus: 160,
   lyricFocusReduced: 120,
   lyricWordLift: 160,
-  lyricScroll: 160,
-  queue: 420,
+  lyricScroll: 275,
+  queue: 400,
   progress: 300,
   toastOut: 160,
   introAppend: 180,
@@ -45,8 +50,8 @@ export const LOOPING_DURATIONS: readonly DurationName[] = ["eq", "sheen", "spin"
 export const MOTION_MAX_MS = 500;
 
 export const SPRING_SHEET: Transition = { type: "spring", stiffness: 400, damping: 40, mass: 1 };
-export const SPRING_GESTURE: Transition = { type: "spring", stiffness: 300, damping: 34, mass: 1 };
-export const SPRING_CONTROL: Transition = { type: "spring", stiffness: 420, damping: 36, mass: 1 };
+export const SPRING_GESTURE: Transition = { type: "spring", stiffness: 300, damping: 35, mass: 1 };
+export const SPRING_CONTROL: Transition = { type: "spring", stiffness: 440, damping: 42, mass: 1 };
 export const SPRING_NAV: Transition = { type: "spring", stiffness: 300, damping: 34, mass: 1 };
 export const MS_PRESS_IN = 120;
 export const MS_PRESS_OUT = 160;
@@ -77,9 +82,9 @@ export const canvasFade: Transition = { duration: DURATION_MS.canvasFade / 1000,
 export const swap: Transition = { duration: DURATION_MS.swap / 1000, ease: EASE_OUT };
 export const instant: Transition = { duration: 0 };
 export const pickerIn: Transition = { duration: DURATION_MS.picker / 1000, ease: EASE_OUT };
-export const pickerOut: Transition = { duration: DURATION_MS.pickerOut / 1000, ease: EASE_OUT };
+export const pickerOut: Transition = { duration: DURATION_MS.pickerOut / 1000, ease: EASE_IN };
 export const introFade: Transition = { duration: DURATION_MS.intro / 1000, ease: EASE_OUT };
-export const nowPlayingExit: Transition = { duration: DURATION_MS.nowPlayingExit / 1000, ease: EASE_OUT };
+export const nowPlayingExit: Transition = { duration: DURATION_MS.nowPlayingExit / 1000, ease: EASE_IN };
 
 export function gate<T extends Transition>(reduced: boolean, t: T): Transition {
   return reduced ? instant : t;
@@ -129,15 +134,15 @@ export const INTRO_SETTLE_EASES: [[number, number, number, number], [number, num
 ];
 export const INTRO_FLIGHT_EASE: [number, number, number, number] = [0.65, 0, 0.35, 1];
 
-export const phoneSnappy: Transition = { type: "spring", stiffness: 420, damping: 36, mass: 1 };
-export const phoneSmooth: Transition = { type: "spring", stiffness: 260, damping: 30, mass: 1 };
+export const phoneSnappy: Transition = SPRING_CONTROL;
+export const phoneSmooth: Transition = { type: "spring", stiffness: 300, damping: 35, mass: 1 };
 export const phoneBouncy: Transition = { type: "spring", stiffness: 380, damping: 29, mass: 1 };
 export const phoneShared: Transition = SPRING_GESTURE;
 export const nowPlayingEnter = phoneShared;
 
 export const PHONE_MS = {
   scrim: 160,
-  tab: 120,
+  tab: 150,
   navFade: 120,
   artIn: 180,
   artOut: 120,
@@ -158,16 +163,16 @@ export function phoneTransition(reduced: boolean, spring: Transition): Transitio
   return reduced ? fade : spring;
 }
 
-export const toastStack: Transition = { type: "spring", stiffness: 300, damping: 30, mass: 1 };
-export const toastOut: Transition = { duration: DURATION_MS.toastOut / 1000, ease: EASE_OUT };
+export const toastStack: Transition = { type: "spring", stiffness: 320, damping: 36, mass: 1 };
+export const toastOut: Transition = { duration: DURATION_MS.toastOut / 1000, ease: EASE_IN };
 export const progressFill: Transition = { duration: DURATION_MS.progress / 1000, ease: EASE_OUT };
 
-export const sheetSpring: Transition ={ type: "spring", stiffness: 195, damping: 27.93, mass: 1, restDelta: 0.5 };
+export const sheetSpring: Transition = { type: "spring", stiffness: 195, damping: 27.93, mass: 1, restDelta: 0.5 };
 export const nowPlayingSpring: Transition = SPRING_SHEET;
 export const artPauseSpring: Transition = { type: "spring", stiffness: 300, damping: 33, mass: 1 };
 export const scrubSpring: Transition = { type: "spring", stiffness: 400, damping: 36, mass: 1 };
 export const coverSnapSpring: Transition = { type: "spring", stiffness: 400, damping: 40, mass: 1 };
-export const QUEUE_EASE: [number, number, number, number] = [0.4, 0, 0.2, 1];
+export const QUEUE_EASE: [number, number, number, number] = EASE_IN_OUT;
 export const LYRIC_EASE = "cubic-bezier(0.41, 0, 0.12, 0.99)";
 export const pressIn: Transition = { duration: PHONE_MS.press / 1000, ease: EASE_OUT };
 

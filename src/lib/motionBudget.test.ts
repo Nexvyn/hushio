@@ -28,6 +28,28 @@ const FORBIDDEN_PROPERTY_IN_TRANSITION = [
 
 const FORBIDDEN_DURATION = [/\bduration-(\d|\[)/, /\b\d+(\.\d+)?ms\b/];
 
+const scriptSources = walk(SRC_DIR)
+  .filter((path) => /\.(css|ts|tsx)$/.test(path) && !/\.test\.tsx?$/.test(path))
+  .map((path) => ({
+    file: path.slice(SRC_DIR.length).split("\\").join("/"),
+    text: fs.readFileSync(path, "utf8"),
+  }));
+
+const LITERAL_SECONDS = /\bduration\s*:\s*\d*\.\d+/;
+
+const LITERAL_SECONDS_TEMPORARY_ALLOW = new Set([
+  "components/phone/PhoneHeader.tsx:92",
+  "components/phone/PhoneQueueSheet.tsx:166",
+  "components/phone/PhoneQueueSheet.tsx:211",
+  "components/phone/PhoneQueueSheet.tsx:282",
+  "components/phone/PhoneTrackRow.tsx:63",
+  "lib/toggleMotion.ts:16",
+  "lib/toggleMotion.ts:17",
+  "lib/toggleMotion.ts:20",
+  "lib/toggleMotion.ts:21",
+  "lib/useSortable.ts:279",
+]);
+
 function keyframeBodies(css: string): string[] {
   const bodies: string[] = [];
   let index = css.indexOf("@keyframes");
@@ -97,6 +119,18 @@ describe("motion budget (F-285)", () => {
         expect(text.match(pattern)?.[0] ?? null, file).toBeNull();
       }
     }
+  });
+
+  it("has no literal seconds outside the token file except the temporary allow-list", () => {
+    const hits: string[] = [];
+    for (const { file, text } of scriptSources) {
+      if (file === "lib/motion.ts") continue;
+      text.split("\n").forEach((line, index) => {
+        if (LITERAL_SECONDS.test(line)) hits.push(`${file}:${index + 1}`);
+      });
+    }
+    expect(hits.filter((hit) => !LITERAL_SECONDS_TEMPORARY_ALLOW.has(hit))).toEqual([]);
+    expect([...LITERAL_SECONDS_TEMPORARY_ALLOW].filter((entry) => !hits.includes(entry))).toEqual([]);
   });
 
   it("uses only known duration tokens in the keyframe file", () => {

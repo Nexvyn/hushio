@@ -80,15 +80,6 @@
   backdrop-filter: none !important;
 }
 
-@keyframes bt-sheet-up {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
-}
-
-.animate-slide-up {
-  animation: bt-sheet-up var(--dur-reveal) var(--ease-emphasized) both;
-}
-
 .bt-skeleton {
   position: relative;
   overflow: hidden;
@@ -123,15 +114,6 @@
 @keyframes bt-rise-soft {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes bt-reveal {
-  from { opacity: 0; transform: translateY(8px); filter: blur(4px); }
-  to { opacity: 1; transform: translateY(0); filter: blur(0); }
-}
-
-.bt-reveal {
-  animation: bt-reveal var(--dur-reveal) var(--ease-emphasized) both;
 }
 
 @supports (animation-timeline: view()) {

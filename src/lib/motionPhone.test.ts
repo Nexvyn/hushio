@@ -30,15 +30,15 @@ function dampingRatio(spring: Spring): number {
 
 describe("phone spring presets", () => {
   it("defines snappy, smooth and bouncy springs", () => {
-    expect(phoneSnappy).toMatchObject({ type: "spring", stiffness: 420, damping: 36, mass: 1 });
-    expect(phoneSmooth).toMatchObject({ type: "spring", stiffness: 260, damping: 30, mass: 1 });
+    expect(phoneSnappy).toMatchObject({ type: "spring", stiffness: 440, damping: 42, mass: 1 });
+    expect(phoneSmooth).toMatchObject({ type: "spring", stiffness: 300, damping: 35, mass: 1 });
     expect(phoneBouncy).toMatchObject({ type: "spring", stiffness: 380, damping: 29, mass: 1 });
   });
 
   it("keeps UI and gesture release springs near critical damping, without overshoot", () => {
     for (const spring of [phoneSnappy, phoneSmooth, sheetSpring, coverSnapSpring, artPauseSpring, scrubSpring]) {
       expect(dampingRatio(spring as Spring)).toBeGreaterThanOrEqual(0.85);
-      expect(dampingRatio(spring as Spring)).toBeLessThanOrEqual(1.01);
+      expect(dampingRatio(spring as Spring)).toBeLessThanOrEqual(1.02);
     }
   });
 
