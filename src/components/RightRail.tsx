@@ -1,6 +1,6 @@
 import { t, useT, type TKey } from "../lib/i18n";
 import { Fragment, useRef, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, type Transition } from "motion/react";
 import { X, Queue, MusicNote, ThumbsDown, ArrowsOutSimple, Sparkle } from "@phosphor-icons/react";
 import { ActionMenu } from "./ActionMenu";
 import { CanvasVideo } from "./CanvasVideo";
@@ -19,7 +19,7 @@ import { useLibrary } from "../stores/library";
 import { currentTrack, usePlayer } from "../stores/player";
 import { useSettings } from "../stores/settings";
 import { useUI } from "../stores/ui";
-import { instant, pickerIn, pickerOut, reducedMotion } from "../lib/motion";
+import { DURATION_MS, EASE_OUT, instant, nowPlayingExit, pickerOut, quick, reducedMotion } from "../lib/motion";
 import { useImageReveal } from "./useImageReveal";
 import { QUEUE_TARGET } from "../lib/trackDrop";
 import { type SortableRowProps, useSortable } from "../lib/useSortable";
@@ -364,6 +364,9 @@ function QueueTabs({ value, onChange }: { value: QueueTab; onChange: (tab: Queue
   );
 }
 
+const RAIL_PX = 16;
+const railIn: Transition = { duration: DURATION_MS.pageIn / 1000, ease: EASE_OUT };
+
 export function RightRail({ mode = "column" }: { mode?: "column" | "sheet" }) {
   const closeRail = useUI((state) => state.closeRail);
   const panel = useUI((state) => state.rightPanel);
@@ -384,10 +387,10 @@ export function RightRail({ mode = "column" }: { mode?: "column" | "sheet" }) {
           ? "fixed inset-y-3 right-3 z-30 flex w-[328px] flex-col overflow-hidden rounded-2xl bg-surface shadow-float"
           : "shell-rail relative flex w-[328px] shrink-0 flex-col overflow-hidden"
       }
-      initial={reduced ? false : { opacity: 0, x: 24 }}
+      initial={reduced ? false : { opacity: 0, x: RAIL_PX }}
       animate={{ opacity: 1, x: 0 }}
-      exit={reduced ? undefined : { opacity: 0, x: 24, transition: pickerOut }}
-      transition={reduced ? instant : pickerIn}
+      exit={reduced ? undefined : { opacity: 0, x: RAIL_PX, transition: nowPlayingExit }}
+      transition={reduced ? instant : railIn}
     >
       <header className="flex shrink-0 items-center justify-between gap-3 px-4 pb-3 pt-4">
         {panel === "queue" ? (
@@ -415,17 +418,20 @@ export function RightRail({ mode = "column" }: { mode?: "column" | "sheet" }) {
         </div>
       </header>
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4 pb-4">
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={bodyKey}
-            initial={reduced ? false : { opacity: 0, x: panel === "queue" ? 12 : -12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={reduced ? undefined : { opacity: 0, x: panel === "queue" ? -12 : 12, transition: pickerOut }}
-            transition={reduced ? instant : pickerIn}
-          >
-            {panel === "queue" && queueTab === "recent" ? <QueuePanel tab="recent" /> : <NowPanel />}
-          </motion.div>
-        </AnimatePresence>
+        <div className="grid">
+          <AnimatePresence mode="sync" initial={false}>
+            <motion.div
+              key={bodyKey}
+              initial={reduced ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={reduced ? undefined : { opacity: 0, transition: pickerOut }}
+              transition={reduced ? instant : quick}
+              className="col-start-1 row-start-1"
+            >
+              {panel === "queue" && queueTab === "recent" ? <QueuePanel tab="recent" /> : <NowPanel />}
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </div>
     </motion.aside>
   );
