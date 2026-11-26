@@ -213,7 +213,7 @@ function Body({ section }: { section: FeedSection }) {
           const queue = section.items.flatMap((entry) => (isTrack(entry) ? [entry.track] : []));
           const position = section.items.slice(0, index).filter(isTrack).length;
           return (
-            <li key={`${item.track.id}-${index}`} className="relative after:absolute after:bottom-0 after:left-[60px] after:right-3 after:h-px after:bg-separator last:after:hidden">
+            <li key={`${item.track.id}-${index}`} className="mb-3 last:mb-0">
               <ListRow track={item.track} note={item.note} onActivate={() => playFromRow(queue, position)} />
             </li>
           );

@@ -22,7 +22,7 @@ export function TrackListHeader({ showAlbum = false, showAdded = false }: { show
   return (
     <div
       aria-hidden="true"
-      className="flex h-9 items-center gap-3 border-b border-[rgb(var(--separator))] pl-2 pr-2 text-meta font-medium text-ink-2"
+      className="flex h-9 items-center gap-3 pl-2 pr-2 text-meta font-medium text-ink-2"
     >
       <span className="flex w-7 shrink-0 justify-center">#</span>
       <span className="w-10 shrink-0" />
@@ -63,7 +63,6 @@ export function TrackRow({
   onPlay,
   artwork = false,
   showAlbum = false,
-  dividerInset = "after:left-[112px]",
   rowProps,
   addedAt,
   showAdded = false,
@@ -90,7 +89,7 @@ export function TrackRow({
       onKeyDown={(event) => {
         if (!openMenuFromKey(event, menu)) rowProps?.onKeyDown(event);
       }}
-      className={`group relative isolate flex h-14 items-center gap-1 rounded-[10px] pr-2 motion-safe:transition-colors motion-safe:duration-fade after:absolute after:bottom-0 after:right-3 after:h-px after:bg-separator last:after:hidden group-hover:after:hidden ${dividerInset} ${selected ? "bg-selected after:hidden" : current ? "bg-wash after:hidden" : "[@media(hover:hover)]:hover:bg-wash/60"}`}
+      className={`group relative isolate flex h-14 items-center gap-1 rounded-[10px] pr-2 motion-safe:transition-colors motion-safe:duration-fade ${selected ? "bg-selected" : current ? "bg-wash" : "[@media(hover:hover)]:hover:bg-wash/60"}`}
     >
       <button
         type="button"
