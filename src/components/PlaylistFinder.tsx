@@ -117,7 +117,7 @@ export function PlaylistFinder({ playlist }: { playlist: Playlist }) {
       {current?.status === "error" && (
         <div role="alert" className="mt-3 flex items-center gap-3 text-meta text-ink-2">
           <span>Search failed. Check your connection and try again.</span>
-          <button type="button" onClick={() => setAttempt((count) => count + 1)} className={`${focusRing} rounded-sm font-semibold text-accent`}>
+          <button type="button" onClick={() => setAttempt((count) => count + 1)} className={`${focusRing} rounded-sm font-semibold text-ink-1 hover:underline`}>
             Try again
           </button>
         </div>

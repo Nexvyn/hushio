@@ -171,7 +171,7 @@ function AlbumContent({ page }: { page: ReleasePage }) {
                   <button
                     type="button"
                     onClick={() => navigate({ name: "artist", param: artistId })}
-                    className={phone ? "font-semibold hover:underline" : "font-semibold text-accent hover:underline"}
+                    className={phone ? "font-semibold hover:underline" : "font-semibold text-ink-1 hover:underline"}
                   >
                     {normalizeCredit(album.artist)}
                   </button>
@@ -179,7 +179,7 @@ function AlbumContent({ page }: { page: ReleasePage }) {
                 </>
               ) : (
                 <>
-                  <span className={phone ? "font-semibold" : "font-semibold text-accent"}>{normalizeCredit(album.artist)}</span>
+                  <span className={phone ? "font-semibold" : "font-semibold text-ink-1"}>{normalizeCredit(album.artist)}</span>
                   <span aria-hidden="true" className="mx-1.5">·</span>
                 </>
               ))}
@@ -274,7 +274,7 @@ function ReleaseNotes({ album, artistId }: { album: AlbumInfo; artistId: string 
         <button
           type="button"
           onClick={() => navigate({ name: "discography", param: artistId })}
-          className="mt-2 w-fit font-medium text-accent hover:underline"
+          className="mt-2 w-fit font-medium text-ink-1 hover:underline"
         >
           See discography
         </button>
@@ -317,7 +317,7 @@ function MoreByArtist({ albumId, artistId }: { albumId: string; artistId: string
     <section className="mt-10">
       <div className="flex items-baseline justify-between gap-3">
         <PhoneSectionHeader title={shelf.title} />
-        <button type="button" onClick={openDiscography} className="shrink-0 text-meta font-medium text-accent">
+        <button type="button" onClick={openDiscography} className="shrink-0 text-meta font-medium text-ink-1 hover:underline">
           See discography
         </button>
       </div>

@@ -68,7 +68,7 @@ export function PlaylistRecommendations({ playlist }: { playlist: Playlist }) {
           type="button"
           onClick={() => void run(true)}
           disabled={status === "loading"}
-          className={`${focusRing} shrink-0 rounded-sm text-meta font-semibold text-accent disabled:opacity-50 [@media(pointer:coarse)]:min-h-11`}
+          className={`${focusRing} shrink-0 rounded-sm text-meta font-semibold text-ink-1 hover:underline disabled:opacity-50 [@media(pointer:coarse)]:min-h-11`}
         >
           Refresh
         </button>

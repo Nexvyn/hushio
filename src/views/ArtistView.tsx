@@ -284,7 +284,7 @@ function ArtistContent({ page }: { page: ArtistPage }) {
             {isReleaseShelf(shelf.title) ? (
               <div className="flex items-baseline justify-between gap-3">
                 <PhoneSectionHeader title={shelf.title} />
-                <button type="button" onClick={openDiscography} className="shrink-0 text-meta font-medium text-accent">
+                <button type="button" onClick={openDiscography} className="shrink-0 text-meta font-medium text-ink-1 hover:underline">
                   See discography
                 </button>
               </div>

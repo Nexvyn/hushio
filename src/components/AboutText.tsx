@@ -41,7 +41,7 @@ export function AboutText({ heading, text }: AboutTextProps) {
         {text}
       </p>
       {showToggle && (
-        <button type="button" onClick={toggle} className="mt-1 text-meta font-semibold text-accent">
+        <button type="button" onClick={toggle} className="mt-1 text-meta font-semibold text-ink-2 hover:underline">
           {expanded ? "Less" : "More"}
         </button>
       )}

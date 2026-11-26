@@ -1,7 +1,8 @@
 import type { MenuItem } from "../stores/ui";
-import { Play, Shuffle } from "@phosphor-icons/react";
+import { Shuffle } from "@phosphor-icons/react";
 import { ActionMenu } from "./ActionMenu";
 import { Icon } from "./Icon";
+import { PlayRound } from "./PlayRound";
 
 export const ROUND =
   "flex h-10 w-10 items-center justify-center rounded-[12px] [corner-shape:squircle] border border-separator bg-surface text-ink-1 hover:bg-hover disabled:opacity-[var(--disabled-opacity)] motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
@@ -23,10 +24,7 @@ type HeroControlsProps = {
 export function HeroControls({ onShuffle, onPlay, shuffleDisabled, playDisabled, menu }: HeroControlsProps) {
   return (
     <>
-      <button type="button" disabled={playDisabled} onClick={onPlay} className={PILL}>
-        <Icon icon={Play} />
-        Play
-      </button>
+      <PlayRound disabled={playDisabled} onClick={onPlay} />
       <button
         type="button"
         aria-label="Shuffle"
