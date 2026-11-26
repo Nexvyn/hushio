@@ -35,7 +35,7 @@ function IconButton({ label, icon, onClick, pressed, disabled = false }: ButtonP
       aria-pressed={pressed}
       disabled={disabled}
       onClick={onClick}
-      className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-[#b3b3b3] hover:text-white disabled:opacity-40 ${pressed ? "text-white" : ""}`}
+      className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-on-scrim/60 hover:text-white disabled:opacity-40 ${pressed ? "text-white" : ""}`}
     >
       <Icon icon={icon} fill={pressed ? "fill" : "none"} />
     </button>
@@ -148,7 +148,7 @@ export function PipApp() {
 
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-1 pb-1">
         {!compact && (
-          <div className="grid min-h-0 flex-1 place-items-center overflow-hidden rounded-[8px] bg-[#181818]">
+          <div className="grid min-h-0 flex-1 place-items-center overflow-hidden rounded-[8px] bg-on-scrim/[0.08]">
             {track?.thumb ? (
               <img loading="lazy" decoding="async" src={track.thumb} alt="" draggable={false} className="h-full w-full object-cover" />
             ) : (
@@ -162,7 +162,7 @@ export function PipApp() {
             <p className="truncate text-body font-semibold">
               {track ? track.title : ready ? "Nothing playing" : ""}
             </p>
-            <p className="truncate text-meta text-[#b3b3b3]">{track?.artist ?? ""}</p>
+            <p className="truncate text-meta text-on-scrim/60">{track?.artist ?? ""}</p>
           </div>
           <IconButton
             label={snapshot?.liked ? "Remove from Liked" : "Add to Liked"}

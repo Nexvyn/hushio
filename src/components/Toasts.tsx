@@ -29,8 +29,8 @@ type KindStyle = {
 const KIND_STYLES: Record<ToastKind, KindStyle> = {
   info: { icon: Info, weight: "regular", tone: "text-white/70" },
   success: { icon: CheckCircle, weight: "regular", tone: "text-white" },
-  error: { icon: WarningCircle, weight: "regular", tone: "text-[#ff8a80]" },
-  warning: { icon: WarningCircle, weight: "regular", tone: "text-[#ffc56b]" },
+  error: { icon: WarningCircle, weight: "regular", tone: "text-danger-text" },
+  warning: { icon: WarningCircle, weight: "regular", tone: "text-warn" },
 };
 
 type CardProps = {
@@ -118,7 +118,7 @@ function ToastCard({ toast, depth, placement, expanded, paused, phone, reduced }
         dragElastic={0.25}
         dragSnapToOrigin
         onDragEnd={phone ? onDragEnd : undefined}
-        className="relative flex min-h-[48px] min-w-[220px] max-w-[min(420px,calc(100vw-32px))] select-none items-center gap-3 overflow-hidden rounded-[18px] bg-[#1c1c1e]/[0.96] py-2 pl-2 pr-3 text-white shadow-[0_10px_30px_rgb(0_0_0/0.28),inset_0_0_0_1px_rgb(255_255_255/0.08)]"
+        className="relative flex min-h-[48px] min-w-[220px] max-w-[min(420px,calc(100vw-32px))] select-none items-center gap-3 overflow-hidden rounded-[18px] bg-scrim/[0.96] py-2 pl-2 pr-3 text-on-scrim shadow-[0_10px_30px_rgb(0_0_0/0.28),inset_0_0_0_1px_rgb(255_255_255/0.08)]"
       >
         <span className="grid h-7 w-7 shrink-0 place-items-center">
           {toast.art ? (
@@ -142,7 +142,7 @@ function ToastCard({ toast, depth, placement, expanded, paused, phone, reduced }
               action.run();
               close();
             }}
-            className="relative h-9 shrink-0 rounded-full px-3 text-meta font-semibold text-accent hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+            className="relative h-9 shrink-0 rounded-full px-3 text-meta font-semibold text-on-scrim hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
           >
             {action.label}
           </button>
@@ -159,7 +159,7 @@ function ToastCard({ toast, depth, placement, expanded, paused, phone, reduced }
         {toast.progress !== undefined && (
           <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-[2px] bg-white/10">
             <motion.span
-              className="block h-full origin-left bg-accent"
+              className="block h-full origin-left bg-on-scrim/40"
               initial={false}
               animate={{ scaleX: progressPercent(toast.progress) / 100 }}
               transition={reduced ? instant : progressFill}

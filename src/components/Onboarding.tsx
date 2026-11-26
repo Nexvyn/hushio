@@ -103,7 +103,7 @@ export function Onboarding({ initial }: OnboardingProps) {
           </motion.div>
         </section>
         <div className="hidden items-center justify-center md:flex">
-          <CoverDrum turn={state.turn} spinning={syncing} />
+          <CoverDrum turn={state.turn} />
         </div>
       </div>
     </div>
@@ -142,7 +142,7 @@ function Way({ icon, title, note, busy = false, disabled, onClick }: WayProps) {
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="flex h-16 w-full items-center gap-3 rounded-2xl border border-separator bg-panel px-4 text-left hover:bg-hover disabled:opacity-[var(--disabled-opacity)]"
+      className="flex h-14 w-full items-center gap-3 rounded-xl px-3 text-left hover:bg-hover disabled:opacity-[var(--disabled-opacity)]"
     >
       <span aria-hidden="true" className="inline-flex text-ink-1">
         <Icon icon={icon} />

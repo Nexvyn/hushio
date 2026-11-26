@@ -21,14 +21,6 @@
   to { transform: scaleY(1); }
 }
 
-@keyframes bt-drum-spin {
-  to { transform: rotateY(360deg); }
-}
-
-.bt-drum-spin {
-  animation: bt-drum-spin var(--dur-spin) linear infinite;
-}
-
 :root {
   --intro-ground: #0a0a0a;
   --intro-tile-from: #000000;

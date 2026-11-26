@@ -1,5 +1,7 @@
 import { useEffect, useId, useState } from "react";
+import { MusicNote } from "@phosphor-icons/react";
 import { ImportButton as Button } from "./importControls";
+import { Icon } from "./Icon";
 import { useAuth } from "../stores/auth";
 import { newId, useLibrary } from "../stores/library";
 import { useNavigation } from "../stores/navigation";
@@ -144,7 +146,9 @@ export function YouTubePlaylists() {
                   className="size-10 shrink-0 rounded-[10px] object-cover [corner-shape:squircle]"
                 />
               ) : (
-                <span aria-hidden="true" className="size-10 shrink-0 rounded-[10px] bg-accent/10 [corner-shape:squircle]" />
+                <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-[10px] bg-wash text-ink-2 [corner-shape:squircle]">
+                  <Icon icon={MusicNote} />
+                </span>
               )}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-body text-ink-1">{playlist.title}</p>

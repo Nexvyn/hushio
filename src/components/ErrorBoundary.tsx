@@ -46,8 +46,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         } grid place-items-center bg-base text-ink-1`}
       >
         <div className="animate-fade-in max-w-md px-6 text-center">
-          <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-2xl border border-separator bg-panel text-warn">
-            <Icon icon={Warning} />
+          <div className="mx-auto mb-5 w-fit text-ink-2">
+            <Icon icon={Warning} size={24} />
           </div>
           <h1 className="mb-2 font-display text-lg font-bold text-ink-1">
             Something went wrong
