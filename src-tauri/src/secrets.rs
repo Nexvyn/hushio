@@ -185,6 +185,7 @@ mod tests {
             crate::spotify_auth::TOKEN_SLOT,
             crate::yt_innertube_auth::TV_TOKEN_SLOT,
             "lastfm-session",
+            "lastfm-pending-token",
             "listenbrainz-token",
         ];
         for slot in slots {

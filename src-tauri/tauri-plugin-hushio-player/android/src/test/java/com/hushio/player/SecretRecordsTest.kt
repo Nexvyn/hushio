@@ -20,6 +20,7 @@ class SecretRecordsTest {
     fun scrobbleAndNetworkKeysAreAccepted() {
         assertTrue(SecretRecords.isKey("spotify-refresh-token"))
         assertTrue(SecretRecords.isKey("lastfm-session"))
+        assertTrue(SecretRecords.isKey("lastfm-pending-token"))
         assertTrue(SecretRecords.isKey("listenbrainz-token"))
         assertTrue(SecretRecords.isKey("network-share:0a1b2c3d4e5f6071"))
         assertFalse(SecretRecords.isKey("network-share:"))

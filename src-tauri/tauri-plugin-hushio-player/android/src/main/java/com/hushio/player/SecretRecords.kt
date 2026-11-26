@@ -6,6 +6,7 @@ object SecretRecords {
         "spotify-refresh-token",
         "youtube-tv-token",
         "lastfm-session",
+        "lastfm-pending-token",
         "listenbrainz-token",
     )
     private const val SEPARATOR = '='

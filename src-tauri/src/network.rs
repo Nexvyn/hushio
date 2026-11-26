@@ -19,6 +19,12 @@ const VERSION: u64 = 1;
 const MAX_SERVERS: usize = 20;
 const STALE_AFTER_MS: u64 = 24 * 60 * 60 * 1000;
 const AUDIO_EXTENSIONS: [&str; 8] = ["mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "webm"];
+const RANGE_CHUNK: u64 = 1024 * 1024;
+
+pub struct Chunk {
+    pub bytes: Vec<u8>,
+    pub total: Option<u64>,
+}
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -441,6 +447,19 @@ impl Service {
         from: u64,
         to: Option<u64>,
     ) -> Result<Vec<u8>, String> {
+        self.read_chunk(id, path, from, to, None)
+            .await
+            .map(|chunk| chunk.bytes)
+    }
+
+    pub async fn read_chunk(
+        &self,
+        id: &str,
+        path: &str,
+        from: u64,
+        to: Option<u64>,
+        limit: Option<u64>,
+    ) -> Result<Chunk, String> {
         let server = self.connectable(id)?;
         match server.kind {
             ServerKind::WebDav => {
@@ -448,12 +467,17 @@ impl Service {
                     .timeout(std::time::Duration::from_secs(60))
                     .build()
                     .map_err(|error| error.to_string())?;
+                let to = limit.map_or(to, |limit| Some(limited_end(from, to, limit)));
                 webdav::read_range(&http, &server, path, from, to).await
             }
-            ServerKind::Smb => smb::read(&server, path, from, to).await,
+            ServerKind::Smb => {
+                let to = limit.map_or(to, |limit| Some(limited_end(from, to, limit)));
+                smb::read(&server, path, from, to).await
+            }
             ServerKind::Subsonic => {
                 let http = subsonic::client()?;
-                subsonic::stream(&http, &server, path, from, to).await
+                let bytes = subsonic::stream(&http, &server, path, from, to).await?;
+                Ok(Chunk { bytes, total: None })
             }
         }
     }
@@ -533,7 +557,8 @@ fn parse_range(header: &str) -> Option<(u64, Option<u64>)> {
     if to.is_empty() {
         return Some((from, None));
     }
-    Some((from, to.parse::<u64>().ok()))
+    let to = to.parse::<u64>().ok()?;
+    (to >= from).then_some((from, Some(to)))
 }
 
 fn percent_decode(input: &str) -> Option<String> {
@@ -616,12 +641,13 @@ pub async fn serve_track(
         .and_then(|value| value.to_str().ok())
         .and_then(parse_range);
     let (from, to) = range.unwrap_or((0, None));
-    match network.read_track(&server_id, &track_path, from, to).await {
-        Ok(bytes) => {
-            let content_range = (range.is_some() && !bytes.is_empty()).then(|| {
-                let last = from + bytes.len() as u64 - 1;
-                format!("bytes {from}-{last}/*")
-            });
+    let limit = range.map(|_| RANGE_CHUNK);
+    match network.read_chunk(&server_id, &track_path, from, to, limit).await {
+        Ok(chunk) => {
+            let total = chunk.total.map_or_else(|| "*".to_owned(), |total| total.to_string());
+            if range.is_some() && chunk.bytes.is_empty() {
+                return network_error(tauri::http::StatusCode::RANGE_NOT_SATISFIABLE);
+            }
             let mut response = tauri::http::Response::builder()
                 .status(if range.is_some() {
                     tauri::http::StatusCode::PARTIAL_CONTENT
@@ -630,15 +656,21 @@ pub async fn serve_track(
                 })
                 .header("Accept-Ranges", "bytes")
                 .header("Content-Type", track_content_type(&track_path));
-            if let Some(content_range) = content_range {
-                response = response.header("Content-Range", content_range);
+            if range.is_some() {
+                let last = from + chunk.bytes.len() as u64 - 1;
+                response = response.header("Content-Range", format!("bytes {from}-{last}/{total}"));
             }
             response
-                .body(bytes)
+                .body(chunk.bytes)
                 .unwrap_or_else(|_| network_error(tauri::http::StatusCode::INTERNAL_SERVER_ERROR))
         }
         Err(_) => network_error(tauri::http::StatusCode::NOT_FOUND),
     }
+}
+
+fn limited_end(from: u64, to: Option<u64>, limit: u64) -> u64 {
+    let ceiling = from.saturating_add(limit - 1);
+    to.map_or(ceiling, |to| to.min(ceiling))
 }
 
 fn network_error(status: tauri::http::StatusCode) -> tauri::http::Response<Vec<u8>> {
@@ -651,6 +683,35 @@ fn network_error(status: tauri::http::StatusCode) -> tauri::http::Response<Vec<u
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_range_header_gives_its_start_and_optional_end() {
+        assert_eq!(parse_range("bytes=0-"), Some((0, None)));
+        assert_eq!(parse_range("bytes=10-19"), Some((10, Some(19))));
+        assert_eq!(parse_range("bytes=7-7"), Some((7, Some(7))));
+        assert_eq!(parse_range("bytes= 4 - 9 "), Some((4, Some(9))));
+    }
+
+    #[test]
+    fn a_range_header_that_is_not_one_plain_range_is_ignored() {
+        assert_eq!(parse_range("bytes=-500"), None);
+        assert_eq!(parse_range("bytes=5-3"), None);
+        assert_eq!(parse_range("bytes=0-1,3-4"), None);
+        assert_eq!(parse_range("bytes=abc-"), None);
+        assert_eq!(parse_range("items=0-1"), None);
+    }
+
+    #[test]
+    fn an_open_range_is_cut_to_one_chunk() {
+        assert_eq!(limited_end(0, None, RANGE_CHUNK), RANGE_CHUNK - 1);
+        assert_eq!(limited_end(500, None, RANGE_CHUNK), 500 + RANGE_CHUNK - 1);
+    }
+
+    #[test]
+    fn a_closed_range_keeps_its_end_unless_it_is_longer_than_a_chunk() {
+        assert_eq!(limited_end(2, Some(5), RANGE_CHUNK), 5);
+        assert_eq!(limited_end(0, Some(10 * RANGE_CHUNK), RANGE_CHUNK), RANGE_CHUNK - 1);
+    }
 
     fn server(kind: ServerKind) -> Server {
         Server {

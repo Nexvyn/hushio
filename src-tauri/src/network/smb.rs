@@ -5,7 +5,7 @@ use smb::resource::FileCreateArgs;
 use smb::{Client, ClientConfig, GetLen, ReadAt, UncPath};
 use smb_fscc::{FileAccessMask, FileDirectoryInformation};
 
-use super::{is_audio_name, title_from_name, NetworkTrack, Server};
+use super::{is_audio_name, title_from_name, Chunk, NetworkTrack, Server};
 
 const READ_CHUNK: u64 = 64 * 1024;
 
@@ -84,7 +84,7 @@ pub async fn list(server: &Server, path: &str) -> Result<Vec<Entry>, String> {
     Ok(entries)
 }
 
-pub async fn read(server: &Server, path: &str, from: u64, to: Option<u64>) -> Result<Vec<u8>, String> {
+pub async fn read(server: &Server, path: &str, from: u64, to: Option<u64>) -> Result<Chunk, String> {
     let (client, base) = connect(server).await?;
     let target = with_path(&base, path);
     let resource = client
@@ -116,7 +116,7 @@ pub async fn read(server: &Server, path: &str, from: u64, to: Option<u64>) -> Re
     }
     file.close().await.ok();
     client.close().await.ok();
-    Ok(bytes)
+    Ok(Chunk { bytes, total: Some(size) })
 }
 
 pub fn tracks_from(server: &Server, entries: Vec<Entry>) -> Vec<NetworkTrack> {

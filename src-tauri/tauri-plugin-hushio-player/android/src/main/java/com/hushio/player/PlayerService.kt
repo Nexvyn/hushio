@@ -16,7 +16,6 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
-import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.datasource.DataSourceBitmapLoader
@@ -170,40 +169,6 @@ class PlayerService : MediaLibraryService() {
                 player.pause()
                 PlayerEvents.emit("player-route", mapOf("reason" to "device_removed"))
             }
-        }
-    }
-
-    private class ActionPlayer(
-        player: Player,
-        private val emit: (String) -> Unit,
-    ) : ForwardingPlayer(player) {
-
-        override fun getAvailableCommands(): Player.Commands =
-            super.getAvailableCommands().buildUpon().addAll(*ACTION_COMMANDS).build()
-
-        override fun isCommandAvailable(command: Int): Boolean =
-            command in ACTION_COMMANDS || super.isCommandAvailable(command)
-
-        override fun play() {
-            emit("play")
-            super.play()
-        }
-
-        override fun setPlayWhenReady(playWhenReady: Boolean) {
-            if (playWhenReady) emit("play")
-            super.setPlayWhenReady(playWhenReady)
-        }
-
-        override fun seekToNext() = emit("next")
-
-        override fun seekToNextMediaItem() = emit("next")
-
-        override fun seekToPrevious() = previousOrRestart()
-
-        override fun seekToPreviousMediaItem() = previousOrRestart()
-
-        private fun previousOrRestart() {
-            if (currentPosition > RESTART_AFTER_MS) seekTo(0) else emit("previous")
         }
     }
 
@@ -794,17 +759,10 @@ class PlayerService : MediaLibraryService() {
         private const val SEEK_INCREMENT_MS = 10_000L
         private const val SLEEP_TICK_MS = 250L
         private const val STATE_TICK_MS = 1_000L
-        private const val RESTART_AFTER_MS = 3_000L
         private const val ARTWORK_TIMEOUT_MS = 15_000
         private const val ARTWORK_MAX_DIMENSION_PX = 512
         private const val ARTWORK_USER_AGENT =
             "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
-        private val ACTION_COMMANDS = intArrayOf(
-            Player.COMMAND_SEEK_TO_NEXT,
-            Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
-            Player.COMMAND_SEEK_TO_PREVIOUS,
-            Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
-        )
         private const val VOLUME_RESTORE_MS = 500L
         private val LIKE_COMMAND = SessionCommand(LIKE_ACTION, Bundle.EMPTY)
         private val PLAY_PAUSE_KEYS = setOf(

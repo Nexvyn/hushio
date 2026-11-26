@@ -5,7 +5,7 @@ use base64::engine::general_purpose::STANDARD;
 use quick_xml::events::Event;
 use quick_xml::Reader;
 
-use super::{is_audio_name, title_from_name, NetworkTrack, Server};
+use super::{is_audio_name, title_from_name, Chunk, NetworkTrack, Server};
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -195,13 +195,14 @@ pub async fn read_range(
     path: &str,
     from: u64,
     to: Option<u64>,
-) -> Result<Vec<u8>, String> {
+) -> Result<Chunk, String> {
     let url = address(&server.url, path)?;
     let mut request = http.get(&url).timeout(REQUEST_TIMEOUT);
     if let Some(auth) = basic_auth(&server.username, &server.password) {
         request = request.header("Authorization", auth);
     }
-    if from > 0 || to.is_some() {
+    let wanted = from > 0 || to.is_some();
+    if wanted {
         let end = to.map_or_else(String::new, |value| value.to_string());
         request = request.header("Range", format!("bytes={from}-{end}"));
     }
@@ -209,7 +210,28 @@ pub async fn read_range(
     if !response.status().is_success() {
         return Err(format!("The server answered with {}", response.status().as_u16()));
     }
-    Ok(response.bytes().await.map_err(|error| error.to_string())?.to_vec())
+    let partial = response.status() == reqwest::StatusCode::PARTIAL_CONTENT;
+    let total_from_header = response
+        .headers()
+        .get("content-range")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.rsplit_once('/'))
+        .and_then(|(_, total)| total.trim().parse::<u64>().ok());
+    let body = response.bytes().await.map_err(|error| error.to_string())?.to_vec();
+    if !wanted {
+        let total = body.len() as u64;
+        return Ok(Chunk { bytes: body, total: Some(total) });
+    }
+    if partial {
+        return Ok(Chunk { bytes: body, total: total_from_header });
+    }
+    let total = body.len() as u64;
+    let start = from.min(total);
+    let end = to.map_or(total, |value| value.saturating_add(1).min(total));
+    Ok(Chunk {
+        bytes: body[start as usize..end.max(start) as usize].to_vec(),
+        total: Some(total),
+    })
 }
 
 pub fn tracks_from(server: &Server, entries: Vec<Entry>) -> Vec<NetworkTrack> {

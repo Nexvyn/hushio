@@ -37,6 +37,8 @@ import {
   toTrack,
   type LocalScope,
   type LocalTab,
+  UNKNOWN_ALBUM,
+  UNKNOWN_ARTIST,
 } from "../lib/localLibrary";
 import { LOCAL_DEFAULT_SORT, LOCAL_FIELDS, sortTracksBy } from "../lib/trackSort";
 import { TrackSortMenu } from "../components/TrackListControls";
@@ -119,12 +121,6 @@ function shuffleTracks(tracks: LocalTrack[], from: string) {
   const player = usePlayer.getState();
   if (!player.shuffle) player.toggleShuffle();
   playTracks(tracks, 0, from);
-}
-
-function shuffleNetworkTracks(tracks: Track[], from: string) {
-  const player = usePlayer.getState();
-  if (!player.shuffle) player.toggleShuffle();
-  playNetworkTracks(tracks, 0, from);
 }
 
 function LocalTrackRow({ track, onPlay, onRemove }: { track: LocalTrack; onPlay: () => void; onRemove?: () => void }) {
@@ -852,12 +848,31 @@ export function LocalMusicView() {
   return <CollectionView key={param} param={param} onBack={() => navigate({ name: "local" })} onGone={() => navigate({ name: "local" })} />;
 }
 
+function asLocalTrack(track: NetworkTrack): LocalTrack {
+  return {
+    id: track.id,
+    path: track.path,
+    title: track.title,
+    artist: track.artist || UNKNOWN_ARTIST,
+    album: track.album || UNKNOWN_ALBUM,
+    duration: 0,
+    size: track.size,
+    mtime: 0,
+    art: track.coverArt ? networkArtUrl(track.serverId, track.coverArt) : undefined,
+  };
+}
+
 function NetworkCollectionView({ id, onBack }: { id: string; onBack: () => void }) {
   const servers = useNetwork((state) => state.servers);
   const tracks = useNetwork((state) => state.tracks[id] ?? []);
   const loadTracks = useNetwork((state) => state.loadTracks);
   const [busy, setBusy] = useState(true);
+  const [tab, setTab] = useState<LocalTab>("songs");
+  const [trackSort, setTrackSort] = useStoredTrackSort("local", LOCAL_DEFAULT_SORT);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<Filter>(null);
   const server = servers.find((entry) => entry.id === id);
+  const from = server?.name ?? "Network server";
   const phone = usePhone();
 
   useEffect(() => {
@@ -871,7 +886,14 @@ function NetworkCollectionView({ id, onBack }: { id: string; onBack: () => void 
     };
   }, [id, loadTracks, server?.path]);
 
-  const list = networkTracksOf(tracks);
+  const all = tracks.map(asLocalTrack);
+  const scoped = scopeTracks(all, [], { kind: "all" }, query);
+  const list = sortTracksBy(scoped.filter((track) => matchesFilter(track, filter)), trackSort);
+  const tabs: { id: LocalTab; label: string; count: number }[] = [
+    { id: "songs", label: "Songs", count: list.length },
+    { id: "albums", label: "Albums", count: albumGroups(scoped).length },
+    { id: "artists", label: "Artists", count: artistGroups(scoped).length },
+  ];
 
   return (
     <div className="pb-14">
@@ -882,19 +904,19 @@ function NetworkCollectionView({ id, onBack }: { id: string; onBack: () => void 
         covers={[]}
         facts={
           <span>
-            {busy ? "Reading the server…" : plural(list.length, "song", "songs")}
+            {busy ? "Reading the server…" : plural(all.length, "song", "songs")}
             {server ? ` · ${server.kindLabel}` : ""}
           </span>
         }
       >
-        <PlayRound phone={phone} disabled={list.length === 0} aria-label={`Play ${server?.name ?? "the server"}`} onClick={() => playNetworkTracks(list, 0, server?.name ?? "Network server")} />
+        <PlayRound phone={phone} disabled={all.length === 0} aria-label={`Play ${from}`} onClick={() => playTracks(list, 0, from)} />
         <button
           type="button"
           className={phone ? PHONE_SHUFFLE : SHUFFLE_PILL}
           aria-label="Shuffle"
           title="Shuffle"
-          disabled={list.length === 0}
-          onClick={() => shuffleNetworkTracks(list, server?.name ?? "Network server")}
+          disabled={all.length === 0}
+          onClick={() => shuffleTracks(list, from)}
         >
           <HeroIcon icon={Shuffle} />
           {phone && "Shuffle"}
@@ -905,23 +927,114 @@ function NetworkCollectionView({ id, onBack }: { id: string; onBack: () => void 
           </button>
         )}
       </CollectionHero>
-      <div className="mt-5">
-        {list.map((track, index) => (
+
+      <div className="mt-6 flex flex-wrap items-center gap-2" role="group" aria-label="Collection views">
+        {tabs.map((item) => (
           <button
-            key={track.id}
+            key={item.id}
             type="button"
-            onClick={() => playNetworkTracks(list, index, server?.name ?? "Network server")}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left [@media(hover:hover)]:hover:bg-ink-1/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            aria-pressed={tab === item.id}
+            onClick={() => setTab(item.id)}
+            className={`${TAB} ${tab === item.id ? "bg-ink-1 text-base" : "bg-ink-1/5 text-ink-2"}`}
           >
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-body font-medium text-ink-1">{track.title}</span>
-              <span className="block truncate text-meta text-ink-3">{track.artist}</span>
-            </span>
+            {item.label}
+            {item.count > 0 && ` · ${item.count}`}
           </button>
         ))}
+        {tab === "songs" && (
+          <TrackSortMenu sort={trackSort} onSort={setTrackSort} fields={LOCAL_FIELDS} phone={phone} />
+        )}
+        <label className="relative ml-auto">
+          <span className="sr-only">Search this server</span>
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3">
+            <Icon icon={MagnifyingGlass} />
+          </span>
+          <input
+            type="search"
+            value={query}
+            placeholder="Search this server"
+            onChange={(event) => setQuery(event.target.value)}
+            className={FIELD}
+          />
+        </label>
+      </div>
+
+      {filter && (
+        <button
+          type="button"
+          className="mt-4 text-meta text-ink-2 underline-offset-4 hover:underline"
+          onClick={() => setFilter(null)}
+        >
+          ← Clear filter: {filter.kind === "album" ? filter.album : filter.artist}
+        </button>
+      )}
+
+      <div className="mt-5">
+        {tab === "songs" && (
+          <div className="flex flex-col">
+            {list.map((track, index) => (
+              <button key={track.id} type="button" onClick={() => playTracks(list, index, from)} className={ROW}>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-body font-medium text-ink-1">{track.title}</span>
+                  <span className="block truncate text-meta text-ink-3">
+                    {track.artist} · {track.album}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+        {tab === "albums" && (
+          <div className={STACK_GRID}>
+            {albumGroups(scoped).map((group) => (
+              <CoverStack
+                key={group.key}
+                title={group.album}
+                subtitle={`${group.artist} · ${plural(group.count, "song", "songs")}`}
+                covers={group.art ? [group.art] : []}
+                fallback={Playlist}
+                onOpen={() => {
+                  setFilter({ kind: "album", album: group.album, artist: group.artist });
+                  setTab("songs");
+                }}
+                onPlay={() => playTracks(sortTracks(group.tracks, "title"), 0, group.album)}
+              />
+            ))}
+          </div>
+        )}
+        {tab === "artists" && (
+          <div className="grid gap-1 sm:grid-cols-2">
+            {artistGroups(scoped).map((group) => (
+              <button
+                key={group.artist}
+                type="button"
+                className={ROW}
+                onClick={() => {
+                  setFilter({ kind: "artist", artist: group.artist });
+                  setTab("songs");
+                }}
+              >
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-ink-1/[0.07]">
+                  {group.art ? (
+                    <img loading="lazy" decoding="async" src={group.art} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <Icon icon={User} />
+                  )}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-body text-ink-1">{group.artist}</span>
+                  <span className="block text-meta text-ink-3">{plural(group.count, "song", "songs")}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
         {server?.truncated && <p className="px-3 pt-3 text-meta text-ink-2">{t("network.truncated")}</p>}
-        {!busy && list.length === 0 && (
+        {!busy && all.length === 0 && (
           <EmptyState title="No songs on this server" message="Check the folder and try again." />
+        )}
+        {!busy && all.length > 0 && list.length === 0 && (
+          <EmptyState icon={MagnifyingGlass} title="Nothing matches that search" message="Try another word or clear the filter." />
         )}
       </div>
     </div>

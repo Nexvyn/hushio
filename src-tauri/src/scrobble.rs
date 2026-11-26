@@ -20,6 +20,7 @@ const OWNER: &str = "guest";
 const STORE: &str = "scrobble";
 const VERSION: u64 = 1;
 const LASTFM_SESSION: &str = "lastfm-session";
+const LASTFM_PENDING: &str = "lastfm-pending-token";
 const LISTENBRAINZ_TOKEN: &str = "listenbrainz-token";
 const QUEUE_CAP: usize = 500;
 const BATCH: usize = 50;
@@ -275,6 +276,10 @@ fn slot_of(target: Target) -> &'static str {
 
 fn migrate(stored: &mut Stored, vault: &dyn Vault) -> bool {
     let mut moved = false;
+    if let Some(token) = stored.lastfm_pending_token.take() {
+        stored.lastfm_pending_token = keep_secret(vault, LASTFM_PENDING, &token);
+        moved |= stored.lastfm_pending_token.is_none();
+    }
     if let Some(account) = stored.lastfm.as_mut() {
         if let Some(secret) = account.session_key.take() {
             account.session_key = keep_secret(vault, LASTFM_SESSION, &secret);
@@ -300,6 +305,9 @@ fn drop_unreadable(stored: &mut Stored, vault: &dyn Vault) -> bool {
         if let Some(kept) = kept {
             if resolve_secret(vault, slot_of(target), kept.as_deref()).is_none() {
                 remove_account(stored, target);
+                if target == Target::LastFm {
+                    forget_secret(vault, LASTFM_PENDING);
+                }
                 *sign_in_needed(stored, target) = true;
                 dropped = true;
             }
@@ -451,7 +459,19 @@ impl Service {
     }
 
     fn status(&self) -> ScrobbleStatus {
-        status_of(&self.lock().stored)
+        let mut status = status_of(&self.lock().stored);
+        status.lastfm.awaiting_approval = self.pending_token().is_some();
+        status
+    }
+
+    fn pending_token(&self) -> Option<String> {
+        let kept = self.lock().stored.lastfm_pending_token.clone();
+        resolve_secret(self.vault.as_ref(), LASTFM_PENDING, kept.as_deref())
+    }
+
+    fn clear_pending(&self) {
+        self.lock().stored.lastfm_pending_token = None;
+        forget_secret(self.vault.as_ref(), LASTFM_PENDING);
     }
 
     pub fn playback(self: &Arc<Self>, event: &PlaybackEvent, now: u64) {
@@ -597,6 +617,9 @@ impl Service {
     fn clear(&self, target: Target) {
         remove_account(&mut self.lock().stored, target);
         forget_secret(self.vault.as_ref(), slot_of(target));
+        if target == Target::LastFm {
+            forget_secret(self.vault.as_ref(), LASTFM_PENDING);
+        }
     }
 
     pub async fn listenbrainz_connect(&self, token: &str) -> Result<ScrobbleStatus, String> {
@@ -638,17 +661,15 @@ impl Service {
         let token = lastfm::get_token(&self.http)
             .await
             .map_err(|error| error.user_message("Last.fm"))?;
-        self.lock().stored.lastfm_pending_token = Some(token.clone());
+        let kept = keep_secret(self.vault.as_ref(), LASTFM_PENDING, &token);
+        self.lock().stored.lastfm_pending_token = kept;
         self.save().await;
         Ok(lastfm::auth_url(&token))
     }
 
     pub async fn lastfm_finish_auth(&self) -> Result<ScrobbleStatus, String> {
         let token = self
-            .lock()
-            .stored
-            .lastfm_pending_token
-            .clone()
+            .pending_token()
             .ok_or_else(|| "Start Last.fm sign-in first.".to_owned())?;
         match lastfm::get_session(&self.http, &token).await {
             Ok((session_key, username)) => {
@@ -660,6 +681,7 @@ impl Service {
                     inner.stored.lastfm_enabled = true;
                     inner.stored.lastfm_sign_in_needed = false;
                 }
+                forget_secret(self.vault.as_ref(), LASTFM_PENDING);
                 self.save().await;
                 Ok(self.status())
             }
@@ -668,7 +690,7 @@ impl Service {
                     .to_owned(),
             ),
             Err(error) if error.token_rejected() => {
-                self.lock().stored.lastfm_pending_token = None;
+                self.clear_pending();
                 self.save().await;
                 Err("Last.fm sign-in expired. Start sign-in again.".to_owned())
             }
@@ -713,6 +735,7 @@ impl Service {
     pub fn erase(&self) {
         *self.lock() = Inner::default();
         forget_secret(self.vault.as_ref(), LASTFM_SESSION);
+        forget_secret(self.vault.as_ref(), LASTFM_PENDING);
         forget_secret(self.vault.as_ref(), LISTENBRAINZ_TOKEN);
     }
 }
