@@ -34,9 +34,9 @@ afterEach(() => {
 });
 
 describe("ChartsView on phone", () => {
-  it("titles the page Hotlist without the desktop subtitle", async () => {
+  it("titles the page Charts without the desktop subtitle", async () => {
     render(<ChartsView />);
-    expect(await screen.findByRole("heading", { name: "Hotlist" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Charts" })).toBeTruthy();
     expect(screen.queryByText("What's playing everywhere")).toBeNull();
   });
 

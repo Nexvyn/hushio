@@ -26,7 +26,7 @@ import { listenForDownloadProgress } from "./lib/downloads";
 import { startLaunchActions } from "./lib/launch";
 import { railFor, shellFor, sidebarFor, useShortSide, useViewportWidth } from "./lib/layoutTier";
 import { startWindowGlass } from "./lib/windowGlass";
-import { nowPlayingRoll } from "./lib/nowPlayingRoll";
+import { nowPlayingRoll, rollHeight } from "./lib/nowPlayingRoll";
 import { rollStyles } from "./lib/rollUp";
 import { useScrimMounted } from "./lib/useScrimMounted";
 import { reducedMotion } from "./lib/motion";
@@ -71,7 +71,7 @@ export default function App() {
   }
 
   const reducedRoll = reducedMotion();
-  const roll = useTransform(nowPlayingRoll, (p) => rollStyles(p, window.innerHeight, reducedRoll));
+  const roll = useTransform([nowPlayingRoll, rollHeight], ([p, h]) => rollStyles(p as number, h as number, reducedRoll));
   const rollClip = useTransform(roll, (r) => r.page);
   const rollShade = useTransform(roll, (r) => r.shade);
   const scrimOn = useScrimMounted(rollShade);

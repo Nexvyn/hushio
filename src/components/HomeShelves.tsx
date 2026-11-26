@@ -148,16 +148,18 @@ export function QuickTiles({ items }: { items: RecentItem[] }) {
           onClick={() => openRecentItem(item)}
           className={`group flex h-14 min-w-0 items-center gap-3 overflow-hidden rounded-[8px] bg-wash pr-2 text-left motion-safe:transition-colors hover:bg-hover active:bg-pressed ${focusRing}`}
         >
-          <span className="h-14 w-14 shrink-0">
+          <span className="relative h-14 w-14 shrink-0">
             <Cover src={item.thumb} />
+            <span
+              aria-hidden="true"
+              className="absolute inset-0 grid place-items-center opacity-0 motion-safe:transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:hidden"
+            >
+              <span className="grid h-9 w-9 place-items-center rounded-full bg-panel text-ink-1 shadow-float">
+                <Icon icon={Play} />
+              </span>
+            </span>
           </span>
           <span className="min-w-0 flex-1 truncate text-body font-semibold text-ink-1">{item.title}</span>
-          <span
-            aria-hidden="true"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-panel text-ink-1 opacity-0 shadow-float motion-safe:transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:hidden"
-          >
-            <Icon icon={Play} />
-          </span>
         </button>
       ))}
     </div>

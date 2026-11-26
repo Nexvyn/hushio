@@ -74,7 +74,7 @@ function describe(entry: RowEntry, counts: RowCounts, failed: FailedCovers): Row
       const info = SINGLE_INFO[entry.single];
       let subtitle = SINGLE_SUBTITLE[entry.single];
       if (entry.single === "liked") subtitle = plural(counts.liked, "song", "songs");
-      if (entry.single === "downloads") subtitle = `${plural(counts.downloaded, "song", "songs")} · Downloaded`;
+      if (entry.single === "downloads") subtitle = plural(counts.downloaded, "song", "songs");
       return { title: t(info.labelKey), subtitle, view: info.view, icon: info.icon, thumb: null, round: false };
     }
     case "playlist":

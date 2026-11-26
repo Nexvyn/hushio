@@ -677,7 +677,7 @@ function NowPlayingSheet() {
       className={`fixed inset-0 z-40 overflow-hidden text-ink-1 will-change-[clip-path,opacity] ${present ? "" : "pointer-events-none"}`}
     >
       <motion.div aria-hidden="true" className="absolute inset-0 overflow-hidden bg-base" style={{ opacity: washOpacity }}>
-        {onArt && !lightTheme && <AmbientBackdrop primary={palette.primary} src={paletteSrc} className="absolute inset-0" />}
+        {onArt && !lightTheme && <AmbientBackdrop variant="banner" primary={palette.primary} src={paletteSrc} />}
       </motion.div>
       <OnArtContext.Provider value={onArt}>
         <div data-sheet-body className="relative z-10 flex h-full flex-col" style={{ paddingTop: INSET_TOP, paddingBottom: INSET_BOTTOM }}>

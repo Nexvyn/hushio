@@ -152,6 +152,18 @@ describe("Your Library sidebar", () => {
     fireEvent.click(screen.getByRole("button", { name: /Liked Songs/ }));
     expect(useNavigation.getState().view).toEqual({ name: "library", param: "liked" });
   });
+
+  it("shows a short Downloads subtitle that fits the sidebar", () => {
+    useLibrary.setState({
+      downloads: {
+        s1: { status: "done", path: "a.m4a" } as never,
+      },
+    });
+    render(<Sidebar />);
+
+    expect(screen.getByText("1 song")).toBeTruthy();
+    expect(screen.queryByText(/Downloaded/)).toBeNull();
+  });
 });
 
 async function chooseCustomOrder() {

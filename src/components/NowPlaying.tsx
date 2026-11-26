@@ -20,7 +20,7 @@ import { CanvasVideo } from "./CanvasVideo";
 import { useCanvasClip } from "./useCanvasClip";
 import { useLyricsOffset, useLyricsTimingKeys } from "../lib/lyricsOffset";
 import { DURATION_MS, EASE_OUT, fade, instant, reducedMotion, swap } from "../lib/motion";
-import { nowPlayingRoll } from "../lib/nowPlayingRoll";
+import { nowPlayingRoll, rollHeight } from "../lib/nowPlayingRoll";
 import { rollStyles } from "../lib/rollUp";
 import { animate, motion, useTransform, type AnimationPlaybackControls } from "motion/react";
 import { useArtworkPalette } from "../lib/artworkPalette";
@@ -136,7 +136,14 @@ function runRoll(target: 0 | 1, controls: { current: AnimationPlaybackControls |
     return;
   }
   controls.current?.stop();
-  controls.current = animate(nowPlayingRoll, target, { duration: DURATION_MS.roll / 1000, ease: EASE_OUT });
+  controls.current = animate(nowPlayingRoll, target, {
+    duration: DURATION_MS.roll / 1000,
+    ease: EASE_OUT,
+    onComplete: () => {
+      nowPlayingRoll.set(target);
+      controls.current = null;
+    },
+  });
 }
 
 export function NowPlaying() {
@@ -194,6 +201,15 @@ export function NowPlaying() {
   );
 
   useEffect(() => {
+    const settle = () => {
+      if (rollControls.current) return;
+      nowPlayingRoll.set(useUI.getState().nowPlayingOpen ? 1 : 0);
+    };
+    window.addEventListener("resize", settle);
+    return () => window.removeEventListener("resize", settle);
+  }, []);
+
+  useEffect(() => {
     if (!keepAwake) {
       void setKeepAwake(false);
       return;
@@ -216,8 +232,10 @@ function MarqueeTitle({ text }: { text: string }) {
   const [shift, setShift] = useState(0);
   const boxRef = useRef<HTMLHeadingElement>(null);
   const labelRef = useRef<HTMLSpanElement>(null);
+  const reduced = reducedMotion();
+  const moving = shift > 0 && !reduced;
   const start = () => {
-    if (reducedMotion()) return;
+    if (reduced) return;
     const over = (labelRef.current?.scrollWidth ?? 0) - (boxRef.current?.clientWidth ?? 0);
     if (over > 0) setShift(over);
   };
@@ -235,10 +253,10 @@ function MarqueeTitle({ text }: { text: string }) {
     >
       <span
         ref={labelRef}
-        className={shift > 0 ? "block whitespace-nowrap" : "block truncate"}
+        className={moving ? "block whitespace-nowrap" : "block truncate"}
         style={{
-          transform: `translateX(-${shift}px)`,
-          transition: shift > 0 ? `transform ${Math.max(4, shift / 30)}s linear` : "transform var(--dur-quick) var(--ease-out)",
+          transform: moving ? `translateX(-${shift}px)` : undefined,
+          transition: moving ? `transform ${Math.max(4, shift / 30)}s linear` : "transform var(--dur-quick) var(--ease-out)",
         }}
       >
         {text}
@@ -294,9 +312,9 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
     else if (!event.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) { event.preventDefault(); first?.focus(); }
   };
 
-  const roll = useTransform(nowPlayingRoll, (p) => rollStyles(p, window.innerHeight, reduced));
+  const roll = useTransform([nowPlayingRoll, rollHeight], ([p, h]) => rollStyles(p as number, h as number, reduced));
   const rollClip = useTransform(roll, (r) => r.sheet);
-  const rollY = useTransform(nowPlayingRoll, (p) => (reduced ? 0 : Math.max(0, 1 - p) * window.innerHeight));
+  const rollY = useTransform([nowPlayingRoll, rollHeight], ([p, h]) => (reduced ? 0 : Math.max(0, 1 - (p as number)) * (h as number)));
 
   const artwork = upgradeArtwork(track?.thumb, ART_TARGET);
   const cover = artwork || upgradeArtwork(peekArtistMeta(track?.artist ?? "")?.thumb, ART_TARGET);
@@ -324,17 +342,15 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
       style={{ y: rollY, clipPath: rollClip }}
       className={`fixed inset-0 z-[100] flex flex-col overflow-hidden bg-base ${idle ? "cursor-none" : ""}`}
     >
-      <AmbientBackdrop primary={ambient.primary} src={paletteSrc} className="absolute inset-0" />
+      <AmbientBackdrop variant="banner" primary={ambient.primary} src={paletteSrc} />
       <p
         role="status"
         aria-live="polite"
         className={`pointer-events-none absolute bottom-6 left-1/2 z-30 -translate-x-1/2 motion-safe:transition-[opacity,transform] motion-safe:duration-swap ${hintVisible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"}`}
       >
-        <span className="flex items-center gap-3 rounded-lg border border-separator bg-panel px-4 py-3 text-body text-ink-1">
+        <span className="flex items-center gap-3 text-body text-ink-1">
           To exit full screen, press
-          <kbd className="grid h-7 min-w-[36px] place-items-center rounded-[5px] border border-ink-2 px-2 text-meta text-ink-1">
-            Esc
-          </kbd>
+          <kbd className="font-semibold text-ink-1">Esc</kbd>
         </span>
       </p>
 

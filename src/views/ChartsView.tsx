@@ -214,7 +214,7 @@ export function ChartsView() {
     <div className="relative">
       {phone && <PullIndicator distance={pull.distance} spinning={pull.refreshing} />}
       <motion.div style={phone ? { y: pull.distance, willChange: pullWillChange } : undefined}>
-      <PageHeader title={phone ? "Hotlist" : "Charts"} meta={phone ? undefined : "What's playing everywhere"} actions={phone ? <PhoneProfileButton /> : undefined} />
+      <PageHeader title="Charts"meta={phone ? undefined : "What's playing everywhere"} actions={phone ? <PhoneProfileButton /> : undefined} />
       <div className="mt-5">
         <input
           type="search"

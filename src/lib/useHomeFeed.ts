@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { getArtistBundle } from "./artistBundle";
 import { hiddenNow, tapsNow } from "./engagement";
 import type { HomeShelf } from "./home";
@@ -44,6 +44,23 @@ function durationsOf(tracks: readonly (Track & { duration?: number })[]): Record
   );
 }
 
+type Memo<T> = { deps: readonly unknown[]; value: T } | null;
+type MemoSlot<T> = { current: Memo<T> };
+
+const profileMemo: MemoSlot<TasteProfile> = { current: null };
+const feedMemo: MemoSlot<FeedSection[]> = { current: null };
+
+function sameDeps(a: readonly unknown[], b: readonly unknown[]): boolean {
+  return a.length === b.length && a.every((value, index) => Object.is(value, b[index]));
+}
+
+function memoAcrossMounts<T>(slot: MemoSlot<T>, deps: readonly unknown[], compute: () => T): T {
+  if (slot.current && sameDeps(slot.current.deps, deps)) return slot.current.value;
+  const value = compute();
+  slot.current = { deps, value };
+  return value;
+}
+
 export function useHomeFeed(shelves: readonly HomeShelf[] = NO_SHELVES): FeedSection[] {
   const [stats, setStats] = useState<Stats | null>(null);
   const history = useLibrary((state) => state.history);
@@ -57,6 +74,7 @@ export function useHomeFeed(shelves: readonly HomeShelf[] = NO_SHELVES): FeedSec
   const dontRepeat = useSettings((state) => state.dontRepeatSuggestions);
   const bundles = useArtistBundles((state) => state.bundles);
   const day = dayBucket();
+  const minute = Math.floor(Date.now() / 60_000);
 
   useEffect(() => {
     let active = true;
@@ -73,32 +91,29 @@ export function useHomeFeed(shelves: readonly HomeShelf[] = NO_SHELVES): FeedSec
     };
   }, []);
 
-  const playedTracks = useMemo(() => history.filter((track) => !track.episode), [history]);
-  const likedTracks = useMemo(() => liked.filter((track) => !track.episode), [liked]);
-  const playlistTracks = useMemo(() => playlists.flatMap((playlist) => playlist.tracks), [playlists]);
-
-  const profile = useMemo(
-    () =>
-      computeTasteProfile({
-        all: stats?.all ?? EMPTY_SUMMARY,
-        month: stats?.month ?? EMPTY_SUMMARY,
-        history: playedTracks,
-        liked: likedTracks,
-        playlists: playlistTracks,
-        searches,
-        skips: {},
-        followed: followed.map((artist) => ({ id: artist.id, name: artist.name, thumb: artist.thumb })),
-        journal: stats?.journal ?? [],
-        hiddenArtists,
-        durations: durationsOf([...playedTracks, ...likedTracks, ...playlistTracks]),
-        now: Date.now(),
-        resolveArtist: (name) => {
-          const meta = peekArtistMeta(name);
-          return meta ? { artistId: meta.id, thumb: meta.thumb } : null;
-        },
-      }),
-    [stats, playedTracks, likedTracks, playlistTracks, searches, followed, hiddenArtists, day],
-  );
+  const profile = memoAcrossMounts(profileMemo, [stats, history, liked, playlists, searches, followed, hiddenArtists, day], () => {
+    const playedTracks = history.filter((track) => !track.episode);
+    const likedTracks = liked.filter((track) => !track.episode);
+    const playlistTracks = playlists.flatMap((playlist) => playlist.tracks);
+    return computeTasteProfile({
+      all: stats?.all ?? EMPTY_SUMMARY,
+      month: stats?.month ?? EMPTY_SUMMARY,
+      history: playedTracks,
+      liked: likedTracks,
+      playlists: playlistTracks,
+      searches,
+      skips: {},
+      followed: followed.map((artist) => ({ id: artist.id, name: artist.name, thumb: artist.thumb })),
+      journal: stats?.journal ?? [],
+      hiddenArtists,
+      durations: durationsOf([...playedTracks, ...likedTracks, ...playlistTracks]),
+      now: Date.now(),
+      resolveArtist: (name) => {
+        const meta = peekArtistMeta(name);
+        return meta ? { artistId: meta.id, thumb: meta.thumb } : null;
+      },
+    });
+  });
 
   const focusKey = focusArtistIds(profile).join("|");
   useEffect(() => {
@@ -106,17 +121,16 @@ export function useHomeFeed(shelves: readonly HomeShelf[] = NO_SHELVES): FeedSec
     for (const artistId of focusKey.split("|")) void getArtistBundle(artistId);
   }, [focusKey]);
 
-  return useMemo(
-    () =>
-      buildHomeSections({
-        profile,
-        bundles: new Map(Object.entries(bundles)),
-        shelves,
-        hidden: hiddenNow(hiddenTracks, Date.now()),
-        taps: tapsNow(taps, Date.now()),
-        dontRepeat,
-        now: Date.now(),
-      }),
-    [profile, bundles, shelves, hiddenTracks, taps, dontRepeat],
-  );
+  return memoAcrossMounts(feedMemo, [profile, bundles, shelves, hiddenTracks, taps, dontRepeat, minute], () => {
+    const now = Date.now();
+    return buildHomeSections({
+      profile,
+      bundles: new Map(Object.entries(bundles)),
+      shelves,
+      hidden: hiddenNow(hiddenTracks, now),
+      taps: tapsNow(taps, now),
+      dontRepeat,
+      now,
+    });
+  });
 }

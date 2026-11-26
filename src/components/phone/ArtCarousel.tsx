@@ -18,7 +18,7 @@ import { VelocityTracker } from "../../lib/velocity";
 import { INSET_BOTTOM, INSET_TOP } from "../../lib/phoneNav";
 
 const GAP_PX = 24;
-const COVER_SIZE = `min(88vw, calc(100vw - 48px), 56vh, calc(100dvh - ${INSET_TOP} - ${INSET_BOTTOM} - 404px), 460px)`;
+const COVER_SIZE = `min(84vw, calc(100vw - 48px), 56vh, calc(100dvh - ${INSET_TOP} - ${INSET_BOTTOM} - 404px), 380px)`;
 const SKIP_PX = 72;
 const DRAG_SHARE = 0.35;
 export const PAUSED_SCALE = 0.86;
