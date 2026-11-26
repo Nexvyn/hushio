@@ -52,6 +52,7 @@ export function spotifyStatusText(account: SpotifyAccount | null, signingIn: boo
   if (account.signedIn) return `Connected as ${account.name ?? "your account"}`;
   if (account.reconnect) return "Sign in again to reconnect Spotify.";
   if (account.expired) return "Spotify signed you out. Sign in again.";
+  if (!account.configured) return "Add a Client ID under Use your own Spotify app to connect.";
   return "Disconnected";
 }
 

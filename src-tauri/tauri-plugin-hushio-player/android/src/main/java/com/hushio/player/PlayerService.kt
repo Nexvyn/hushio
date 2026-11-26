@@ -173,6 +173,8 @@ class PlayerService : MediaLibraryService() {
     }
 
     private val libraryCallback = object : MediaLibrarySession.Callback {
+        private var browsedSection: String? = null
+
         override fun onConnect(
             session: MediaSession,
             controller: MediaSession.ControllerInfo,
@@ -242,6 +244,7 @@ class PlayerService : MediaLibraryService() {
             pageSize: Int,
             params: MediaLibraryService.LibraryParams?,
         ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
+            if (BrowseTree.isSection(parentId)) browsedSection = parentId
             val children = when {
                 parentId == BrowseTree.ROOT_ID ->
                     BrowseTree.SECTIONS.map { (id, title) -> sectionItem(id, title) }
@@ -260,7 +263,13 @@ class PlayerService : MediaLibraryService() {
             startIndex: Int,
             startPositionMs: Long,
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
-            val chosen = mediaItems.mapNotNull { BrowseTree.resolve(it.mediaId, queue.items, recent) }
+            val single = mediaItems.singleOrNull()?.mediaId
+            val parent = browsedSection?.takeIf { single != null }?.let { BrowseTree.songs(it, queue.items, recent) }.orEmpty()
+            val chosen = if (parent.any { it.id == single }) {
+                parent
+            } else {
+                mediaItems.mapNotNull { BrowseTree.resolve(it.mediaId, queue.items, recent) }
+            }
             if (chosen.isEmpty()) {
                 return Futures.immediateFuture(
                     MediaSession.MediaItemsWithStartPosition(mediaItems, startIndex, startPositionMs),
@@ -708,6 +717,7 @@ class PlayerService : MediaLibraryService() {
         .setArtist(item.artist)
         .setAlbumTitle(item.album)
         .setArtworkUri(item.artworkUrl?.let(Uri::parse))
+        .apply { item.artworkData?.let { setArtworkData(it, MediaMetadata.PICTURE_TYPE_FRONT_COVER) } }
 
     private fun toMediaItem(item: QueueItem): MediaItem =
         MediaItem.Builder()

@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.mediarouter.app.MediaRouteChooserDialog
 import androidx.mediarouter.app.MediaRouteControllerDialog
 import androidx.mediarouter.media.MediaRouteSelector
+import androidx.mediarouter.media.MediaRouter
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
 import com.google.android.gms.cast.CastMediaControlIntent
@@ -17,9 +18,13 @@ import com.google.android.gms.cast.framework.CastSession
 import com.google.android.gms.cast.framework.SessionManagerListener
 import com.google.android.gms.cast.framework.media.RemoteMediaClient
 import com.google.android.gms.common.images.WebImage
+import org.json.JSONArray
+import org.json.JSONObject
 
 object CastBridge {
     private var sessionListenerAttached = false
+    private var discovering = false
+    private val discoveryCallback = object : MediaRouter.Callback() {}
 
     val selector: MediaRouteSelector = MediaRouteSelector.Builder()
         .addControlCategory(
@@ -33,6 +38,34 @@ object CastBridge {
         } else {
             MediaRouteChooserDialog(activity).apply { setRouteSelector(selector) }.show()
         }
+        return JSObject()
+    }
+
+    fun devices(activity: Activity, scan: Boolean): JSObject {
+        val router = MediaRouter.getInstance(activity)
+        if (scan && !discovering) {
+            router.addCallback(selector, discoveryCallback, MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY)
+            discovering = true
+        } else if (!scan && discovering) {
+            router.removeCallback(discoveryCallback)
+            discovering = false
+        }
+        val list = router.routes
+            .filter { it.matchesSelector(selector) && !it.isDefaultOrBluetooth }
+            .map { route ->
+                JSONObject()
+                    .put("id", route.id)
+                    .put("name", route.name)
+                    .put("selected", route.isSelected)
+            }
+        return JSObject().put("devices", JSONArray(list))
+    }
+
+    fun select(activity: Activity, id: String): JSObject {
+        val router = MediaRouter.getInstance(activity)
+        val route = router.routes.firstOrNull { it.id == id && it.matchesSelector(selector) }
+            ?: throw IllegalStateException("That Cast device is no longer available")
+        router.selectRoute(route)
         return JSObject()
     }
 

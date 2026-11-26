@@ -12,6 +12,7 @@ data class QueueItem(
     val liked: Boolean,
     val contentUri: String?,
     val expiresAtMs: Long? = null,
+    val artworkData: ByteArray? = null,
 ) {
     fun playbackUri(): String? = contentUri ?: url
 }

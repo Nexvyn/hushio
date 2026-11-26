@@ -32,6 +32,8 @@ const COMMANDS: &[&str] = &[
     "cast_seek",
     "cast_status",
     "cast_stop",
+    "cast_devices",
+    "cast_select",
     "registerListener",
     "removeListener",
 ];

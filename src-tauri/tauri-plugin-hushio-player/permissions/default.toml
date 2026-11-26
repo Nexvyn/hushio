@@ -34,6 +34,8 @@ permissions = [
     "allow-cast-seek",
     "allow-cast-status",
     "allow-cast-stop",
+    "allow-cast-devices",
+    "allow-cast-select",
     "allow-registerListener",
     "allow-removeListener",
 ]

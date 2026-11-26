@@ -1,4 +1,4 @@
-import { castOpen, castStatus, listenPlayerEvent } from "./bridge";
+import { castOpen, castSelect, castStatus, listenPlayerEvent } from "./bridge";
 import { castTrack, isCasting, setCasting, stopCastingFromApp } from "./castState";
 import { isLocalId, isNetworkId } from "./localLibrary";
 import { currentTrack, usePlayer } from "../stores/player";
@@ -86,6 +86,26 @@ export async function castNowPlaying(): Promise<"connected" | "choose" | "idle">
   setCasting(true);
   await castOpen();
   return "connected";
+}
+
+export async function castToDevice(id: string, alreadyConnected: boolean): Promise<void> {
+  const track = currentTrack(usePlayer.getState());
+  if (!track) return;
+  assertCastable(track.id);
+  await listenCastSessions();
+  if (alreadyConnected) {
+    await castCurrentTrack();
+    pauseLocal();
+    setCasting(true);
+    return;
+  }
+  choosing = true;
+  try {
+    await castSelect(id);
+  } catch (error) {
+    choosing = false;
+    throw error;
+  }
 }
 
 export function errorText(error: unknown): string {

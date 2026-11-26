@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-cast-devices"
+description = "Enables the cast_devices command without any pre-configured scope."
+commands.allow = ["cast_devices"]
+
+[[permission]]
+identifier = "deny-cast-devices"
+description = "Denies the cast_devices command without any pre-configured scope."
+commands.deny = ["cast_devices"]

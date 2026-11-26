@@ -4,6 +4,7 @@ const bridge = vi.hoisted(() => ({
   castLoad: vi.fn(async () => undefined),
   castOpen: vi.fn(async () => undefined),
   castStop: vi.fn(async () => undefined),
+  castSelect: vi.fn(async () => undefined),
   castStatus: vi.fn(),
   resolveStream: vi.fn(),
   listen: vi.fn(async (_event: string, handler: (payload: unknown) => void) => {
@@ -18,6 +19,7 @@ vi.mock("./bridge", async (importOriginal) => ({
   castLoad: bridge.castLoad,
   castOpen: bridge.castOpen,
   castStop: bridge.castStop,
+  castSelect: bridge.castSelect,
   castStatus: bridge.castStatus,
   listenPlayerEvent: bridge.listen,
   persistWrite: vi.fn(async () => true),
@@ -31,7 +33,7 @@ vi.mock("./audio", async (importOriginal) => ({
   pause: vi.fn(),
 }));
 
-import { castFromNowPlaying, castNowPlaying, errorText } from "./cast";
+import { castFromNowPlaying, castNowPlaying, castToDevice, errorText } from "./cast";
 import { setCasting } from "./castState";
 import { usePlayer } from "../stores/player";
 import { useUI } from "../stores/ui";
@@ -169,5 +171,29 @@ describe("errorText", () => {
   it("falls back to the JSON of an object without a message and to unknown for no value", () => {
     expect(errorText({ code: "x" })).toBe('{"code":"x"}');
     expect(errorText(undefined)).toBe("unknown error");
+  });
+});
+
+describe("Cast to a listed device", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    usePlayer.setState({ queue: [TRACK], index: 0, position: 3, playing: true });
+    bridge.resolveStream.mockResolvedValue({ url: "https://stream.example/abc", mime: "audio/mp4" });
+  });
+
+  it("selects the device and waits for the session to cast the song", async () => {
+    await castToDevice("route-1", false);
+
+    expect(bridge.castSelect).toHaveBeenCalledWith("route-1");
+    expect(bridge.castLoad).not.toHaveBeenCalled();
+    await sessionEvent({ state: "started", deviceName: "Den" });
+    expect(bridge.castLoad).toHaveBeenCalledWith(expect.objectContaining({ url: "https://stream.example/abc", title: "Song" }));
+  });
+
+  it("casts straight away when the device is already connected", async () => {
+    await castToDevice("route-1", true);
+
+    expect(bridge.castSelect).not.toHaveBeenCalled();
+    expect(bridge.castLoad).toHaveBeenCalledTimes(1);
   });
 });

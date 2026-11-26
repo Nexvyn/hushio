@@ -38,6 +38,10 @@ describe("spotifyStatusText", () => {
     expect(spotifyStatusText(DISCONNECTED, false)).toBe("Disconnected");
   });
 
+  it("says why sign-in is unavailable when no Client ID is configured", () => {
+    expect(spotifyStatusText({ ...DISCONNECTED, configured: false }, false)).toBe("Add a Client ID under Use your own Spotify app to connect.");
+  });
+
   it("asks for a new sign-in after a refresh failure", () => {
     expect(spotifyStatusText({ ...DISCONNECTED, expired: true }, false)).toBe("Spotify signed you out. Sign in again.");
   });

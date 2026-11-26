@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-cast-select"
+description = "Enables the cast_select command without any pre-configured scope."
+commands.allow = ["cast_select"]
+
+[[permission]]
+identifier = "deny-cast-select"
+description = "Denies the cast_select command without any pre-configured scope."
+commands.deny = ["cast_select"]

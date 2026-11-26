@@ -296,6 +296,16 @@ export function castStop(): Promise<void> {
   return playerCall<void>("cast_stop");
 }
 
+export type CastDevice = { id: string; name: string; selected: boolean };
+
+export function castDevices(scan: boolean): Promise<CastDevice[]> {
+  return playerCall<{ devices: CastDevice[] }>("cast_devices", { scan }).then((result) => result.devices);
+}
+
+export function castSelect(id: string): Promise<void> {
+  return playerCall<void>("cast_select", { id });
+}
+
 export type Insets = { top: number; bottom: number; left: number; right: number };
 
 export function playerGetInsets(): Promise<Insets> {

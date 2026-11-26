@@ -70,6 +70,24 @@ function report(action: string): (error: unknown) => void {
   return (error) => console.warn(`[hushio] android ${action} failed: ${describeError(error)}`);
 }
 
+const WEBVIEW_ART = /^http:\/\/(localart|netmusic)\.localhost\//;
+const MAX_EMBEDDED_ART_BYTES = 2 * 1024 * 1024;
+
+async function embeddedArt(url: string | undefined): Promise<string | undefined> {
+  if (!url || !WEBVIEW_ART.test(url)) return undefined;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return undefined;
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.length === 0 || bytes.length > MAX_EMBEDDED_ART_BYTES) return undefined;
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return btoa(binary);
+  } catch {
+    return undefined;
+  }
+}
+
 export async function androidPlayStream(id: string, title: string, fromSeconds = 0, meta: PlayMeta = {}): Promise<void> {
   const generation = ++playGeneration;
   currentId = id;
@@ -83,7 +101,8 @@ export async function androidPlayStream(id: string, title: string, fromSeconds =
     if (generation !== playGeneration) return;
     if (!contentUri) throw new Error("Local track is not in the library");
     useNowStream.getState().publish(id, fileDetails(contentUri, "Local file"));
-    const item = { ...queueItemFor(id, title, "", {}, 0, meta), expiresAtEpochMs: null, contentUri };
+    const artworkData = await embeddedArt(meta.artworkUrl);
+    const item = { ...queueItemFor(id, title, "", {}, 0, meta), expiresAtEpochMs: null, contentUri, artworkData };
     await playerSetQueue([item], 0, positionMs);
     if (generation === playGeneration && wantsPlayback) await playerPlay();
     return;
@@ -93,7 +112,8 @@ export async function androidPlayStream(id: string, title: string, fromSeconds =
     if (generation !== playGeneration) return;
     const url = `http://127.0.0.1:${port}/?id=${encodeURIComponent(id)}`;
     useNowStream.getState().publish(id, fileDetails(url, "Network folder"));
-    await playerSetQueue([{ ...queueItemFor(id, title, url, {}, 0, meta), expiresAtEpochMs: null }], 0, positionMs);
+    const artworkData = await embeddedArt(meta.artworkUrl);
+    await playerSetQueue([{ ...queueItemFor(id, title, url, {}, 0, meta), expiresAtEpochMs: null, artworkData }], 0, positionMs);
     if (generation === playGeneration && wantsPlayback) await playerPlay();
     return;
   }

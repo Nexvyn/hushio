@@ -6,6 +6,7 @@ import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.Base64
 import android.view.HapticFeedbackConstants
 import android.view.WindowManager
 import android.webkit.WebView
@@ -322,6 +323,7 @@ class PlayerPlugin(private val activity: Activity) : Plugin(activity) {
         liked = obj.optBoolean("liked"),
         contentUri = optString(obj, "contentUri"),
         expiresAtMs = if (obj.isNull("expiresAtEpochMs")) null else obj.getLong("expiresAtEpochMs"),
+        artworkData = optString(obj, "artworkData")?.let { Base64.decode(it, Base64.DEFAULT) },
     )
 
     private fun optString(obj: JSONObject, key: String): String? =
@@ -394,5 +396,17 @@ class PlayerPlugin(private val activity: Activity) : Plugin(activity) {
     fun castStop(invoke: Invoke) = CastBridge.run(activity, invoke) { context ->
         context.sessionManager.endCurrentSession(true)
         JSObject()
+    }
+
+    @Command
+    fun castDevices(invoke: Invoke) {
+        val scan = invoke.getArgs().optBoolean("scan", true)
+        CastBridge.run(activity, invoke) { _ -> CastBridge.devices(activity, scan) }
+    }
+
+    @Command
+    fun castSelect(invoke: Invoke) {
+        val id = invoke.getArgs().optString("id")
+        CastBridge.run(activity, invoke) { _ -> CastBridge.select(activity, id) }
     }
 }

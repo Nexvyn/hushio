@@ -23,6 +23,7 @@ export type PlayerQueueItem = {
   expiresAtEpochMs: number | null;
   contentUri?: string;
   artworkUrl?: string;
+  artworkData?: string;
 };
 
 export type PlayMeta = {

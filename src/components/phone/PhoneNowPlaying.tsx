@@ -19,7 +19,8 @@ import { Sheet } from "./Sheet";
 import { PANEL_TRAVEL_SHARE, lyricsHintVisible, panelGestureMode, panelKindAt, panelReleaseTarget, scrollHoldsDrag, type PanelKind, type PanelMode } from "./nowPlayingPanel";
 import { useTrackLyrics } from "../../lib/useTrackLyrics";
 import { haptic } from "../../lib/haptics";
-import { castFromNowPlaying } from "../../lib/cast";
+import { castFromNowPlaying, castToDevice, errorText } from "../../lib/cast";
+import { castDevices, type CastDevice } from "../../lib/bridge";
 import { isCasting, stopCastingFromApp } from "../../lib/castState";
 import { cancelDownload, isDownloadable, revealDownload, startDownload } from "../../lib/downloads";
 import { fmtTime } from "../../lib/format";
@@ -358,6 +359,57 @@ function SeekBar({ current, slim = false }: { current: Track | null; slim?: bool
         <span>{max > 0 ? fmtTime(max) : "--:--"}</span>
       </div>}
     </div>
+  );
+}
+
+function CastDeviceList({ onPick }: { onPick: () => void }) {
+  const [devices, setDevices] = useState<CastDevice[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const refresh = () => {
+      castDevices(true)
+        .then((list) => {
+          if (alive) setDevices(list);
+        })
+        .catch(() => {
+          if (alive) setFailed(true);
+        });
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 1500);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+      void castDevices(false).catch(() => undefined);
+    };
+  }, []);
+  if (failed) return <p className="text-center text-body font-medium">Cast isn't available on this device</p>;
+  if (devices === null) return <p className="text-center text-body font-medium">Looking for devices...</p>;
+  if (devices.length === 0) return <p className="text-center text-body font-medium">No devices found yet</p>;
+  return (
+    <ul className="flex w-full flex-col">
+      {devices.map((device) => (
+        <li key={device.id}>
+          <button
+            type="button"
+            disabled={busy !== null}
+            className="flex min-h-11 w-full items-center justify-between gap-3 px-2 text-left text-body"
+            onClick={() => {
+              setBusy(device.id);
+              castToDevice(device.id, device.selected)
+                .then(onPick)
+                .catch((error: unknown) => useUI.getState().toast(`Couldn't cast this song: ${errorText(error)}`, "error"))
+                .finally(() => setBusy(null));
+            }}
+          >
+            <span className="min-w-0 truncate font-medium">{device.name}</span>
+            <span className="shrink-0 text-meta text-ink-2">{device.selected ? "Connected" : busy === device.id ? "Connecting..." : ""}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -879,11 +931,10 @@ function NowPlayingSheet() {
             </motion.div>
             <AnimatePresence>
               {castSheetOpen && (
-                <Sheet label="Cast to a device" onClose={() => setCastSheetOpen(false)} height={isCasting() ? "300px" : "240px"} header={<div className="flex h-12 items-center text-section font-semibold">Cast to a device</div>}>
-                  <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-                    <PhoneIcon icon={Screencast} size={24} />
-                    <p className="text-body font-medium">Looking for devices...</p>
-                    <p className="text-meta text-ink-2">Keep your phone and Cast device on the same Wi-Fi network.</p>
+                <Sheet label="Cast to a device" onClose={() => setCastSheetOpen(false)} height={isCasting() ? "360px" : "420px"} header={<div className="flex h-12 items-center text-section font-semibold">Cast to a device</div>}>
+                  <div className="flex flex-1 flex-col items-center gap-2 overflow-y-auto px-4 pb-4">
+                    <CastDeviceList onPick={() => setCastSheetOpen(false)} />
+                    <p className="text-center text-meta text-ink-2">Keep your phone and Cast device on the same Wi-Fi network.</p>
                     <button type="button" className="mt-2 min-h-11 px-4 text-body font-medium text-ink-1" onClick={() => void castFromNowPlaying()}>Open device picker</button>
                     {isCasting() && (
                       <button
