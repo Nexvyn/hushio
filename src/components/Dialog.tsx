@@ -2,7 +2,7 @@ import { t, useT } from "../lib/i18n";
 import { type MutableRefObject, type RefObject, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { type DialogRequest, useUI } from "../stores/ui";
-import { EASE_OUT, MS_POPOVER_IN, MS_POPOVER_OUT, SPRING_SHEET, fade, restartClass, reducedMotion } from "../lib/motion";
+import { EASE_OUT, MS_POPOVER_IN, MS_POPOVER_OUT, SPRING_SHEET, fade, reducedMotion } from "../lib/motion";
 
 type Failure = { request: DialogRequest; message: string };
 
@@ -229,7 +229,6 @@ export function Dialog({ sheet = false }: { sheet?: boolean }) {
       value,
       (message) => {
         setFailure({ request, message });
-        restartClass(inputRef.current, "bt-shake");
       },
       closeDialog,
     );

@@ -1,6 +1,6 @@
 import { motion, type TargetAndTransition } from "motion/react";
 import { ClipboardText, DownloadSimple, MusicNotes, Play, UploadSimple, type Icon as PhosphorIcon } from "@phosphor-icons/react";
-import { EASE_IN_OUT, EASE_OUT, reducedMotion } from "../lib/motion";
+import { DURATION_MS, EASE_IN_OUT, EASE_OUT, reducedMotion } from "../lib/motion";
 import { Icon } from "./Icon";
 import { PhoneIcon } from "./phone/PhoneIcon";
 
@@ -13,7 +13,7 @@ const NOTE: Part = { rest: { y: 0, opacity: 0 }, track: { y: [1, -4, -8], opacit
 
 const PARTS: Record<PartName, Part> = {
   noteA: NOTE,
-  noteB: { ...NOTE, delay: 0.3 },
+  noteB: { ...NOTE, delay: DURATION_MS.progress / 1000 },
   ring: { rest: { scale: 1, opacity: 0 }, track: { scale: [0.85, 1.5], opacity: [0.6, 0] }, delay: 0 },
   arrowDown: { rest: { y: 0, opacity: 1 }, track: { y: [0, 2, 0], opacity: [1, 1, 1] }, delay: 0 },
   arrowUp: { rest: { y: 0, opacity: 1 }, track: { y: [0, -2, 0], opacity: [1, 1, 1] }, delay: 0 },
@@ -24,12 +24,12 @@ export type GlyphMotion = { initial: Pose; animate?: TargetAndTransition };
 export function glyphMotion(part: PartName, playing: boolean, loop: boolean, reduced: boolean): GlyphMotion {
   const { rest, track, delay } = PARTS[part];
   if (reduced) return { initial: rest };
-  if (!playing) return { initial: rest, animate: { ...rest, transition: { duration: 0.2, ease: EASE_OUT } } };
+  if (!playing) return { initial: rest, animate: { ...rest, transition: { duration: DURATION_MS.hover / 1000, ease: EASE_OUT } } };
   return {
     initial: rest,
     animate: {
       ...track,
-      transition: { duration: 0.8, delay, ease: EASE_IN_OUT, repeat: loop ? Infinity : 0 },
+      transition: { duration: DURATION_MS.spin / 1000, delay, ease: EASE_IN_OUT, repeat: loop ? Infinity : 0 },
       transitionEnd: rest,
     },
   };

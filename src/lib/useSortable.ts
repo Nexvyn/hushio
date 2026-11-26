@@ -8,7 +8,7 @@ import {
   type RefObject,
 } from "react";
 import { animate } from "motion/react";
-import { reducedMotion } from "./motion";
+import { DURATION_MS, MS_PRESS_OUT, reducedMotion } from "./motion";
 import { EASE_MOVE, SPRING_CONTROL } from "./motion";
 import {
   type Box,
@@ -136,7 +136,7 @@ export function useSortable(options: SortableOptions) {
     const span = spanAt(drag.from, drag.boxes);
     drag.rows.forEach((row, index) => {
       if (index === drag.from) {
-        row.style.transition = reduced ? "none" : "transform 100ms ease, opacity 100ms ease";
+        row.style.transition = reduced ? "none" : `transform ${MS_PRESS_OUT}ms cubic-bezier(${EASE_MOVE.join(",")}), opacity ${MS_PRESS_OUT}ms cubic-bezier(${EASE_MOVE.join(",")})`;
         row.style.transform = `translateY(${drag.offset}px) scale(1.02)`;
         row.style.opacity = reduced ? "1" : "0.96";
         row.style.boxShadow = LIFT_SHADOW;
@@ -145,7 +145,7 @@ export function useSortable(options: SortableOptions) {
         row.style.zIndex = "10";
         return;
       }
-      row.style.transition = reduced ? "none" : `transform 180ms cubic-bezier(${EASE_MOVE.join(",")})`;
+      row.style.transition = reduced ? "none" : `transform ${DURATION_MS.picker}ms cubic-bezier(${EASE_MOVE.join(",")})`;
       row.style.transform = `translateY(${shiftFor(index, drag.from, drag.target, span)}px)`;
     });
   }

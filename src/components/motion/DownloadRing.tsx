@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { RING_LENGTH, RING_RADIUS, downloadVisual, ringDashOffset } from "../../lib/downloadRing";
-import { EASE_OUT, fade, reducedMotion } from "../../lib/motion";
+import { DURATION_MS, EASE_OUT, fade, reducedMotion } from "../../lib/motion";
 
 type DownloadRingProps = {
   busy: boolean;
@@ -15,8 +15,8 @@ export function DownloadRing({ busy, done, progress, idle, size = 20 }: Download
   const reduced = reducedMotion();
   const visual = downloadVisual(busy, done);
   const instant = { duration: 0 };
-  const ease = reduced ? instant : { duration: 0.3, ease: EASE_OUT };
-  const swap = reduced ? fade : { duration: 0.2, ease: EASE_OUT };
+  const ease = reduced ? instant : { duration: DURATION_MS.progress / 1000, ease: EASE_OUT };
+  const swap = reduced ? fade : { duration: DURATION_MS.hover / 1000, ease: EASE_OUT };
 
   return (
     <span className="relative grid place-items-center" style={{ width: size, height: size }}>
@@ -61,7 +61,7 @@ export function DownloadRing({ busy, done, progress, idle, size = 20 }: Download
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
-            transition={reduced ? instant : { duration: 0.25, ease: EASE_OUT }}
+            transition={reduced ? instant : { duration: DURATION_MS.swap / 1000, ease: EASE_OUT }}
           >
             <circle cx="12" cy="12" r={RING_RADIUS} fill="none" stroke="currentColor" strokeWidth="2" />
             <motion.path
@@ -73,7 +73,7 @@ export function DownloadRing({ busy, done, progress, idle, size = 20 }: Download
               strokeLinejoin="round"
               initial={reduced ? false : { pathLength: 0 }}
               animate={{ pathLength: 1 }}
-              transition={reduced ? instant : { duration: 0.35, delay: 0.1, ease: EASE_OUT }}
+              transition={reduced ? instant : { duration: DURATION_MS.reveal / 1000, delay: DURATION_MS.fade / 1000, ease: EASE_OUT }}
             />
           </motion.svg>
         )}
@@ -84,7 +84,7 @@ export function DownloadRing({ busy, done, progress, idle, size = 20 }: Download
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
-            transition={reduced ? instant : { duration: 0.2, ease: EASE_OUT }}
+            transition={reduced ? instant : { duration: DURATION_MS.hover / 1000, ease: EASE_OUT }}
           >
             {idle}
           </motion.span>

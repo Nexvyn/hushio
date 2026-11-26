@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { HOME_INTRO_WINDOW_MS, claimHomeIntro, revealDelayMs, revealMode } from "./homeIntro";
-import { DURATION_MS } from "./motion";
+import { HOME_INTRO_WINDOW_MS, claimHomeIntro, revealMode } from "./homeIntro";
 
 describe("claimHomeIntro", () => {
   it("grants the intro once per session", () => {
@@ -30,14 +29,5 @@ describe("revealMode", () => {
 
   it("skips motion when reduced motion is on", () => {
     expect(revealMode({ ...base, reduced: true })).toBe("still");
-  });
-});
-
-describe("revealDelayMs", () => {
-  it("staggers by the item step and caps at five items", () => {
-    expect(revealDelayMs(0)).toBe(0);
-    expect(revealDelayMs(1)).toBe(DURATION_MS.stagger);
-    expect(revealDelayMs(4)).toBe(4 * DURATION_MS.stagger);
-    expect(revealDelayMs(9)).toBe(4 * DURATION_MS.stagger);
   });
 });

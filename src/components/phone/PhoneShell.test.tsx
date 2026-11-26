@@ -142,7 +142,7 @@ describe("PhoneShell", () => {
     usePlayer.setState({ queue: [track(1)], index: 0 });
     render(<PhoneShell />);
     expect(dock().className).toContain("bg-surface");
-    expect(dock().className).toContain("border-separator");
+    expect(dock().className).not.toContain("border-separator");
     expect(dock().className).not.toMatch(/#191d25|bg-white/);
   });
 

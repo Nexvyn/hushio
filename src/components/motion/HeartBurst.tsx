@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { burstVectors } from "../../lib/heartBurst";
-import { EASE_OUT } from "../../lib/motion";
+import { DURATION_MS, EASE_OUT } from "../../lib/motion";
 
 export function HeartBurst() {
   return (
@@ -12,7 +12,7 @@ export function HeartBurst() {
           style={{ marginLeft: -2, marginTop: -2 }}
           initial={{ x: 0, y: 0, opacity: 1, scale: 0.4 }}
           animate={{ x: dot.x, y: dot.y, opacity: 0, scale: 1 }}
-          transition={{ duration: 0.3, ease: EASE_OUT }}
+          transition={{ duration: DURATION_MS.progress / 1000, ease: EASE_OUT }}
         />
       ))}
     </span>

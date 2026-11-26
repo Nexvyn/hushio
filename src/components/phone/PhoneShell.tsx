@@ -15,7 +15,7 @@ import { pageCardOf, sheetProgress, watchSheetInterruptions } from "./sheetTrave
 import { TabBar } from "./TabBar";
 import { useEdgeBack } from "./useEdgeBack";
 import { CurrentView } from "../../views/CurrentView";
-import { MS_FADE, SPRING_NAV, fade, gate, phoneSnappy, phoneTween, reducedMotion } from "../../lib/motion";
+import { fade, gate, phoneSnappy, pickerIn, pickerOut, reducedMotion } from "../../lib/motion";
 import { navDirection, type NavDirection, type NavSnapshot } from "../../lib/navDirection";
 import { useScrimMounted } from "../../lib/useScrimMounted";
 import { INSET_TOP, INSET_BOTTOM, phoneBottomPad, tabOfRoot } from "../../lib/phoneNav";
@@ -55,7 +55,7 @@ export function PhoneShell() {
     last.current = { key: historyKey, snap, direction: last.current.key === "" ? "none" : navDirection(last.current.snap, snap) };
   }
   const direction = last.current.direction;
-  const slide = direction === "push" ? window.innerWidth * 0.12 : direction === "pop" ? -window.innerWidth * 0.12 : 0;
+  const slide = direction === "push" ? 12 : direction === "pop" ? -12 : 0;
 
   useEffect(watchSheetInterruptions, []);
 
@@ -113,12 +113,8 @@ export function PhoneShell() {
                   key={screenKey}
                   initial={reduced ? { opacity: 0 } : direction === "tab" ? { opacity: 0 } : { opacity: 0, x: slide }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={reduced ? { opacity: 0, transition: fade } : direction === "tab" ? { opacity: 0, transition: phoneTween(MS_FADE) } : { opacity: 0, x: -slide, transition: SPRING_NAV }}
-                  transition={
-                    direction === "push" || direction === "pop"
-                      ? { x: SPRING_NAV, opacity: phoneTween(MS_FADE) }
-                      : phoneTween(MS_FADE)
-                  }
+                  exit={reduced ? { opacity: 0, transition: fade } : { opacity: 0, x: -slide, transition: pickerOut }}
+                  transition={pickerIn}
                   className="px-4"
                   style={{ paddingTop: `calc(${INSET_TOP} + 12px)` }}
                 >
@@ -135,7 +131,7 @@ export function PhoneShell() {
           initial={false}
           animate={{ y: searchFocused ? "100%" : "0%", opacity: searchFocused ? 0 : 1 }}
           transition={gate(reduced, phoneSnappy)}
-          className={`absolute inset-x-0 bottom-0 z-20 overflow-hidden rounded-t-[24px] border-t border-separator bg-surface shadow-[0_-4px_24px_rgb(0_0_0/0.12)] ${searchFocused ? "pointer-events-none" : ""}`}
+          className={`absolute inset-x-0 bottom-0 z-20 overflow-hidden rounded-t-[24px] bg-surface shadow-[0_-4px_24px_rgb(0_0_0/0.12)] ${searchFocused ? "pointer-events-none" : ""}`}
         >
           <MiniPlayer />
           <TabBar activeTab={view.name === "settings" ? null : tabOfRoot(view) ?? tab} />

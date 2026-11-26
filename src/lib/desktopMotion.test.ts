@@ -49,14 +49,8 @@ describe("desktop motion stylesheet", () => {
     expect(motionCss).not.toContain(".bt-lift");
   });
 
-  it("uses backwards fill for staggered rows so drag transforms are not pinned", () => {
-    const stagger = ruleBody(motionCss, ".bt-stagger > *");
-    expect(stagger).toContain("backwards");
-    expect(stagger).not.toContain("both");
-  });
-
-  it("reveals the view with an 8px rise, or a fade only when its rows stagger", () => {
+  it("reveals the view with an 8px rise and no row stagger", () => {
     expect(ruleBody(motionCss, "@keyframes bt-page-in")).toContain("translateY(var(--page-rise, 8px))");
-    expect(ruleBody(motionCss, ".bt-page-in:has(.bt-stagger)")).toContain("--page-rise: 0px");
+    expect(motionCss).not.toContain("bt-stagger");
   });
 });

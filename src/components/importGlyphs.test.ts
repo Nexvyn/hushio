@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DURATION_MS } from "../lib/motion";
 import { glyphMotion } from "./importGlyphs";
 
 describe("import card glyph motion", () => {
@@ -8,9 +9,9 @@ describe("import card glyph motion", () => {
     expect(glyphMotion("arrowDown", true, true, true).initial).toEqual({ y: 0, opacity: 1 });
   });
 
-  it("loops an 800ms cycle on hover when motion is allowed", () => {
+  it("loops the spin token on hover when motion is allowed", () => {
     expect(glyphMotion("arrowDown", true, true, false).animate).toMatchObject({
-      transition: { duration: 0.8, repeat: Infinity },
+      transition: { duration: DURATION_MS.spin / 1000, repeat: Infinity },
     });
   });
 
