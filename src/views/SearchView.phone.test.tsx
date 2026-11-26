@@ -133,7 +133,7 @@ describe("SearchView on the phone", () => {
 
     expect(await screen.findByRole("button", { name: /^Physical/ }, { timeout: 2000 })).toBeTruthy();
     expect(cachedSearchPage).toHaveBeenCalledWith("phys", "all");
-    expect(screen.getByRole("button", { name: "Songs" }).className).toContain("h-[34px]");
+    expect(screen.getByRole("button", { name: "Songs" }).className).toContain("min-h-11");
     expect(screen.getByRole("button", { name: "All" }).getAttribute("aria-pressed")).toBe("true");
   });
 

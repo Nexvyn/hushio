@@ -55,6 +55,7 @@ function ReleaseCard({ release }: { release: Release }) {
 }
 
 function FilterChips({ filters, value, onChange }: { filters: ReleaseFilter[]; value: ReleaseFilter; onChange: (filter: ReleaseFilter) => void }) {
+  const phone = usePhone();
   return (
     <div role="group" aria-label="Filter releases" className="flex flex-wrap gap-2">
       {filters.map((filter) => {
@@ -65,8 +66,8 @@ function FilterChips({ filters, value, onChange }: { filters: ReleaseFilter[]; v
             type="button"
             aria-pressed={active}
             onClick={() => onChange(filter)}
-            className={`h-8 rounded-full px-3 text-meta font-medium motion-safe:transition-colors ${
-              active ? "bg-accent text-on-accent" : "bg-wash text-ink-1 hover:bg-hover"
+            className={`${phone ? "min-h-11" : "h-8"} rounded-full px-3 text-meta font-medium motion-safe:transition-colors ${
+              active ? "bg-primary text-on-primary" : "bg-wash text-ink-1 hover:bg-hover"
             } ${focusRing}`}
           >
             {FILTER_LABELS[filter]}

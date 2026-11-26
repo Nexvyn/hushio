@@ -5,9 +5,9 @@ import { Artwork, BrowseCard, BrowseRow } from "../components/SearchRows";
 import { TrackRow } from "../components/TrackRow";
 import { Button } from "../components/Button";
 import { EmptyState } from "../components/EmptyState";
+import { BrowseGrid, DESKTOP_BROWSE } from "../components/BrowseGrid";
 import { ErrorState } from "../components/ErrorState";
 import { Icon } from "../components/Icon";
-import { BrowseGrid, DESKTOP_BROWSE } from "../components/BrowseGrid";
 import { PhoneHeader } from "../components/phone/PhoneHeader";
 import { PhoneProfileButton } from "../components/phone/PhoneProfileButton";
 import { PhoneSearchField } from "../components/phone/PhoneSearchField";
@@ -366,33 +366,12 @@ function ScopeControl({
   scope,
   scopes,
   onPick,
-  phone,
 }: {
   scope: SearchScope;
   scopes: SearchScope[];
   onPick: (scope: SearchScope) => void;
-  phone: boolean;
 }) {
   const tabs = SCOPE_TABS.filter((tab) => scopes.includes(tab.scope));
-  if (phone) {
-    return (
-      <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
-        {tabs.map((tab) => (
-          <button
-            key={tab.scope}
-            type="button"
-            aria-pressed={scope === tab.scope}
-            onClick={() => onPick(tab.scope)}
-            className={`relative inline-flex h-[34px] shrink-0 items-center whitespace-nowrap rounded-[10px] px-3 text-body font-medium before:absolute before:inset-x-0 before:-inset-y-[5px] before:content-[''] motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
-              scope === tab.scope ? "bg-accent text-on-accent" : "bg-wash text-ink-2 hover:bg-hover"
-            }`}
-          >
-            {t(tab.labelKey)}
-          </button>
-        ))}
-      </div>
-    );
-  }
   return (
     <div role="group" aria-label="Search where" className="inline-flex h-10 items-center gap-1 rounded-[12px] bg-wash p-1">
       {tabs.map((tab) => (
@@ -538,8 +517,8 @@ function PhoneFilterChips({ filter, onPick }: { filter: SearchFilter; onPick: (f
           type="button"
           aria-pressed={filter === tab.filter}
           onClick={() => onPick(tab.filter)}
-          className={`relative inline-flex h-[34px] shrink-0 items-center whitespace-nowrap rounded-[10px] px-3 text-body font-medium before:absolute before:inset-x-0 before:-inset-y-[5px] before:content-[''] motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
-            filter === tab.filter ? "bg-ink-1 text-[rgb(var(--base))]" : "bg-wash text-ink-2 hover:bg-hover"
+          className={`relative inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-[10px] px-3 text-body font-medium before:absolute before:inset-x-0 before:-inset-y-[5px] before:content-[''] motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+            filter === tab.filter ? "bg-primary text-on-primary" : "bg-wash text-ink-2 hover:bg-hover"
           }`}
         >
           {t(tab.labelKey)}
@@ -609,7 +588,7 @@ export function SearchView() {
   const scopes: SearchScope[] = addonsOn ? ["online", "device", "addons"] : ["online", "device"];
   const scopeBar = phone ? null : (
     <div>
-      <ScopeControl scope={scope} scopes={scopes} onPick={setScope} phone={phone} />
+      <ScopeControl scope={scope} scopes={scopes} onPick={setScope} />
     </div>
   );
 
@@ -686,7 +665,7 @@ export function SearchView() {
               aria-pressed={filter === tab.filter}
               onClick={() => setFilter(tab.filter)}
               className={`inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-[12px] px-3.5 text-meta font-medium motion-safe:transition-colors motion-safe:duration-quick motion-safe:ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
-                filter === tab.filter ? "bg-accent text-on-accent" : "bg-wash text-ink-2 hover:bg-hover"
+                filter === tab.filter ? "bg-primary text-on-primary" : "bg-wash text-ink-2 hover:bg-hover"
               }`}
             >
               <Icon icon={tab.icon} />
