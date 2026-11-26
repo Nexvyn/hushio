@@ -38,6 +38,9 @@ pub trait Remote: Sync {
     fn holds(&self, _playlist: &str, _video: &str) -> impl Future<Output = Result<bool, ApiError>> + Send {
         async { Ok(false) }
     }
+    fn find(&self, _title: &str) -> impl Future<Output = Result<Option<String>, ApiError>> + Send {
+        async { Ok(None) }
+    }
 }
 
 struct Official<'a, T> {
@@ -80,6 +83,11 @@ impl<T: AccessTokens> Remote for Official<'_, T> {
     async fn holds(&self, playlist: &str, video: &str) -> Result<bool, ApiError> {
         let items = self.api.list_items(self.tokens, playlist).await?;
         Ok(items.iter().any(|item| item.video_id == video))
+    }
+
+    async fn find(&self, title: &str) -> Result<Option<String>, ApiError> {
+        let playlists = self.api.my_playlists(self.tokens).await?;
+        Ok(playlists.into_iter().find(|playlist| playlist.title == title).map(|playlist| playlist.id))
     }
 }
 
@@ -260,6 +268,9 @@ impl Queue {
             }
             Kind::Delete => {
                 self.drop_pending(|job| job.local_playlist_id == local);
+                self.stored.jobs.retain(|job| {
+                    !(job.kind == Kind::Create && job.state == State::Failed && job.local_playlist_id == local)
+                });
                 let reachable = local.as_ref().is_some_and(|id| {
                     self.stored.links.contains_key(id)
                         || self.stored.jobs.iter().any(|job| {
@@ -940,7 +951,14 @@ async fn perform_on<R: Remote>(remote: &R, job: &Job) -> Result<Option<String>, 
     let video = job.video_id.clone().unwrap_or_default();
     let name = job.payload.clone().unwrap_or_default();
     match job.kind {
-        Kind::Create => remote.create(&name).await.map(Some),
+        Kind::Create => {
+            if job.maybe_sent {
+                if let Some(existing) = remote.find(&name).await? {
+                    return Ok(Some(existing));
+                }
+            }
+            remote.create(&name).await.map(Some)
+        }
         Kind::Rename => remote.rename(&playlist, &name).await.map(|()| None),
         Kind::Add => {
             if job.maybe_sent && remote.holds(&playlist, &video).await? {

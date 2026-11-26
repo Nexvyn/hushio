@@ -29,9 +29,14 @@ export function trackSwipeChange({ offset, velocity, distance, canPrev, canNext 
 export function neighbourTracks(
   queue: readonly Track[],
   index: number,
+  source: readonly Track[] = [],
 ): { prev: Track | null; next: Track | null } {
+  const prev = index > 0 ? (queue[index - 1] ?? null) : null;
+  const next = index + 1 < queue.length ? (queue[index + 1] ?? null) : null;
+  const at = source.findIndex((track) => track.id === queue[index]?.id);
+  if (at < 0) return { prev, next };
   return {
-    prev: index > 0 ? (queue[index - 1] ?? null) : null,
-    next: index + 1 < queue.length ? (queue[index + 1] ?? null) : null,
+    prev: prev ?? (at > 0 ? (source[at - 1] ?? null) : null),
+    next: next ?? (at + 1 < source.length ? (source[at + 1] ?? null) : null),
   };
 }

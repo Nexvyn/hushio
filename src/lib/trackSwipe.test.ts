@@ -64,4 +64,15 @@ describe("neighbourTracks", () => {
     expect(neighbourTracks(queue, 2)).toEqual({ prev: queue[1], next: null });
     expect(neighbourTracks([], 0)).toEqual({ prev: null, next: null });
   });
+
+  it("fills a missing side from the playing playlist around the same track", () => {
+    const solo = [track("b")];
+    const source = [track("a"), track("b"), track("c")];
+    expect(neighbourTracks(solo, 0, source)).toEqual({ prev: source[0], next: source[2] });
+  });
+
+  it("keeps the queue neighbour over the playlist one", () => {
+    const source = [track("x"), track("a"), track("b"), track("y")];
+    expect(neighbourTracks(queue, 1, source)).toEqual({ prev: queue[0], next: queue[2] });
+  });
 });

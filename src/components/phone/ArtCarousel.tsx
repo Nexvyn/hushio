@@ -51,6 +51,8 @@ type CarouselProps = {
   current: Track | null;
   prev: Track | null;
   next: Track | null;
+  canPrev: boolean;
+  canNext: boolean;
   playing: boolean;
   onChange: (change: TrackChange) => void;
   flight?: CoverFlight;
@@ -129,7 +131,7 @@ function Slot({ x, side, span, fade: visible, slotRef, artCentre = false, childr
   );
 }
 
-export function ArtCarousel({ current, prev, next, playing, onChange, flight }: CarouselProps) {
+export function ArtCarousel({ current, prev, next, canPrev, canNext, playing, onChange, flight }: CarouselProps) {
   const reduced = reducedMotion();
   const x = useMotionValue(0);
   const solid = useMotionValue(1);
@@ -176,8 +178,8 @@ export function ArtCarousel({ current, prev, next, playing, onChange, flight }: 
           offset: event.clientX - active.x0,
           velocity,
           distance: SKIP_PX,
-          canPrev: prev !== null,
-          canNext: next !== null,
+          canPrev,
+          canNext,
         });
     if (!change) {
       if (reduced) x.set(0);
@@ -238,7 +240,7 @@ export function ArtCarousel({ current, prev, next, playing, onChange, flight }: 
         }
         if (active.axis !== "x" || reduced) return;
         const raw = active.base + (event.clientX - active.x0) * DRAG_SHARE;
-        const blocked = (raw < 0 && next === null) || (raw > 0 && prev === null);
+        const blocked = (raw < 0 && !canNext) || (raw > 0 && !canPrev);
         x.set(blocked ? rubberBand(raw, viewportWidth()) : raw);
       }}
       onPointerUp={(event) => release(event, false)}

@@ -3,7 +3,9 @@ import type { YtSyncStatus } from "./bridge";
 
 const enqueue = vi.hoisted(() => vi.fn(async () => {}));
 
-vi.mock("./bridge", () => ({ ytEnqueue: enqueue }));
+const rate = vi.hoisted(() => vi.fn(async () => {}));
+
+vi.mock("./bridge", () => ({ ytEnqueue: enqueue, ytRate: rate }));
 
 import { useAuth, GUEST_ACCOUNT } from "../stores/auth";
 import {
@@ -13,6 +15,7 @@ import {
   mergeYtRemote,
   quotaText,
   queueYtJobs,
+  rateYtSong,
   relativeTime,
   skippedText,
   syncStatusText,
@@ -73,6 +76,24 @@ describe("queueYtJobs", () => {
     useAuth.setState({ account: { ...GUEST_ACCOUNT, mode: "google" } });
     queueYtJobs([{ kind: "add", localPlaylistId: "L1", videoId: "dQw4w9WgXcQ" }]);
     expect(enqueue).toHaveBeenCalledWith([{ kind: "add", localPlaylistId: "L1", videoId: "dQw4w9WgXcQ" }]);
+  });
+});
+
+describe("rateYtSong", () => {
+  it("sends likes and unlikes for YouTube songs once signed in to Google", () => {
+    useAuth.setState({ account: { ...GUEST_ACCOUNT, mode: "google" } });
+    rateYtSong({ id: "dQw4w9WgXcQ" }, true);
+    rateYtSong({ id: "dQw4w9WgXcQ" }, false);
+    expect(rate).toHaveBeenNthCalledWith(1, "dQw4w9WgXcQ", true);
+    expect(rate).toHaveBeenNthCalledWith(2, "dQw4w9WgXcQ", false);
+  });
+
+  it("sends nothing for guests, local files or podcast episodes", () => {
+    rateYtSong({ id: "dQw4w9WgXcQ" }, true);
+    useAuth.setState({ account: { ...GUEST_ACCOUNT, mode: "google" } });
+    rateYtSong({ id: "local:abc" }, true);
+    rateYtSong({ id: "ep1", episode: true }, true);
+    expect(rate).not.toHaveBeenCalled();
   });
 });
 

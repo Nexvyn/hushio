@@ -20,6 +20,7 @@ import { PANEL_TRAVEL_SHARE, lyricsHintVisible, panelGestureMode, panelKindAt, p
 import { useTrackLyrics } from "../../lib/useTrackLyrics";
 import { haptic } from "../../lib/haptics";
 import { castFromNowPlaying } from "../../lib/cast";
+import { isCasting, stopCastingFromApp } from "../../lib/castState";
 import { cancelDownload, isDownloadable, revealDownload, startDownload } from "../../lib/downloads";
 import { fmtTime } from "../../lib/format";
 import { AMBIENT_FALLBACK } from "../../lib/artworkPalette";
@@ -391,6 +392,7 @@ function NowPlayingSheet() {
   });
   const liked = useLibrary((state) => track !== null && state.liked.some((item) => item.id === track.id));
   const playlists = useLibrary((state) => state.playlists);
+  const likedTracks = useLibrary((state) => state.liked);
   const playingFrom = usePlayer((state) => state.playingFrom);
   const sheet = useRef<HTMLElement>(null);
   const [panelKind, setPanelKind] = useState<PanelKind | null>(null);
@@ -635,7 +637,9 @@ function NowPlayingSheet() {
   const reduced = reducedMotion();
   const empty = track === null;
   const playLabel = playing ? "Pause" : "Play";
-  const neighbours = neighbourTracks(queue, index);
+  const canSwipe = neighbourTracks(queue, index);
+  const peekSource = playingFrom === "__liked__" ? likedTracks : (playlists.find((item) => item.id === playingFrom)?.tracks ?? []);
+  const neighbours = neighbourTracks(queue, index, peekSource);
   const paletteSrc = paletteCoverFor(track);
   const held = useHeldPalette(paletteSrc);
   const palette = held ?? AMBIENT_FALLBACK;
@@ -715,6 +719,8 @@ function NowPlayingSheet() {
                       current={track}
                       prev={neighbours.prev}
                       next={neighbours.next}
+                      canPrev={canSwipe.prev !== null}
+                      canNext={canSwipe.next !== null}
                       playing={playing}
                       onChange={changeTrack}
                       flight={{ x: coverX, y: coverY, scale: coverScale, radius: coverRadius, fade: neighbourFade }}
@@ -873,12 +879,24 @@ function NowPlayingSheet() {
             </motion.div>
             <AnimatePresence>
               {castSheetOpen && (
-                <Sheet label="Cast to a device" onClose={() => setCastSheetOpen(false)} height="240px" header={<div className="flex h-12 items-center text-section font-semibold">Cast to a device</div>}>
+                <Sheet label="Cast to a device" onClose={() => setCastSheetOpen(false)} height={isCasting() ? "300px" : "240px"} header={<div className="flex h-12 items-center text-section font-semibold">Cast to a device</div>}>
                   <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
                     <PhoneIcon icon={Screencast} size={24} />
                     <p className="text-body font-medium">Looking for devices...</p>
                     <p className="text-meta text-ink-2">Keep your phone and Cast device on the same Wi-Fi network.</p>
                     <button type="button" className="mt-2 min-h-11 px-4 text-body font-medium text-ink-1" onClick={() => void castFromNowPlaying()}>Open device picker</button>
+                    {isCasting() && (
+                      <button
+                        type="button"
+                        className="min-h-11 px-4 text-body font-medium text-ink-1"
+                        onClick={() => {
+                          stopCastingFromApp();
+                          setCastSheetOpen(false);
+                        }}
+                      >
+                        Stop casting
+                      </button>
+                    )}
                   </div>
                 </Sheet>
               )}
