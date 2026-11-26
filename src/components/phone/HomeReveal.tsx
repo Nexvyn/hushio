@@ -3,7 +3,7 @@ import { motion } from "motion/react";
 import { revealMode, type HomeRevealPlan, type RevealMode } from "../../lib/homeIntro";
 import { DURATION_MS, EASE_OUT, reducedMotion } from "../../lib/motion";
 
-export function HomeReveal({ plan, children }: { plan: HomeRevealPlan; index: number; children: ReactNode }) {
+export function HomeReveal({ plan, children }: { plan: HomeRevealPlan; children: ReactNode }) {
   const [mode] = useState<RevealMode>(() =>
     revealMode({
       intro: plan.intro,

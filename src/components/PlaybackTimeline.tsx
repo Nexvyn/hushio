@@ -17,12 +17,16 @@ export function PlaybackTimeline({ position, duration, onSeek, onArt = false, tr
     }
   };
   return <div className="playback-timeline" data-on-art={onArt || undefined}>
-    <input type="range" aria-label="Seek" aria-valuetext={`${fmtTime(value)} of ${fmtTime(max)}`} min={0} max={max || 1} step={.1} value={value} disabled={!max}
-      style={{ "--progress": `${max ? value / max * 100 : 0}%` } as CSSProperties}
-      onPointerDown={() => { interaction.current = "pointer"; }} onChange={event => {
-        const next = Number(event.target.value);
-        if (interaction.current) setScrub(next); else onSeek(Math.min(max, Math.max(0, next)));
-      }} onPointerUp={commit} onPointerCancel={() => { interaction.current = null; setScrub(null); }} onKeyDown={onKeyDown} onKeyUp={commit} onBlur={commit} />
+    <div className="playback-track">
+      <input type="range" aria-label="Seek" aria-valuetext={`${fmtTime(value)} of ${fmtTime(max)}`} min={0} max={max || 1} step={.1} value={value} disabled={!max}
+        onPointerDown={() => { interaction.current = "pointer"; }} onChange={event => {
+          const next = Number(event.target.value);
+          if (interaction.current) setScrub(next); else onSeek(Math.min(max, Math.max(0, next)));
+        }} onPointerUp={commit} onPointerCancel={() => { interaction.current = null; setScrub(null); }} onKeyDown={onKeyDown} onKeyUp={commit} onBlur={commit} />
+      <span className="playback-track-bar" aria-hidden="true">
+        <span className="playback-track-fill" style={{ "--progress": `${max ? value / max * 100 : 0}%` } as CSSProperties} />
+      </span>
+    </div>
     <div className="playback-times" aria-hidden="true"><span>{fmtTime(value)}</span><span>−{fmtTime(Math.max(0, max - value))}</span></div>
   </div>;
 }

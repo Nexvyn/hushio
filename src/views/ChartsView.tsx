@@ -14,7 +14,6 @@ import { PhoneArt } from "../components/phone/PhoneArt";
 import { PhoneProfileButton } from "../components/phone/PhoneProfileButton";
 import { PhoneSectionHeader, PhoneShelfCard } from "../components/phone/PhoneShelf";
 import { PhoneSongRow } from "../components/phone/PhoneTrackRow";
-import { useFirstLoadStagger } from "../components/phone/useFirstLoadStagger";
 import { PullIndicator } from "../components/phone/PullIndicator";
 import { usePullToRefresh } from "../components/phone/usePullToRefresh";
 import { SkeletonSwap } from "../components/SkeletonSwap";
@@ -102,12 +101,11 @@ function PhoneChartShelf({ shelf }: { shelf: ChartShelf }) {
   const tracks = chartTracks(shelf);
   const currentId = usePlayer((state) => state.queue[state.index]?.id);
   const playing = usePlayer((state) => state.playing);
-  const stagger = useFirstLoadStagger(shelf.songs.length > 0);
   return (
     <section className="mt-7">
       <PhoneSectionHeader title={shelf.title} />
       {shelf.songs.length > 0 && (
-        <ol className={stagger.className} onAnimationEnd={stagger.onAnimationEnd}>
+        <ol>
           {shelf.songs.map((song, index) => (
             <PhoneSongRow
               key={song.id}

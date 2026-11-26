@@ -18,7 +18,6 @@ import { TrackRow } from "../components/TrackRow";
 import { PHONE_ICON, PHONE_SHUFFLE } from "../components/phone/heroButtons";
 import { PhoneSongRow } from "../components/phone/PhoneTrackRow";
 import { PhoneIcon } from "../components/phone/PhoneIcon";
-import { useFirstLoadStagger } from "../components/phone/useFirstLoadStagger";
 import { usePhone } from "../lib/usePhone";
 import { getAlbumPage } from "../lib/browse";
 import type { AlbumInfo, ReleasePage } from "../lib/browseParse";
@@ -83,7 +82,6 @@ function AlbumContent({ page }: { page: ReleasePage }) {
   const visibleTracks = useMemo(() => visible.map((row) => row.item), [visible]);
   const { current, playing, playAt, shuffle } = useBrowsePlayback(visibleTracks);
   const phone = usePhone();
-  const stagger = useFirstLoadStagger(visible.length > 0);
   const saved = useLibrary((state) => state.savedAlbums.some((item) => item.id === album.id));
   const savedLabel = saved ? "Remove from Your Library" : "Save to Your Library";
   const toggleSaved = () => {
@@ -205,7 +203,6 @@ function AlbumContent({ page }: { page: ReleasePage }) {
                 className={PHONE_SHUFFLE}
               >
                 <HeroIcon icon={Shuffle} />
-                Shuffle
               </button>
               <button type="button" aria-label={savedLabel} title={savedLabel} onClick={toggleSaved} className={PHONE_ICON}>
                 <PhoneIcon icon={saved ? Check : Plus} />
@@ -223,7 +220,7 @@ function AlbumContent({ page }: { page: ReleasePage }) {
           </div>
         )}
         {phone && <div className="mt-5"><PhoneTrackFilter query={query} onQuery={setQuery} count={tracks.length} /></div>}
-        <ol className={phone ? `mt-5 ${stagger.className}` : `mt-7 ${stagger.className}`} onAnimationEnd={stagger.onAnimationEnd}>
+        <ol className={phone ? "mt-5" : "mt-7"}>
           {visible.map(({ item: song }, index) =>
             phone ? (
               <PhoneSongRow

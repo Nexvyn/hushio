@@ -9,7 +9,6 @@ import { arrangeTracks, CollectionActions, FILTER_MIN_TRACKS, PhoneTrackFilter, 
 import { TrackListHeader, TrackRow } from "../components/TrackRow";
 import { PHONE_ICON, PHONE_SHUFFLE } from "../components/phone/heroButtons";
 import { PhoneSongRow } from "../components/phone/PhoneTrackRow";
-import { useFirstLoadStagger } from "../components/phone/useFirstLoadStagger";
 import { topArtist } from "../lib/collections";
 import { playlistCovers } from "../lib/playlistCover";
 import { useFailedCovers } from "../stores/coverErrors";
@@ -67,7 +66,6 @@ export function PlaylistView() {
   const dragOn = sort.field === "custom" && activeQuery.trim() === "";
   const visible = arrangeTracks(tracks, activeQuery, sort);
   const visibleTracks = visible.map((row) => row.item);
-  const stagger = useFirstLoadStagger(visibleTracks.length > 0);
   const keys = sortKeys(visibleTracks.map((track) => track.id));
   const selection = useTrackSelection(`playlist:${id}`, visibleTracks.map((track) => track.id));
   const sortable = useSortable({
@@ -190,7 +188,6 @@ export function PlaylistView() {
               className={PHONE_SHUFFLE}
             >
               <HeroIcon icon={Shuffle} />
-              Shuffle
             </button>
             <ActionMenu items={headerMenu} label="More options" triggerClass={PHONE_ICON} phoneIcon />
           </>
@@ -213,8 +210,6 @@ export function PlaylistView() {
             {phone && <PhoneTrackFilter query={query} onQuery={setQuery} count={tracks.length} />}
             <ol
               ref={listRef}
-              className={stagger.className || undefined}
-              onAnimationEnd={stagger.onAnimationEnd}
               {...(phone && !dragOn ? {} : sortable.listProps)}
               onKeyDown={phone ? undefined : (event) => selection.onListKeyDown(event, removeSelected)}
             >

@@ -70,7 +70,6 @@ export function FolderView() {
           className={phone ? PHONE_SHUFFLE : SHUFFLE_PILL}
         >
           <HeroIcon icon={Shuffle} />
-          {phone && "Shuffle"}
         </button>
         <ActionMenu items={folderMenuItems(folder.id)} label="Folder options" triggerClass={phone ? PHONE_ICON : GHOST_ICON} />
       </CollectionHero>

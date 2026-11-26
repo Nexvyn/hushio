@@ -62,7 +62,7 @@ function playSaved(saved: DownloadItem[], index: number, shuffle: boolean) {
 function statusLine(item: DownloadItem): { text: string; className: string } {
   switch (item.status) {
     case "downloading":
-      return { text: `Downloading · ${percent(item)}%`, className: "text-accent" };
+      return { text: `Downloading · ${percent(item)}%`, className: "text-ink-2 tabular-nums" };
     case "queued":
       return { text: "Waiting to download", className: "text-ink-3" };
     case "waiting":
@@ -320,7 +320,6 @@ export function DownloadsView() {
             <PlayRound phone aria-label="Play Downloads" disabled={none} onClick={() => playSaved(saved, 0, false)} />
             <button type="button" aria-label="Shuffle" title="Shuffle" disabled={none} onClick={() => playSaved(saved, 0, true)} className={PHONE_SHUFFLE}>
               <HeroIcon icon={Shuffle} />
-              Shuffle
             </button>
           </>
         )}

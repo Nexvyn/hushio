@@ -135,7 +135,7 @@ export function DiscographyView() {
                   <FilterChips filters={filters} value={active} onChange={setFilter} />
                 </div>
               )}
-              <div className={`mt-5 ${grid} bt-stagger`}>
+              <div className={`mt-5 ${grid}`}>
                 {visible.map((release) => (
                   <ReleaseCard key={release.id} release={release} />
                 ))}

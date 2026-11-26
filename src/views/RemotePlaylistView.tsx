@@ -10,7 +10,6 @@ import { PageHeader } from "../components/PageHeader";
 import { ErrorState } from "../components/ErrorState";
 import { PHONE_ICON, PHONE_SHUFFLE } from "../components/phone/heroButtons";
 import { PhoneSongRow } from "../components/phone/PhoneTrackRow";
-import { useFirstLoadStagger } from "../components/phone/useFirstLoadStagger";
 import type { MenuItem } from "../stores/ui";
 import { TrackRow } from "../components/TrackRow";
 import { getPlaylistPage } from "../lib/browse";
@@ -58,7 +57,6 @@ function PlaylistContent({ page, playlistId }: { page: PlaylistPage; playlistId:
   const { tracks } = page;
   const { current, playing, playAt, shuffle } = useBrowsePlayback(tracks);
   const phone = usePhone();
-  const stagger = useFirstLoadStagger(tracks.length > 0);
   const empty = tracks.length === 0;
   const credit = ownerCredit(page.credit);
   const cover = phone ? thumbArtwork(page.thumb, HEADER_ART) || null : heroCover(page.thumb);
@@ -103,7 +101,6 @@ function PlaylistContent({ page, playlistId }: { page: PlaylistPage; playlistId:
           <PlayRound phone onClick={() => playAt(0)} disabled={empty} />
           <button type="button" aria-label="Shuffle" title="Shuffle" disabled={empty} onClick={shuffle} className={PHONE_SHUFFLE}>
             <HeroIcon icon={Shuffle} />
-            Shuffle
           </button>
           <ActionMenu items={menu} label="More options" triggerClass={PHONE_ICON} phoneIcon />
         </CollectionHero>
@@ -128,7 +125,7 @@ function PlaylistContent({ page, playlistId }: { page: PlaylistPage; playlistId:
         {empty ? (
           <p className="py-10 text-center text-meta text-ink-2">This playlist is empty.</p>
         ) : phone ? (
-          <ol className={`flex flex-col ${stagger.className}`} onAnimationEnd={stagger.onAnimationEnd}>
+          <ol className="flex flex-col">
             {tracks.map((song, index) => (
               <PhoneSongRow
                 key={`${song.id}-${index}`}

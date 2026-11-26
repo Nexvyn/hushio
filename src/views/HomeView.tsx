@@ -254,12 +254,12 @@ export function HomeView() {
     quick.length > 0 || featured ? (
       <div className="space-y-3">
         {quick.length > 0 && (
-          <HomeReveal plan={revealPlan} index={0}>
+          <HomeReveal plan={revealPlan}>
             <PhoneQuickTiles items={quick} menuFor={(item) => () => recentMenu(item)} />
           </HomeReveal>
         )}
         {featured && (
-          <HomeReveal plan={revealPlan} index={1}>
+          <HomeReveal plan={revealPlan}>
             <PhoneFeatured item={featured} menu={() => featuredMenu(featured)} />
           </HomeReveal>
         )}
@@ -277,9 +277,9 @@ export function HomeView() {
     !shownRemote.some((shelf) => shelf.items.length > 0) &&
     !shownStream.some((shelf) => shelf.items.length > 0);
 
-  const revealed = (index: number, key: string, node: ReactNode) =>
+  const revealed = (key: string, node: ReactNode) =>
     phone ? (
-      <HomeReveal key={key} plan={revealPlan} index={index}>
+      <HomeReveal key={key} plan={revealPlan}>
         {node}
       </HomeReveal>
     ) : (
@@ -290,19 +290,18 @@ export function HomeView() {
     <>
       {phone ? phoneLead : shownQuick.length > 0 && <QuickTiles items={shownQuick} />}
       {!phone && featured && homeFilter === "all" && <HomeFeature item={featured} />}
-      {shownSections.map((section, index) =>
-        revealed(2 + index, section.id, <FeedSectionView section={section} />),
+      {shownSections.map((section) =>
+        revealed(section.id, <FeedSectionView section={section} />),
       )}
       {shownRemote.map((shelf, index) =>
         revealed(
-          2 + shownSections.length + index,
           `home-${index}-${shelf.title}`,
           <DeferredSection><FeedSectionView section={{ id: `home-${index}`, kind: "market", title: shelf.title, layout: "yt-shelf", priority: 0, items: [], shelf }} /></DeferredSection>,
         ),
       )}
       {!hiddenSections.includes("market") && shownStream.map(shelf => {
         const visible = { ...shelf, items: shelf.items.filter(item => item.kind !== "track" || !blocked.has(item.track.id)) };
-        return visible.items.length ? revealed(0, shelf.id, <DeferredSection><FeedSectionView section={{ id: shelf.id, kind: "market", title: shelf.title, layout: "yt-shelf", priority: 0, items: [], shelf: visible }} /></DeferredSection>) : null;
+        return visible.items.length ? revealed(shelf.id, <DeferredSection><FeedSectionView section={{ id: shelf.id, kind: "market", title: shelf.title, layout: "yt-shelf", priority: 0, items: [], shelf: visible }} /></DeferredSection>) : null;
       })}
     </>
   );

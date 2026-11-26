@@ -99,7 +99,7 @@ export function NewReleasesView() {
         </div>
       )}
       {albums.length > 0 && (
-        <div className={`mt-5 ${grid} bt-stagger`}>
+        <div className={`mt-5 ${grid}`}>
           {albums.map((album) => (
             <ReleaseCard key={album.id} album={album} />
           ))}

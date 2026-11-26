@@ -246,7 +246,6 @@ function ArtistContent({ page }: { page: ArtistPage }) {
             <PlayRound phone onClick={() => playAt(0)} disabled={top.length === 0} />
             <button type="button" aria-label="Shuffle" title="Shuffle" onClick={shuffle} disabled={top.length === 0} className={PHONE_SHUFFLE}>
               <HeroIcon icon={Shuffle} />
-              Shuffle
             </button>
             <ActionMenu items={menu} label="More options" triggerClass={PHONE_ICON} phoneIcon />
           </div>

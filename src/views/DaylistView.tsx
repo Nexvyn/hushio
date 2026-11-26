@@ -9,7 +9,7 @@ import { EmptyState } from "../components/EmptyState";
 import { HeroIcon } from "../components/HeroIcon";
 import { Icon } from "../components/Icon";
 import { PhoneIcon } from "../components/phone/PhoneIcon";
-import { PHONE_SHUFFLE } from "../components/phone/heroButtons";
+import { PHONE_PILL } from "../components/phone/heroButtons";
 import { replayJournal } from "../lib/bridge";
 import { fmtTime } from "../lib/format";
 import { daylist } from "../lib/daylist";
@@ -81,7 +81,7 @@ export function DaylistView() {
 
   const playActions = daily.tracks.length ? (phone ? <>
     <PlayRound phone onClick={() => usePlayer.getState().playQueue(daily.tracks, 0, daily.title)} />
-    <button type="button" onClick={() => save(daily.title, daily.tracks)} className={PHONE_SHUFFLE}><HeroIcon icon={Plus} />{t("dialog.save")}</button>
+    <button type="button" onClick={() => save(daily.title, daily.tracks)} className={PHONE_PILL}><HeroIcon icon={Plus} />{t("dialog.save")}</button>
   </> : <>
     <PlayRound onClick={() => usePlayer.getState().playQueue(daily.tracks, 0, daily.title)} />
     <Button className="gap-2" onClick={() => save(daily.title, daily.tracks)}><DaylistIcon icon={Plus} /><span>Save playlist</span></Button>

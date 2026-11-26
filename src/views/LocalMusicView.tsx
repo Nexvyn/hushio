@@ -288,7 +288,6 @@ function IndexView({ onOpen }: { onOpen: (param: string) => void }) {
           onClick={() => shuffleTracks(device, "Local music")}
         >
           <HeroIcon icon={Shuffle} />
-          {phone && "Shuffle"}
         </button>
         <button
           type="button"
@@ -589,7 +588,6 @@ function CollectionView({ param, onBack, onGone }: { param: string; onBack: () =
           onClick={() => shuffleTracks(list, title)}
         >
           <HeroIcon icon={Shuffle} />
-          {phone && "Shuffle"}
         </button>
         {scope.kind !== "opened" && (
           <button
@@ -919,7 +917,6 @@ function NetworkCollectionView({ id, onBack }: { id: string; onBack: () => void 
           onClick={() => shuffleTracks(list, from)}
         >
           <HeroIcon icon={Shuffle} />
-          {phone && "Shuffle"}
         </button>
         {!phone && (
           <button type="button" className={ROUND} aria-label="Back to Local music" title="Local music" onClick={onBack}>

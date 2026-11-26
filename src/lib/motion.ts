@@ -20,7 +20,6 @@ export const DURATION_MS = {
   press: 120,
   pageIn: 240,
   reveal: 280,
-  stagger: 40,
   hover: 200,
   nowPlayingExit: 210,
   roll: 380,
@@ -36,7 +35,6 @@ export const DURATION_MS = {
   queue: 420,
   progress: 300,
   toastOut: 160,
-  introItem: 220,
   introAppend: 180,
 } as const;
 
@@ -101,13 +99,6 @@ function systemReducesMotion(): boolean {
 
 export function reducedMotion(): boolean {
   return document.documentElement.classList.contains("reduce-motion") || systemReducesMotion();
-}
-
-export function restartClass(node: HTMLElement | null, className: string): void {
-  if (!node) return;
-  node.classList.remove(className);
-  void node.offsetWidth;
-  node.classList.add(className);
 }
 
 export const INTRO_TIMING = {

@@ -2,7 +2,8 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Heart } from "@phosphor-icons/react";
 import { CollectionHero } from "./CollectionHero";
-import { PHONE_PLAY, PHONE_SHUFFLE } from "./phone/heroButtons";
+import { PlayRound } from "./PlayRound";
+import { PHONE_SHUFFLE } from "./phone/heroButtons";
 
 vi.mock("../lib/usePhone", () => ({ usePhone: () => true }));
 
@@ -12,12 +13,9 @@ describe("CollectionHero on phone", () => {
   it("renders Play and Shuffle as a paired row", () => {
     render(
       <CollectionHero title="Liked Songs" covers={[]} facts="12 songs" icon={Heart}>
-        <button type="button" className={PHONE_PLAY}>
-          Play
-        </button>
-        <button type="button" aria-label="Shuffle" className={PHONE_SHUFFLE}>
-          Shuffle
-        </button>
+        <PlayRound phone />
+        <button type="button" aria-label="Shuffle" className={PHONE_SHUFFLE} />
+
       </CollectionHero>,
     );
     const play = screen.getByRole("button", { name: "Play" });

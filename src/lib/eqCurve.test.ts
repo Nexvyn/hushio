@@ -11,9 +11,6 @@ import {
   eqValueText,
   fractionToGain,
   gainToFraction,
-  heatColor,
-  heatRgb,
-  heatStops,
   keyGain,
   lerpGains,
   moodMatching,
@@ -119,32 +116,6 @@ describe("spline", () => {
     expect(anchors[0]).toEqual({ x: 0, y: 10 });
     expect(anchors.at(-1)).toEqual({ x: 300, y: 90 });
     expect(curveAnchors([], 300)).toEqual([]);
-  });
-});
-
-describe("heat colour by gain", () => {
-  it("is blue below zero, pink at 0 dB, orange at +4..+8 and yellow at the top", () => {
-    expect(heatRgb(-EQ_RANGE)).toEqual([47, 155, 255]);
-    expect(heatRgb(0)).toEqual([255, 79, 163]);
-    expect(heatRgb(6)).toEqual([255, 138, 61]);
-    expect(heatRgb(EQ_RANGE)).toEqual([255, 224, 102]);
-  });
-
-  it("clamps gains outside the range", () => {
-    expect(heatRgb(40)).toEqual(heatRgb(EQ_RANGE));
-  });
-
-  it("writes an rgba string with the alpha", () => {
-    expect(heatColor(0, 0.5)).toBe("rgba(255, 79, 163, 0.5)");
-  });
-
-  it("gives gradient stops from the top of the plot to the bottom", () => {
-    const stops = heatStops();
-    expect(stops[0].offset).toBe(0);
-    expect(stops.at(-1)?.offset).toBe(1);
-    expect(stops[0].color).toBe("#ffe066");
-    const offsets = stops.map((stop) => stop.offset);
-    expect(offsets).toEqual([...offsets].sort((a, b) => a - b));
   });
 });
 

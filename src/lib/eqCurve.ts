@@ -1,7 +1,6 @@
 import { EQ_BANDS_HZ, EQ_RANGE, clampEqGain, formatEqGain, sameGains } from "./eq";
 
 export type Point = { x: number; y: number };
-export type Rgb = readonly [number, number, number];
 
 export const DISPLAY_HZ = [60, 150, 400, 1000, 2400, 6000, 14000] as const;
 export const DISPLAY_LABELS = ["60", "150", "400", "1k", "2.4k", "6k", "14k"] as const;
@@ -15,17 +14,6 @@ export const EQ_MOODS: Readonly<Record<string, readonly number[]>> = {
   Air: [-4, -2, 0, 2, 4, 6, 8],
   Night: [-8, -4, 0, 4, 4, -2, -6],
 };
-
-const HEAT_STOPS: ReadonlyArray<readonly [number, string]> = [
-  [-EQ_RANGE, "#2f9bff"],
-  [-4, "#9b5cff"],
-  [0, "#ff4fa3"],
-  [4, "#ff8a3d"],
-  [8, "#ff8a3d"],
-  [EQ_RANGE, "#ffe066"],
-];
-
-export const HALO_STOPS: readonly [string, string] = ["#4cc3ff", "#2f9bff"];
 
 export function bandFraction(index: number, count: number): number {
   return EQ_X_INSET + (index / (count - 1)) * (1 - 2 * EQ_X_INSET);
@@ -121,42 +109,6 @@ export function lerpGains(from: readonly number[], to: readonly number[], t: num
     const start = from[index] ?? target;
     return start + (target - start) * amount;
   });
-}
-
-function hexToRgb(hex: string): [number, number, number] {
-  const value = Number.parseInt(hex.slice(1), 16);
-  return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
-}
-
-export function heatRgb(gain: number): Rgb {
-  const g = Math.min(EQ_RANGE, Math.max(-EQ_RANGE, gain));
-  for (let i = 0; i < HEAT_STOPS.length - 1; i++) {
-    const [lowGain, lowHex] = HEAT_STOPS[i];
-    const [highGain, highHex] = HEAT_STOPS[i + 1];
-    if (g <= highGain) {
-      const t = (g - lowGain) / (highGain - lowGain);
-      const from = hexToRgb(lowHex);
-      const to = hexToRgb(highHex);
-      return [
-        Math.round(from[0] + (to[0] - from[0]) * t),
-        Math.round(from[1] + (to[1] - from[1]) * t),
-        Math.round(from[2] + (to[2] - from[2]) * t),
-      ];
-    }
-  }
-  return hexToRgb(HEAT_STOPS[HEAT_STOPS.length - 1][1]);
-}
-
-export function heatColor(gain: number, alpha = 1): string {
-  const [r, g, b] = heatRgb(gain);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
-export function heatStops(): { offset: number; color: string }[] {
-  return [...HEAT_STOPS].reverse().map(([gain, hex]) => ({
-    offset: (EQ_RANGE - gain) / (2 * EQ_RANGE),
-    color: hex,
-  }));
 }
 
 export function bandSpoken(hz: number): string {

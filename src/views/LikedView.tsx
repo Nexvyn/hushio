@@ -1,5 +1,4 @@
 import { PlayRound } from "../components/PlayRound";
-import { useFirstLoadStagger } from "../components/phone/useFirstLoadStagger";
 import { useRef, useState } from "react";
 import { Heart, ListPlus, Shuffle } from "@phosphor-icons/react";
 import { CollectionHero } from "../components/CollectionHero";
@@ -44,7 +43,6 @@ export function LikedView() {
   const covers = coversOf(liked);
   const visible = arrangeTracks(liked, query, sort);
   const visibleTracks = visible.map((row) => row.item);
-  const stagger = useFirstLoadStagger(visibleTracks.length > 0);
   const listRef = useRef<HTMLOListElement>(null);
   const keys = sortKeys(visibleTracks.map((track) => track.id));
   const selection = useTrackSelection("liked", visibleTracks.map((track) => track.id));
@@ -124,7 +122,6 @@ export function LikedView() {
               className={PHONE_SHUFFLE}
             >
               <HeroIcon icon={Shuffle} />
-              Shuffle
             </button>
           </>
         )}
@@ -142,7 +139,7 @@ export function LikedView() {
         ) : (
           <>
             {!phone && <TrackListHeader showAlbum showAdded />}
-            <ol ref={listRef} className={stagger.className || undefined} onAnimationEnd={stagger.onAnimationEnd} {...sortable.listProps} onKeyDown={(event) => selection.onListKeyDown(event)}>
+            <ol ref={listRef} {...sortable.listProps} onKeyDown={(event) => selection.onListKeyDown(event)}>
               {visible.map(({ item: track, index }, position) => {
                 const song = toSong(track);
                 if (phone) {
