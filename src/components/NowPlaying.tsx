@@ -21,7 +21,7 @@ import { useCanvasClip } from "./useCanvasClip";
 import { useLyricsOffset, useLyricsTimingKeys } from "../lib/lyricsOffset";
 import { DURATION_MS, EASE_OUT, fade, instant, reducedMotion, swap } from "../lib/motion";
 import { nowPlayingRoll } from "../lib/nowPlayingRoll";
-import { ROLL_STRIP_PX, rollStyles } from "../lib/rollUp";
+import { rollStyles } from "../lib/rollUp";
 import { animate, motion, useTransform, type AnimationPlaybackControls } from "motion/react";
 import { useArtworkPalette } from "../lib/artworkPalette";
 import { setKeepAwake } from "../lib/wakeLock";
@@ -39,7 +39,6 @@ import { topBarLeadingInset } from "../lib/windowChrome";
 const IDLE_MS = 3000;
 const ESC_HINT_MS = 3000;
 const EXIT_MS = DURATION_MS.roll;
-const CAPTION_RESERVE_PX = 144;
 const ART_TARGET = 1200;
 const MODES = [
   { id: "lyrics", label: "Lyrics" },
@@ -140,19 +139,6 @@ function runRoll(target: 0 | 1, controls: { current: AnimationPlaybackControls |
   controls.current = animate(nowPlayingRoll, target, { duration: DURATION_MS.roll / 1000, ease: EASE_OUT });
 }
 
-function RollStrip() {
-  return (
-    <button
-      type="button"
-      aria-label="Hide Now Playing"
-      title="Hide Now Playing"
-      onClick={() => useUI.getState().closeNowPlaying()}
-      className={`fixed left-0 top-0 z-[101] ${FOCUS_RING}`}
-      style={{ height: ROLL_STRIP_PX, right: hasCaptionButtons(platform) ? CAPTION_RESERVE_PX : 0 }}
-    />
-  );
-}
-
 export function NowPlaying() {
   const open = useUI((state) => state.nowPlayingOpen);
   const rollControls = useRef<AnimationPlaybackControls | null>(null);
@@ -175,7 +161,7 @@ export function NowPlaying() {
       setHintVisible(true);
       hintTimer.current = window.setTimeout(() => setHintVisible(false), ESC_HINT_MS);
       enteredFullscreen.current = !useUI.getState().osFullscreen;
-      void changeFullscreen(true);
+      if (enteredFullscreen.current) void changeFullscreen(true);
       runRoll(1, rollControls);
       return;
     }
@@ -223,12 +209,7 @@ export function NowPlaying() {
   }, [open, keepAwake]);
 
   if (!mounted) return null;
-  return (
-    <>
-      {open && !reducedMotion() && <RollStrip />}
-      <NowPlayingView exiting={exiting} hintVisible={hintVisible} />
-    </>
-  );
+  return <NowPlayingView exiting={exiting} hintVisible={hintVisible} />;
 }
 
 function MarqueeTitle({ text }: { text: string }) {
@@ -340,7 +321,7 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
       initial={reduced ? { opacity: 0 } : false}
       animate={{ opacity: 1 }}
       transition={fade}
-      style={{ y: rollY, clipPath: rollClip, paddingTop: reduced ? 0 : ROLL_STRIP_PX }}
+      style={{ y: rollY, clipPath: rollClip }}
       className={`fixed inset-0 z-[100] flex flex-col overflow-hidden ${idle ? "cursor-none" : ""}`}
     >
       <AmbientBackdrop primary={ambient.primary} src={paletteSrc} className="absolute inset-0" />
@@ -399,8 +380,8 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
           </div>
         </header>
 
-        <div className="relative z-10 flex min-h-0 flex-1 flex-col gap-8 px-8 pb-4 min-[900px]:flex-row min-[900px]:justify-center lg:gap-12 lg:px-14 xl:gap-20">
-          <div className="now-playing-main-column flex min-h-0 min-w-0 flex-col items-center justify-center min-[900px]:w-[clamp(320px,36vw,480px)] min-[900px]:flex-none">
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto px-8 pb-4 min-[900px]:flex-row min-[900px]:justify-center min-[900px]:overflow-hidden lg:gap-12 lg:px-14 xl:gap-20">
+          <div className="now-playing-main-column flex min-h-0 min-w-0 shrink-0 flex-col items-center justify-center min-[900px]:w-[clamp(320px,36vw,480px)] min-[900px]:flex-none">
             {track ? (
               <div className="flex w-full max-w-full flex-col">
                 <NowPlayingArtwork src={cover} trackId={track.id} overlay={clipUrl ? <CanvasVideo key={clipUrl} src={clipUrl} playing={playing} className="absolute inset-0 h-full w-full object-cover" /> : null} />
@@ -493,7 +474,7 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
             )}
           </div>
 
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col pl-6 pr-16 lg:max-w-[720px]">
+          <div className="flex min-h-[320px] min-w-0 flex-1 flex-col min-[900px]:min-h-0 min-[900px]:pl-6 min-[900px]:pr-16 lg:max-w-[720px]">
             <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
               {mode === "queue" ? (
                 <QueuePanel />
