@@ -111,7 +111,7 @@ export function LikedView() {
 
   return (
     <div className={phone ? "" : "pb-16"}>
-      <CollectionHero title="Liked Songs" covers={covers} facts={phone && empty ? null : facts} icon={Heart} tile={{ icon: Heart, accent: true }} eyebrow={empty ? undefined : "Playlist"} hideArtwork={phone && empty} footer={footer}>
+      <CollectionHero title="Liked Songs" covers={covers} facts={phone && empty ? null : facts} icon={Heart} tile={{ icon: Heart }} eyebrow={empty ? undefined : "Playlist"} hideArtwork={phone && empty} footer={footer}>
         {phone && !empty && (
           <>
             <PlayRound phone aria-label="Play Liked Songs" disabled={empty} onClick={() => playCollection(visibleTracks, LIKED_SOURCE, false)} />

@@ -220,9 +220,9 @@ export function LibraryView() {
       <ActionMenu
         items={createMenuItems()}
         label="Create"
-        triggerText={phone ? undefined : "Create"}
+        triggerText="Create"
         icon={Plus}
-        triggerClass={phone ? undefined : PILL}
+        triggerClass={PILL}
       />
     </>
   );

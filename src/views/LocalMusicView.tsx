@@ -832,7 +832,7 @@ export function LocalMusicView() {
             icon={FolderOpen}
             title="Play your own files"
             message="Import a folder and its songs play here, offline, with tags and cover art."
-            action={{ label: scanning ? "Scanning…" : "Choose a folder", onClick: () => void importFolders() }}
+            secondaryAction={{ label: scanning ? "Scanning…" : "Choose a folder", onClick: () => void importFolders() }}
           />
         </div>
       </div>

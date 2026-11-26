@@ -91,14 +91,9 @@ export function FolderView() {
             ))}
           </div>
         </section>
-      ) : phone ? (
-        <EmptyState title="Nothing in here yet" message={others.length > 0 ? "Add your playlists below." : "Make a playlist first."} />
       ) : (
-        <div className="mt-8 rounded-2xl border border-dashed border-separator px-6 py-12 text-center">
-          <h2 className="text-card-title font-semibold text-ink-1">Nothing in here yet</h2>
-          <p className="mt-1 text-body text-ink-2">
-            {others.length > 0 ? "Add your playlists below." : "Make a playlist first."}
-          </p>
+        <div className={phone ? undefined : "mt-8"}>
+          <EmptyState title="Nothing in here yet" message={others.length > 0 ? "Add your playlists below." : "Make a playlist first."} />
         </div>
       )}
 

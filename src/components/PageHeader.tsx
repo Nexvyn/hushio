@@ -6,7 +6,7 @@ import { useNavigation } from "../stores/navigation";
 import { Icon } from "./Icon";
 import { PhoneHeader } from "./phone/PhoneHeader";
 
-export type HeroTile = { icon: PhosphorIcon; accent?: boolean };
+export type HeroTile = { icon: PhosphorIcon };
 
 export type PageHeaderProps = {
   title: string;
@@ -46,7 +46,7 @@ function Artwork({ src, title, tile }: { src: string | null; title: string; tile
       <span
         aria-hidden="true"
         data-testid="page-tile"
-        className={`grid h-[232px] w-[232px] shrink-0 place-items-center rounded-art shadow-float ${tile.accent ? "bg-accent text-on-accent" : "bg-wash text-accent"}`}
+        className={`grid h-[232px] w-[232px] shrink-0 place-items-center rounded-art shadow-float bg-wash text-ink-1`}
       >
         <Icon icon={tile.icon} />
       </span>

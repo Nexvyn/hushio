@@ -268,7 +268,7 @@ export function Sidebar({ mode = "full" }: { mode?: SidebarMode }) {
     );
     const artClass = `flex items-center justify-center overflow-hidden ${
       gridView ? "aspect-square w-full" : "h-11 w-11 shrink-0"
-    } ${liked ? "bg-accent text-on-accent [corner-shape:squircle]" : "bg-wash text-ink-2"} ${info.round ? "rounded-full" : "rounded-control"}`;
+    } ${liked ? "bg-wash text-ink-1 [corner-shape:squircle]" : "bg-wash text-ink-2"} ${info.round ? "rounded-full" : "rounded-control"}`;
     const hover = current ? "bg-ink-1/[0.08]" : "hover:bg-ink-1/[0.05] active:bg-ink-1/[0.1]";
     const pinMark = pinned && (
       <span aria-hidden="true" className="flex h-5 w-5 shrink-0 items-center justify-center text-ink-2">

@@ -34,14 +34,15 @@ describe("PageHeader", () => {
     expect(container.querySelector('[data-testid="page-monogram"]')).toBeNull();
     const tile = container.querySelector('[data-testid="page-tile"]');
     expect(tile?.className).toContain("bg-wash");
-    expect(tile?.className).toContain("text-accent");
+    expect(tile?.className).toContain("text-ink-1");
+    expect(tile?.className).not.toContain("accent");
   });
 
-  it("uses the accent tile for Liked Songs", () => {
-    const { container } = render(<PageHeader title="Liked Songs" artwork={null} tile={{ icon: Heart, accent: true }} />);
+  it("uses a neutral tile for Liked Songs", () => {
+    const { container } = render(<PageHeader title="Liked Songs" artwork={null} tile={{ icon: Heart }} />);
     const tile = container.querySelector('[data-testid="page-tile"]');
-    expect(tile?.className).toContain("bg-accent");
-    expect(tile?.className).toContain("text-on-accent");
+    expect(tile?.className).toContain("bg-wash");
+    expect(tile?.className).not.toContain("accent");
   });
 });
 
