@@ -39,8 +39,8 @@ export function PhoneFeatured({ item, menu }: { item: FeaturedItem; menu?: MenuS
       >
         <PhoneArt src={thumbArtwork(item.thumb, 112) || null} layoutId={`cover:${item.target.name}:${item.target.param}`} className="block size-[112px] shrink-0" />
         <span className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="line-clamp-2 font-title text-[20px] font-semibold leading-6 text-ink-1">{item.title}</span>
-          {item.subtitle && <span className="truncate text-[14px] leading-[18px] text-ink-2">{item.subtitle}</span>}
+          <span className="line-clamp-2 font-title text-phone-row-title font-semibold leading-5 text-ink-1">{item.title}</span>
+          {item.subtitle && <span className="truncate text-meta text-ink-2">{item.subtitle}</span>}
         </span>
       </motion.button>
       <motion.button
@@ -49,7 +49,7 @@ export function PhoneFeatured({ item, menu }: { item: FeaturedItem; menu?: MenuS
         onClick={() => void startPlaySource(item.source)}
         whileTap={pressTap(reduced)}
         transition={phoneSmooth}
-        className={`hit-area grid size-10 shrink-0 place-items-center rounded-full border border-ink-2 text-ink-1 ${focusRing}`}
+        className={`hit-area grid size-11 shrink-0 place-items-center rounded-full border border-ink-2 text-ink-1 ${focusRing}`}
       >
         <PhoneIcon icon={Play} size={24} />
       </motion.button>

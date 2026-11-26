@@ -49,7 +49,7 @@ export function NotificationBanner() {
       <span className="text-ink-2">
         <PhoneIcon icon={Bell} />
       </span>
-      <p className="min-w-0 flex-1 text-sm">
+      <p className="min-w-0 flex-1 text-meta">
         {shouldExplain ? "Allow notifications to show playback controls on your lock screen." : "Notifications are off. Playback still works, but the media controls are hidden."}
       </p>
       {shouldExplain ? (

@@ -5,7 +5,7 @@ import { useSwipeRow, type RowAction } from "./useSwipeRow";
 import { ROW_COMMIT_PX } from "../../lib/phoneGestures";
 
 const TONE = {
-  accent: "bg-accent text-on-accent",
+  neutral: "bg-wash text-ink-1",
   danger: "bg-danger text-on-danger",
 } as const;
 
@@ -18,7 +18,7 @@ function Reveal({ action, side, x }: { action: RowAction; side: "right" | "left"
     <motion.div
       aria-hidden="true"
       style={{ opacity }}
-      className={`pointer-events-none absolute inset-0 flex items-center gap-2 px-5 text-meta font-semibold ${TONE[action.tone ?? "accent"]} ${
+      className={`pointer-events-none absolute inset-0 flex items-center gap-2 px-5 text-meta font-semibold ${TONE[action.tone ?? "neutral"]} ${
         side === "right" ? "justify-start" : "justify-end"
       }`}
     >

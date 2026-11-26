@@ -66,7 +66,7 @@ function MenuBody({ menu }: { menu: ContextMenuState }) {
       <div role="menu" className="flex flex-col pb-2">
         {rows.map((item, index) => (
           <Fragment key={`${index}:${item.label}`}>
-            {item.separatorBefore && <div role="separator" className="mx-4 my-4 h-px bg-separator" />}
+            {item.separatorBefore && <div aria-hidden="true" className="h-4" />}
             {item.header ? (
               <p className="px-4 pb-1 pt-2 text-caption text-ink-2">{item.label}</p>
             ) : (

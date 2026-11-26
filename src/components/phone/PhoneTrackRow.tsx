@@ -145,7 +145,7 @@ export function PhoneSongRow({
   const swipeLeft: RowAction = {
     label: liked ? "Unlike" : "Like",
     icon: Heart,
-    tone: "accent",
+    tone: "neutral",
     run: () => {
       useLibrary.getState().toggleLike(song);
       if (!liked) setBurst((count) => count + 1);

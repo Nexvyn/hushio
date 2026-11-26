@@ -129,7 +129,7 @@ function QuickTile({ item, menu }: QuickTileProps) {
       {...hold.bind}
       whileTap={pressTap(reduced)}
       transition={phoneSmooth}
-      className={`flex h-14 min-w-0 items-center overflow-hidden rounded-[10px] bg-elevated text-left ${focusRing}`}
+      className={`flex h-14 min-w-0 items-center overflow-hidden text-left ${focusRing}`}
     >
       <PhoneArt src={thumbArtwork(item.thumb, 56) || null} radius="rounded-none" className="block size-14 shrink-0" />
       <span className="line-clamp-2 min-w-0 flex-1 px-2.5 text-phone-row-title text-ink-1">{item.title}</span>
@@ -139,7 +139,7 @@ function QuickTile({ item, menu }: QuickTileProps) {
 
 export function PhoneQuickTiles({ items, menuFor }: { items: RecentItem[]; menuFor?: (item: RecentItem) => MenuSource | undefined }) {
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid grid-cols-2 gap-3">
       {items.map((item) => (
         <QuickTile key={`${item.kind}-${item.id}`} item={item} menu={menuFor?.(item)} />
       ))}

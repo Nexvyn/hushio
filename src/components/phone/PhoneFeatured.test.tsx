@@ -37,7 +37,7 @@ describe("PhoneFeatured", () => {
     expect(row?.className).not.toContain("h-[132px]");
     expect(screen.getByRole("button", { name: "Play Shelf album" }).className).toContain("border-ink-2");
     expect(screen.queryByText("Albums for you")).toBeNull();
-    expect(screen.getByText("Shelf album").className).toContain("text-[20px]");
+    expect(screen.getByText("Shelf album").className).toContain("text-phone-row-title");
   });
 
   it("plays the item from the round play button", () => {

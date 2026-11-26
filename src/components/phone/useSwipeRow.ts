@@ -10,7 +10,7 @@ import { VelocityTracker } from "../../lib/velocity";
 export type RowAction = {
   label: string;
   icon: PhosphorIcon;
-  tone?: "accent" | "danger";
+  tone?: "neutral" | "danger";
   run: () => void;
 };
 
