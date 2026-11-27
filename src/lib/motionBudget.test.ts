@@ -38,7 +38,6 @@ const scriptSources = walk(SRC_DIR)
 const LITERAL_SECONDS = /\bduration\s*:\s*\d*\.\d+/;
 
 const LITERAL_SECONDS_TEMPORARY_ALLOW = new Set([
-  "components/phone/PhoneHeader.tsx:92",
   "components/phone/PhoneQueueSheet.tsx:166",
   "components/phone/PhoneQueueSheet.tsx:211",
   "components/phone/PhoneQueueSheet.tsx:282",

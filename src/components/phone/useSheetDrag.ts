@@ -3,7 +3,7 @@ import { animate, useMotionValue, type AnimationPlaybackControls, type MotionVal
 import { type PointerHandlers } from "../../lib/usePointerSwipe";
 import { projectDistance, rubberBandEdge } from "../../lib/gesturePhysics";
 import { swipeAxis, type Axis } from "../../lib/trackSwipe";
-import { reducedMotion, SPRING_SHEET } from "../../lib/motion";
+import { DURATION_MS, EASE_IN, reducedMotion, SPRING_SHEET } from "../../lib/motion";
 import { viewportHeight } from "../../lib/viewport";
 import { VelocityTracker } from "../../lib/velocity";
 
@@ -12,7 +12,7 @@ const SHEET_CLOSE_SHARE_OF_SCREEN = 0.28;
 export type SheetDriver = {
   y: MotionValue<number>;
   height: () => number;
-  glide: (target: number, velocity: number, onDone?: () => void) => void;
+  glide: (target: number, velocity: number, onDone?: () => void, eased?: boolean) => void;
   hold: () => void;
 };
 
@@ -45,7 +45,7 @@ function useLocalDriver(travel?: () => number): SheetDriver {
         token.current += 1;
         controls.current?.stop();
       },
-      glide(target, velocity, onDone) {
+      glide(target, velocity, onDone, eased) {
         token.current += 1;
         const id = token.current;
         if (reducedMotion()) {
@@ -53,7 +53,7 @@ function useLocalDriver(travel?: () => number): SheetDriver {
           onDone?.();
           return;
         }
-        controls.current = animate(y, target, { ...SPRING_SHEET, velocity });
+        controls.current = animate(y, target, eased ? { duration: DURATION_MS.rollOut / 1000, ease: EASE_IN } : { ...SPRING_SHEET, velocity });
         controls.current.finished.then(
           () => {
             if (token.current === id) onDone?.();
@@ -103,9 +103,9 @@ export function useSheetDrag(
     driver.glide(0, velocity);
   };
 
-  const dismiss = (velocity: number) => {
+  const dismiss = (velocity: number, eased = false) => {
     goal.current = "closed";
-    driver.glide(driver.height(), velocity, () => close.current());
+    driver.glide(driver.height(), velocity, () => close.current(), eased);
   };
 
   const resume = () => {
@@ -168,5 +168,5 @@ export function useSheetDrag(
     },
   };
 
-  return { handlers, close: () => dismiss(0), y: driver.y };
+  return { handlers, close: () => dismiss(0), closeEased: () => dismiss(0, true), y: driver.y };
 }

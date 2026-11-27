@@ -12,8 +12,8 @@ import { PlayPauseGlyph, useLoopAllowed } from "./PlayPauseGlyph";
 import { ActiveDot, ToggleIcon } from "../motion/ToggleIcon";
 import { DownloadRing } from "../motion/DownloadRing";
 import type { ToggleKind } from "../../lib/toggleMotion";
-import { sheetReleaseCloses, useSheetDrag } from "./useSheetDrag";
-import { coverFlight, coverRadiusOf, glideSheet, heldBox, measureCover, measureMini, measureMiniBar, measureWithin, mountSheet, nowPlayingDriver, sheetClipOf, sheetProgress, sheetWashOf, sheetY, textBlurOf, textFadeOf, titleFadeOf, titleRevealOf, travelPx, unmountSheet, type Box, type Bounds, type Geometry } from "./sheetTravel";
+import { sheetReleaseCloses, useSheetDrag, type SheetDriver } from "./useSheetDrag";
+import { coverFlight, coverRadiusOf, glideSheet, heldBox, measureCover, measureMini, measureMiniBar, measureWithin, mountSheet, nowPlayingDriver, sheetClipOf, sheetProgress, sheetWashOf, sheetY, textBlurOf, textFadeOf, travelPx, unmountSheet, type Box, type Bounds, type Geometry } from "./sheetTravel";
 import { PhoneQueueList } from "./PhoneQueueSheet";
 import { Sheet } from "./Sheet";
 import { PANEL_TRAVEL_SHARE, lyricsHintVisible, panelGestureMode, panelKindAt, panelReleaseTarget, scrollHoldsDrag, type PanelKind, type PanelMode } from "./nowPlayingPanel";
@@ -30,7 +30,7 @@ import { viewportHeight, viewportWidth } from "../../lib/viewport";
 import { VelocityTracker } from "../../lib/velocity";
 import { useHeldPalette } from "./useHeldPalette";
 import { OnArtContext } from "../../lib/onArt";
-import { DURATION_MS, MARQUEE, PHONE_MS, QUEUE_EASE, SPRING_SHEET, fade, gate, phoneSnappy, phoneTween, pressTap, reducedMotion, scrubSpring } from "../../lib/motion";
+import { DURATION_MS, EASE_IN, MARQUEE, QUEUE_EASE, SPRING_SHEET, fade, gate, phoneSnappy, phoneTween, pressTap, reducedMotion, scrubSpring } from "../../lib/motion";
 import { INSET_BOTTOM, INSET_TOP } from "../../lib/phoneNav";
 import { songOf, trackMenuItems } from "../../lib/trackActions";
 import { neighbourTracks, swipeAxis, type Axis } from "../../lib/trackSwipe";
@@ -55,7 +55,36 @@ type PanelGesture = {
   kind: PanelKind;
 };
 
-let lyricsHintNudged = false;
+const closeTween: { current: AnimationPlaybackControls | null } = { current: null };
+
+const nowPlayingSheet: SheetDriver = {
+  y: nowPlayingDriver.y,
+  height: nowPlayingDriver.height,
+  hold() {
+    closeTween.current?.stop();
+    closeTween.current = null;
+    nowPlayingDriver.hold();
+  },
+  glide(target, velocity, onDone, eased) {
+    if (!eased || reducedMotion()) {
+      nowPlayingDriver.glide(target, velocity, onDone);
+      return;
+    }
+    nowPlayingDriver.hold();
+    const run = animate(sheetY, target, { duration: DURATION_MS.rollOut / 1000, ease: EASE_IN });
+    closeTween.current = run;
+    run.finished.then(
+      () => {
+        if (closeTween.current !== run) return;
+        closeTween.current = null;
+        onDone?.();
+      },
+      () => {},
+    );
+  },
+};
+
+const textIn = (openness: number) => Math.min(1, Math.max(0, (openness - 0.4) / 0.6));
 
 const SEEK_STEP_S = 5;
 const SCRUB_IDLE_PX = 7;
@@ -233,11 +262,6 @@ function DownloadButton({ track }: { track: Track | null }) {
 }
 
 function LyricsHint({ visible, onOpen }: { visible: boolean; onOpen: () => void }) {
-  const reduced = reducedMotion();
-  const [nudge] = useState(() => !reduced && !lyricsHintNudged);
-  useEffect(() => {
-    if (nudge) lyricsHintNudged = true;
-  }, [nudge]);
   return (
     <div data-lyrics-hint="" className={`flex flex-1 justify-center ${visible ? "" : "hidden"}`}>
       <button
@@ -246,15 +270,10 @@ function LyricsHint({ visible, onOpen }: { visible: boolean; onOpen: () => void 
         onClick={onOpen}
         className={`flex min-h-11 items-center rounded-full px-4 text-meta font-medium text-ink-2 motion-safe:transition-transform motion-safe:duration-press motion-safe:active:scale-[0.97] ${FOCUS}`}
       >
-        <motion.span
-          initial={{ y: 0 }}
-          animate={nudge ? { y: [0, -3, 0] } : { y: 0 }}
-          transition={{ ...phoneTween(DURATION_MS.reveal), delay: PHONE_MS.lyricsHint / 1000 }}
-          className="inline-flex items-center gap-1"
-        >
+        <span className="inline-flex items-center gap-1">
           <span>Lyrics</span>
           <PhoneIcon icon={CaretUp} />
-        </motion.span>
+        </span>
       </button>
     </div>
   );
@@ -449,7 +468,7 @@ function NowPlayingSheet() {
   const sheet = useRef<HTMLElement>(null);
   const [panelKind, setPanelKind] = useState<PanelKind | null>(null);
   const [castSheetOpen, setCastSheetOpen] = useState(false);
-  const drag = useSheetDrag(closeNowPlaying, () => "grab", nowPlayingDriver);
+  const drag = useSheetDrag(closeNowPlaying, () => "grab", nowPlayingSheet);
   const geometry = useRef<Geometry | null>(null);
   const clipBounds = useRef<Bounds | null>(null);
   const screenSize = useRef({ width: 0, height: 0 });
@@ -475,15 +494,15 @@ function NowPlayingSheet() {
   const coverY = useTransform([flightY, panelFlightY], ([a, b]: number[]) => a + b);
   const coverScale = useTransform([flightScale, panelFlightScale], ([a, b]: number[]) => a * b);
   const neighbourFade = useTransform(panelP, (p) => 1 - p);
-  const contentFade = useTransform(openness, titleFadeOf);
-  const controlFade = useTransform(openness, titleFadeOf);
+  const contentFade = useTransform(openness, textIn);
+  const controlFade = useTransform(openness, textIn);
   const washOpacity = useTransform(openness, sheetWashOf);
   const lowerFade = useTransform([panelP, controlFade], ([panelProgress, sheetProgress]: number[]) => Math.min(1 - Math.min(1, panelProgress / 0.4), sheetProgress));
   const overlayOpacity = useTransform(panelP, [0, 0.2], [0, 1]);
   const panelListY = useTransform(panelP, [0, 1], ["100%", "0%"]);
   const releaseVelocity = useRef<number | null>(null);
-  const titleOpacity = useTransform([openness, panelP], ([p, q]: number[]) => titleRevealOf(p) * textFadeOf(q));
-  const titleFilter = useTransform([openness, panelP], ([p, q]: number[]) => textBlurOf(Math.max(1 - titleRevealOf(p), 1 - textFadeOf(q)), reducedMotion()));
+  const titleOpacity = useTransform([openness, panelP], ([p, q]: number[]) => textIn(p) * textFadeOf(q));
+  const titleFilter = useTransform([openness, panelP], ([p, q]: number[]) => textBlurOf(Math.max(1 - textIn(p), 1 - textFadeOf(q)), reducedMotion()));
 
   const measurePanel = () => {
     const section = sheet.current;
@@ -568,7 +587,10 @@ function NowPlayingSheet() {
   const leaving = useRef(false);
   useEffect(() => {
     if (present) {
-      if (leaving.current) glideSheet(0, 0);
+      if (leaving.current) {
+        nowPlayingSheet.hold();
+        glideSheet(0, 0);
+      }
       leaving.current = false;
       return;
     }
@@ -735,7 +757,7 @@ function NowPlayingSheet() {
         <div data-sheet-body className="relative z-10 flex h-full flex-col" style={{ paddingTop: INSET_TOP, paddingBottom: INSET_BOTTOM }}>
           <div className="relative flex min-h-0 flex-1 flex-col">
               <motion.header {...artHandlers} style={{ opacity: contentFade }} className="flex h-12 shrink-0 touch-none items-center justify-between px-6">
-                <Control label="Close Now Playing" icon={CaretDown} size={44} active onClick={drag.close} />
+                <Control label="Close Now Playing" icon={CaretDown} size={44} active onClick={drag.closeEased} />
                 <div className="flex min-w-0 flex-col items-center px-2 text-center">
                   <span className={`text-meta font-medium leading-[18px] ${titleBarTone}`}>Now playing</span>
                   <span className={`max-w-full truncate text-meta leading-4 ${artistTone}`}>{sourceName}</span>

@@ -17,7 +17,9 @@ import { playedFraction } from "../../lib/playbackProgress";
 import { RAIL_COMMIT_SHARE, railChange } from "../../lib/phoneGestures";
 import { haptic } from "../../lib/haptics";
 import { VelocityTracker } from "../../lib/velocity";
-import { glideSheet, handedOff, miniFadeOf, setPulling, sheetProgress, sheetY, textBlurOf, travelPx } from "./sheetTravel";
+import { glideSheet, handedOff, setPulling, sheetProgress, sheetY, textBlurOf, travelPx } from "./sheetTravel";
+
+const miniFadeOf = (openness: number) => 1 - Math.min(1, openness / 0.4);
 import { warmCover } from "./ArtCarousel";
 import { warmPalette } from "./useHeldPalette";
 import { paletteCoverFor } from "../AmbientBackdrop";
@@ -239,7 +241,7 @@ export function MiniPlayer() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={reduced ? { duration: PHONE_MS.artOut / 1000 } : phoneTween(PHONE_MS.text)}
+        transition={reduced ? { duration: PHONE_MS.artOut / 1000 } : phoneTween(DURATION_MS.quick)}
       >
         {artSrc ? (
           <img src={artSrc} alt="" loading="eager" decoding="async" className="h-full w-full object-cover" />
@@ -258,7 +260,7 @@ export function MiniPlayer() {
       data-mini-player
       initial={reduced ? { opacity: 0 } : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={phoneTransition(reduced, phoneSmooth)}
+      transition={phoneTransition(reduced, phoneTween(DURATION_MS.pageIn))}
       className="relative touch-none text-ink-1"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -296,7 +298,7 @@ export function MiniPlayer() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={reduced ? { duration: PHONE_MS.artOut / 1000 } : phoneTween(PHONE_MS.text)}
+                transition={reduced ? { duration: PHONE_MS.artOut / 1000 } : phoneTween(DURATION_MS.quick)}
               >
                 <span className={titleClass}>{track.title}</span>
                 <span className="truncate text-meta leading-[17px] text-ink-2">{track.artist}</span>

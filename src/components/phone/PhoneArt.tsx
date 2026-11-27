@@ -2,7 +2,7 @@ import { useCallback, useState, type ReactNode } from "react";
 import { motion } from "motion/react";
 import { MusicNote } from "@phosphor-icons/react";
 import { PhoneIcon } from "./PhoneIcon";
-import { EASE_OUT, MS_FADE, MS_IMAGE, SPRING_GESTURE, reducedMotion } from "../../lib/motion";
+import { DURATION_MS, EASE_OUT, MS_FADE, MS_IMAGE, phoneTween, reducedMotion } from "../../lib/motion";
 import { artFitFor, type ArtFit } from "../../lib/artFit";
 
 type PhoneArtProps = {
@@ -47,7 +47,7 @@ export function PhoneArt({ src, round = false, radius = "rounded-[12px]", classN
           layoutId={reduced ? undefined : layoutId}
           initial={false}
           animate={{ opacity: loaded ? 1 : 0 }}
-          transition={reduced ? { duration: MS_FADE / 1000, ease: EASE_OUT } : { duration: MS_IMAGE / 1000, ease: EASE_OUT, layout: SPRING_GESTURE }}
+          transition={reduced ? { duration: MS_FADE / 1000, ease: EASE_OUT } : { ...phoneTween(MS_IMAGE), layout: phoneTween(DURATION_MS.roll) }}
           alt=""
           loading="lazy"
           decoding="async"

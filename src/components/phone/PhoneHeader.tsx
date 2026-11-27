@@ -4,7 +4,7 @@ import { CaretLeft, MusicNote, type Icon as PhosphorIcon } from "@phosphor-icons
 import { PhoneIcon } from "./PhoneIcon";
 import { useCoverFill } from "./useCoverFill";
 import { useImageReveal } from "../useImageReveal";
-import { EASE_OUT, MS_FADE, MS_IMAGE, SPRING_GESTURE, reducedMotion } from "../../lib/motion";
+import { DURATION_MS, EASE_OUT, MS_FADE, MS_IMAGE, fade, phoneTween, reducedMotion } from "../../lib/motion";
 
 export type PhoneHeaderProps = {
   title: string;
@@ -89,14 +89,14 @@ export function PhoneHeader({
       } as CSSProperties}
       className="relative -mx-4 mb-4 flex min-w-0 flex-col items-center rounded-b-[24px] px-4 pb-5 text-center"
     >
-      {fill && <motion.span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-b-[24px]" style={{ backgroundColor: fill }} initial={{ opacity: 0 }} animate={{ opacity: 0.12 }} transition={reducedMotion() ? { duration: 0.12, ease: EASE_OUT } : { duration: MS_IMAGE / 1000, ease: EASE_OUT }} />}
+      {fill && <motion.span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-b-[24px]" style={{ backgroundColor: fill }} initial={{ opacity: 0 }} animate={{ opacity: 0.12 }} transition={reducedMotion() ? fade : phoneTween(MS_IMAGE)} />}
       {onBack && <PhoneBackRow onBack={onBack} label={backLabel} />}
       {artwork && onEdit ? (
         <button type="button" aria-label="Edit details" onClick={onEdit} className={`${topGap}size-52 shrink-0 rounded-[12px] [corner-shape:squircle]`}>
-        <motion.img layoutId={reducedMotion() ? undefined : sharedArtworkId} transition={reducedMotion() ? { duration: MS_FADE / 1000, ease: EASE_OUT } : { layout: SPRING_GESTURE, opacity: { duration: MS_IMAGE / 1000, ease: EASE_OUT } }} loading="lazy" decoding="async" src={artwork} alt="" onLoad={art.onLoad} initial={false} animate={{ opacity: art.shown ? 1 : 0 }} className="size-full rounded-[12px] [corner-shape:squircle] object-cover" />
+        <motion.img layoutId={reducedMotion() ? undefined : sharedArtworkId} transition={reducedMotion() ? { duration: MS_FADE / 1000, ease: EASE_OUT } : { layout: phoneTween(DURATION_MS.roll), opacity: phoneTween(MS_IMAGE) }} loading="lazy" decoding="async" src={artwork} alt="" onLoad={art.onLoad} initial={false} animate={{ opacity: art.shown ? 1 : 0 }} className="size-full rounded-[12px] [corner-shape:squircle] object-cover" />
         </button>
       ) : artwork ? (
-        <motion.img layoutId={reducedMotion() ? undefined : sharedArtworkId} transition={reducedMotion() ? { duration: MS_FADE / 1000, ease: EASE_OUT } : { layout: SPRING_GESTURE, opacity: { duration: MS_IMAGE / 1000, ease: EASE_OUT } }} loading="lazy" decoding="async" src={artwork} alt="" onLoad={art.onLoad} initial={false} animate={{ opacity: art.shown ? 1 : 0 }} className={`${topGap}size-52 shrink-0 rounded-[12px] [corner-shape:squircle] object-cover`} />
+        <motion.img layoutId={reducedMotion() ? undefined : sharedArtworkId} transition={reducedMotion() ? { duration: MS_FADE / 1000, ease: EASE_OUT } : { layout: phoneTween(DURATION_MS.roll), opacity: phoneTween(MS_IMAGE) }} loading="lazy" decoding="async" src={artwork} alt="" onLoad={art.onLoad} initial={false} animate={{ opacity: art.shown ? 1 : 0 }} className={`${topGap}size-52 shrink-0 rounded-[12px] [corner-shape:squircle] object-cover`} />
       ) : (
         <span
           aria-hidden="true"
