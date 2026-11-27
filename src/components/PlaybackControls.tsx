@@ -6,7 +6,7 @@ import { ActiveDot, ToggleIcon } from "./motion/ToggleIcon";
 import { SwapGlyph } from "./motion/SwapGlyph";
 import { type RepeatMode, usePlayer } from "../stores/player";
 import { type ShuffleMode, shuffleModeOf } from "../lib/smartShuffle";
-import { phoneBouncy, reducedMotion } from "../lib/motion";
+import { pressTap, reducedMotion } from "../lib/motion";
 import type { ToggleKind } from "../lib/toggleMotion";
 
 const REPEAT_LABEL: Record<RepeatMode, string> = {
@@ -22,7 +22,7 @@ const SHUFFLE_LABEL: Record<ShuffleMode, string> = {
 };
 
 const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
-const PRESS = "motion-safe:transition-transform motion-safe:duration-press motion-safe:active:scale-[0.97]";
+const PRESS = "motion-safe:transition-[color,transform] motion-safe:duration-press motion-safe:active:scale-[0.97]";
 
 type TransportButtonProps = {
   label: string;
@@ -85,8 +85,7 @@ function PlayButton({ playing, buffering, onArt = false, onClick }: { playing: b
       title={`${label} (Space)`}
       aria-label={label}
       onClick={onClick}
-      whileTap={reduced ? undefined : { scale: 0.92 }}
-      transition={phoneBouncy}
+      whileTap={pressTap(reduced)}
       className={`grid ${onArt ? "h-16 w-16" : "h-9 w-9"} shrink-0 place-items-center rounded-full ${onArt ? "bg-art text-base" : "bg-primary text-on-primary"} ${FOCUS}`}
     >
       {buffering ? (

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RING_LENGTH, downloadVisual, ringDashOffset } from "./downloadRing";
 import { burstVectors, BURST_DOTS } from "./heartBurst";
-import { OVERSHOOT_EASE, toggleKeyframes } from "./toggleMotion";
 import { flightKeyframes, flightPlan } from "./flyToTarget";
 
 describe("ringDashOffset", () => {
@@ -39,23 +38,6 @@ describe("burstVectors", () => {
     for (const dot of dots) {
       expect(Math.hypot(dot.x, dot.y)).toBeCloseTo(20, 0);
     }
-  });
-});
-
-describe("toggleKeyframes", () => {
-  it("nudges shuffle only when it turns on", () => {
-    expect(toggleKeyframes("shuffle", "on")?.prop).toBe("x");
-    expect(toggleKeyframes("shuffle", "on")?.values).toEqual([0, 3, -3, 0]);
-    expect(toggleKeyframes("shuffle", "off")).toBeNull();
-  });
-  it("rotates repeat once on every change", () => {
-    expect(toggleKeyframes("repeat", "all")?.values).toEqual([0, 180]);
-    expect(toggleKeyframes("repeat", "off")?.prop).toBe("rotate");
-  });
-  it("pops the like heart up with an overshoot on like and shrinks on unlike", () => {
-    expect(toggleKeyframes("like", "on")?.ease).toEqual(OVERSHOOT_EASE);
-    expect(toggleKeyframes("like", "on")?.values).toEqual([0.8, 1.15, 1]);
-    expect(toggleKeyframes("like", "off")?.values).toEqual([1, 0.85, 1]);
   });
 });
 

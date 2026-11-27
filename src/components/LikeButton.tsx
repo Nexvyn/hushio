@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { motion } from "motion/react";
 import { Heart } from "@phosphor-icons/react";
 import { Icon } from "./Icon";
 import { PhoneIcon } from "./phone/PhoneIcon";
@@ -7,6 +8,7 @@ import { type LikeInput, useLibrary } from "../stores/library";
 import { usePhone } from "../lib/usePhone";
 import { likeJustAdded, type LikeSnapshot } from "../lib/likePop";
 import { haptic } from "../lib/haptics";
+import { fade } from "../lib/motion";
 
 type LikeButtonProps = {
   track: LikeInput | null;
@@ -29,8 +31,15 @@ export function LikeButton({ track, className }: LikeButtonProps) {
     if (phone && before.id === after.id && before.liked && !after.liked) haptic("tick");
   }, [liked, trackId, phone]);
 
-  const fill = liked ? "currentColor" : "none";
-  const glyph = phone ? <PhoneIcon icon={Heart} fill={fill} /> : <Icon icon={Heart} fill={fill} />;
+  const Glyph = phone ? PhoneIcon : Icon;
+  const glyph = (
+    <span className="relative grid place-items-center">
+      <Glyph icon={Heart} fill="none" />
+      <motion.span aria-hidden="true" className="absolute inset-0 grid place-items-center" initial={false} animate={{ opacity: liked ? 1 : 0 }} transition={fade}>
+        <Glyph icon={Heart} fill="currentColor" />
+      </motion.span>
+    </span>
+  );
 
   return (
     <button
@@ -42,7 +51,7 @@ export function LikeButton({ track, className }: LikeButtonProps) {
       onClick={() => {
         if (track) toggleLike(track);
       }}
-      className={`grid shrink-0 place-items-center rounded-full motion-safe:transition-[color,transform] motion-safe:active:scale-[0.94] ${phone ? "motion-safe:duration-fade" : ""} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-[var(--disabled-opacity)] ${liked ? "text-ink-1" : "text-ink-2 hover:text-ink-1"} ${className}`}
+      className={`grid shrink-0 place-items-center rounded-full motion-safe:transition-[color,transform] motion-safe:duration-fade motion-safe:active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-[var(--disabled-opacity)] ${liked ? "text-ink-1" : "text-ink-2 hover:text-ink-1"} ${className}`}
     >
       <ToggleIcon kind="like" state={liked ? "on" : "off"}>
         {glyph}

@@ -37,12 +37,7 @@ const scriptSources = walk(SRC_DIR)
 
 const LITERAL_SECONDS = /\bduration\s*:\s*\d*\.\d+/;
 
-const LITERAL_SECONDS_TEMPORARY_ALLOW = new Set([
-  "lib/toggleMotion.ts:16",
-  "lib/toggleMotion.ts:17",
-  "lib/toggleMotion.ts:20",
-  "lib/toggleMotion.ts:21",
-]);
+const LITERAL_SECONDS_TEMPORARY_ALLOW = new Set<string>();
 
 function keyframeBodies(css: string): string[] {
   const bodies: string[] = [];
