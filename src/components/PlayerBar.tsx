@@ -1,7 +1,7 @@
 import { t, useT } from "../lib/i18n";
 import { useEffect, useId, useMemo, useState } from "react";
 import { motion } from "motion/react";
-import { instant, reducedMotion, swap } from "../lib/motion";
+import { instant, quick, reducedMotion } from "../lib/motion";
 import { useImageReveal } from "./useImageReveal";
 import { normalizeCredit } from "../lib/credits";
 import { CornersOut, Microphone, Moon, ListPlus, MusicNote, Queue, SpeakerHigh, SpeakerX } from "@phosphor-icons/react";
@@ -117,9 +117,9 @@ function NowPlaying({ track }: { track: Track | null }) {
   return (
     <motion.div
       key={track?.id ?? "none"}
-      initial={reduced ? false : { opacity: 0, y: 4 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={reduced ? instant : swap}
+      initial={reduced ? false : { opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={reduced ? instant : quick}
       className="flex min-w-0 items-center"
     >
       <button
@@ -147,7 +147,6 @@ function NowPlaying({ track }: { track: Track | null }) {
 function PlayerGroove({ track }: { track: Track | null }) {
   const position = usePlayer((state) => state.position);
   const duration = usePlayer((state) => state.duration);
-  const playing = usePlayer((state) => state.playing);
   const seek = usePlayer((state) => state.seek);
   const { lyrics } = useTrackLyrics(track, duration);
   const synced = lyrics?.synced ?? null;
@@ -160,7 +159,6 @@ function PlayerGroove({ track }: { track: Track | null }) {
       duration={duration}
       onSeek={seek}
       lyrics={lines}
-      playing={playing}
     />
   );
 }

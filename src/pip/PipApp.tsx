@@ -180,7 +180,6 @@ export function PipApp() {
             seed={track?.id ?? ""}
             position={snapshot?.position ?? 0}
             duration={snapshot?.duration ?? 0}
-            playing={snapshot?.playing ?? false}
             onSeek={(sec) => send({ type: "seek", sec })}
           />
         </div>

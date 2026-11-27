@@ -5,8 +5,6 @@ import {
   GROOVE_HIT_MIN_PX,
   GROOVE_PLAIN_SIZE,
   GROOVE_SIZES,
-  GROOVE_WAVE_FRAME_MS,
-  GROOVE_WAVE_MAX_DT_S,
   clamp01,
   grooveBoxHeight,
   grooveSeed,
@@ -16,7 +14,6 @@ import {
   ratioAt,
   rubberBandOffset,
   seekTarget,
-  stepWaveLevel,
   type GrooveProfile,
   type GrooveSize,
   type LyricPoint,
@@ -32,7 +29,6 @@ type GrooveProps = {
   onSeek: (seconds: number) => void;
   lyrics?: readonly LyricPoint[];
   compact?: boolean;
-  playing?: boolean;
   profile?: GrooveProfile;
   variant?: GrooveVariant;
   label?: string;
@@ -72,7 +68,7 @@ function capsulePath(context: CanvasRenderingContext2D, x: number, y: number, wi
   context.closePath();
 }
 
-function paintGroove(canvas: HTMLCanvasElement | null, paint: Paint | null, clock: number, level: number) {
+function paintGroove(canvas: HTMLCanvasElement | null, paint: Paint | null) {
   if (!canvas || !paint || paint.width <= 0) return;
   const context = canvas.getContext("2d");
   if (!context) return;
@@ -107,7 +103,7 @@ function paintGroove(canvas: HTMLCanvasElement | null, paint: Paint | null, cloc
     context.beginPath();
     context.moveTo(0, barTop);
     for (let x = 0; x <= progressX; x += HILL_STEP_PX) {
-      context.lineTo(x, barTop - hillOffset(x, progressX, clock, paint.seed, layer, paint.size, level));
+      context.lineTo(x, barTop - hillOffset(x, progressX, 0, paint.seed, layer, paint.size, 0));
     }
     context.lineTo(progressX, barTop);
     context.closePath();
@@ -136,7 +132,6 @@ export function Groove({
   onSeek,
   lyrics = [],
   compact = false,
-  playing = false,
   profile = "stage",
   variant = "hills",
   label = "Seek",
@@ -147,12 +142,9 @@ export function Groove({
   const layerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const paintRef = useRef<Paint | null>(null);
-  const levelRef = useRef(0);
-  const clockRef = useRef(0);
   const drag = useRef<Drag | null>(null);
   const [width, setWidth] = useState(0);
   const [palette, setPalette] = useState(0);
-  const [visible, setVisible] = useState(() => typeof document === "undefined" || document.visibilityState !== "hidden");
   const [hover, setHover] = useState<number | null>(null);
   const [preview, setPreview] = useState<number | null>(null);
   const disabled = !(duration > 0);
@@ -182,18 +174,12 @@ export function Groove({
     return () => observer.disconnect();
   }, [plain]);
 
-  useEffect(() => {
-    const onChange = () => setVisible(document.visibilityState !== "hidden");
-    document.addEventListener("visibilitychange", onChange);
-    return () => document.removeEventListener("visibilitychange", onChange);
-  }, []);
-
   const shown = preview === null ? Math.min(position, max) : preview * max;
   const progress = max > 0 ? clamp01(shown / max) : 0;
   const hoverTime = hover === null ? 0 : hover * max;
   const hoverLine = compact || hover === null ? null : lyricAt(lyrics, hoverTime);
 
-  const paintNow = useCallback(() => paintGroove(canvasRef.current, paintRef.current, clockRef.current, levelRef.current), []);
+  const paintNow = useCallback(() => paintGroove(canvasRef.current, paintRef.current), []);
 
   useEffect(() => {
     if (plain) return;
@@ -207,37 +193,6 @@ export function Groove({
     };
     paintNow();
   }, [plain, width, progress, seedNumber, size, fillColour, palette, paintNow, onArt]);
-
-  useEffect(() => {
-    if (plain) return;
-    if (reduced || !visible) {
-      levelRef.current = 0;
-      paintNow();
-      return;
-    }
-    const target = playing ? 1 : 0;
-    if (target === 0 && levelRef.current === 0) {
-      paintNow();
-      return;
-    }
-    let frame = 0;
-    let previous: number | null = null;
-    let lastPaint = Number.NEGATIVE_INFINITY;
-    const tick = (now: number) => {
-      const dt = previous === null ? 0 : Math.min(GROOVE_WAVE_MAX_DT_S, (now - previous) / 1000);
-      previous = now;
-      levelRef.current = stepWaveLevel(levelRef.current, target, dt);
-      clockRef.current += dt * levelRef.current;
-      const settled = target === 0 && levelRef.current === 0;
-      if (settled || now - lastPaint >= GROOVE_WAVE_FRAME_MS) {
-        lastPaint = now;
-        paintNow();
-      }
-      if (!settled) frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [plain, playing, reduced, visible, paintNow]);
 
   const pointerRatio = (clientX: number, rect: { left: number; width: number }) => ratioAt(clientX - rect.left, rect.width);
 

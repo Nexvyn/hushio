@@ -149,100 +149,24 @@ describe("Groove", () => {
   });
 });
 
-describe("Groove wave loop", () => {
-  let frames: Map<number, FrameRequestCallback>;
-  let clock: number;
+describe("Groove static wave", () => {
   let raf: ReturnType<typeof vi.fn>;
 
-  function stub(reduced: boolean) {
-    Object.defineProperty(window, "matchMedia", {
-      configurable: true,
-      writable: true,
-      value: (query: string) => ({
-        matches: reduced && query.includes("reduce"),
-        media: query,
-        onchange: null,
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        addListener: () => {},
-        removeListener: () => {},
-        dispatchEvent: () => false,
-      }),
-    });
-  }
-
-  function step(count = 1) {
-    for (let index = 0; index < count; index++) {
-      clock += 40;
-      const batch = [...frames.entries()];
-      frames.clear();
-      for (const [, callback] of batch) callback(clock);
-    }
-  }
-
-  function settle() {
-    let guard = 0;
-    while (frames.size > 0 && guard < 200) {
-      step();
-      guard += 1;
-    }
-    return guard;
-  }
-
   beforeEach(() => {
-    frames = new Map();
-    clock = 0;
-    let next = 1;
-    raf = vi.fn((callback: FrameRequestCallback) => {
-      const id = next++;
-      frames.set(id, callback);
-      return id;
-    });
+    raf = vi.fn(() => 1);
     vi.stubGlobal("requestAnimationFrame", raf);
-    vi.stubGlobal("cancelAnimationFrame", (id: number) => {
-      frames.delete(id);
-    });
-    stub(false);
   });
 
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
     delete (window as { matchMedia?: unknown }).matchMedia;
-    Reflect.deleteProperty(document, "visibilityState");
   });
 
-  it("runs the loop only while playing", () => {
+  it("schedules no animation frame as the position moves, so the wave stays still", () => {
     const { rerender } = render(<Groove seed="t1" position={10} duration={200} onSeek={vi.fn()} />);
-    expect(raf).not.toHaveBeenCalled();
-    rerender(<Groove seed="t1" position={10} duration={200} onSeek={vi.fn()} playing />);
-    expect(raf).toHaveBeenCalled();
-    expect(frames.size).toBe(1);
-  });
-
-  it("stops the loop after pausing, once the wave has eased to still", () => {
-    const { rerender } = render(<Groove seed="t1" position={10} duration={200} onSeek={vi.fn()} playing />);
-    step(5);
-    expect(frames.size).toBe(1);
-    rerender(<Groove seed="t1" position={10} duration={200} onSeek={vi.fn()} playing={false} />);
-    const steps = settle();
-    expect(steps).toBeGreaterThan(0);
-    expect(steps).toBeLessThan(40);
-    expect(frames.size).toBe(0);
-    const calls = raf.mock.calls.length;
-    step(3);
-    expect(raf.mock.calls.length).toBe(calls);
-  });
-
-  it("never starts the loop under reduced motion", () => {
-    stub(true);
-    render(<Groove seed="t1" position={10} duration={200} onSeek={vi.fn()} playing />);
-    expect(raf).not.toHaveBeenCalled();
-  });
-
-  it("never starts the loop while the document is hidden", () => {
-    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
-    render(<Groove seed="t1" position={10} duration={200} onSeek={vi.fn()} playing />);
+    rerender(<Groove seed="t1" position={20} duration={200} onSeek={vi.fn()} />);
+    rerender(<Groove seed="t1" position={30} duration={200} onSeek={vi.fn()} />);
     expect(raf).not.toHaveBeenCalled();
   });
 
@@ -288,9 +212,9 @@ describe("Groove variants", () => {
     expect(fill.style.transform).toBe("scaleX(0.25)");
   });
 
-  it("runs no animation loop in plain mode, even while playing", () => {
+  it("runs no animation loop in plain mode", () => {
     const frame = vi.spyOn(window, "requestAnimationFrame");
-    render(<Groove seed="t1" position={10} duration={200} onSeek={vi.fn()} variant="plain" playing />);
+    render(<Groove seed="t1" position={10} duration={200} onSeek={vi.fn()} variant="plain" />);
     expect(frame).not.toHaveBeenCalled();
   });
 

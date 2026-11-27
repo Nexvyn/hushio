@@ -19,7 +19,7 @@ import { hasCaptionButtons } from "../lib/desktopPlatform";
 import { CanvasVideo } from "./CanvasVideo";
 import { useCanvasClip } from "./useCanvasClip";
 import { useLyricsOffset, useLyricsTimingKeys } from "../lib/lyricsOffset";
-import { DURATION_MS, EASE_OUT, fade, instant, reducedMotion, swap } from "../lib/motion";
+import { DURATION_MS, EASE_IN, EASE_OUT, fade, instant, quick, reducedMotion } from "../lib/motion";
 import { nowPlayingRoll, rollHeight } from "../lib/nowPlayingRoll";
 import { rollStyles } from "../lib/rollUp";
 import { animate, motion, useTransform, type AnimationPlaybackControls } from "motion/react";
@@ -38,7 +38,7 @@ import { topBarLeadingInset } from "../lib/windowChrome";
 
 const IDLE_MS = 3000;
 const ESC_HINT_MS = 3000;
-const EXIT_MS = DURATION_MS.roll;
+const EXIT_MS = DURATION_MS.rollOut;
 const ART_TARGET = 1200;
 const MODES = [
   { id: "lyrics", label: "Lyrics" },
@@ -137,8 +137,8 @@ function runRoll(target: 0 | 1, controls: { current: AnimationPlaybackControls |
   }
   controls.current?.stop();
   controls.current = animate(nowPlayingRoll, target, {
-    duration: DURATION_MS.roll / 1000,
-    ease: EASE_OUT,
+    duration: (target ? DURATION_MS.roll : DURATION_MS.rollOut) / 1000,
+    ease: target ? EASE_OUT : EASE_IN,
     onComplete: () => {
       nowPlayingRoll.set(target);
       controls.current = null;
@@ -403,10 +403,10 @@ function NowPlayingView({ exiting, hintVisible }: { exiting: boolean; hintVisibl
                 <NowPlayingArtwork src={cover} trackId={track.id} overlay={clipUrl ? <CanvasVideo key={clipUrl} src={clipUrl} playing={playing} className="absolute inset-0 h-full w-full object-cover" /> : null} />
                 <div className="now-playing-controls mx-auto flex min-w-0 flex-col">
                   <div className="mt-6 min-w-0 text-center">
-                    <motion.div key={`title-${track.id}`} initial={reduced ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={reduced ? instant : swap}>
+                    <motion.div key={`title-${track.id}`} initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={reduced ? instant : quick}>
                       <MarqueeTitle text={track.title} />
                     </motion.div>
-                    <motion.p key={`artist-${track.id}`} initial={reduced ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={reduced ? instant : { ...swap, delay: 0.03 }} className="mt-1 truncate text-body text-art/[0.72]">{normalizeCredit(track.artist)}</motion.p>
+                    <motion.p key={`artist-${track.id}`} initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={reduced ? instant : quick} className="mt-1 truncate text-body text-art/[0.72]">{normalizeCredit(track.artist)}</motion.p>
                     <p role="status" className="mt-1 min-h-4 text-meta text-art/[0.6]">{buffering ? "Buffering audio…" : ""}</p>
                   </div>
                   <div className={`mt-5 w-full ${chrome} ${chromeMotion}`}>
