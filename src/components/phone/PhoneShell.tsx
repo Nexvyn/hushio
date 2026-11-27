@@ -129,7 +129,7 @@ export function PhoneShell() {
           style={{ height: INSET_TOP }}
         />
         <motion.div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0" style={{ x: edge.x, opacity: edge.shadow, boxShadow: "-12px 0 24px rgb(0 0 0)" }} />
-        <motion.main style={{ x: edge.x }} className={`relative isolate z-0 min-h-0 flex-1 overflow-hidden will-change-transform ${nowPlayingOpen ? "pointer-events-none" : ""}`}>
+        <motion.main style={{ x: edge.x, scale: edge.scale, borderRadius: edge.radius }}className={`relative isolate z-0 min-h-0 flex-1 overflow-hidden will-change-transform ${nowPlayingOpen ? "pointer-events-none" : ""}`}>
           <div
             id="view-scroll"
             className="no-scrollbar h-full overflow-y-auto overflow-x-hidden"

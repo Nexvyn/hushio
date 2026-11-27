@@ -244,6 +244,23 @@ export async function listenBackButton(onPress: () => void): Promise<() => void>
   };
 }
 
+export type BackGestureHandlers = {
+  onProgress: (progress: number, swipeEdge: "left" | "right") => void;
+  onCancel: () => void;
+  onCommit: () => void;
+};
+
+export async function listenBackGesture(handlers: BackGestureHandlers): Promise<() => void> {
+  const stops = await Promise.all([
+    listenPlayerEvent<{ progress: number; swipeEdge: "left" | "right" }>("back-progress", ({ progress, swipeEdge }) =>
+      handlers.onProgress(progress, swipeEdge),
+    ),
+    listenPlayerEvent<Record<string, never>>("back-cancel", () => handlers.onCancel()),
+    listenPlayerEvent<Record<string, never>>("back-commit", () => handlers.onCommit()),
+  ]);
+  return () => stops.forEach((stop) => stop());
+}
+
 export function exitApp(): Promise<void> {
   return playerCall("player_exit");
 }

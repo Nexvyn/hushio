@@ -43,7 +43,7 @@ function ReleaseCard({ album }: { album: ChartAlbum }) {
       onClick={() => navigate({ name: "album", param: album.id })}
       className={`${coverCardClass} ${focusRing}`}
     >
-      <CoverArt src={album.thumb} />
+      <CoverArt src={album.thumb} layoutId={`cover:album:${album.id}`} />
       <CoverCardLabel title={album.title} subtitle={subtitle} />
     </button>
   );

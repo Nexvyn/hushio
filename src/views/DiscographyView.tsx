@@ -48,7 +48,7 @@ function ReleaseCard({ release }: { release: Release }) {
   }
   return (
     <button type="button" onClick={open} className={`${coverCardClass} ${focusRing}`}>
-      <CoverArt src={release.thumb} />
+      <CoverArt src={release.thumb} layoutId={`cover:album:${release.id}`} />
       <CoverCardLabel title={release.title} subtitle={subtitle} />
     </button>
   );

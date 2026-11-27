@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
+import { motion } from "motion/react";
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
+import { DURATION_MS, EASE_OUT, MS_FADE, phoneTween, reducedMotion } from "../lib/motion";
 import { isTabRoot, tabRoot } from "../lib/phoneNav";
 import { usePhone } from "../lib/usePhone";
 import { useNavigation } from "../stores/navigation";
@@ -37,9 +39,19 @@ function collectionTitleSize(title: string): number {
   return 48;
 }
 
-function Artwork({ src, title, tile }: { src: string | null; title: string; tile?: HeroTile }) {
+function Artwork({ src, title, tile, layoutId }: { src: string | null; title: string; tile?: HeroTile; layoutId?: string }) {
   if (src) {
-    return <img loading="lazy" decoding="async" src={src} alt="" className="h-[232px] w-[232px] shrink-0 rounded-art object-cover shadow-float" />;
+    return (
+      <motion.img
+        layoutId={reducedMotion() ? undefined : layoutId}
+        transition={{ layout: phoneTween(DURATION_MS.roll) }}
+        loading="lazy"
+        decoding="async"
+        src={src}
+        alt=""
+        className="h-[232px] w-[232px] shrink-0 rounded-art object-cover shadow-float"
+      />
+    );
   }
   if (tile) {
     return (
@@ -90,16 +102,22 @@ export function PageHeader({ title, meta, artwork, actions, titleId, titleToolti
     );
   }
   const cover = artwork !== undefined;
+  const morph = Boolean(sharedArtworkId) && !reducedMotion();
   const header = (
     <header className={`app-page-header flex min-w-0 justify-between gap-6 ${cover ? "items-end" : "items-start"}`}>
       {cover && (onEdit ? (
         <button type="button" onClick={onEdit} aria-label={`Edit details for ${title}`} className="shrink-0 rounded-art focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
-          <Artwork src={artwork} title={title} tile={tile} />
+          <Artwork src={artwork} title={title} tile={tile} layoutId={sharedArtworkId} />
         </button>
       ) : (
-        <Artwork src={artwork} title={title} tile={tile} />
+        <Artwork src={artwork} title={title} tile={tile} layoutId={sharedArtworkId} />
       ))}
-      <div className="min-w-0 flex-1">
+      <motion.div
+        initial={morph ? { opacity: 0 } : false}
+        animate={{ opacity: 1 }}
+        transition={{ duration: MS_FADE / 1000, ease: EASE_OUT, delay: morph ? DURATION_MS.roll / 1000 : 0 }}
+        className="min-w-0 flex-1"
+      >
         {eyebrow && <p className={cover ? "mb-1 text-[14px] font-semibold text-ink-1" : "mb-2 text-meta font-semibold text-ink-2"}>{eyebrow}</p>}
         <h1
           id={titleId}
@@ -118,7 +136,7 @@ export function PageHeader({ title, meta, artwork, actions, titleId, titleToolti
         {description && cover && <p className="mt-2 line-clamp-3 max-w-[60ch] text-body text-ink-2">{description}</p>}
         {meta && <div className={`${cover ? "mt-3 text-body" : "mt-1 text-meta"} tabular-nums text-ink-2`}>{meta}</div>}
         {actions && cover && <div className="mt-4 flex flex-wrap items-center gap-2.5">{actions}</div>}
-      </div>
+      </motion.div>
       {actions && !cover && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </header>
   );

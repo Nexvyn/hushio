@@ -102,7 +102,7 @@ function PhoneShelfItem({ item }: { item: HomeItem }) {
     case "album":
       return (
         <PhoneShelfCard
-          art={<PhoneShelfArt src={item.thumb} variant="large" />}
+          art={<PhoneShelfArt src={item.thumb} variant="large" layoutId={`cover:album:${item.id}`} />}
           variant="large"
           title={item.title}
           subtitle={item.artist}

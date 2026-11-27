@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { animate, useMotionValue, useTransform } from "motion/react";
+import { animate, useMotionValue, useTransform, type AnimationPlaybackControls } from "motion/react";
+import { listenBackGesture, platform } from "../../lib/bridge";
 import { haptic } from "../../lib/haptics";
 import { SPRING_GESTURE, phoneSnappy, reducedMotion } from "../../lib/motion";
 import { edgeBackCommits, edgeShadowAlpha, edgeStarts } from "../../lib/phoneGestures";
@@ -9,15 +10,73 @@ import { VelocityTracker } from "../../lib/velocity";
 
 const IGNORE = "[data-swipe-row],[data-hscroll],input,textarea,[contenteditable],[data-no-edge-back]";
 const MAX_SHADE = 0.08;
+const PEEK_PX = 28;
+const SCALE_DROP = 0.08;
+const RADIUS_PX = 24;
+const BACK_SHADOW = 0.35;
 
 type Session = { x0: number; y0: number; axis: Axis | null; tracker: VelocityTracker };
 
 export function useEdgeBack({ enabled, onBack }: { enabled: boolean; onBack: () => void }) {
   const x = useMotionValue(0);
-  const shade = useTransform(x, (value) => Math.min(MAX_SHADE, (Math.max(0, value) / Math.max(1, viewportWidth())) * MAX_SHADE * 2));
-  const shadow = useTransform(x, (value) => edgeShadowAlpha(value, viewportWidth()));
+  const back = useMotionValue(0);
+  const side = useMotionValue(1);
+  const offset = useTransform([x, back, side], ([dx, p, s]: number[]) => dx + s * PEEK_PX * p);
+  const shade = useTransform([x, back], ([dx, p]: number[]) =>
+    Math.max(Math.min(MAX_SHADE, (Math.max(0, dx) / Math.max(1, viewportWidth())) * MAX_SHADE * 2), p * MAX_SHADE),
+  );
+  const shadow = useTransform([x, back], ([dx, p]: number[]) => Math.max(edgeShadowAlpha(dx, viewportWidth()), p * BACK_SHADOW));
+  const scale = useTransform(back, (p) => 1 - SCALE_DROP * p);
+  const radius = useTransform(back, (p) => RADIUS_PX * p);
   const backRef = useRef(onBack);
   backRef.current = onBack;
+
+  useEffect(() => {
+    if (!enabled || platform !== "android") return;
+    let settle: AnimationPlaybackControls | null = null;
+    let stop: (() => void) | null = null;
+    let disposed = false;
+    const halt = () => {
+      settle?.stop();
+      settle = null;
+    };
+
+    listenBackGesture({
+      onProgress: (progress, swipeEdge) => {
+        halt();
+        side.set(swipeEdge === "right" ? -1 : 1);
+        if (!reducedMotion()) back.set(Math.min(1, Math.max(0, progress)));
+      },
+      onCancel: () => {
+        halt();
+        if (reducedMotion()) back.set(0);
+        else settle = animate(back, 0, phoneSnappy);
+      },
+      onCommit: () => {
+        halt();
+        if (reducedMotion()) return;
+        const controls = animate(back, 1, SPRING_GESTURE);
+        settle = controls;
+        controls.then(() => {
+          if (settle !== controls) return;
+          settle = null;
+          back.set(0);
+        });
+      },
+    })
+      .then((off) => {
+        if (disposed) off();
+        else stop = off;
+      })
+      .catch(() => {});
+
+    return () => {
+      disposed = true;
+      halt();
+      stop?.();
+      back.set(0);
+    };
+  }, [enabled, back, side]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -86,5 +145,5 @@ export function useEdgeBack({ enabled, onBack }: { enabled: boolean; onBack: () 
     };
   }, [enabled, x]);
 
-  return { x, shade, shadow };
+  return { x: offset, shade, shadow, scale, radius };
 }

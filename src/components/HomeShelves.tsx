@@ -64,7 +64,7 @@ function ShelfButton({ item }: { item: HomeItem }) {
     case "album":
       return (
         <button type="button" className={cardClass} onClick={() => navigate({ name: "album", param: item.id })}>
-          <CoverArt src={item.thumb} />
+          <CoverArt src={item.thumb} layoutId={`cover:album:${item.id}`} />
           <CoverCardLabel title={item.title} subtitle={item.artist} />
         </button>
       );
@@ -78,7 +78,7 @@ function ShelfButton({ item }: { item: HomeItem }) {
     case "playlist":
       return (
         <button type="button" className={cardClass} onClick={() => navigate({ name: "ytplaylist", param: item.id })}>
-          <CoverArt src={item.thumb} />
+          <CoverArt src={item.thumb} layoutId={`cover:ytplaylist:${item.id}`} />
           <CoverCardLabel title={item.title} subtitle={item.subtitle} />
         </button>
       );

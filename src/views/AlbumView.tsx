@@ -324,7 +324,7 @@ function MoreByArtist({ albumId, artistId }: { albumId: string; artistId: string
             ? [
                 <PhoneShelfCard
                   key={item.id}
-                  art={<PhoneShelfArt src={item.thumb} variant="large" />}
+                  art={<PhoneShelfArt src={item.thumb} variant="large" layoutId={`cover:album:${item.id}`} />}
                   variant="large"
                   title={item.title}
                   subtitle={item.artist}

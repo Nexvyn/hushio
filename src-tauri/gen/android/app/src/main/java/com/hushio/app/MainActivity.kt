@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
+import com.hushio.player.BackGesture
 import com.hushio.player.LaunchIntents
 import com.hushio.player.PendingLaunch
 import com.hushio.player.PlayerEvents
@@ -13,6 +14,7 @@ class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
+    BackGesture.install(this)
     if (savedInstanceState == null) accept(intent, warm = false)
   }
 

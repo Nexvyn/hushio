@@ -1,19 +1,23 @@
 import { useState } from "react";
+import { motion } from "motion/react";
 import { Play } from "@phosphor-icons/react";
 import { Icon } from "./Icon";
+import { DURATION_MS, phoneTween, reducedMotion } from "../lib/motion";
 
 const cover = "outline outline-1 -outline-offset-1 outline-black/10 [[data-theme=dark]_&]:outline-white/10";
 
-export function Cover({ src, round = false }: { src: string | null; round?: boolean }) {
+export function Cover({ src, round = false, layoutId }: { src: string | null; round?: boolean; layoutId?: string }) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
   const shape = round ? "rounded-full" : "rounded-art";
   if (!src || src === failedSrc) return <span aria-hidden="true" className={`block aspect-square w-full ${shape} bg-wash`} />;
   return (
-    <img
-      ref={(node) => {
+    <motion.img
+      ref={(node: HTMLImageElement | null) => {
         if (node?.complete && node.naturalWidth > 0) setLoadedSrc(src);
       }}
+      layoutId={reducedMotion() ? undefined : layoutId}
+      transition={{ layout: phoneTween(DURATION_MS.roll) }}
       src={src}
       alt=""
       loading="lazy"
@@ -37,10 +41,10 @@ export function CoverPlay() {
   );
 }
 
-export function CoverArt({ src, round = false }: { src: string | null; round?: boolean }) {
+export function CoverArt({ src, round = false, layoutId }: { src: string | null; round?: boolean; layoutId?: string }) {
   return (
     <span className="relative block">
-      <Cover src={src} round={round} />
+      <Cover src={src} round={round} layoutId={layoutId} />
       {!round && <CoverPlay />}
     </span>
   );

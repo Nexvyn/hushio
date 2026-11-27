@@ -77,6 +77,7 @@ export function PhoneHeader({
   const tone = "text-ink-1";
   const dim = "text-ink-2";
   const topGap = onBack ? "" : "mt-2 ";
+  const morph = Boolean(sharedArtworkId) && !reducedMotion();
 
   return (
     <header
@@ -106,21 +107,28 @@ export function PhoneHeader({
           <PhoneIcon icon={icon ?? MusicNote} />
         </span>
       )}
-      <h1
-        id={titleId}
-        title={titleTooltip}
-        className={`mt-4 line-clamp-2 max-w-full break-words font-title text-phone-page-title ${tone}`}
+      <motion.div
+        initial={morph ? { opacity: 0 } : false}
+        animate={{ opacity: 1 }}
+        transition={{ duration: MS_FADE / 1000, ease: EASE_OUT, delay: morph ? DURATION_MS.roll / 1000 : 0 }}
+        className="flex w-full min-w-0 flex-col items-center"
       >
-        {onEdit ? (
-          <button type="button" onClick={onEdit} className="max-w-full text-center">
-            {title}
-          </button>
-        ) : (
-          title
-        )}
-      </h1>
-      {description && <p className={`mt-1.5 line-clamp-3 max-w-full break-words text-phone-meta ${dim}`}>{description}</p>}
-      {meta && <div className={`mt-1 text-phone-meta tabular-nums ${dim}`}>{meta}</div>}
+        <h1
+          id={titleId}
+          title={titleTooltip}
+          className={`mt-4 line-clamp-2 max-w-full break-words font-title text-phone-page-title ${tone}`}
+        >
+          {onEdit ? (
+            <button type="button" onClick={onEdit} className="max-w-full text-center">
+              {title}
+            </button>
+          ) : (
+            title
+          )}
+        </h1>
+        {description && <p className={`mt-1.5 line-clamp-3 max-w-full break-words text-phone-meta ${dim}`}>{description}</p>}
+        {meta && <div className={`mt-1 text-phone-meta tabular-nums ${dim}`}>{meta}</div>}
+      </motion.div>
       {actions && <div className="mt-5 flex w-full min-w-0 items-center gap-3">{actions}</div>}
     </header>
   );

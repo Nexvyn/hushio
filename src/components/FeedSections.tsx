@@ -326,7 +326,7 @@ function phoneCardOf(item: SectionItem, items: readonly SectionItem[], index: nu
     case "album":
       return {
         key,
-        art: <PhoneShelfArt src={item.album.thumb} variant={variant} />,
+        art: <PhoneShelfArt src={item.album.thumb} variant={variant} layoutId={`cover:album:${item.album.id}`} />,
         title: item.album.title,
         subtitle: item.album.artist,
         menu: () => browseMenuItems({ type: "album", browseId: item.album.id, title: item.album.title, subtitle: item.album.artist, thumb: item.album.thumb }),
@@ -344,7 +344,7 @@ function phoneCardOf(item: SectionItem, items: readonly SectionItem[], index: nu
     case "playlist":
       return {
         key,
-        art: <PhoneShelfArt src={item.playlist.thumb} variant={variant} />,
+        art: <PhoneShelfArt src={item.playlist.thumb} variant={variant} layoutId={`cover:ytplaylist:${item.playlist.id}`} />,
         title: item.playlist.title,
         subtitle: item.playlist.subtitle,
         menu: () => browseMenuItems({ type: "playlist", browseId: item.playlist.id, title: item.playlist.title, subtitle: item.playlist.subtitle, thumb: item.playlist.thumb }),
@@ -385,7 +385,7 @@ function PhoneBody({ section, variant }: { section: FeedSection; variant: ShelfV
     section.layout === "crate" && section.playlists
       ? section.playlists.map((playlist) => ({
           key: playlist.id,
-          art: <PhoneShelfArt src={playlist.thumb} variant={variant} />,
+          art: <PhoneShelfArt src={playlist.thumb} variant={variant} layoutId={`cover:ytplaylist:${playlist.id}`} />,
           title: playlist.title,
           subtitle: playlist.subtitle,
           onActivate: () => navigate({ name: "ytplaylist", param: playlist.id }),

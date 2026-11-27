@@ -30,4 +30,10 @@ describe("PhoneHeader", () => {
     render(<PhoneHeader title="Mix" artwork="https://example.test/cover.jpg" />);
     expect(document.documentElement.style.getPropertyValue("--phone-status-bg")).toBe("");
   });
+
+  it("holds the title until the shared cover has morphed in", () => {
+    render(<PhoneHeader title="Mix" artwork="https://example.test/cover.jpg" sharedArtworkId="cover:album:1" />);
+    const block = screen.getByRole("heading", { name: "Mix" }).parentElement as HTMLElement;
+    expect(block.style.opacity).toBe("0");
+  });
 });

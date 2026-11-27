@@ -56,12 +56,13 @@ export function PhoneShelfRow({ children, variant = "default" }: { children: Rea
   );
 }
 
-export function PhoneShelfArt({ src, variant = "default", round = false }: { src: string | null; variant?: ShelfVariant; round?: boolean }) {
+export function PhoneShelfArt({ src, variant = "default", round = false, layoutId }: { src: string | null; variant?: ShelfVariant; round?: boolean; layoutId?: string }) {
   const compact = variant === "compact";
   return (
     <PhoneArt
       src={thumbArtwork(src, ART_SIZE[variant]) || null}
       round={round}
+      layoutId={layoutId}
       radius="rounded-art"
       className={compact ? "block size-14 shrink-0" : "block aspect-square w-full"}
     />

@@ -65,7 +65,7 @@ function AlbumCard({ album }: { album: ChartShelf["albums"][number] }) {
       onClick={() => navigate({ name: "album", param: album.id })}
       className={`w-[160px] ${coverCardClass} ${focusRing}`}
     >
-      <CoverArt src={album.thumb} />
+      <CoverArt src={album.thumb} layoutId={`cover:album:${album.id}`} />
       <CoverCardLabel title={album.title} subtitle={album.artist} />
     </button>
   );
