@@ -1,5 +1,5 @@
 const DECELERATION_NORMAL = 0.998;
-const RUBBER_BAND_C = 0.55;
+export const RUBBER_BAND_C = 0.55;
 
 export function projectDistance(velocityPxPerS: number): number {
   return ((velocityPxPerS / 1000) * DECELERATION_NORMAL) / (1 - DECELERATION_NORMAL);

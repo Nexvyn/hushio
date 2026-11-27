@@ -4,14 +4,35 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
+import android.provider.Settings
+import android.view.animation.PathInterpolator
 import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.hushio.player.BackGesture
+import com.hushio.player.LaunchGate
 import com.hushio.player.LaunchIntents
 import com.hushio.player.PendingLaunch
 import com.hushio.player.PlayerEvents
 
 class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
+    val startedAt = SystemClock.uptimeMillis()
+    val splash = installSplashScreen()
+    splash.setKeepOnScreenCondition { LaunchGate.keepOnScreen(startedAt, SystemClock.uptimeMillis()) }
+    splash.setOnExitAnimationListener { provider ->
+      val scale = Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+      if (scale == 0f) {
+        provider.remove()
+      } else {
+        provider.view.animate()
+          .alpha(0f)
+          .setDuration(175)
+          .setInterpolator(PathInterpolator(0.3f, 0f, 1f, 1f))
+          .withEndAction { provider.remove() }
+          .start()
+      }
+    }
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
     BackGesture.install(this)

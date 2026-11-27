@@ -281,6 +281,35 @@ export function setBackGestureEnabled(enabled: boolean): Promise<void> {
   return playerCall<void>("set_back_gesture_enabled", { enabled });
 }
 
+export function playerAppReady(): Promise<void> {
+  return playerCall<void>("player_app_ready");
+}
+
+export type NativeTabBarState = {
+  active: string | null;
+  visible: boolean;
+  rounded: boolean;
+  surface: string;
+  ink1: string;
+  ink2: string;
+  labels: string[];
+};
+
+export function playerTabBarSet(state: NativeTabBarState): Promise<void> {
+  return playerCall<void>("player_tab_bar_set", state);
+}
+
+export async function listenNativeTabBar(handlers: {
+  onPress: (press: { id: string; again: boolean }) => void;
+  onLongPress: () => void;
+}): Promise<() => void> {
+  const stops = await Promise.all([
+    listenPlayerEvent<{ id: string; again: boolean }>("tab-press", handlers.onPress),
+    listenPlayerEvent<{ id: string }>("tab-long-press", () => handlers.onLongPress()),
+  ]);
+  return () => stops.forEach((stop) => stop());
+}
+
 export type CastStatus = { connected: boolean; playing: boolean; positionMs: number };
 
 export type CastLoad = {

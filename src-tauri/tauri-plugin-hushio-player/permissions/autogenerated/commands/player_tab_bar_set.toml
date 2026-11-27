@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-player-tab-bar-set"
+description = "Enables the player_tab_bar_set command without any pre-configured scope."
+commands.allow = ["player_tab_bar_set"]
+
+[[permission]]
+identifier = "deny-player-tab-bar-set"
+description = "Denies the player_tab_bar_set command without any pre-configured scope."
+commands.deny = ["player_tab_bar_set"]

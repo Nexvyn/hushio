@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-player-app-ready"
+description = "Enables the player_app_ready command without any pre-configured scope."
+commands.allow = ["player_app_ready"]
+
+[[permission]]
+identifier = "deny-player-app-ready"
+description = "Denies the player_app_ready command without any pre-configured scope."
+commands.deny = ["player_app_ready"]

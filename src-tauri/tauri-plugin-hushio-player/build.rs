@@ -26,6 +26,8 @@ const COMMANDS: &[&str] = &[
     "player_keep_awake",
     "player_set_system_bars",
     "set_back_gesture_enabled",
+    "player_tab_bar_set",
+    "player_app_ready",
     "player_take_launch",
     "cast_open",
     "cast_load",

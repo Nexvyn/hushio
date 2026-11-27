@@ -5,7 +5,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import "@fontsource-variable/inter";
 import "@fontsource-variable/instrument-sans";
 import "./index.css";
-import { audioOutputState, listenAudioOutputChanged, platform, showMainWindow } from "./lib/bridge";
+import { audioOutputState, listenAudioOutputChanged, platform, playerAppReady, showMainWindow } from "./lib/bridge";
 import { pause, setBlendHooks } from "./lib/audio";
 import { audioOutputWatch, startOutputWatch } from "./lib/outputDevices";
 import { startMediaSession } from "./lib/mediaSession";
@@ -86,6 +86,9 @@ function mountMain() {
   );
 
   requestAnimationFrame(() => requestAnimationFrame(() => void showMainWindow()));
+  if (platform === "android") {
+    requestAnimationFrame(() => requestAnimationFrame(() => void playerAppReady().catch(() => {})));
+  }
 }
 
 if (isPip) mountPip();

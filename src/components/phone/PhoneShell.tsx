@@ -15,11 +15,15 @@ import { useSheetOpen } from "./phoneOverlays";
 import { pageCardOf, sheetProgress, watchSheetInterruptions } from "./sheetTravel";
 import { TabBar } from "./TabBar";
 import { useEdgeBack } from "./useEdgeBack";
+import { useNativeTabBar } from "./useNativeTabBar";
+import { useOverscrollStretch } from "./useOverscrollStretch";
+import { topStretchFor } from "./overscrollStretch";
 import { CurrentView } from "../../views/CurrentView";
+import { platform } from "../../lib/bridge";
 import { DURATION_MS, EASE_IN, EASE_OUT, PHONE_MS, fade, phoneTween, reducedMotion } from "../../lib/motion";
 import { navDirection, type NavDirection, type NavSnapshot } from "../../lib/navDirection";
 import { useScrimMounted } from "../../lib/useScrimMounted";
-import { INSET_TOP, INSET_BOTTOM, phoneBottomPad, tabOfRoot } from "../../lib/phoneNav";
+import { INSET_TOP, INSET_BOTTOM, TAB_BAR_DP, phoneBottomPad, tabOfRoot } from "../../lib/phoneNav";
 import { currentTrack, usePlayer } from "../../stores/player";
 import { useNavigation } from "../../stores/navigation";
 import { useUI } from "../../stores/ui";
@@ -89,6 +93,11 @@ export function PhoneShell() {
   const direction = last.current.direction;
 
   useEffect(watchSheetInterruptions, []);
+
+  const tabActive = view.name === "settings" ? null : tabOfRoot(view) ?? tab;
+  const nativeTabs = platform === "android";
+  useNativeTabBar({ enabled: nativeTabs, active: tabActive });
+  useOverscrollStretch("view-scroll", { top: topStretchFor(view.name), bottom: true });
 
   useLayoutEffect(() => {
     if (pendingScroll === null) return;
@@ -166,7 +175,11 @@ export function PhoneShell() {
           className={`absolute inset-x-0 bottom-0 z-20 overflow-hidden rounded-t-[24px] bg-surface shadow-[0_-4px_24px_rgb(0_0_0/0.12)] ${searchFocused ? "pointer-events-none" : ""}`}
         >
           <MiniPlayer />
-          <TabBar activeTab={view.name === "settings" ? null : tabOfRoot(view) ?? tab} />
+          {nativeTabs ? (
+            <div aria-hidden="true" className="shrink-0" style={{ height: TAB_BAR_DP }} />
+          ) : (
+            <TabBar activeTab={tabActive} />
+          )}
           <div aria-hidden="true" className="bg-surface" style={{ height: INSET_BOTTOM }} />
         </motion.div>
         {scrimOn && <motion.div aria-hidden="true" data-page-shade className="pointer-events-none absolute inset-0 z-30 bg-black will-change-[opacity]" style={{ opacity: pageShade }} />}

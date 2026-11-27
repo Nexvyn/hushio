@@ -9,15 +9,7 @@ import { motion } from "motion/react";
 import { PHONE_MS, gate, phoneTween, reducedMotion } from "../../lib/motion";
 import { LongPress } from "../../lib/longPress";
 import { LONG_HOLD_MS } from "../../lib/phoneGestures";
-
-function focusPhoneSearch(attempts = 12): void {
-  const field = document.getElementById("phone-search");
-  if (field) {
-    field.focus();
-    return;
-  }
-  if (attempts > 0) requestAnimationFrame(() => focusPhoneSearch(attempts - 1));
-}
+import { focusPhoneSearch } from "./focusPhoneSearch";
 
 const ICONS: Record<TabId, PhosphorIcon> = {
   home: House,

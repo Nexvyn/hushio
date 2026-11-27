@@ -28,6 +28,8 @@ permissions = [
     "allow-player-keep-awake",
     "allow-player-set-system-bars",
     "allow-set-back-gesture-enabled",
+    "allow-player-tab-bar-set",
+    "allow-player-app-ready",
     "allow-player-take-launch",
     "allow-cast-open",
     "allow-cast-load",

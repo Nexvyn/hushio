@@ -82,6 +82,29 @@ class PlayerPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
+    fun playerAppReady(invoke: Invoke) {
+        LaunchGate.markReady()
+        invoke.resolve()
+    }
+
+    @Command
+    fun playerTabBarSet(invoke: Invoke) {
+        val args = invoke.getArgs()
+        val labels = args.getJSONArray("labels")
+        val snapshot = TabBarState.Snapshot(
+            active = if (args.isNull("active")) null else args.getString("active"),
+            visible = args.optBoolean("visible", false),
+            rounded = args.optBoolean("rounded", false),
+            surface = args.getString("surface"),
+            ink1 = args.getString("ink1"),
+            ink2 = args.getString("ink2"),
+            labels = List(labels.length()) { labels.getString(it) },
+        )
+        activity.runOnUiThread { NativeTabBar.apply(activity, snapshot) }
+        invoke.resolve()
+    }
+
+    @Command
     fun playerKeepAwake(invoke: Invoke) {
         val on = invoke.getArgs().optBoolean("on", false)
         activity.runOnUiThread {
