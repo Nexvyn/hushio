@@ -21,9 +21,6 @@ const GROOVE_WAVE_SPEED_PX_S = 28;
 const GROOVE_BREATH_PERIOD_S = 3.2;
 export const GROOVE_BACK_LAYER_ALPHA = 0.45;
 export const GROOVE_HIT_MIN_PX = 28;
-const GROOVE_WAVE_EASE_S = 0.4;
-export const GROOVE_WAVE_FRAME_MS = 33;
-export const GROOVE_WAVE_MAX_DT_S = 0.1;
 
 export type LyricPoint = { time: number; text: string };
 
@@ -81,12 +78,6 @@ export function hillOffset(
 
 export function grooveBoxHeight(size: GrooveSize): number {
   return size.hill + size.knob;
-}
-
-export function stepWaveLevel(level: number, target: number, dt: number): number {
-  const step = dt / GROOVE_WAVE_EASE_S;
-  if (target > level) return Math.min(target, level + step);
-  return Math.max(target, level - step);
 }
 
 export function clamp01(value: number): number {

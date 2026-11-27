@@ -58,7 +58,7 @@ export function VirtualList<T>({ label, items, rowHeight, getKey, renderRow }: V
     return (
       <ul aria-label={label} className="m-0 list-none p-0">
         {items.map((item, index) => (
-          <li key={getKey(item, index)} style={{ height: rowHeight }}>
+          <li key={getKey(item, index)} data-row-key={getKey(item, index)} style={{ height: rowHeight }}>
             {renderRow(item, index)}
           </li>
         ))}
@@ -79,6 +79,7 @@ export function VirtualList<T>({ label, items, rowHeight, getKey, renderRow }: V
         return (
           <li
             key={getKey(item, index)}
+            data-row-key={getKey(item, index)}
             className="absolute inset-x-0"
             style={{ top: index * rowHeight, height: rowHeight }}
           >

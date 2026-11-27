@@ -3,7 +3,6 @@ import type { Transition } from "motion/react";
 export const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 export const EASE_IN: [number, number, number, number] = [0.4, 0, 1, 1];
 export const EASE_IN_OUT: [number, number, number, number] = [0.42, 0, 0.58, 1];
-export const EASE_MOVE = EASE_IN_OUT;
 
 export const DURATION_MS = {
   instant: 100,
@@ -14,7 +13,6 @@ export const DURATION_MS = {
   swap: 200,
   reading: 150,
   settle: 400,
-  shake: 500,
   eq: 420,
   sheen: 500,
   spin: 850,
@@ -28,11 +26,7 @@ export const DURATION_MS = {
   rollOut: 280,
   dialogIn: 225,
   dialogOut: 160,
-  gooOut: 160,
-  gooFade: 120,
-  gooDelay: 60,
   canvasFade: 300,
-  lyric: 400,
   lyricFocus: 160,
   lyricFocusReduced: 120,
   lyricWordLift: 160,
@@ -52,16 +46,10 @@ export const MOTION_MAX_MS = 500;
 export const SPRING_SHEET: Transition = { type: "spring", stiffness: 400, damping: 40, mass: 1 };
 export const SPRING_GESTURE: Transition = { type: "spring", stiffness: 300, damping: 35, mass: 1 };
 export const SPRING_CONTROL: Transition = { type: "spring", stiffness: 440, damping: 42, mass: 1 };
-export const SPRING_NAV: Transition = { type: "spring", stiffness: 300, damping: 34, mass: 1 };
-export const MS_PRESS_IN = 120;
 export const MS_PRESS_OUT = 160;
-export const MS_ICON = 140;
 export const MS_FADE = 120;
-export const MS_POPOVER_IN = 160;
-export const MS_POPOVER_OUT = 120;
 export const MS_IMAGE = 140;
 
-export const INTRO_HOLD_MS = 800;
 export const INTRO_READY_CAP_MS = 6000;
 export const INTRO_POLL_MS = 50;
 
@@ -106,37 +94,9 @@ export function reducedMotion(): boolean {
   return document.documentElement.classList.contains("reduce-motion") || systemReducesMotion();
 }
 
-export const INTRO_TIMING = {
-  popDelay: 0.12,
-  popDuration: 0.72,
-  groundDelay: 0.84,
-  groundDuration: 0.16,
-  settleDelay: 2.05,
-  settleDuration: 0.65,
-  slideStart: 152.75,
-  slideMid: 76.375,
-  letterStart: 2.35,
-  letterStep: 0.05,
-  letterDuration: 0.6,
-  breathDelay: 3.3,
-  breathDuration: 1.8,
-  oneShotCapMs: 4000,
-  flightDuration: 0.7,
-  wordGap: 14,
-  wordWidth: 268.5,
-} as const;
-
-export const INTRO_POP_EASE = EASE_OUT;
-export const INTRO_LETTER_EASE: [number, number, number, number] = [0.33, 1, 0.68, 1];
-export const INTRO_SETTLE_EASES: [[number, number, number, number], [number, number, number, number]] = [
-  [0.32, 0, 0.67, 0],
-  [0.33, 1, 0.68, 1],
-];
-export const INTRO_FLIGHT_EASE: [number, number, number, number] = [0.65, 0, 0.35, 1];
 
 export const phoneSnappy: Transition = SPRING_CONTROL;
 export const phoneSmooth: Transition = { type: "spring", stiffness: 300, damping: 35, mass: 1 };
-export const phoneBouncy: Transition = { type: "spring", stiffness: 380, damping: 29, mass: 1 };
 export const phoneShared: Transition = SPRING_GESTURE;
 export const nowPlayingEnter = phoneShared;
 
@@ -144,15 +104,11 @@ export const PHONE_MS = {
   scrim: 160,
   tab: 150,
   navFade: 120,
-  artIn: 180,
   artOut: 120,
-  text: 150,
-  icon: 160,
   press: 120,
   likeHold: 290,
   likeFade: 160,
   likeBeat: 120,
-  lyricsHint: 400,
 } as const;
 
 export function phoneTween(ms: number): Transition {
@@ -167,18 +123,16 @@ export const toastStack: Transition = { type: "spring", stiffness: 320, damping:
 export const toastOut: Transition = { duration: DURATION_MS.toastOut / 1000, ease: EASE_IN };
 export const progressFill: Transition = { duration: DURATION_MS.progress / 1000, ease: EASE_OUT };
 
-export const sheetSpring: Transition = { type: "spring", stiffness: 195, damping: 27.93, mass: 1, restDelta: 0.5 };
-export const nowPlayingSpring: Transition = SPRING_SHEET;
 export const artPauseSpring: Transition = { type: "spring", stiffness: 300, damping: 33, mass: 1 };
 export const scrubSpring: Transition = { type: "spring", stiffness: 400, damping: 36, mass: 1 };
 export const coverSnapSpring: Transition = { type: "spring", stiffness: 400, damping: 40, mass: 1 };
 export const QUEUE_EASE: [number, number, number, number] = EASE_IN_OUT;
-export const LYRIC_EASE = "cubic-bezier(0.41, 0, 0.12, 0.99)";
 export const pressIn: Transition = { duration: PHONE_MS.press / 1000, ease: EASE_OUT };
 
 export const MARQUEE = { pxPerS: 26, gapPx: 48, restS: 5, artistDelayS: 3 } as const;
 
-const PRESS_SCALE = 0.97;
+export const PRESS_SCALE = 0.97;
+
 export function pressTap(reduced: boolean) {
   return reduced ? undefined : { scale: PRESS_SCALE, transition: pressIn };
 }

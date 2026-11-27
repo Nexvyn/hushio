@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const { haptic } = vi.hoisted(() => ({ haptic: vi.fn() }));
 
@@ -14,6 +14,8 @@ vi.mock("../../lib/persist", () => ({
 }));
 
 import { PhoneQueueList } from "./PhoneQueueSheet";
+import { PHONE_ROW_DP } from "./PhoneTrackRow";
+import { queueEntryKeys } from "../../lib/queueKeys";
 import { usePlayer } from "../../stores/player";
 import { useSettings } from "../../stores/settings";
 import type { Track } from "../../types";
@@ -168,5 +170,62 @@ describe("PhoneQueueList sections and modes", () => {
     expect(useSettings.getState().autoplay).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "Enable autoplay" }));
     expect(useSettings.getState().autoplay).toBe(true);
+  });
+});
+
+describe("PhoneQueueList removal motion", () => {
+  type Call = { text: string; frames: Keyframe[] };
+  let calls: Call[] = [];
+  const originalOffsetTop = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetTop");
+
+  beforeEach(() => {
+    calls = [];
+    usePlayer.setState({ queue: [first, second, third], index: 0 });
+    Object.defineProperty(HTMLElement.prototype, "offsetTop", {
+      configurable: true,
+      get(this: HTMLElement) {
+        const parent = this.parentElement;
+        return parent ? Array.from(parent.children).indexOf(this) * PHONE_ROW_DP : 0;
+      },
+    });
+    Object.defineProperty(HTMLElement.prototype, "animate", {
+      configurable: true,
+      writable: true,
+      value(this: HTMLElement, frames: Keyframe[]) {
+        calls.push({ text: this.textContent ?? "", frames });
+        return { cancel() {}, finished: Promise.resolve() } as unknown as Animation;
+      },
+    });
+  });
+
+  afterEach(() => {
+    document.documentElement.classList.remove("reduce-motion");
+    delete (HTMLElement.prototype as Partial<HTMLElement>).animate;
+    if (originalOffsetTop) Object.defineProperty(HTMLElement.prototype, "offsetTop", originalOffsetTop);
+  });
+
+  it("fades the removed up next row out and slides the rows below it up", () => {
+    render(<PhoneQueueList />);
+    calls = [];
+    act(() => usePlayer.getState().removeAt(1));
+    const removed = calls.find((call) => call.text.includes("Second"));
+    expect(removed?.frames).toEqual([{ opacity: 1 }, { opacity: 0 }]);
+    const moved = calls.find((call) => call.text.includes("Third"));
+    expect(moved?.frames[0]).toEqual({ transform: `translateY(${PHONE_ROW_DP}px)` });
+  });
+
+  it("skips the removal motion under Reduce Motion", () => {
+    document.documentElement.classList.add("reduce-motion");
+    render(<PhoneQueueList />);
+    calls = [];
+    act(() => usePlayer.getState().removeAt(1));
+    expect(calls).toEqual([]);
+  });
+
+  it("keys each up next row by its queue entry", () => {
+    const { container } = render(<PhoneQueueList />);
+    const keys = queueEntryKeys([first, second, third]);
+    const rows = Array.from(container.querySelectorAll<HTMLElement>("[data-row-key]")).map((row) => row.dataset.rowKey);
+    expect(rows).toEqual([keys[1], keys[2]]);
   });
 });

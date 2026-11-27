@@ -8,25 +8,12 @@ const LAST_WORD_FLOOR_S = 1;
 const WORD_START_TOLERANCE_S = 0.25;
 const WORD_END_TOLERANCE_S = 0.5;
 const MIN_WORD_S = 0.04;
-const DEPTH_DISTANCE_CAP = 4;
-
-const DEPTH_OPACITY = [1, 0.5, 0.3, 0.18, 0.1];
-const DEPTH_BLUR_PX = [0, 1.2, 2.2, 3.2, 4];
-const DEPTH_SCALE = [1, 0.975, 0.955, 0.94, 0.93];
-const SUNG_OPACITY_FACTOR = 0.7;
-
 const WRAPPED_LINE = /^\(.*\)$/;
 const CREDIT_LINE = /^[^:：]{1,40}[:：]\s*\S/;
 const CREDIT_WORDS = /\b(written|composed|lyrics?|produced|music\s+by)\b|[:：]/i;
 const SECTION_LABEL = /^\[[^\]]+\]$/;
 
 export type WordSpan = { start: number; end: number };
-
-export type DepthStyle = {
-  opacity: number;
-  filter?: string;
-  transform: string;
-};
 
 function isOpeningCredit(line: SyncedLyricLine): boolean {
   const text = line.text.trim();
@@ -98,12 +85,3 @@ export function lyricFalloff(distance: number): { opacity: number; blurPx: numbe
   return { opacity: FALLOFF_OPACITY[step], blurPx: FALLOFF_BLUR_PX[step] };
 }
 
-export function depthStyle(distance: number, past: boolean, blur: boolean): DepthStyle {
-  const d = Math.min(Math.abs(distance), DEPTH_DISTANCE_CAP);
-  const blurPx = blur ? DEPTH_BLUR_PX[d] : 0;
-  return {
-    opacity: DEPTH_OPACITY[d] * (past && d > 0 ? SUNG_OPACITY_FACTOR : 1),
-    filter: d > 0 && blurPx > 0 ? `blur(${blurPx}px)` : undefined,
-    transform: `scale(${DEPTH_SCALE[d]})`,
-  };
-}

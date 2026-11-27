@@ -338,11 +338,11 @@ describe("TopBar search dropdown", () => {
 
   afterEach(cleanup);
 
-  it("defines the goo filter exactly once in the app source", () => {
+  it("defines no goo filter in the app source", () => {
     const definitions = Object.entries(appSources)
       .filter(([path]) => !path.includes(".test."))
       .filter(([, source]) => source.includes('GOO_FILTER_ID = "goo"'));
-    expect(definitions.length).toBe(1);
+    expect(definitions.length).toBe(0);
   });
 
   it("renders the dropdown without a goo layer and with its rows in a panel", async () => {

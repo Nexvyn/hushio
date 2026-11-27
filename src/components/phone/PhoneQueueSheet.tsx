@@ -6,6 +6,7 @@ import { PhoneIcon } from "./PhoneIcon";
 import { VirtualList, scrollerOf } from "../VirtualList";
 import { autoScrollStep, dropIndex, slideOffset } from "../../lib/dragReorder";
 import { haptic } from "../../lib/haptics";
+import { useFlip } from "../../lib/useFlip";
 import { DURATION_MS, EASE_IN_OUT, PHONE_MS, SPRING_CONTROL, gate, phoneTween, reducedMotion } from "../../lib/motion";
 import { nowPlayingSourceName } from "../../lib/nowPlayingSource";
 import { queueEntryKeys } from "../../lib/queueKeys";
@@ -108,6 +109,8 @@ export function PhoneQueueList() {
   const [showPrevious, setShowPrevious] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const session = useRef<Session | null>(null);
+  const upNextRef = useRef<HTMLDivElement>(null);
+  const selfMove = useRef(false);
   const dragging = drag !== null;
   const keys = useMemo(() => queueEntryKeys(queue), [queue]);
   const reduced = reducedMotion();
@@ -116,6 +119,11 @@ export function PhoneQueueList() {
   const previous = queue.slice(0, index).map((track, at) => ({ track, at }));
   const upcoming = queue.slice(index + 1, autoplayStart).map((track, offset) => ({ track, at: index + 1 + offset }));
   const autoplayItems = queue.slice(autoplayStart).map((track, offset) => ({ track, at: autoplayStart + offset }));
+  useFlip(upNextRef, upcoming.map((item) => keys[item.at]).join("\n"), () => {
+    const moved = selfMove.current;
+    selfMove.current = false;
+    return moved;
+  });
   const current = queue[index];
   const sourceName = nowPlayingSourceName(playingFrom, current?.album ?? undefined, (id) => playlists.find((item) => item.id === id)?.name);
 
@@ -168,7 +176,10 @@ export function PhoneQueueList() {
         draggedRow.style.transform = "translateY(0px) scale(1.02)";
         void animate(draggedRow, { y: [distance, 0], scale: [1.02, 1], opacity: [0.96, 1] }, { ...SPRING_CONTROL, velocity: active.velocity });
       }
-      if (active.target !== active.from) moveUpcoming(active.from, active.target);
+      if (active.target !== active.from) {
+        selfMove.current = true;
+        moveUpcoming(active.from, active.target);
+      }
     }
     setDrag(null);
   };
@@ -268,6 +279,7 @@ export function PhoneQueueList() {
       {upcoming.length === 0 ? (
         <p className="px-4 py-3 text-body text-ink-2">Nothing up next</p>
       ) : (
+        <div ref={upNextRef}>
         <VirtualList
           label="Up next"
           items={upcoming}
@@ -296,6 +308,7 @@ export function PhoneQueueList() {
             />
           )}
         />
+        </div>
       )}
       {autoplayItems.length > 0 && (
         <>

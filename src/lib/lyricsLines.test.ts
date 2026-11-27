@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { SyncedLyricLine } from "./bridge";
 import {
   activeLineIndex,
-  depthStyle,
   lyricFalloff,
   isSectionLabel,
   resolveWordSpans,
@@ -161,28 +160,3 @@ describe("lyricFalloff", () => {
   });
 });
 
-describe("depthStyle", () => {
-  it("leaves the active line at full size and opacity", () => {
-    expect(depthStyle(0, false, true)).toEqual({ opacity: 1, filter: undefined, transform: "scale(1)" });
-  });
-
-  it("blurs lines away from the active line when blur is on", () => {
-    expect(depthStyle(2, false, true)).toEqual({ opacity: 0.3, filter: "blur(2.2px)", transform: "scale(0.955)" });
-  });
-
-  it("drops the blur when blur is off", () => {
-    expect(depthStyle(1, false, false)).toEqual({ opacity: 0.5, filter: undefined, transform: "scale(0.975)" });
-  });
-
-  it("dims lines already sung", () => {
-    expect(depthStyle(-1, true, false).opacity).toBeCloseTo(0.35, 5);
-    expect(depthStyle(1, false, false).opacity).toBe(0.5);
-  });
-
-  it("caps the distance at four lines", () => {
-    const capped = depthStyle(-10, true, true);
-    expect(capped.opacity).toBeCloseTo(0.07, 5);
-    expect(capped.filter).toBe("blur(4px)");
-    expect(capped.transform).toBe("scale(0.93)");
-  });
-});

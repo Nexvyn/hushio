@@ -4,7 +4,6 @@ import { getPlaybackPosition } from "../lib/audio";
 import type { LyricsResult, SyncedLyricLine, SyncedLyricWord } from "../lib/bridge";
 import {
   activeLineIndex,
-  depthStyle,
   isSectionLabel,
   lyricFalloff,
   resolveWordSpans,
@@ -28,7 +27,7 @@ const GLIDE_CANCEL_SCREENS = 1.5;
 const DEPTH_TRANSITION = "opacity var(--dur-quick) var(--ease-out)";
 const LINE_BLUR_PX = [0, 0, 1.5, 3];
 const DESKTOP_BLUR_MAX_PX = 2;
-const ART_TRANSITION = "opacity var(--dur-quick) var(--ease-out), color var(--dur-quick) var(--ease-out), transform var(--dur-quick) var(--ease-out)";
+const ART_TRANSITION = "opacity var(--dur-quick) var(--ease-out), color var(--dur-quick) var(--ease-out)";
 const BROWSE_DRAG_PX = 6;
 const CLICK_MOVE_PX = 5;
 const EDGE_MASK = "linear-gradient(to right, transparent 0%, black 24px, black calc(100% - 24px), transparent 100%)";
@@ -310,7 +309,6 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
     const focus = !browsing;
     const anchorIndex = activeIndex < 0 && (phone || !onArt) ? 0 : activeIndex;
     const distance = Math.abs(index - anchorIndex);
-    const depth = depthStyle(index - anchorIndex, index < anchorIndex, false);
     const active = index === activeIndex;
     const current = index === anchorIndex;
     const fall = lyricFalloff(index - anchorIndex);
@@ -380,9 +378,6 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
           ...(phone ? {} : motionStyle),
           opacity: phone ? undefined : opacity,
           filter: filters || undefined,
-          transform: phone
-            ? undefined
-            : onArt ? (active && focus && !still ? "scale(1.06)" : undefined) : focus ? depth.transform : undefined,
           maxWidth: phone ? "100%" : undefined,
           overflowWrap: phone ? "anywhere" : undefined,
           transformOrigin: rtl ? "right center" : "left center",

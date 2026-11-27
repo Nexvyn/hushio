@@ -11,7 +11,6 @@ import {
   ratioAt,
   rubberBandOffset,
   seekTarget,
-  stepWaveLevel,
 } from "./groove";
 
 describe("groove hills", () => {
@@ -98,12 +97,6 @@ describe("groove hills", () => {
     for (const size of Object.values(GROOVE_SIZES)) expect(size.hill).toBeLessThanOrEqual(size.bar * 2);
   });
 
-  it("eases the wave level toward its target without overshooting", () => {
-    expect(stepWaveLevel(0, 1, 0.1)).toBeCloseTo(0.25, 6);
-    expect(stepWaveLevel(0.9, 1, 1)).toBe(1);
-    expect(stepWaveLevel(1, 0, 0.1)).toBeCloseTo(0.75, 6);
-    expect(stepWaveLevel(0.05, 0, 1)).toBe(0);
-  });
 });
 
 describe("seed and ratios", () => {

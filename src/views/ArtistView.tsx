@@ -124,7 +124,7 @@ function PhoneShelfItem({ item }: { item: HomeItem }) {
     case "playlist":
       return (
         <PhoneShelfCard
-          art={<PhoneArt src={thumbArtwork(item.thumb, SHELF_ART) || null} radius="rounded-[10px]" />}
+          art={<PhoneArt src={thumbArtwork(item.thumb, SHELF_ART) || null} radius="rounded-[10px]" layoutId={`cover:ytplaylist:${item.id}`} />}
           title={item.title}
           subtitle={item.subtitle}
           menu={() => shelfMenu(item)}

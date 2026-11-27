@@ -5,7 +5,6 @@ const EDGE_PX = 48;
 import { DURATION_MS } from "./motion";
 
 export const SETTLE_MS = DURATION_MS.settle;
-export const SETTLE_EASE = "var(--ease-settle)";
 export const LIFT_SHADOW = "0 10px 28px rgba(0, 0, 0, 0.5)";
 
 export type Box = { top: number; height: number };

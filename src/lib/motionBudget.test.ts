@@ -37,8 +37,6 @@ const scriptSources = walk(SRC_DIR)
 
 const LITERAL_SECONDS = /\bduration\s*:\s*\d*\.\d+/;
 
-const LITERAL_SECONDS_TEMPORARY_ALLOW = new Set<string>();
-
 function keyframeBodies(css: string): string[] {
   const bodies: string[] = [];
   let index = css.indexOf("@keyframes");
@@ -110,7 +108,7 @@ describe("motion budget (F-285)", () => {
     }
   });
 
-  it("has no literal seconds outside the token file except the temporary allow-list", () => {
+  it("has no literal seconds outside the token file", () => {
     const hits: string[] = [];
     for (const { file, text } of scriptSources) {
       if (file === "lib/motion.ts") continue;
@@ -118,8 +116,7 @@ describe("motion budget (F-285)", () => {
         if (LITERAL_SECONDS.test(line)) hits.push(`${file}:${index + 1}`);
       });
     }
-    expect(hits.filter((hit) => !LITERAL_SECONDS_TEMPORARY_ALLOW.has(hit))).toEqual([]);
-    expect([...LITERAL_SECONDS_TEMPORARY_ALLOW].filter((entry) => !hits.includes(entry))).toEqual([]);
+    expect(hits).toEqual([]);
   });
 
   it("uses only known duration tokens in the keyframe file", () => {

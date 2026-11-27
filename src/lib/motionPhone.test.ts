@@ -5,7 +5,6 @@ import {
   fade,
   gate,
   instant,
-  phoneBouncy,
   phoneSmooth,
   phoneSnappy,
   phoneTransition,
@@ -13,13 +12,11 @@ import {
   pressIn,
   pressTap,
   scrubSpring,
-  sheetSpring,
   DURATION_MS,
   PHONE_MS,
-  EASE_OUT,
-  INTRO_POP_EASE,
   nowPlayingEnter,
   phoneShared,
+  PRESS_SCALE,
 } from "./motion";
 
 type Spring = { stiffness: number; damping: number; mass: number };
@@ -29,26 +26,20 @@ function dampingRatio(spring: Spring): number {
 }
 
 describe("phone spring presets", () => {
-  it("defines snappy, smooth and bouncy springs", () => {
+  it("defines snappy and smooth springs", () => {
     expect(phoneSnappy).toMatchObject({ type: "spring", stiffness: 440, damping: 42, mass: 1 });
     expect(phoneSmooth).toMatchObject({ type: "spring", stiffness: 300, damping: 35, mass: 1 });
-    expect(phoneBouncy).toMatchObject({ type: "spring", stiffness: 380, damping: 29, mass: 1 });
   });
 
   it("keeps UI and gesture release springs near critical damping, without overshoot", () => {
-    for (const spring of [phoneSnappy, phoneSmooth, sheetSpring, coverSnapSpring, artPauseSpring, scrubSpring]) {
+    for (const spring of [phoneSnappy, phoneSmooth, coverSnapSpring, artPauseSpring, scrubSpring]) {
       expect(dampingRatio(spring as Spring)).toBeGreaterThanOrEqual(0.85);
       expect(dampingRatio(spring as Spring)).toBeLessThanOrEqual(1.02);
     }
   });
 
-  it("keeps the bounce spring for taps that carry a little momentum", () => {
-    expect(dampingRatio(phoneBouncy as Spring)).toBeGreaterThan(0.7);
-    expect(dampingRatio(phoneBouncy as Spring)).toBeLessThan(0.85);
-  });
-
   it("uses the 120ms opacity fade as the reduced-motion variant of every preset", () => {
-    for (const spring of [phoneSnappy, phoneSmooth, phoneBouncy]) {
+    for (const spring of [phoneSnappy, phoneSmooth]) {
       expect(phoneTransition(true, spring)).toBe(fade);
       expect(phoneTransition(false, spring)).toBe(spring);
     }
@@ -56,8 +47,8 @@ describe("phone spring presets", () => {
   });
 
   it("gates a spring to an instant change under reduced motion", () => {
-    expect(gate(true, sheetSpring)).toBe(instant);
-    expect(gate(false, sheetSpring)).toBe(sheetSpring);
+    expect(gate(true, phoneSmooth)).toBe(instant);
+    expect(gate(false, phoneSmooth)).toBe(phoneSmooth);
   });
 
   it("builds tweens from milliseconds", () => {
@@ -73,7 +64,7 @@ describe("press feedback", () => {
   });
 
   it("uses one press scale for every tappable phone control", () => {
-    expect(pressTap(false)).toMatchObject({ scale: 0.97, transition: pressIn });
+    expect(pressTap(false)).toMatchObject({ scale: PRESS_SCALE, transition: pressIn });
   });
 
   it("drops the press effect under reduced motion", () => {
@@ -82,9 +73,8 @@ describe("press feedback", () => {
 });
 
 describe("shared motion aliases", () => {
-  it("reuses the shared spring for the now playing entrance and the ease for the intro pop", () => {
+  it("reuses the shared spring for the now playing entrance", () => {
     expect(nowPlayingEnter).toBe(phoneShared);
-    expect(INTRO_POP_EASE).toBe(EASE_OUT);
   });
 
   it("keeps the cover like burst near 450 ms in total", () => {

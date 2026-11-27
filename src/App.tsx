@@ -1,4 +1,3 @@
-import { GooFilter } from "./components/Goo";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { AnimatePresence, motion, useTransform } from "motion/react";
 import { EdgeFades } from "./components/EdgeFades";
@@ -131,7 +130,6 @@ export default function App() {
       spellCheck={false}
       className="app-shell flex h-screen select-none flex-col overflow-hidden bg-base text-ink-1"
     >
-      <GooFilter />
       <motion.div className="relative flex min-h-0 flex-1 flex-col" style={{ clipPath: rollClip }}>
         <TopBar />
 

@@ -544,7 +544,7 @@ describe("NowPlaying", () => {
     await screen.findByText("Opening line");
     const lines = Array.from(region()?.querySelectorAll<HTMLElement>("button[data-line]") ?? []);
     expect(lines).toHaveLength(4);
-    expect(lines[0].style.transform).toBe("scale(1.06)");
+    expect(lines[0].style.transform).toBe("");
     expect(lines[0].style.filter).toBe("");
     expect(lines[2].style.filter).toBe("");
     expect(lines[3].style.filter).toBe("blur(1px)");

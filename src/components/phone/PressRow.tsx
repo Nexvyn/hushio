@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode, type PointerEvent, type Mo
 import { motion } from "motion/react";
 import { haptic } from "../../lib/haptics";
 import { LongPress } from "../../lib/longPress";
-import { DURATION_MS, EASE_OUT, MS_PRESS_OUT, reducedMotion } from "../../lib/motion";
+import { DURATION_MS, EASE_OUT, MS_PRESS_OUT, PRESS_SCALE, reducedMotion } from "../../lib/motion";
 import { PRESS_SLOP_PX, pressMoved, type Point } from "../../lib/touchGesture";
 
 type PressRowProps = {
@@ -90,7 +90,7 @@ export function PressRow({ label, className = "", contentClassName = "", onPress
         }`}
       />
       <motion.span
-        animate={reduced ? { scale: 1 } : { scale: pressed ? 0.97 : 1 }}
+        animate={reduced ? { opacity: pressed ? 0.7 : 1 } : { scale: pressed ? PRESS_SCALE : 1 }}
         transition={{ duration: (pressed ? DURATION_MS.instant : MS_PRESS_OUT) / 1000, ease: EASE_OUT }}
         className={`relative flex w-full min-w-0 items-center ${contentClassName}`}
       >
