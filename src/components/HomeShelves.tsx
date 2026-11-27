@@ -102,7 +102,7 @@ export function HomeShelfView({ shelf, seeAll }: { shelf: HomeShelf; seeAll?: { 
   };
 
   return (
-    <section aria-labelledby={titleId} className="bt-scroll-reveal">
+    <section aria-labelledby={titleId}>
       <SectionHeader
         id={titleId}
         title={shelf.title}

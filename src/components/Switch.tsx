@@ -1,4 +1,6 @@
 import type { ButtonHTMLAttributes } from "react";
+import { motion } from "motion/react";
+import { SPRING_CONTROL, gate, reducedMotion } from "../lib/motion";
 
 type SwitchProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onChange"> & {
   checked: boolean;
@@ -17,11 +19,12 @@ export function Switch({ checked, onCheckedChange, className = "", ...props }: S
       {...props}
       onClick={() => onCheckedChange(!checked)}
     >
-      <span
+      <motion.span
         aria-hidden="true"
-        className={`block size-4 rounded-full motion-safe:transition-transform motion-safe:duration-swap [transition-timing-function:var(--ease-settle)] ${
-          checked ? "translate-x-5 bg-base" : "bg-white"
-        }`}
+        className={`block size-4 rounded-full ${checked ? "bg-base" : "bg-white"}`}
+        initial={false}
+        animate={{ x: checked ? 20 : 0 }}
+        transition={gate(reducedMotion(), SPRING_CONTROL)}
       />
     </button>
   );

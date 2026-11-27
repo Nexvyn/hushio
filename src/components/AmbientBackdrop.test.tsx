@@ -115,7 +115,7 @@ describe("AmbientBackdrop", () => {
   it("cross-fades a colour change and removes the old layer afterwards", async () => {
     const { container, rerender } = render(<AmbientBackdrop primary="10 20 30" src={SRC} />);
     rerender(<AmbientBackdrop primary="200 120 60" src={SRC} />);
-    expect(container.querySelector(".bt-ambient-in")).not.toBeNull();
+    expect((layers(container)[1] as HTMLElement).style.opacity).toBe("0");
     expect(layers(container)).toHaveLength(2);
     await waitFor(() => expect(layers(container)).toHaveLength(1), { timeout: 2000 });
   });
@@ -124,7 +124,7 @@ describe("AmbientBackdrop", () => {
     document.documentElement.classList.add("reduce-motion");
     const { container, rerender } = render(<AmbientBackdrop primary="10 20 30" src={SRC} />);
     rerender(<AmbientBackdrop primary="200 120 60" src={SRC} />);
-    expect(container.querySelector(".bt-ambient-in")).toBeNull();
+    expect((layers(container)[0] as HTMLElement).style.opacity).toBe("1");
     expect(layers(container)).toHaveLength(1);
   });
 });

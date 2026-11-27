@@ -1,5 +1,7 @@
 import { useT } from "../lib/i18n";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { fade, pickerOut, quick, reducedMotion } from "../lib/motion";
 import { CaretRight, X, MagnifyingGlass } from "@phosphor-icons/react";
 import { Icon } from "../components/Icon";
 import { PhoneIcon } from "../components/phone/PhoneIcon";
@@ -103,6 +105,7 @@ type CategoryNavProps = {
 function CategoryNav({ categories, active, onSelect }: CategoryNavProps) {
   const buttons = useRef(new Map<CategoryId, HTMLButtonElement>());
   const [light, setLight] = useState({ top: 0, height: 0 });
+  const reduced = reducedMotion();
 
   useLayoutEffect(() => {
     function measure() {
@@ -130,11 +133,18 @@ function CategoryNav({ categories, active, onSelect }: CategoryNavProps) {
 
   return (
     <nav aria-label="Settings categories" className="relative flex flex-col gap-0.5">
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 rounded-[12px] [corner-shape:squircle] bg-ink-1/10 motion-safe:transition-transform motion-safe:duration-swap motion-safe:ease-out"
-        style={{ transform: `translateY(${light.top}px)`, height: light.height }}
-      />
+      <AnimatePresence initial={false}>
+        <motion.span
+          key={active}
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 rounded-[12px] [corner-shape:squircle] bg-ink-1/10"
+          style={{ transform: `translateY(${light.top}px)`, height: light.height }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0, transition: reduced ? fade : pickerOut }}
+          transition={reduced ? fade : quick}
+        />
+      </AnimatePresence>
       {categories.map((category, index) => {
         const current = category.id === active;
         return (
@@ -404,6 +414,8 @@ export function SettingsView() {
     replaceView({ name: "settings", param: id });
   }
 
+  const reduced = reducedMotion();
+
   if (phone) {
     return (
       <PhoneSettings
@@ -445,16 +457,27 @@ export function SettingsView() {
             <p className={`pt-2 ${SETTINGS_TYPE.body} text-ink-2`}>No settings match “{query.trim()}”</p>
           )
         ) : (
-          current && (
-            <div key={current.id} className="animate-fade-in">
-              <PageHeader title={current.label} />
-              <div className={SETTINGS_SPACE.groups}>
-                {current.groups.map((group, index) => (
-                  <GroupView key={group.title ?? index} group={group} />
-                ))}
-              </div>
-            </div>
-          )
+          <div className="grid">
+            <AnimatePresence initial={false}>
+              {current && (
+                <motion.div
+                  key={current.id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0, transition: reduced ? fade : pickerOut }}
+                  transition={reduced ? fade : quick}
+                  className="col-start-1 row-start-1"
+                >
+                  <PageHeader title={current.label} />
+                  <div className={SETTINGS_SPACE.groups}>
+                    {current.groups.map((group, index) => (
+                      <GroupView key={group.title ?? index} group={group} />
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         )}
       </div>
     </div>

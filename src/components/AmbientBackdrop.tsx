@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
+import { motion } from "motion/react";
 import { thumbArtwork } from "../lib/artwork";
 import { applyAmbientVars, parseRgb, useArtworkPalette, type Rgb } from "../lib/artworkPalette";
-import { DURATION_MS, reducedMotion } from "../lib/motion";
+import { canvasFade, DURATION_MS, reducedMotion } from "../lib/motion";
 import { peekArtistMeta } from "../stores/artistMeta";
 import { currentTrack, usePlayer } from "../stores/player";
 
@@ -115,7 +116,15 @@ function formatFill([r, g, b]: Rgb): string {
 type Layer = { fill: string };
 
 function FlatLayer({ fill, animate, opacity = 1 }: { fill: string; animate: boolean; opacity?: number }) {
-  return <div className={`absolute inset-0 ${animate ? "bt-ambient-in" : ""}`} style={{ backgroundColor: fill, opacity }} />;
+  return (
+    <motion.div
+      className="absolute inset-0"
+      style={{ backgroundColor: fill }}
+      initial={animate ? { opacity: 0 } : false}
+      animate={{ opacity }}
+      transition={canvasFade}
+    />
+  );
 }
 
 type AmbientBackdropProps = {
@@ -145,7 +154,7 @@ export function AmbientBackdrop({ primary, src = "", variant = "full", className
     const id = stack.id;
     const timer = window.setTimeout(() => {
       setStack((state) => (state.id === id ? { ...state, previous: null } : state));
-    }, DURATION_MS.settle);
+    }, DURATION_MS.canvasFade);
     return () => window.clearTimeout(timer);
   }, [stack.id, stack.previous]);
 

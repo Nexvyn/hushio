@@ -21,7 +21,7 @@ export function Cover({ src, round = false }: { src: string | null; round?: bool
       data-loaded={loadedSrc === src ? "" : undefined}
       onLoad={() => setLoadedSrc(src)}
       onError={() => setFailedSrc(src)}
-      className={`bt-img block aspect-square w-full ${shape} object-cover ${cover}`}
+      className={`block aspect-square w-full ${shape} object-cover ${cover} opacity-0 transition-opacity duration-reveal data-[loaded]:opacity-100`}
     />
   );
 }

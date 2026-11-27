@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.hoisted(() => {
@@ -61,7 +61,7 @@ describe("settings categories", () => {
 
     expect(screen.getByRole("heading", { name: "Playback" })).toBeTruthy();
     expect(screen.getByText("Crossfade")).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: "Account" })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Account" })).toBeNull());
     expect(screen.queryByText("Streaming quality")).toBeNull();
     expect(screen.getByRole("button", { name: "Playback" }).getAttribute("aria-current")).toBe("page");
   });
