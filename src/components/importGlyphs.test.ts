@@ -1,28 +1,23 @@
-import { describe, expect, it } from "vitest";
-import { DURATION_MS } from "../lib/motion";
-import { glyphMotion } from "./importGlyphs";
+import { createElement } from "react";
+import { cleanup, render } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
+import { ImportGlyph, type GlyphKind } from "./importGlyphs";
 
-describe("import card glyph motion", () => {
-  it("passes no animation props when Reduce Motion is on", () => {
-    expect(glyphMotion("noteA", true, true, true).animate).toBeUndefined();
-    expect(glyphMotion("ring", true, false, true).animate).toBeUndefined();
-    expect(glyphMotion("arrowDown", true, true, true).initial).toEqual({ y: 0, opacity: 1 });
+afterEach(cleanup);
+
+const KINDS: GlyphKind[] = ["stream", "youtube", "file-in", "file-out", "paste"];
+const MOTION = "[style*='animation'], [style*='transform'], [class*='bt-']";
+
+describe("import method glyph", () => {
+  it.each(KINDS)("renders %s as a static glyph with no animation", (kind) => {
+    const { container } = render(createElement(ImportGlyph, { kind, phone: false }));
+    expect(container.querySelector("svg")).not.toBeNull();
+    expect(container.querySelector(MOTION)).toBeNull();
   });
 
-  it("loops the spin token on hover when motion is allowed", () => {
-    expect(glyphMotion("arrowDown", true, true, false).animate).toMatchObject({
-      transition: { duration: DURATION_MS.spin / 1000, repeat: Infinity },
-    });
-  });
-
-  it("plays once on the phone and settles on the rest pose", () => {
-    expect(glyphMotion("arrowUp", true, false, false).animate).toMatchObject({
-      transition: { repeat: 0 },
-      transitionEnd: { y: 0, opacity: 1 },
-    });
-  });
-
-  it("returns to the rest pose when the pointer leaves", () => {
-    expect(glyphMotion("noteB", false, true, false).animate).toMatchObject({ opacity: 0, y: 0 });
+  it("renders the phone glyph without animation", () => {
+    const { container } = render(createElement(ImportGlyph, { kind: "file-in", phone: true }));
+    expect(container.querySelector("svg")).not.toBeNull();
+    expect(container.querySelector(MOTION)).toBeNull();
   });
 });

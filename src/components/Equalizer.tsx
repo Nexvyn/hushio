@@ -224,19 +224,14 @@ function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, 
   ctx.stroke();
 }
 
-function accentRgb(): string {
-  const parts = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim().split(/\s+/).map(Number);
-  return parts.length >= 3 && parts.slice(0, 3).every(Number.isFinite) ? `${parts[0]}, ${parts[1]}, ${parts[2]}` : "124, 155, 255";
-}
-
 function curvePath(ctx: CanvasRenderingContext2D, samples: Point[]) {
   ctx.beginPath();
   samples.forEach((point, index) => (index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y)));
 }
 
-function drawCurve(ctx: CanvasRenderingContext2D, width: number, height: number, points: Point[]) {
+function drawCurve(ctx: CanvasRenderingContext2D, width: number, height: number, points: Point[], ink: [number, number, number]) {
   const s = width / 1000;
-  const accent = accentRgb();
+  const [r, g, b] = ink;
   const samples = splineSamples(curveAnchors(points, width), 16);
   const first = samples[0];
   const last = samples[samples.length - 1];
@@ -246,10 +241,10 @@ function drawCurve(ctx: CanvasRenderingContext2D, width: number, height: number,
   ctx.lineTo(last.x, zero);
   ctx.lineTo(first.x, zero);
   ctx.closePath();
-  ctx.fillStyle = `rgba(${accent}, 0.12)`;
+  ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.12)`;
   ctx.fill();
   curvePath(ctx, samples);
-  ctx.strokeStyle = `rgba(${accent}, 1)`;
+  ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 1)`;
   ctx.lineWidth = Math.max(2, 3 * s);
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -284,9 +279,10 @@ function EqPlot({ display, enabled, onBandChange }: { display: readonly number[]
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
-    drawGrid(ctx, width, height, paintInk(canvas));
+    const ink = paintInk(canvas);
+    drawGrid(ctx, width, height, ink);
     const points = shown.current.map((gain, index) => ({ x: bandFraction(index, DISPLAY_HZ.length) * width, y: plotY(gain, height) }));
-    drawCurve(ctx, width, height, points);
+    drawCurve(ctx, width, height, points, ink);
     shown.current.forEach((gain, index) => {
       const handle = handleRefs.current[index];
       if (handle) handle.style.top = `${gainToFraction(gain) * 100}%`;

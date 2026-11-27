@@ -238,13 +238,13 @@ export function ImportPage() {
         )}
         <div className="mt-4 flex flex-col gap-4">
           <ActionRow
-            glyph={(playing) => <ImportGlyph kind="paste" phone={phone} playing={playing} loop={!phone} />}
+            glyph={() => <ImportGlyph kind="paste" phone={phone} />}
             title="Paste a link or list"
             description="Spotify or Apple Music links, or one song per line as Artist - Title."
             action={<ImportButton onClick={() => setModal("paste")}>Paste</ImportButton>}
           />
           <ActionRow
-            glyph={(playing) => <ImportGlyph kind="file-in" phone={phone} playing={playing} loop={!phone} />}
+            glyph={() => <ImportGlyph kind="file-in" phone={phone} />}
             title="Import a file"
             description="CSV, M3U8, TXT or JSON. Export from exportify.app or takeout.google.com."
             action={
@@ -254,7 +254,7 @@ export function ImportPage() {
             }
           />
           <ActionRow
-            glyph={(playing) => <ImportGlyph kind="stream" phone={phone} playing={playing} loop={!phone} />}
+            glyph={() => <ImportGlyph kind="stream" phone={phone} />}
             title="Spotify"
             description={
               spotifyConnected
@@ -268,7 +268,7 @@ export function ImportPage() {
             }
           />
           <ActionRow
-            glyph={(playing) => <ImportGlyph kind="youtube" phone={phone} playing={playing} loop={!phone} />}
+            glyph={() => <ImportGlyph kind="youtube" phone={phone} />}
             title="YouTube"
             description={
               youtubeConnected
@@ -314,7 +314,7 @@ export function ImportPage() {
             }
           />
           <ActionRow
-            glyph={(playing) => <ImportGlyph kind="file-out" phone={phone} playing={playing} loop={!phone} />}
+            glyph={() => <ImportGlyph kind="file-out" phone={phone} />}
             title="Export a playlist"
             description="Save one playlist as M3U8 or JSON."
             action={

@@ -5,7 +5,7 @@ import { PhoneIcon } from "./PhoneIcon";
 import { AmbientBackdrop, isLightTheme, paletteCoverFor } from "../AmbientBackdrop";
 import { LikeButton } from "../LikeButton";
 import { PhoneLyrics } from "./PhoneLyrics";
-import { ArtCarousel, PAUSED_SCALE } from "./ArtCarousel";
+import { ArtCarousel } from "./ArtCarousel";
 import { CoverLikeBurst } from "./CoverLikeBurst";
 import { useCoverGestures } from "./useCoverGestures";
 import { PlayPauseGlyph, useLoopAllowed } from "./PlayPauseGlyph";
@@ -573,7 +573,7 @@ function NowPlayingSheet() {
     clipBounds.current = measureMiniBar();
     screenSize.current = { width: viewportWidth(), height: viewportHeight() };
     const thumb = measureMini();
-    const from = thumb && heldBox(thumb, usePlayer.getState().playing ? 1 : PAUSED_SCALE);
+    const from = thumb && heldBox(thumb, 1);
     const to = section ? measureCover(section) : null;
     geometry.current = !reducedMotion() && from && to ? { from, to } : null;
     clipPath.set(clipAt(openness.get()));

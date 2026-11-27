@@ -5,23 +5,24 @@ import { EqBars } from "./EqBars";
 afterEach(cleanup);
 
 describe("EqBars", () => {
-  it("animates three bars while the row is playing", () => {
+  it("renders three static bars in the accent colour while the row is playing", () => {
     render(<EqBars playing />);
-    const indicator = screen.getByRole("img", { name: "Playing" });
-    const bars = indicator.querySelectorAll("span");
+    const bars = screen.getByRole("img", { name: "Playing" }).querySelectorAll("span");
     expect(bars).toHaveLength(3);
-    for (const bar of bars) expect(bar.classList.contains("bt-eq")).toBe(true);
+    for (const bar of bars) {
+      expect(bar.classList.contains("bt-eq")).toBe(false);
+      expect(bar.style.animationDelay).toBe("");
+      expect(bar.classList.contains("bg-accent")).toBe(true);
+    }
   });
 
-  it("stops the bars when the row is paused", () => {
+  it("keeps the same still glyph in ink when the row is paused", () => {
     render(<EqBars playing={false} />);
     const bars = screen.getByRole("img", { name: "Playing" }).querySelectorAll("span");
-    for (const bar of bars) expect(bar.classList.contains("bt-eq")).toBe(false);
-  });
-
-  it("staggers the bars with a calc of the token, not a literal time", () => {
-    render(<EqBars playing />);
-    const bars = screen.getByRole("img", { name: "Playing" }).querySelectorAll("span");
-    expect(bars[1].style.animationDelay).toBe("calc(var(--dur-eq) * -0.35)");
+    expect(bars).toHaveLength(3);
+    for (const bar of bars) {
+      expect(bar.classList.contains("bt-eq")).toBe(false);
+      expect(bar.classList.contains("bg-ink-2")).toBe(true);
+    }
   });
 });

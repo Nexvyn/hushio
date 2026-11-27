@@ -4,7 +4,7 @@ import { MusicNote } from "@phosphor-icons/react";
 import { PhoneIcon } from "./PhoneIcon";
 import { thumbArtwork } from "../../lib/artwork";
 import { artFitFor, type ArtFit } from "../../lib/artFit";
-import { artPauseSpring, coverSnapSpring, fade, gate, phoneSmooth, phoneTween, reducedMotion } from "../../lib/motion";
+import { coverSnapSpring, fade, phoneTween, reducedMotion } from "../../lib/motion";
 import { haptic } from "../../lib/haptics";
 import { rubberBand } from "../../lib/gesturePhysics";
 import { swipeAxis, trackSwipeChange, type Axis, type TrackChange } from "../../lib/trackSwipe";
@@ -20,8 +20,6 @@ import { INSET_BOTTOM, INSET_TOP } from "../../lib/phoneNav";
 const GAP_PX = 24;
 const COVER_SIZE = `min(84vw, calc(100vw - 48px), 56vh, calc(100dvh - ${INSET_TOP} - ${INSET_BOTTOM} - 404px), 380px)`;
 const SKIP_PX = 72;
-const DRAG_SHARE = 0.35;
-export const PAUSED_SCALE = 0.86;
 const MINI_THUMB_PX = 48;
 
 function coverPixels(): number {
@@ -183,7 +181,7 @@ export function ArtCarousel({ current, prev, next, canPrev, canNext, playing, on
         });
     if (!change) {
       if (reduced) x.set(0);
-      else controls.current = animate(x, 0, { ...coverSnapSpring, velocity: velocity * DRAG_SHARE });
+      else controls.current = animate(x, 0, { ...coverSnapSpring, velocity });
       return;
     }
     haptic("tick");
@@ -192,7 +190,7 @@ export function ArtCarousel({ current, prev, next, canPrev, canNext, playing, on
       return;
     }
     pendingChange.current = change;
-    controls.current = animate(x, change === "next" ? -span.current : span.current, { ...phoneSmooth, velocity: velocity * DRAG_SHARE });
+    controls.current = animate(x, change === "next" ? -span.current : span.current, { ...coverSnapSpring, velocity });
     controls.current.finished.then(
       () => {
         if (pendingChange.current !== change) return;
@@ -239,7 +237,7 @@ export function ArtCarousel({ current, prev, next, canPrev, canNext, playing, on
           if (active.axis === null) return;
         }
         if (active.axis !== "x" || reduced) return;
-        const raw = active.base + (event.clientX - active.x0) * DRAG_SHARE;
+        const raw = active.base + (event.clientX - active.x0);
         const blocked = (raw < 0 && !canNext) || (raw > 0 && !canPrev);
         x.set(blocked ? rubberBand(raw, viewportWidth()) : raw);
       }}
@@ -252,27 +250,21 @@ export function ArtCarousel({ current, prev, next, canPrev, canNext, playing, on
       <Slot x={x} side={0} span={span} fade={reduced ? shown : solid} slotRef={centre} artCentre>
         {current && (
           <motion.div className="relative h-full w-full will-change-transform" style={flightStyle}>
-            <motion.div
-              className="h-full w-full"
-              animate={{ scale: playing || reduced ? 1 : PAUSED_SCALE }}
-              transition={gate(reduced, artPauseSpring)}
-            >
-              <div className="grid h-full w-full">
-                <AnimatePresence initial={false} custom={{ instant }}>
-                  <motion.div
-                    key={current.id}
-                    className="col-start-1 row-start-1 h-full w-full"
-                    custom={{ instant }}
-                    variants={coverVariants}
-                    initial="initial"
-                    animate="animate"
-                    exit="exit"
-                  >
-                    <CoverFace track={current} clip={clip} playing={playing} lead radius={flight?.radius} />
-                  </motion.div>
-                </AnimatePresence>
-              </div>
-            </motion.div>
+            <div className="grid h-full w-full">
+              <AnimatePresence initial={false} custom={{ instant }}>
+                <motion.div
+                  key={current.id}
+                  className="col-start-1 row-start-1 h-full w-full"
+                  custom={{ instant }}
+                  variants={coverVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                >
+                  <CoverFace track={current} clip={clip} playing={playing} lead radius={flight?.radius} />
+                </motion.div>
+              </AnimatePresence>
+            </div>
           </motion.div>
         )}
       </Slot>

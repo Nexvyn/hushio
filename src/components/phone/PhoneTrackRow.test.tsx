@@ -62,20 +62,14 @@ describe("PhoneSongRow playing state", () => {
     expect(title.parentElement?.className).toContain("text-phone-row-title");
   });
 
-  it("animates the equaliser only while the song plays", () => {
+  it("shows the equaliser as a still glyph with no animation", () => {
     const { container } = renderRow(true, true);
-    expect(container.querySelectorAll(".bt-eq").length).toBe(3);
+    expect(container.querySelectorAll(".bt-eq").length).toBe(0);
+    expect(container.querySelectorAll(".bg-accent").length).toBe(3);
     cleanup();
 
     const paused = renderRow(true, false);
     expect(paused.container.querySelectorAll(".bt-eq").length).toBe(0);
-  });
-
-  it("keeps the equaliser still under Reduce Motion", () => {
-    document.documentElement.classList.add("reduce-motion");
-    const { container } = renderRow(true, true);
-
-    expect(container.querySelectorAll(".bt-eq").length).toBe(0);
   });
 
   it("shows no accent on rows that are not playing", () => {
