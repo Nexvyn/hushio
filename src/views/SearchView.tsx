@@ -225,7 +225,7 @@ function RecentlyOpened({ items }: { items: RecentItem[] }) {
               onClick={() => openRecentItem(item)}
               className={
                 phone
-                  ? "flex h-14 w-full items-center gap-3 pr-12 text-left motion-safe:transition-opacity active:opacity-70"
+                  ? "flex h-14 w-full items-center gap-3 pr-12 text-left motion-safe:transition-transform motion-safe:duration-press motion-safe:active:scale-[0.97]"
                   : "flex h-16 w-full items-center gap-3 rounded-[10px] pr-11 text-left transition-colors hover:bg-wash"
               }
             >

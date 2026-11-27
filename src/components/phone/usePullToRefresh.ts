@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { animate, useMotionValue, type MotionValue } from "motion/react";
 import { haptic } from "../../lib/haptics";
-import { phoneSmooth, reducedMotion } from "../../lib/motion";
+import { SPRING_SHEET, reducedMotion } from "../../lib/motion";
 import { PULL_HOLD_PX, pullDistance, pullTriggers } from "../../lib/phoneGestures";
 import { pullClaim } from "../../lib/gestureClaim";
 import { VelocityTracker } from "../../lib/velocity";
@@ -11,7 +11,7 @@ const FALLBACK_MS = 4000;
 
 function settleTo(distance: MotionValue<number>, target: number, velocity = 0): void {
   if (reducedMotion()) distance.set(target);
-  else animate(distance, target, { ...phoneSmooth, velocity });
+  else animate(distance, target, { ...SPRING_SHEET, velocity });
 }
 
 export function usePullToRefresh({ enabled, busy, onRefresh }: { enabled: boolean; busy: boolean; onRefresh: () => void }) {

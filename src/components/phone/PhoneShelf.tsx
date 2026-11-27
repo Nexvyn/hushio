@@ -3,7 +3,7 @@ import { motion } from "motion/react";
 import { focusRing } from "../HomeShelves";
 import type { MenuSource } from "../ContextMenu";
 import { thumbArtwork } from "../../lib/artwork";
-import { phoneSmooth, pressTap, reducedMotion } from "../../lib/motion";
+import { MS_PRESS_OUT, phoneTween, pressTap, reducedMotion } from "../../lib/motion";
 import { openRecentItem } from "../../lib/searchActions";
 import type { RecentItem } from "../../stores/recents";
 import { PhoneArt } from "./PhoneArt";
@@ -92,7 +92,7 @@ export function PhoneShelfCard({ art, title, subtitle, tag, round = false, varia
       }}
       {...hold.bind}
       whileTap={pressTap(reduced)}
-      transition={phoneSmooth}
+      transition={phoneTween(MS_PRESS_OUT)}
       className={`flex shrink-0 snap-start rounded-art text-left ${FRAME[variant]} ${round ? "text-center" : ""} ${focusRing}`}
     >
       <span className={`relative block ${row ? "size-14 shrink-0" : "w-full"}`}>
@@ -128,7 +128,7 @@ function QuickTile({ item, menu }: QuickTileProps) {
       }}
       {...hold.bind}
       whileTap={pressTap(reduced)}
-      transition={phoneSmooth}
+      transition={phoneTween(MS_PRESS_OUT)}
       className={`flex h-14 min-w-0 items-center overflow-hidden text-left ${focusRing}`}
     >
       <PhoneArt src={thumbArtwork(item.thumb, 56) || null} radius="rounded-none" className="block size-14 shrink-0" />

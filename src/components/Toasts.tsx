@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion, useAnimationControls, type PanInfo } from "motion/react";
+import { AnimatePresence, animate, motion, useAnimationControls, useMotionValue, type MotionValue, type PanInfo } from "motion/react";
 import { CheckCircle, Info, WarningCircle, X, type Icon as PhosphorIcon, type IconWeight } from "@phosphor-icons/react";
 import { Icon } from "./Icon";
 import { PhoneIcon } from "./phone/PhoneIcon";
 import { haptic } from "../lib/haptics";
 import { INSET_TOP } from "../lib/phoneNav";
-import { fade, instant, progressFill, quick, reducedMotion, toastOut, toastStack } from "../lib/motion";
+import { SPRING_SHEET, fade, instant, progressFill, quick, reducedMotion, toastOut, toastStack } from "../lib/motion";
 import {
   isSwipeDismiss,
   pauseLifetime,
@@ -55,8 +55,20 @@ function ToastCard({ toast, depth, placement, expanded, paused, phone, reduced }
   const pulseBump = useRef(bump);
   const closing = useRef(false);
   const pulse = useAnimationControls();
+  const dragX = useMotionValue(0);
+  const dragY = useMotionValue(0);
+  const entering = useRef(true);
   const enterY = placement === "top" ? -12 : 12;
   const action = toast.action;
+
+  useEffect(() => {
+    entering.current = false;
+  }, []);
+
+  const settle = (value: MotionValue<number>, target: number, velocity: number) => {
+    if (reduced) value.set(target);
+    else animate(value, target, { ...SPRING_SHEET, velocity });
+  };
 
   const close = useCallback(() => {
     if (closing.current) return;
@@ -73,8 +85,8 @@ function ToastCard({ toast, depth, placement, expanded, paused, phone, reduced }
   useEffect(() => {
     if (bump === pulseBump.current) return;
     pulseBump.current = bump;
-    void pulse.start(reduced ? { opacity: [1, 0.72, 1], transition: fade } : { scale: [1, 1.035, 1], transition: quick });
-  }, [bump, pulse, reduced]);
+    void pulse.start({ opacity: [1, 0.72, 1], transition: fade });
+  }, [bump, pulse]);
 
   useEffect(() => {
     if (bump !== lifeBump.current) {
@@ -91,7 +103,17 @@ function ToastCard({ toast, depth, placement, expanded, paused, phone, reduced }
   }, [paused, bump, total, close]);
 
   const onDragEnd = (_event: unknown, info: PanInfo) => {
-    if (isSwipeDismiss(info.offset, info.velocity)) close();
+    if (!isSwipeDismiss(info.offset, info.velocity)) {
+      settle(dragX, 0, info.velocity.x);
+      settle(dragY, 0, info.velocity.y);
+      return;
+    }
+    if (!reduced) {
+      const horizontal = Math.abs(info.offset.x) > 80 || Math.abs(info.velocity.x) > 520;
+      if (horizontal) settle(dragX, Math.sign(info.velocity.x || info.offset.x) * 320, info.velocity.x);
+      else settle(dragY, -160, info.velocity.y);
+    }
+    close();
   };
 
   return (
@@ -107,7 +129,7 @@ function ToastCard({ toast, depth, placement, expanded, paused, phone, reduced }
         opacity: slot.visible ? 1 : 0,
         y: slot.y,
         scale: slot.scale,
-        transition: reduced ? fade : toastStack,
+        transition: reduced ? fade : entering.current ? quick : toastStack,
       }}
       exit={reduced ? { opacity: 0, transition: fade } : { opacity: 0, y: enterY, scale: 0.98, transition: toastOut }}
     >
@@ -116,7 +138,7 @@ function ToastCard({ toast, depth, placement, expanded, paused, phone, reduced }
         drag={phone}
         dragConstraints={{ top: -120, bottom: 0, left: -240, right: 240 }}
         dragElastic={0.25}
-        dragSnapToOrigin
+        style={{ x: dragX, y: dragY }}
         onDragEnd={phone ? onDragEnd : undefined}
         className="relative flex min-h-[48px] min-w-[220px] max-w-[min(420px,calc(100vw-32px))] select-none items-center gap-3 overflow-hidden rounded-[18px] bg-scrim/[0.96] py-2 pl-2 pr-3 text-on-scrim shadow-[0_10px_30px_rgb(0_0_0/0.28),inset_0_0_0_1px_rgb(255_255_255/0.08)]"
       >

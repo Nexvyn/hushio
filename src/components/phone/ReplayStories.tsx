@@ -8,7 +8,7 @@ import { useSheetDrag } from "./useSheetDrag";
 import { useArtTint } from "../../lib/palette";
 import { useCountUp } from "../../lib/countUp";
 import { plural } from "../../lib/plural";
-import { PHONE_MS, fade, phoneSmooth, phoneTween, reducedMotion } from "../../lib/motion";
+import { DURATION_MS, PHONE_MS, fade, phoneTween, reducedMotion } from "../../lib/motion";
 import { INSET_TOP } from "../../lib/phoneNav";
 import {
   REPLAY_PERIODS,
@@ -189,10 +189,10 @@ export function ReplayStories({ load, period, label, onPeriod, onRetry, onShare,
           key={slide}
           aria-label={slideTitle(slide)}
           className="absolute inset-0 flex flex-col px-6 pb-10 pt-12"
-          initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={reduced ? fade : phoneSmooth}
+          transition={reduced ? fade : phoneTween(DURATION_MS.quick)}
         >
           {slide === "intro" && (
             <IntroSlide label={label} data={ready} period={period} onChoose={choose} />

@@ -14,10 +14,10 @@ import { reducedMotion } from "../../lib/motion";
 import { usePageVisible } from "../../lib/usePageVisible";
 
 const ROW =
-  "flex h-14 w-full min-w-0 items-center gap-3 text-left motion-safe:transition-opacity motion-safe:duration-press active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+  "flex h-14 w-full min-w-0 items-center gap-3 text-left motion-safe:transition-transform motion-safe:duration-press motion-safe:active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
 const FEATURED_ROW =
-  "flex w-full min-w-0 items-center gap-4 text-left motion-safe:transition-opacity motion-safe:duration-press active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+  "flex w-full min-w-0 items-center gap-4 text-left motion-safe:transition-transform motion-safe:duration-press motion-safe:active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
 const ICON_BUTTON =
   "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-2 motion-safe:transition-colors hover:text-ink-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";

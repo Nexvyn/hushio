@@ -3,7 +3,7 @@ import { animate, motion, useMotionValue, useTransform, type MotionValue } from 
 import { ArrowClockwise } from "@phosphor-icons/react";
 import { PhoneIcon } from "./PhoneIcon";
 import { PULL_TRIGGER_PX } from "../../lib/phoneGestures";
-import { DURATION_MS, phoneSmooth, reducedMotion } from "../../lib/motion";
+import { DURATION_MS, SPRING_SHEET, reducedMotion } from "../../lib/motion";
 
 const FULL_TURN = 360;
 const PROGRESS_TURN = 270;
@@ -25,7 +25,7 @@ export function PullIndicator({ distance, spinning }: { distance: MotionValue<nu
       const loop = animate(spin, spin.get() + FULL_TURN, { duration: DURATION_MS.spin / 1000, ease: "linear", repeat: Infinity });
       return () => loop.stop();
     }
-    const settle = animate(spin, Math.round(spin.get() / FULL_TURN) * FULL_TURN, phoneSmooth);
+    const settle = animate(spin, Math.round(spin.get() / FULL_TURN) * FULL_TURN, SPRING_SHEET);
     return () => settle.stop();
   }, [spinning, spin]);
 
