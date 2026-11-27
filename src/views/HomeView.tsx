@@ -375,7 +375,7 @@ export function HomeView() {
             <button
               type="button"
               onClick={() => void stream.loadMore()}
-              className="flex h-12 w-full items-center justify-center rounded-[12px] [corner-shape:squircle] bg-primary text-body font-semibold text-on-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              className="flex h-12 w-full items-center justify-center rounded-[12px] [corner-shape:squircle] bg-wash text-body font-semibold text-ink-1 hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             >
               {t("home.showMore")}
             </button>

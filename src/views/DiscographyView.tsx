@@ -67,7 +67,7 @@ function FilterChips({ filters, value, onChange }: { filters: ReleaseFilter[]; v
             aria-pressed={active}
             onClick={() => onChange(filter)}
             className={`${phone ? "min-h-11" : "h-8"} rounded-full px-3 text-meta font-medium motion-safe:transition-colors ${
-              active ? "bg-primary text-on-primary" : "bg-wash text-ink-1 hover:bg-hover"
+              active ? "bg-ink-1 text-base" : "bg-wash text-ink-1 hover:bg-hover"
             } ${focusRing}`}
           >
             {FILTER_LABELS[filter]}

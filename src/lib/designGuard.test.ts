@@ -17,6 +17,8 @@ const sources = walk(SRC_DIR)
   }));
 
 const everywhere = () => true;
+const selectedChip =
+  /\b(filter|scope|chip)\w*\s*===?[^?\n]*\?\s*["'`][^"'`\n]*\bbg-(primary|accent)\b|\bactive\s*\?\s*["'`][^"'`\n]*\bbg-(primary|accent)\b/i;
 const inPhoneOrViews = (file: string) => file.startsWith("components/phone/") || file.startsWith("views/");
 const inSettings = (file: string) => file.startsWith("views/settings/") || file === "views/SettingsView.tsx";
 
@@ -171,5 +173,18 @@ describe("design guard", () => {
       }
     }
     expect(hits, hits.join("\n")).toEqual([]);
+  });
+
+  it("keeps selected filter and scope chips neutral, not accent", () => {
+    const hits = lineHits(selectedChip);
+    expect(hits, hits.join("\n")).toEqual([]);
+  });
+
+  it("matches the accent chip strings the selected-chip guard must catch", () => {
+    expect(selectedChip.test('filter === tab.filter ? "bg-primary text-on-primary"')).toBe(true);
+    expect(selectedChip.test('scope === tab.scope ? "bg-accent text-on-accent"')).toBe(true);
+    expect(selectedChip.test('active ? "bg-primary text-on-primary"')).toBe(true);
+    expect(selectedChip.test('selected ? "bg-accent text-on-accent"')).toBe(false);
+    expect(selectedChip.test('? "bg-primary text-on-primary" : "bg-accent"')).toBe(false);
   });
 });

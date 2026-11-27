@@ -2,6 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { Trash } from "@phosphor-icons/react";
 import { SettingRow } from "./SettingRow";
+import { Slider } from "./Slider";
 
 describe("SettingRow", () => {
   afterEach(cleanup);
@@ -27,6 +28,18 @@ describe("SettingRow", () => {
     const { container } = render(<SettingRow icon={Trash} title="Import" />);
     expect(container.querySelector("span.rounded-\\[9px\\]")).toBeNull();
     expect(screen.getByText("Import").className).toContain("text-[0.9375rem]");
+  });
+
+  it("keeps a slider's value readout on tabular figures", () => {
+    render(
+      <SettingRow
+        icon={Trash}
+        title="Crossfade"
+        value="12s"
+        control={<Slider label="Crossfade" min={0} max={12} step={1} value={12} onChange={() => {}} />}
+      />,
+    );
+    expect(screen.getByText("12s").className).toContain("tabular-nums");
   });
 
   it("gives the value label a fixed width and tabular figures", () => {
