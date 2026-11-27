@@ -2,6 +2,7 @@ import { isValidElement, useId, type MouseEvent, type ReactNode } from "react";
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { SETTINGS_SIZE, SETTINGS_SPACE, SETTINGS_TYPE } from "../lib/settingsDesign";
 import { usePhone } from "../lib/usePhone";
+import { RadioGroup } from "./RadioGroup";
 import { Slider } from "./Slider";
 import { Switch } from "./Switch";
 
@@ -22,6 +23,10 @@ function isSlider(control: ReactNode): boolean {
   return isValidElement(control) && control.type === Slider;
 }
 
+function isSegmented(control: ReactNode): boolean {
+  return isValidElement(control) && control.type === RadioGroup;
+}
+
 export function SettingRow({
   title,
   note,
@@ -34,7 +39,7 @@ export function SettingRow({
 }: SettingRowProps) {
   const titleId = useId();
   const phone = usePhone();
-  const column = stacked || (phone && isSlider(control));
+  const column = stacked || (phone && (isSlider(control) || isSegmented(control)));
   const tone = danger ? "text-danger-text" : disabled ? "text-ink-3" : "text-ink-1";
 
   const controls = (
@@ -45,7 +50,7 @@ export function SettingRow({
           : "shrink-0"
       }`}
     >
-      {value && <span className={SETTINGS_TYPE.value}>{value}</span>}
+      {value && <span className={column ? SETTINGS_TYPE.valueStacked : SETTINGS_TYPE.value}>{value}</span>}
       {toggle ? (
         <Switch checked={toggle.checked} disabled={disabled} aria-labelledby={titleId} onCheckedChange={toggle.onChange} />
       ) : (

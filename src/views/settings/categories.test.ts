@@ -51,7 +51,7 @@ describe("About website row", () => {
   it("names the same site that the Open button goes to", () => {
     const about = buildCategories(context("windows")).find((category) => category.id === "about");
     const website = about?.groups.flatMap((group) => group.rows).find((candidate) => candidate.id === "website");
-    expect(website?.note).toBe("hushio.nexvyn.dev: downloads, news and help");
+    expect(website?.note).toBe("hushio.nexvyn.dev: downloads, news and help.");
   });
 });
 
@@ -104,13 +104,13 @@ describe("Sound rows on Windows", () => {
   it("shows the picker as the control and follows the system default when nothing is pinned", () => {
     const output = row("windows", "output-device");
     expect(output.control).toBeDefined();
-    expect(output.note).toBe("Following the system default");
+    expect(output.note).toBe("Following the system default.");
     expect(output.disabled).toBeFalsy();
   });
 
   it("says the output is pinned when a device is chosen", () => {
     useSettings.setState({ audioSinkId: "hdst" });
-    expect(row("windows", "output-device").note).toBe("Pinned to this device");
+    expect(row("windows", "output-device").note).toBe("Pinned to this device.");
   });
 
   it("attaches the equalizer editor below the equalizer switch", () => {
@@ -195,7 +195,7 @@ describe("Sound rows off Windows", () => {
   it("shows the disabled output row on linux", () => {
     const platform = "linux";
     const output = row(platform, "output-device");
-    expect(output.note).toBe("Follows the system output");
+    expect(output.note).toBe("Follows the system output.");
     expect(output.control).toBeUndefined();
     expect(output.toggle).toBeUndefined();
     expect(output.disabled).toBe(true);
@@ -203,7 +203,7 @@ describe("Sound rows off Windows", () => {
 
   it("hides the output picker on macOS and says the output follows the system", () => {
     const output = row("macos", "output-device");
-    expect(output.note).toBe("Follows the system output");
+    expect(output.note).toBe("Follows the system output.");
     expect(output.control).toBeUndefined();
     expect(output.toggle).toBeUndefined();
     expect(output.disabled).toBeFalsy();

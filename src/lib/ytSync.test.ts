@@ -48,12 +48,12 @@ beforeEach(() => {
 
 describe("sync status text", () => {
   it("shows the PRD line for each state", () => {
-    expect(syncStatusText(status(), NOW)).toBe("Not synced yet");
-    expect(syncStatusText(status({ lastSyncedAt: NOW - 5 * 60_000 }), NOW)).toBe("Last synced 5 minutes ago");
+    expect(syncStatusText(status(), NOW)).toBe("Not synced yet.");
+    expect(syncStatusText(status({ lastSyncedAt: NOW - 5 * 60_000 }), NOW)).toBe("Last synced 5 minutes ago.");
     expect(syncStatusText(status({ state: "running" }), NOW)).toBe("Syncing…");
     expect(syncStatusText(status({ state: "running", done: 3, total: 9 }), NOW)).toBe("Saving to YouTube: 3 / 9");
     expect(syncStatusText(status({ state: "paused_sign_in" }), NOW)).toBe("Sync paused. Sign in again.");
-    expect(syncStatusText(status({ state: "error" }), NOW)).toBe("Sync error, will retry");
+    expect(syncStatusText(status({ state: "error" }), NOW)).toBe("Sync error, will retry.");
   });
 
   it("formats the quota and failed-job lines from the PRD", () => {

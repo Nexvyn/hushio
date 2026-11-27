@@ -67,7 +67,7 @@ describe("scrobbling rows", () => {
     ctx.status.listenbrainz.username = "arya";
     ctx.status.listenbrainz.enabled = true;
     const account = row(ctx, "listenbrainz-account");
-    expect(account.note).toBe("Signed in as arya");
+    expect(account.note).toBe("Signed in as arya.");
     expect(account.value).toBe("On");
     expect(row(ctx, "listenbrainz-enabled").toggle?.checked).toBe(true);
     expect(scrobbleRows(ctx).some((item) => item.id === "listenbrainz-connect")).toBe(false);

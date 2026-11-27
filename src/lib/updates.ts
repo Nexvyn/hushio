@@ -71,13 +71,13 @@ export function updateCopy(state: UpdateState): { title: string; note?: string }
     case "checking":
       return { title: "Checking for updates…" };
     case "current":
-      return { title: `${APP_NAME} is up to date`, note: `Version ${state.current} is the newest` };
+      return { title: `${APP_NAME} is up to date`, note: `Version ${state.current} is the newest.` };
     case "available":
       return { title: `Version ${version} is available`, note: availableNote(state) };
     case "downloading":
       return { title: `Downloading version ${version}…`, note: `${state.percent ?? 0}%` };
     case "ready":
-      return { title: `Version ${version} is ready`, note: `Restart ${APP_NAME} to finish updating` };
+      return { title: `Version ${version} is ready`, note: `Restart ${APP_NAME} to finish updating.` };
     case "error":
       return state.errorFrom === "install"
         ? { title: "Couldn't update", note: state.error ?? undefined }

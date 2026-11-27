@@ -367,8 +367,8 @@ function playbackCategory(context: BuildContext): SettingsCategory {
       icon: Sparkle,
       title: t("settings.row.automix"),
       note: s.smartFade
-        ? "Blends where the music really ends and lines up beats when tempos match"
-        : "Off: blends use the crossfade length above",
+        ? "Blends where the music really ends and lines up beats when tempos match."
+        : "Off: blends use the crossfade length above.",
       toggle: flag(s, "smartFade"),
     },
     {
@@ -485,14 +485,14 @@ function outputRow({ settings: s, platform }: BuildContext): RowSpec {
       id: "output-device",
       icon: SpeakerHigh,
       title: t("settings.row.outputDevice"),
-      note: s.audioSinkId ? "Pinned to this device" : "Following the system default",
+      note: s.audioSinkId ? "Pinned to this device." : "Following the system default.",
       control: <OutputDevicePicker />,
     };
   }
   if (platform === "macos") {
-    return { id: "output-device", icon: SpeakerHigh, title: t("settings.row.outputDevice"), note: "Follows the system output" };
+    return { id: "output-device", icon: SpeakerHigh, title: t("settings.row.outputDevice"), note: "Follows the system output." };
   }
-  return { id: "output-device", icon: SpeakerHigh, title: t("settings.row.outputDevice"), note: "Follows the system output", disabled: true };
+  return { id: "output-device", icon: SpeakerHigh, title: t("settings.row.outputDevice"), note: "Follows the system output.", disabled: true };
 }
 
 function soundCategory(context: BuildContext): SettingsCategory {
@@ -585,7 +585,7 @@ function soundCategory(context: BuildContext): SettingsCategory {
             id: "prevent-clipping",
             icon: Warning,
             title: t("settings.row.preventClipping"),
-            note: "Lowers the level only when your boosts would distort at the current volume",
+            note: "Lowers the level only when your boosts would distort at the current volume.",
             disabled: !s.eqEnabled,
             toggle: flag(s, "eqAutoHeadroom"),
           },
@@ -855,7 +855,7 @@ function libraryCategory(context: BuildContext): SettingsCategory {
             id: "local-folders",
             icon: FolderOpen,
             title: t("settings.row.localFolders"),
-            note: s.localMusicFolder ? "Your imported collections" : "No folders imported yet",
+            note: s.localMusicFolder ? "Your imported collections." : "No folders imported yet.",
             control: (
               <Button onClick={() => navigate({ name: "local" })}>Open</Button>
             ),
@@ -864,14 +864,14 @@ function libraryCategory(context: BuildContext): SettingsCategory {
             id: "add-folder",
             icon: FolderPlus,
             title: t("settings.row.addFolder"),
-            note: "Import music folders. A parent folder brings its music subfolders along",
+            note: "Import music folders. A parent folder brings its music subfolders along.",
             control: <Button onClick={() => void useLocalLibrary.getState().importFromPicker()}>Add folder</Button>,
           },
           {
             id: "rescan-library",
             icon: ArrowClockwise,
             title: t("settings.row.rescan"),
-            note: "Re-read tags and artwork from every imported folder",
+            note: "Re-read tags and artwork from every imported folder.",
             control: <Button onClick={() => void useLocalLibrary.getState().scan()}>Rescan</Button>,
           },
           {
@@ -910,7 +910,7 @@ function libraryCategory(context: BuildContext): SettingsCategory {
             id: "download-quality",
             icon: DownloadSimple,
             title: t("settings.row.downloadQuality"),
-            note: "What a saved track costs on disk",
+            note: "What a saved track costs on disk.",
             control: (
               <RadioGroup
                 label="Download quality"
@@ -935,7 +935,7 @@ function libraryCategory(context: BuildContext): SettingsCategory {
             id: "export-downloads",
             icon: Export,
             title: t("settings.row.exportDownloads"),
-            note: `Also save them into your Music library (Music/${APP_NAME}), so other players can use the files. Otherwise downloads stay in the folder above`,
+            note: `Also save them into your Music library (Music/${APP_NAME}), so other players can use the files. Otherwise downloads stay in the folder above.`,
             value: s.exportDownloads ? `Music/${APP_NAME}` : undefined,
             toggle: flag(s, "exportDownloads"),
           },
@@ -1017,14 +1017,14 @@ function dataCategory(context: BuildContext): SettingsCategory {
             id: "export-data",
             icon: Export,
             title: "Export data",
-            note: "Write a backup of your library and history",
+            note: "Write a backup of your library and history.",
             control: <Button onClick={() => exportBackup()}>Export</Button>,
           },
           {
             id: "import-data",
             icon: FileArrowDown,
             title: "Import data",
-            note: "Restore a backup, replacing what's here",
+            note: "Restore a backup, replacing what's here.",
             control: <Button onClick={confirmImportBackup}>Import</Button>,
           },
           {
@@ -1110,7 +1110,7 @@ function aboutCategory({ settings: s, version, updates, platform, navigate }: Bu
             id: "website",
             icon: Globe,
             title: `${APP_NAME} website`,
-            note: `${APP_SLUG}.nexvyn.dev: downloads, news and help`,
+            note: `${APP_SLUG}.nexvyn.dev: downloads, news and help.`,
             control: <Button onClick={() => updates.openPage(DOWNLOAD_PAGE)}>Open</Button>,
           },
           {

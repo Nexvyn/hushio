@@ -32,7 +32,7 @@ function lastfmRows(context: ScrobbleContext): ScrobbleRowSpec[] {
         id: "lastfm-account",
         icon: CheckCircle,
         title: "Last.fm",
-        note: `Signed in as ${status.lastfm.username ?? "you"}`,
+        note: `Signed in as ${status.lastfm.username ?? "you"}.`,
         value: status.lastfm.enabled ? "On" : "Off",
       },
       {
@@ -96,7 +96,7 @@ function listenbrainzRows(context: ScrobbleContext): ScrobbleRowSpec[] {
         id: "listenbrainz-account",
         icon: CheckCircle,
         title: "ListenBrainz",
-        note: `Signed in as ${status.listenbrainz.username ?? "you"}`,
+        note: `Signed in as ${status.listenbrainz.username ?? "you"}.`,
         value: status.listenbrainz.enabled ? "On" : "Off",
       },
       {

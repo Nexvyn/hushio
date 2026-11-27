@@ -3,6 +3,7 @@ export const SETTINGS_TYPE = {
   body: "text-[0.9375rem] leading-5",
   note: "text-[0.8125rem] leading-[1.125rem] text-ink-2",
   value: "w-24 shrink-0 text-right text-[0.8125rem] leading-[1.125rem] tabular-nums text-ink-2",
+  valueStacked: "min-w-[3.5rem] shrink-0 text-left text-[0.8125rem] leading-[1.125rem] tabular-nums text-ink-2",
   segment: "min-h-11 min-w-11 shrink-0 whitespace-nowrap px-3 text-[0.8125rem] font-medium",
 } as const;
 

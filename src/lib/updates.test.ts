@@ -81,7 +81,7 @@ describe("updateCopy", () => {
     expect(updateCopy(state({ status: "checking" })).title).toBe("Checking for updates…");
     expect(updateCopy(state({ status: "current" }))).toEqual({
       title: "Hushio is up to date",
-      note: "Version 1.1.1 is the newest",
+      note: "Version 1.1.1 is the newest.",
     });
     expect(updateCopy(state({ status: "downloading", version: "1.2.0", percent: 7 }))).toEqual({
       title: "Downloading version 1.2.0…",
@@ -89,7 +89,7 @@ describe("updateCopy", () => {
     });
     expect(updateCopy(state({ status: "ready", version: "1.2.0" }))).toEqual({
       title: "Version 1.2.0 is ready",
-      note: "Restart Hushio to finish updating",
+      note: "Restart Hushio to finish updating.",
     });
   });
 

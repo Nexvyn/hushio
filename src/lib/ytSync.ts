@@ -57,9 +57,9 @@ export function syncStatusText(status: YtSyncStatus, now: number): string {
     case "paused_sign_in":
       return "Sync paused. Sign in again.";
     case "error":
-      return "Sync error, will retry";
+      return "Sync error, will retry.";
     case "idle":
-      return status.lastSyncedAt === null ? "Not synced yet" : `Last synced ${relativeTime(status.lastSyncedAt, now)}`;
+      return status.lastSyncedAt === null ? "Not synced yet." : `Last synced ${relativeTime(status.lastSyncedAt, now)}.`;
   }
 }
 

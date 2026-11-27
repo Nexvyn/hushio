@@ -17,7 +17,7 @@ const options = [
 ];
 
 describe("GroupView on phone", () => {
-  it("keeps a segmented control on the right of its title", () => {
+  it("stacks a segmented control under its title", () => {
     const group: SettingsGroup = {
       rows: [
         {
@@ -30,8 +30,8 @@ describe("GroupView on phone", () => {
     };
     render(<GroupView group={group} />);
     const row = screen.getByRole("radiogroup").closest("section > div > div") as HTMLElement;
-    expect(row.className).not.toContain("flex-col");
-    expect(row.className).toContain("items-center");
+    expect(row.className).toContain("flex-col");
+    expect(row.className).not.toContain("items-center");
   });
 
   it("stacks a stacked control under its title", () => {

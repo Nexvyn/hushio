@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { DotsThree, type Icon as PhosphorIcon } from "@phosphor-icons/react";
+import { CaretDown, DotsThree, type Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { Icon } from "./Icon";
 import { PhoneIcon } from "./phone/PhoneIcon";
 import { type MenuSource, resolveMenu } from "./ContextMenu";
@@ -32,6 +32,9 @@ export function ActionMenu({
   const owner = useId();
   const open = useUI((state) => state.contextMenu?.owner === owner);
 
+  const glyph = phoneIcon ? <PhoneIcon icon={icon} /> : <Icon icon={icon} />;
+  const chevronAfter = icon === CaretDown && triggerText !== undefined;
+
   return (
     <button
       type="button"
@@ -59,8 +62,17 @@ export function ActionMenu({
       }}
       className={`${triggerClass} disabled:opacity-[var(--disabled-opacity)]`}
     >
-      {phoneIcon ? <PhoneIcon icon={icon} /> : <Icon icon={icon} />}
-      {triggerText}
+      {chevronAfter ? (
+        <>
+          {triggerText}
+          {glyph}
+        </>
+      ) : (
+        <>
+          {glyph}
+          {triggerText}
+        </>
+      )}
     </button>
   );
 }

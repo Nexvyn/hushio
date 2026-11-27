@@ -1,11 +1,96 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Trash } from "@phosphor-icons/react";
 import { SettingRow } from "./SettingRow";
+import { RadioGroup } from "./RadioGroup";
 import { Slider } from "./Slider";
 
+const phone = vi.hoisted(() => ({ value: false }));
+vi.mock("../lib/usePhone", () => ({ usePhone: () => phone.value }));
+
 describe("SettingRow", () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    phone.value = false;
+  });
+
+  it("left-aligns a slider's value on phone and keeps it tabular and fixed-width", () => {
+    phone.value = true;
+    render(
+      <SettingRow
+        icon={Trash}
+        title="Playback speed"
+        value="0.95x"
+        control={<Slider label="Playback speed" min={0.5} max={2} step={0.05} value={0.95} onChange={() => {}} />}
+      />,
+    );
+    const value = screen.getByText("0.95x");
+    expect(value.className).toContain("text-left");
+    expect(value.className).not.toContain("text-right");
+    expect(value.className).toContain("min-w-[3.5rem]");
+    expect(value.className).toContain("tabular-nums");
+  });
+
+  it("keeps the value right-aligned beside a slider on desktop", () => {
+    render(
+      <SettingRow
+        icon={Trash}
+        title="Playback speed"
+        value="0.95x"
+        control={<Slider label="Playback speed" min={0.5} max={2} step={0.05} value={0.95} onChange={() => {}} />}
+      />,
+    );
+    const value = screen.getByText("0.95x");
+    expect(value.className).toContain("text-right");
+    expect(value.className).not.toContain("text-left");
+  });
+
+  it("stacks a segmented control under the title on phone", () => {
+    phone.value = true;
+    render(
+      <SettingRow
+        icon={Trash}
+        title="Theme"
+        control={
+          <RadioGroup
+            label="Theme"
+            options={[
+              { value: "system", label: "System" },
+              { value: "dark", label: "Dark" },
+            ]}
+            value="system"
+            onChange={() => {}}
+          />
+        }
+      />,
+    );
+    const control = screen.getByRole("radiogroup", { name: "Theme" }).parentElement;
+    expect(control?.className).not.toContain("shrink-0");
+    expect(control?.parentElement?.className).toContain("flex-col");
+  });
+
+  it("keeps a segmented control beside the title on desktop", () => {
+    render(
+      <SettingRow
+        icon={Trash}
+        title="Theme"
+        control={
+          <RadioGroup
+            label="Theme"
+            options={[
+              { value: "system", label: "System" },
+              { value: "dark", label: "Dark" },
+            ]}
+            value="system"
+            onChange={() => {}}
+          />
+        }
+      />,
+    );
+    const control = screen.getByRole("radiogroup", { name: "Theme" }).parentElement;
+    expect(control?.className).toContain("shrink-0");
+    expect(control?.parentElement?.className).not.toContain("flex-col");
+  });
 
   it("keeps a short control beside the title", () => {
     render(<SettingRow icon={Trash} title="Import" control={<button type="button">Open</button>} />);

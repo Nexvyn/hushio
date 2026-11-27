@@ -9,7 +9,7 @@ describe("updateCopy", () => {
   it("names the installed and offered versions", () => {
     expect(updateCopy({ kind: "current", version: "1.1.1" }, "1.1.1")).toEqual({
       title: "Hushio is up to date",
-      note: "Version 1.1.1 is the newest",
+      note: "Version 1.1.1 is the newest.",
     });
     expect(updateCopy({ kind: "available", version: "1.2.0" }, "1.1.1")).toEqual({
       title: "Version 1.2.0 is available",

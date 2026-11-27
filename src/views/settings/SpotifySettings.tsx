@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
+import { CaretDown } from "@phosphor-icons/react";
 import { Button } from "../../components/Button";
+import { Icon } from "../../components/Icon";
 import { spotifySetClientId, spotifySignIn, spotifySignOut, spotifyStatus, type SpotifyAccount } from "../../lib/bridge";
 import { spotifyStatusText } from "../../lib/spotifyLibrary";
 
 export function SpotifySettings() {
   const [account, setAccount] = useState<SpotifyAccount | null>(null);
+  const [ownAppOpen, setOwnAppOpen] = useState<boolean>();
   const [clientId, setClientId] = useState("");
   const [busy, setBusy] = useState<"signIn" | "save" | "disconnect" | null>(null);
   const [message, setMessage] = useState("");
@@ -16,6 +19,7 @@ export function SpotifySettings() {
       if (live) {
         setAccount(next);
         setClientId(next.ownClientId ?? "");
+        setOwnAppOpen(!next.configured);
       }
     }).catch(() => {
       if (live) setMessage("Couldn't read your Spotify settings.");
@@ -53,20 +57,32 @@ export function SpotifySettings() {
   const invalid = value.length > 0 && !/^[a-f0-9]{32}$/i.test(value);
   return (
     <section aria-label="Spotify" className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <h3 className="text-body font-medium">Spotify</h3>
           <p role="status" className="text-meta text-ink-2">
             {spotifyStatusText(account, busy === "signIn")}
           </p>
         </div>
-        {account && (account.signedIn
-          ? <Button disabled={!!busy} onClick={() => void update("disconnect")}>Disconnect</Button>
-          : <Button disabled={!!busy || !account.configured} onClick={() => void update("signIn")}>Sign in with Spotify</Button>)}
+        {account?.signedIn && (
+          <div className="shrink-0">
+            <Button disabled={!!busy} onClick={() => void update("disconnect")}>Disconnect</Button>
+          </div>
+        )}
+        {account && !account.signedIn && account.configured && (
+          <div className="shrink-0">
+            <Button disabled={!!busy} onClick={() => void update("signIn")}>Sign in with Spotify</Button>
+          </div>
+        )}
       </div>
       {account && (
-        <details>
-          <summary className="cursor-pointer text-body">Use your own Spotify app</summary>
+        <details className="group" open={ownAppOpen}>
+          <summary className="flex min-h-[52px] cursor-pointer list-none items-center justify-between gap-3 text-body [&::-webkit-details-marker]:hidden">
+            <span className="min-w-0 flex-1">Use your own Spotify app</span>
+            <span className="shrink-0 group-open:rotate-180">
+              <Icon icon={CaretDown} />
+            </span>
+          </summary>
           <ol className="my-3 list-decimal space-y-2 pl-5 text-meta text-ink-2">
             <li>Create a Web API app in the Spotify developer dashboard. Spotify Premium is needed.</li>
             <li>Add this redirect URI to the app settings.

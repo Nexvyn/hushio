@@ -17,7 +17,7 @@ export function updateCopy(phase: UpdatePhase, current: string | null): UpdateCo
     case "checking":
       return { title: "Checking for updates…", note: null };
     case "current":
-      return { title: "Hushio is up to date", note: `Version ${phase.version} is the newest` };
+      return { title: "Hushio is up to date", note: `Version ${phase.version} is the newest.` };
     case "available":
       return {
         title: `Version ${phase.version} is available`,
@@ -26,7 +26,7 @@ export function updateCopy(phase: UpdatePhase, current: string | null): UpdateCo
     case "downloading":
       return { title: `Downloading version ${phase.version}…`, note: `${phase.percent}%` };
     case "ready":
-      return { title: `Version ${phase.version} is ready`, note: "Install it to finish updating" };
+      return { title: `Version ${phase.version} is ready`, note: "Install it to finish updating." };
     case "unknown-sources":
       return { title: "Allow installs from Hushio in the settings, then try again", note: null };
     case "error":
