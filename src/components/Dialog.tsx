@@ -1,8 +1,8 @@
 import { t, useT } from "../lib/i18n";
 import { type MutableRefObject, type RefObject, useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, type Transition } from "motion/react";
 import { type DialogRequest, useUI } from "../stores/ui";
-import { EASE_OUT, MS_POPOVER_IN, MS_POPOVER_OUT, SPRING_SHEET, fade, reducedMotion } from "../lib/motion";
+import { DURATION_MS, EASE_IN, EASE_OUT, SPRING_SHEET, fade, reducedMotion } from "../lib/motion";
 
 type Failure = { request: DialogRequest; message: string };
 
@@ -28,8 +28,10 @@ function commit(request: DialogRequest, value: string, fail: (message: string) =
 
 function DialogFrame({ request, sheet, failure, panelRef, inputRef, onConfirm, onDismiss, keyboardInset }: FrameProps & { keyboardInset: number }) {
   const reduced = reducedMotion();
-  const popoverIn = { duration: MS_POPOVER_IN / 1000, ease: EASE_OUT };
-  const popoverOut = { duration: MS_POPOVER_OUT / 1000, ease: EASE_OUT };
+  const panelIn: Transition = { duration: DURATION_MS.dialogIn / 1000, ease: EASE_OUT };
+  const panelOut: Transition = { duration: DURATION_MS.dialogOut / 1000, ease: EASE_IN };
+  const scrimIn: Transition = { duration: DURATION_MS.reading / 1000, ease: EASE_OUT };
+  const scrimOut: Transition = { duration: DURATION_MS.dialogOut / 1000, ease: EASE_IN };
   const shell = sheet ? "fixed inset-0 z-[120] flex items-end" : "fixed inset-0 z-[120] grid place-items-center";
   const panelShape = sheet
     ? "relative w-full rounded-t-[16px] border-t border-separator bg-elevated p-6 outline-none"
@@ -42,8 +44,8 @@ function DialogFrame({ request, sheet, failure, panelRef, inputRef, onConfirm, o
         style={{ background: "rgb(var(--scrim) / var(--scrim-alpha))" }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={fade}
+        exit={{ opacity: 0, transition: reduced ? fade : scrimOut }}
+        transition={reduced ? fade : scrimIn}
         onMouseDown={(event) => {
           if (event.target === event.currentTarget) onDismiss();
         }}
@@ -58,8 +60,8 @@ function DialogFrame({ request, sheet, failure, panelRef, inputRef, onConfirm, o
         style={sheet ? { paddingBottom: "calc(24px + var(--inset-bottom, env(safe-area-inset-bottom, 0px)))" } : undefined}
         initial={reduced ? { opacity: 0 } : sheet ? { y: "100%" } : { opacity: 0, scale: 0.96 }}
         animate={reduced ? { opacity: 1 } : sheet ? { y: 0 } : { opacity: 1, scale: 1 }}
-        exit={reduced ? { opacity: 0, transition: fade } : sheet ? { y: "100%", transition: { duration: MS_POPOVER_OUT / 1000, ease: EASE_OUT } } : { opacity: 0, scale: 0.98, transition: popoverOut }}
-        transition={reduced ? fade : sheet ? SPRING_SHEET : popoverIn}
+        exit={reduced ? { opacity: 0, transition: fade } : sheet ? { y: "100%", transition: panelOut } : { opacity: 0, scale: 0.98, transition: panelOut }}
+        transition={reduced ? fade : sheet ? SPRING_SHEET : panelIn}
       >
         <h2
           className={`font-display text-lg font-bold ${

@@ -1,5 +1,7 @@
 import { X } from "@phosphor-icons/react";
 import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { motion, type Transition } from "motion/react";
+import { DURATION_MS, EASE_OUT, fade, reducedMotion } from "../lib/motion";
 import { usePhone } from "../lib/usePhone";
 import { Icon } from "./Icon";
 import { Sheet } from "./phone/Sheet";
@@ -23,6 +25,9 @@ export function ImportButton({
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ImportButtonVariant }) {
   return <button type={type} className={`${BASE} ${VARIANTS[variant]} ${className}`} {...props} />;
 }
+
+const panelIn: Transition = { duration: DURATION_MS.dialogIn / 1000, ease: EASE_OUT };
+const scrimIn: Transition = { duration: DURATION_MS.reading / 1000, ease: EASE_OUT };
 
 export function ImportModal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   const phone = usePhone();
@@ -53,21 +58,28 @@ function DesktopModal({ title, onClose, children }: { title: string; onClose: ()
     target?.focus();
   }, []);
 
+  const reduced = reducedMotion();
   return (
     <div className="fixed inset-0 z-[120] grid place-items-center">
-      <div
+      <motion.div
         aria-hidden="true"
         className="absolute inset-0"
         style={{ background: "rgb(var(--scrim) / var(--scrim-alpha))" }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={reduced ? fade : scrimIn}
         onMouseDown={onClose}
       />
-      <div
+      <motion.div
         ref={panel}
         role="dialog"
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        className="glass-strong relative flex max-h-[80vh] w-[min(520px,calc(100vw-48px))] flex-col rounded-2xl p-6 outline-none motion-safe:animate-pop-in"
+        className="glass-strong relative flex max-h-[80vh] w-[min(520px,calc(100vw-48px))] flex-col rounded-2xl p-6 outline-none"
+        initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.96 }}
+        animate={reduced ? { opacity: 1 } : { opacity: 1, scale: 1 }}
+        transition={reduced ? fade : panelIn}
       >
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-card-title font-semibold text-ink-1">{title}</h2>
@@ -81,7 +93,7 @@ function DesktopModal({ title, onClose, children }: { title: string; onClose: ()
           </button>
         </div>
         <div className="mt-4 min-h-0 flex-1 overflow-y-auto">{children}</div>
-      </div>
+      </motion.div>
     </div>
   );
 }

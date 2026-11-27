@@ -5,7 +5,7 @@ import { Icon } from "./Icon";
 import { LyricsChoice } from "./LyricsChoice";
 import { LyricsTiming } from "./LyricsTiming";
 import { SyncedLyrics } from "./SyncedLyrics";
-import { nowPlayingEnter, nowPlayingExit, reducedMotion } from "../lib/motion";
+import { fade, nowPlayingEnter, nowPlayingExit, reducedMotion } from "../lib/motion";
 import { useLyricsOffset, useLyricsTimingKeys } from "../lib/lyricsOffset";
 import { useTrackLyrics } from "../lib/useTrackLyrics";
 import { currentTrack, usePlayer } from "../stores/player";
@@ -29,7 +29,7 @@ export function LyricsCenter() {
       aria-label="Lyrics"
       initial={reduced ? false : { opacity: 0, scale: 0.97, y: 12 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.97, y: 12, transition: nowPlayingExit }}
+      exit={reduced ? { opacity: 0, transition: fade } : { opacity: 0, scale: 0.97, y: 12, transition: nowPlayingExit }}
       transition={nowPlayingEnter}
       style={{ transformOrigin: "0% 100%" }}
       className="group absolute inset-0 z-10 flex flex-col overflow-hidden rounded-2xl bg-surface"

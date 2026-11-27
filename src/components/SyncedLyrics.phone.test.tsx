@@ -134,17 +134,17 @@ describe("SyncedLyrics on phone", () => {
     expect(Number(second.style.opacity)).toBeCloseTo(0.8, 5);
     expect(second.style.filter).toBe("");
     expect(Number(third.style.opacity)).toBeCloseTo(0.7, 5);
-    expect(first.style.scale).toBe("1");
+    expect(first.style.scale).toBe("");
   });
 
-  it("dims and scales inactive lines without blur during playback", () => {
+  it("dims inactive lines without scale or blur during playback", () => {
     render(<SyncedLyrics lyrics={lyrics} loading={false} />);
     const [first, active, third] = lineButtons();
     expect(active.style.filter).toBe("");
-    expect(active.style.scale).toBe("1");
+    expect(active.style.scale).toBe("");
     for (const line of [first, third]) {
       expect(line.style.filter).toBe("");
-      expect(line.style.scale).toBe("0.96");
+      expect(line.style.scale).toBe("");
       expect(Number(line.style.opacity)).toBeCloseTo(0.8, 5);
     }
   });
@@ -206,10 +206,10 @@ describe("SyncedLyrics on phone with right-to-left lines", () => {
     expect(active.getAttribute("dir")).toBe("auto");
     expect(active.className).toContain("text-start");
     expect(active.style.transformOrigin).toBe("right center");
-    expect(active.style.scale).toBe("1");
+    expect(active.style.scale).toBe("");
     expect(active.style.maxWidth).toBe("100%");
     expect(active.querySelector("span > span")?.className).toBe(screen.getByText("First line").className);
     expect(first.style.transformOrigin).toBe("left center");
-    expect(third.style.scale).toBe("0.96");
+    expect(third.style.scale).toBe("");
   });
 });

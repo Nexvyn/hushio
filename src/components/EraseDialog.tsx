@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { motion, type Transition } from "motion/react";
 import { APP_NAME } from "../lib/app";
 import { platform } from "../lib/bridge";
 import { deviceNoun } from "../lib/desktopPlatform";
@@ -6,6 +7,10 @@ import { runErase, type EraseOptions, type EraseStage, type EraseSteps } from ".
 import { bridgeSteps, resetStoresAfterErase, useErase, type EraseMode } from "../stores/erase";
 import { useAuth } from "../stores/auth";
 import { useUI } from "../stores/ui";
+import { DURATION_MS, EASE_OUT, fade, reducedMotion } from "../lib/motion";
+
+const panelIn: Transition = { duration: DURATION_MS.dialogIn / 1000, ease: EASE_OUT };
+const scrimIn: Transition = { duration: DURATION_MS.reading / 1000, ease: EASE_OUT };
 
 type Props = {
   steps?: EraseSteps;
@@ -69,6 +74,7 @@ function ErasePanel({ mode, steps, onErased }: PanelProps) {
   const [downloads, setDownloads] = useState(false);
   const [message, setMessage] = useState("");
   const panelRef = useRef<HTMLDivElement>(null);
+  const reduced = reducedMotion();
   const cancelRef = useRef<HTMLButtonElement>(null);
   const opener = useRef<HTMLElement | null>(
     document.activeElement instanceof HTMLElement ? document.activeElement : null,
@@ -138,21 +144,27 @@ function ErasePanel({ mode, steps, onErased }: PanelProps) {
 
   return (
     <div className="fixed inset-0 z-[120] grid place-items-center">
-      <div
+      <motion.div
         className="absolute inset-0"
         style={{ background: "rgb(var(--scrim) / var(--scrim-alpha))" }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={reduced ? fade : scrimIn}
         onMouseDown={(event) => {
           if (event.target === event.currentTarget) dismiss();
         }}
       />
-      <div
+      <motion.div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={bodyId}
         tabIndex={-1}
-        className="glass-strong relative w-[min(420px,calc(100vw-48px))] rounded-2xl p-6 outline-none motion-safe:animate-pop-in"
+        className="glass-strong relative w-[min(420px,calc(100vw-48px))] rounded-2xl p-6 outline-none"
+        initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.96 }}
+        animate={reduced ? { opacity: 1 } : { opacity: 1, scale: 1 }}
+        transition={reduced ? fade : panelIn}
       >
         <h2 id={titleId} className="font-display text-lg font-bold text-danger-text">
           {working ? "Erasing…" : copy.title}
@@ -246,7 +258,7 @@ function ErasePanel({ mode, steps, onErased }: PanelProps) {
             </button>
           )}
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

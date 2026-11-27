@@ -15,7 +15,7 @@ import {
   type WordSpan,
 } from "../lib/lyricsLines";
 import { LYRICS_LOADING_LINES, pickLyricsLine } from "../lib/lyricsPhrases";
-import { DURATION_MS, EASE_MOVE, reducedMotion } from "../lib/motion";
+import { DURATION_MS, EASE_IN_OUT, reducedMotion } from "../lib/motion";
 import { romanize } from "../lib/romanize";
 import { usePhone } from "../lib/usePhone";
 import { usePlayer } from "../stores/player";
@@ -46,7 +46,6 @@ const PHONE_SUB_CLASS = "text-body leading-[22px] font-medium";
 const TRANSLATION_CLASS = "text-body font-medium";
 const BROWSING_OPACITY = 0.8;
 const WORD_LIFT = "translateY(-2px)";
-const LYRIC_MOVE_EASE = `cubic-bezier(${EASE_MOVE.join(", ")})`;
 const RTL_SCRIPT = /[֐-ࣿיִ-﷿ﹰ-﻿]/;
 
 type Words = NonNullable<SyncedLyricLine["words"]>;
@@ -139,7 +138,7 @@ function WordLine({
                   : {
                       display: "inline-block",
                       transform: percent > 0 && percent < 100 ? WORD_LIFT : undefined,
-                      transition: `transform ${DURATION_MS.lyricWordLift}ms ${LYRIC_MOVE_EASE}`,
+                      transition: `transform ${DURATION_MS.lyricWordLift}ms var(--ease-in-out)`,
                     }),
               }}
             >
@@ -265,7 +264,7 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
         autoOffset.set(0);
         return;
       }
-      glideRef.current = animate(autoOffset, autoOffset.get() + target, { duration: DURATION_MS.lyricScroll / 1000, ease: EASE_MOVE });
+      glideRef.current = animate(autoOffset, autoOffset.get() + target, { duration: DURATION_MS.lyricScroll / 1000, ease: EASE_IN_OUT });
     });
     return () => cancelAnimationFrame(frame);
   }, [activeIndex, lines, still, browsing, anchor, autoOffset]);
@@ -319,7 +318,7 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
     const phoneMotion = still
       ? { transition: `opacity ${DURATION_MS.lyricFocusReduced}ms ease-out` }
       : {
-          transition: `opacity ${DURATION_MS.lyricFocus}ms ${LYRIC_MOVE_EASE}, transform ${DURATION_MS.lyricFocus}ms ${LYRIC_MOVE_EASE}`,
+          transition: `opacity ${DURATION_MS.lyricFocus}ms var(--ease-in-out)`,
         };
     const motionStyle = phone
       ? phoneMotion
@@ -375,8 +374,8 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
         }}
         dir="auto"
         className={`group block w-full text-start ${ink} ${FOCUS_RING}`}
-        animate={phone ? { opacity, scale: still ? 1 : current ? 1 : 0.96 } : undefined}
-        transition={phone ? still ? { opacity: { duration: DURATION_MS.lyricFocusReduced / 1000 }, scale: { duration: 0 } } : { duration: DURATION_MS.lyricFocus / 1000, ease: EASE_MOVE } : undefined}
+        animate={phone ? { opacity } : undefined}
+        transition={phone ? (still ? { duration: DURATION_MS.lyricFocusReduced / 1000 } : { duration: DURATION_MS.lyricFocus / 1000, ease: EASE_IN_OUT }) : undefined}
         style={{
           ...(phone ? {} : motionStyle),
           opacity: phone ? undefined : opacity,
@@ -389,7 +388,7 @@ export function SyncedLyrics({ lyrics, loading, offset = 0, trackKey, onArt = fa
           transformOrigin: rtl ? "right center" : "left center",
         }}
       >
-        <span className={phone && !still ? "block motion-safe:transition-transform motion-safe:duration-fade motion-safe:group-active:scale-[0.96]" : "block"}>
+        <span className="block">
           {wordSynced ? (
             <WordLine
               words={words}
