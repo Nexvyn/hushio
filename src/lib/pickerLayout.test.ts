@@ -50,12 +50,12 @@ describe("placePicker", () => {
 });
 
 describe("pickerMotion", () => {
-  it("opens from 0.96 with a fade and closes faster to 0.98", () => {
+  it("opens from 0.95 with a fade and closes back to 0.95 in about 70% of the open time", () => {
     const motion = pickerMotion(false);
-    expect(motion.initial).toEqual({ opacity: 0, scale: 0.96 });
+    expect(motion.initial).toEqual({ opacity: 0, scale: 0.95 });
     expect(motion.animate).toEqual({ opacity: 1, scale: 1 });
-    expect(motion.exit).toMatchObject({ opacity: 0, scale: 0.98 });
-    expect(motion.transition).toMatchObject({ duration: 0.16 });
+    expect(motion.exit).toMatchObject({ opacity: 0, scale: 0.95 });
+    expect(motion.transition).toMatchObject({ duration: 0.175 });
     expect((motion.exit as { transition: { duration: number } }).transition.duration).toBe(0.12);
   });
 

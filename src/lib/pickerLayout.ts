@@ -1,5 +1,5 @@
 import type { Target, TargetAndTransition, Transition } from "motion/react";
-import { EASE_OUT, instant, MS_POPOVER_IN, MS_POPOVER_OUT } from "./motion";
+import { instant, pickerIn, pickerOut } from "./motion";
 
 export type Box = { left: number; top: number; right: number; bottom: number; width: number; height: number };
 export type View = { width: number; height: number };
@@ -51,16 +51,15 @@ type PickerMotion = {
 };
 
 export function pickerMotion(reduced: boolean): PickerMotion {
-  const transition = (duration: number): Transition => ({ duration: duration / 1000, ease: EASE_OUT });
   if (reduced) return {
     initial: false,
     animate: { opacity: 1 },
     transition: instant,
   };
   return {
-    initial: { opacity: 0, scale: 0.96 },
+    initial: { opacity: 0, scale: 0.95 },
     animate: { opacity: 1, scale: 1 },
-    exit: { opacity: 0, scale: 0.98, transition: transition(MS_POPOVER_OUT) },
-    transition: transition(MS_POPOVER_IN),
+    exit: { opacity: 0, scale: 0.95, transition: pickerOut },
+    transition: pickerIn,
   };
 }

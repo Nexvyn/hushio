@@ -17,7 +17,6 @@ import { type Box, pickerMotion } from "../lib/pickerLayout";
 import { CaretRight, Check } from "@phosphor-icons/react";
 import { Icon } from "./Icon";
 import { FLOAT_PANEL, FLOAT_ROW } from "../lib/floatStyle";
-import { GOO_SHAPE, GOO_LAYER_STYLE, gooVariants } from "./Goo";
 import { useUI, type ContextMenuOptions, type ContextMenuState, type MenuItem, type MenuSubject } from "../stores/ui";
 import "../styles/menu.css";
 
@@ -38,7 +37,7 @@ const SUB_SIZE = { width: 200, height: 340 };
 const KEY_ANCHOR_INSET = 16;
 const PANEL = `fixed z-[100] max-h-[70vh] min-w-[220px] max-w-[320px] overflow-y-auto no-scrollbar ${FLOAT_PANEL}`;
 const SUB_PANEL = `fixed z-[101] max-h-[340px] min-w-[200px] max-w-[320px] overflow-y-auto no-scrollbar ${FLOAT_PANEL}`;
-const ATTACHED_PANEL = "fixed z-[100] max-h-[70vh] w-[230px] overflow-y-auto no-scrollbar px-2 pb-2 pt-12";
+const ATTACHED_PANEL = `fixed z-[100] max-h-[70vh] w-[230px] overflow-y-auto no-scrollbar ${FLOAT_PANEL}`;
 const ROW = `${FLOAT_ROW} hit-area relative w-full data-[danger=true]:text-danger-text`;
 
 let sheetSeq = 0;
@@ -154,7 +153,6 @@ const MenuPanel = forwardRef<HTMLDivElement, PanelProps>(function MenuPanel(
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [reduced] = useState(reducedMotion);
   const presence = pickerMotion(reduced);
-  const goo = gooVariants(reduced);
 
   const setPanel = (node: HTMLDivElement | null) => {
     panelRef.current = node;
@@ -202,25 +200,10 @@ const MenuPanel = forwardRef<HTMLDivElement, PanelProps>(function MenuPanel(
       transition={presence.transition}
       className={`${attached ? ATTACHED_PANEL : submenu ? SUB_PANEL : PANEL}${above ? " is-above" : ""}${flipped ? " is-flipped" : ""}`}
     >
-      {attached && (
-        <motion.div variants={goo.stretch} data-goo-panel="" aria-hidden="true" className="pointer-events-none absolute inset-0 origin-top">
-          <div data-goo-layer="" className="absolute inset-0" style={GOO_LAYER_STYLE}>
-            <div className="absolute right-0 top-0 h-10 w-10 rounded-[12px] [corner-shape:squircle] bg-elevated" />
-            <div className={`${GOO_SHAPE} bottom-0 top-10`} />
-          </div>
-        </motion.div>
-      )}
       <span ref={lightRef} aria-hidden="true" className="menu-light" />
       {subject && (
         <>
           <div className="relative mb-2 flex items-center gap-2 overflow-hidden rounded-[10px] px-3 py-2">
-            {subject.thumb && (
-              <span
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 scale-125 bg-cover opacity-40 blur-2xl"
-                style={{ backgroundImage: `url(${JSON.stringify(subject.thumb)})` }}
-              />
-            )}
             {subject.thumb ? (
               <img loading="lazy" decoding="async"
                 alt=""

@@ -340,31 +340,21 @@ describe("ContextMenu dismissal", () => {
   });
 });
 
-describe("ContextMenu attached (goo) mode", () => {
+describe("ContextMenu attached mode", () => {
   afterEach(() => {
     document.documentElement.classList.remove("reduce-motion");
     act(() => useUI.getState().closeContextMenu());
     cleanup();
   });
 
-  it("grows an attached menu out of its trigger on the goo layer, with rows kept sharp", async () => {
+  it("renders an attached menu as a plain panel with no goo layer", async () => {
     render(<ContextMenu />);
     act(() => useUI.getState().openContextMenu(300, 40, sampleItems(), { attached: true, alignRight: true }));
 
     const menu = await screen.findByRole("menu");
-    const layer = menu.querySelector<HTMLElement>("[data-goo-layer]");
-    expect(layer?.style.filter).toContain("url(#goo)");
-    expect(layer?.querySelector(".top-10")).not.toBeNull();
-    expect(screen.getByRole("menuitem", { name: "Play now" }).closest("[data-goo-layer]")).toBeNull();
-  });
-
-  it("does not stretch an attached menu under reduce motion", async () => {
-    document.documentElement.classList.add("reduce-motion");
-    render(<ContextMenu />);
-    act(() => useUI.getState().openContextMenu(300, 40, sampleItems(), { attached: true, alignRight: true }));
-
-    const panel = (await screen.findByRole("menu")).querySelector<HTMLElement>("[data-goo-panel]");
-    expect(panel?.style.transform).not.toContain("scaleY(0)");
+    expect(menu.querySelector("[data-goo-layer]")).toBeNull();
+    expect(menu.querySelector("[data-goo-panel]")).toBeNull();
+    expect(screen.getByRole("menuitem", { name: "Play now" })).toBeTruthy();
   });
 
   it("keeps the goo layer off ordinary menus", async () => {

@@ -5,7 +5,7 @@ import { Icon } from "./Icon";
 import { activeDefaultLabel, isChoiceChecked, useOutputDevices } from "./OutputDevicePicker";
 import { deviceChoices, listOutputDevices } from "../lib/outputDevices";
 import { platform } from "../lib/bridge";
-import { gate, quick, reducedMotion } from "../lib/motion";
+import { gate, pickerIn, pickerOut, reducedMotion } from "../lib/motion";
 import { useSettings } from "../stores/settings";
 
 const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
@@ -101,10 +101,10 @@ export function OutputDeviceButton() {
             role="menu"
             aria-label="Output devices"
             onKeyDown={moveFocus}
-            initial={reduced ? false : { opacity: 0, y: 6, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={reduced ? { opacity: 0 } : { opacity: 0, y: 6, scale: 0.98 }}
-            transition={gate(reduced, quick)}
+            initial={reduced ? false : { opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.95, transition: pickerOut }}
+            transition={gate(reduced, pickerIn)}
             style={{ transformOrigin: "bottom right" }}
             className="absolute bottom-full right-0 z-50 mb-2 w-64 rounded-[12px] border border-separator bg-surface p-1.5 shadow-popover"
           >

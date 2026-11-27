@@ -327,7 +327,7 @@ describe("TopBar dark surfaces and centring", () => {
   });
 });
 
-describe("TopBar goo dropdown", () => {
+describe("TopBar search dropdown", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     typeAhead.mockResolvedValue(suggestions);
@@ -345,18 +345,15 @@ describe("TopBar goo dropdown", () => {
     expect(definitions.length).toBe(1);
   });
 
-  it("puts the goo filter on the background layer only, never on the text", async () => {
+  it("renders the dropdown without a goo layer and with its rows in a panel", async () => {
     const user = userEvent.setup();
     render(<TopBar />);
     await user.click(input());
     await user.type(input(), "dua");
     const listbox = await screen.findByRole("listbox", { name: "Search suggestions" });
 
-    const layer = listbox.querySelector<HTMLElement>("[data-goo-layer]");
-    expect(layer?.style.filter).toContain("url(#goo)");
-    const option = screen.getByRole("option", { name: /Levitating/ });
-    expect(option.closest("[data-goo-layer]")).toBeNull();
-    expect(layer?.contains(option)).toBe(false);
+    expect(listbox.querySelector("[data-goo-layer]")).toBeNull();
+    expect(screen.getByRole("option", { name: /Levitating/ }).closest("[role='listbox']")).toBe(listbox);
   });
 
   it("attaches the panel to the field with no gap", async () => {
@@ -368,10 +365,9 @@ describe("TopBar goo dropdown", () => {
 
     expect(listbox.className).toContain("top-0");
     expect(listbox.className).not.toContain("top-full");
-    expect(listbox.querySelector("[data-goo-layer] .top-10")).not.toBeNull();
   });
 
-  it("keeps the field above the goo layer so its text stays sharp", async () => {
+  it("keeps the field above the dropdown so its text stays sharp", async () => {
     const user = userEvent.setup();
     render(<TopBar />);
     await user.click(input());
@@ -458,9 +454,8 @@ describe("TopBar layout", () => {
       await user.click(input());
       await user.type(input(), "dua");
       const listbox = await screen.findByRole("listbox", { name: "Search suggestions" });
-      const panel = listbox.querySelector<HTMLElement>("[data-goo-panel]");
-      expect(panel?.style.transform).not.toContain("scaleY(0)");
-      expect(listbox.querySelector<HTMLElement>("[data-goo-layer]")?.style.filter).toContain("url(#goo)");
+      expect(listbox.style.transform).not.toContain("scale(0.95)");
+      expect(listbox.querySelector("[data-goo-layer]")).toBeNull();
     } finally {
       document.documentElement.classList.remove("reduce-motion");
     }
@@ -659,7 +654,7 @@ describe("TopBar avatar attached menu", () => {
     cleanup();
   });
 
-  it("opens the account menu as an attached goo menu and marks the avatar open", async () => {
+  it("opens the account menu as an attached menu and marks the avatar open", async () => {
     const user = userEvent.setup();
     render(
       <>
@@ -675,7 +670,7 @@ describe("TopBar avatar attached menu", () => {
     expect(useUI.getState().contextMenu?.attached).toBe(true);
     expect(avatar().getAttribute("data-open")).toBe("true");
     expect(avatar().className).toContain("z-[110]");
-    expect(document.querySelector("[data-goo-layer]")).not.toBeNull();
+    expect(document.querySelector("[data-goo-layer]")).toBeNull();
 
     await user.keyboard("{Escape}");
 

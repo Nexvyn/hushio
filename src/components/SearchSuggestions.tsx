@@ -3,9 +3,9 @@ import { motion } from "motion/react";
 import { ArrowUpLeft, MagnifyingGlass } from "@phosphor-icons/react";
 import { Artwork, TYPE_LABEL } from "./SearchRows";
 import { Icon } from "./Icon";
-import { FLOAT_ROW } from "../lib/floatStyle";
-import { GOO_LAYER_STYLE, GOO_SHAPE, gooVariants } from "./Goo";
+import { FLOAT_PANEL, FLOAT_ROW } from "../lib/floatStyle";
 import { reducedMotion } from "../lib/motion";
+import { pickerMotion } from "../lib/pickerLayout";
 import { peekTypeAhead, typeAhead } from "../lib/search";
 import type { SuggestionRow } from "../lib/searchParse";
 import { joinSubtitle } from "../lib/subtitle";
@@ -87,27 +87,21 @@ export function SearchSuggestions({
   const typed = query.trim();
   const keepFocus = (event: MouseEvent) => event.preventDefault();
   const reduced = reducedMotion();
-  const { stretch, reveal } = gooVariants(reduced);
+  const presence = pickerMotion(reduced);
   return (
     <motion.div
       id={listId}
       role="listbox"
       aria-label="Search suggestions"
-      initial={reduced ? false : "initial"}
-      animate="animate"
-      exit="exit"
+      initial={presence.initial}
+      animate={presence.animate}
+      exit={presence.exit}
+      transition={presence.transition}
+      style={{ transformOrigin: "top center" }}
       className={inline ? "relative mt-1" : "no-scrollbar pointer-events-none absolute left-0 right-0 top-0 z-50"}
     >
-      {!inline && (
-        <motion.div variants={stretch} data-goo-panel="" aria-hidden="true" className="pointer-events-none absolute inset-0 origin-top">
-          <div data-goo-layer="" className="absolute inset-0" style={GOO_LAYER_STYLE}>
-            <div className={`${GOO_SHAPE} top-0 h-10`} />
-            <div className={`${GOO_SHAPE} bottom-0 top-10`} />
-          </div>
-        </motion.div>
-      )}
-      <motion.div variants={reveal} className={inline ? "relative" : "pointer-events-none relative pt-10"}>
-      <div className={`${inline ? "" : "pointer-events-auto "}relative p-2`}>
+      <div className={inline ? "relative" : "pointer-events-none relative pt-10"}>
+      <div className={`${inline ? "" : `pointer-events-auto ${FLOAT_PANEL} `}relative p-2`}>
       {typed && (
       <div
         id={optionId(listId, 0)}
@@ -175,7 +169,7 @@ export function SearchSuggestions({
         );
       })}
       </div>
-      </motion.div>
+      </div>
     </motion.div>
   );
 }
