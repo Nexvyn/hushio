@@ -1,35 +1,74 @@
 import { useLayoutEffect, useRef, type RefObject } from "react";
-import { DURATION_MS, EASE_OUT, reducedMotion } from "./motion";
+import { DURATION_MS, EASE_IN, EASE_IN_OUT, EASE_OUT, reducedMotion } from "./motion";
 
 const ROW_SELECTOR = "[data-row-key]";
-const EASE = `cubic-bezier(${EASE_OUT.join(", ")})`;
 
-type Layout = { signature: string; tops: Map<string, number> };
+const curve = (points: readonly number[]) => `cubic-bezier(${points.join(", ")})`;
+const ENTER = curve(EASE_OUT);
+const EXIT = curve(EASE_IN);
+const MOVE = curve(EASE_IN_OUT);
 
-function measureRows(list: HTMLElement): Map<string, number> {
-  const tops = new Map<string, number>();
-  list.querySelectorAll<HTMLElement>(ROW_SELECTOR).forEach((row) => {
-    tops.set(row.dataset.rowKey ?? "", row.offsetTop);
+type Row = { top: number; rect: DOMRect; element: HTMLElement };
+type Layout = { signature: string; rows: Map<string, Row> };
+
+function measureRows(list: HTMLElement): Map<string, Row> {
+  const rows = new Map<string, Row>();
+  list.querySelectorAll<HTMLElement>(ROW_SELECTOR).forEach((element) => {
+    rows.set(element.dataset.rowKey ?? "", {
+      top: element.offsetTop,
+      rect: element.getBoundingClientRect(),
+      element,
+    });
   });
-  return tops;
+  return rows;
 }
 
-function playRows(list: HTMLElement, before: Map<string, number>, after: Map<string, number>) {
+function fadeOut(element: HTMLElement, rect: DOMRect) {
+  element.removeAttribute("data-row-key");
+  element.setAttribute("aria-hidden", "true");
+  element.setAttribute("inert", "");
+  Object.assign(element.style, {
+    position: "fixed",
+    top: `${rect.top}px`,
+    left: `${rect.left}px`,
+    right: "auto",
+    bottom: "auto",
+    width: `${rect.width}px`,
+    height: `${rect.height}px`,
+    margin: "0",
+    transform: "none",
+    pointerEvents: "none",
+    zIndex: "50",
+  });
+  document.body.append(element);
+  if (typeof element.animate !== "function") {
+    element.remove();
+    return;
+  }
+  element
+    .animate([{ opacity: 1 }, { opacity: 0 }], { duration: DURATION_MS.reading, easing: EXIT })
+    .finished.then(
+      () => element.remove(),
+      () => element.remove(),
+    );
+}
+
+function playRows(list: HTMLElement, before: Map<string, Row>, after: Map<string, Row>) {
   if (!("animate" in list)) return;
   list.querySelectorAll<HTMLElement>(ROW_SELECTOR).forEach((row) => {
     const key = row.dataset.rowKey ?? "";
-    const to = after.get(key);
+    const to = after.get(key)?.top;
     if (to === undefined) return;
-    const from = before.get(key);
+    const from = before.get(key)?.top;
     if (from === undefined) {
-      row.animate([{ opacity: 0 }, { opacity: 1 }], { duration: DURATION_MS.fade, easing: EASE });
+      row.animate([{ opacity: 0 }, { opacity: 1 }], { duration: DURATION_MS.quick, easing: ENTER });
       return;
     }
     const dy = from - to;
     if (dy === 0) return;
     row.animate([{ transform: `translateY(${dy}px)` }, { transform: "translateY(0)" }], {
-      duration: DURATION_MS.swap,
-      easing: EASE,
+      duration: DURATION_MS.pageIn,
+      easing: MOVE,
     });
   });
 }
@@ -43,10 +82,13 @@ export function useFlip(listRef: RefObject<HTMLElement | null>, signature: strin
       previous.current = null;
       return;
     }
-    const tops = measureRows(list);
+    const rows = measureRows(list);
     const before = previous.current;
-    previous.current = { signature, tops };
+    previous.current = { signature, rows };
     if (!before || before.signature === signature || skipped || reducedMotion()) return;
-    playRows(list, before.tops, tops);
+    for (const [key, row] of before.rows) {
+      if (!rows.has(key)) fadeOut(row.element, row.rect);
+    }
+    playRows(list, before.rows, rows);
   });
 }

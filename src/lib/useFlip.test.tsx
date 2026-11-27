@@ -62,7 +62,7 @@ describe("useFlip", () => {
       {
         key: "a",
         frames: [{ transform: "translateY(-40px)" }, { transform: "translateY(0)" }],
-        options: { duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+        options: { duration: 275, easing: "cubic-bezier(0.42, 0, 0.58, 1)" },
       },
     ]);
     expect(callsFor("b")[0]?.frames).toEqual([{ transform: "translateY(40px)" }, { transform: "translateY(0)" }]);
@@ -71,15 +71,29 @@ describe("useFlip", () => {
   it("closes the gap left by a removed row", () => {
     const { rerender } = render(<List keys={["a", "b", "c"]} />);
     rerender(<List keys={["a", "c"]} />);
-    expect(callsFor("b")).toHaveLength(0);
     expect(callsFor("c")[0]?.frames).toEqual([{ transform: "translateY(40px)" }, { transform: "translateY(0)" }]);
+  });
+
+  it("fades a removed row out as a fixed ghost, then drops it", async () => {
+    const { rerender } = render(<List keys={["a", "b", "c"]} />);
+    const removed = document.querySelector<HTMLElement>("[data-row-key=\"b\"]");
+    rerender(<List keys={["a", "c"]} />);
+    expect(removed?.parentElement).toBe(document.body);
+    expect(removed?.hasAttribute("data-row-key")).toBe(false);
+    expect(removed?.getAttribute("inert")).not.toBeNull();
+    expect(removed?.style.position).toBe("fixed");
+    expect(callsFor("")).toEqual([
+      { key: "", frames: [{ opacity: 1 }, { opacity: 0 }], options: { duration: 150, easing: "cubic-bezier(0.4, 0, 1, 1)" } },
+    ]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(removed?.parentElement).toBeNull();
   });
 
   it("fades a newly added row in over the fade token", () => {
     const { rerender } = render(<List keys={["a", "b"]} />);
     rerender(<List keys={["a", "x", "b"]} />);
     expect(callsFor("x")).toEqual([
-      { key: "x", frames: [{ opacity: 0 }, { opacity: 1 }], options: { duration: 120, easing: "cubic-bezier(0.22, 1, 0.36, 1)" } },
+      { key: "x", frames: [{ opacity: 0 }, { opacity: 1 }], options: { duration: 175, easing: "cubic-bezier(0.22, 1, 0.36, 1)" } },
     ]);
   });
 

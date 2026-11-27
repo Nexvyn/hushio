@@ -38,15 +38,10 @@ const scriptSources = walk(SRC_DIR)
 const LITERAL_SECONDS = /\bduration\s*:\s*\d*\.\d+/;
 
 const LITERAL_SECONDS_TEMPORARY_ALLOW = new Set([
-  "components/phone/PhoneQueueSheet.tsx:166",
-  "components/phone/PhoneQueueSheet.tsx:211",
-  "components/phone/PhoneQueueSheet.tsx:282",
-  "components/phone/PhoneTrackRow.tsx:63",
   "lib/toggleMotion.ts:16",
   "lib/toggleMotion.ts:17",
   "lib/toggleMotion.ts:20",
   "lib/toggleMotion.ts:21",
-  "lib/useSortable.ts:279",
 ]);
 
 function keyframeBodies(css: string): string[] {

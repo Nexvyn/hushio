@@ -6,7 +6,7 @@ import { PhoneIcon } from "./PhoneIcon";
 import { VirtualList, scrollerOf } from "../VirtualList";
 import { autoScrollStep, dropIndex, slideOffset } from "../../lib/dragReorder";
 import { haptic } from "../../lib/haptics";
-import { EASE_MOVE, PHONE_MS, SPRING_CONTROL, gate, phoneTween, reducedMotion } from "../../lib/motion";
+import { DURATION_MS, EASE_IN_OUT, PHONE_MS, SPRING_CONTROL, gate, phoneTween, reducedMotion } from "../../lib/motion";
 import { nowPlayingSourceName } from "../../lib/nowPlayingSource";
 import { queueEntryKeys } from "../../lib/queueKeys";
 import { songOf, trackMenuItems } from "../../lib/trackActions";
@@ -163,7 +163,7 @@ export function PhoneQueueList() {
       const distance = (active.scroller?.scrollTop ?? active.scrollBase) - active.scrollBase + active.y - active.startY;
       draggedRow.style.translate = "";
       if (reduced) {
-        void animate(draggedRow, { opacity: [0.96, 1] }, { duration: 0.12 });
+        void animate(draggedRow, { opacity: [0.96, 1] }, { duration: DURATION_MS.fade / 1000 });
       } else {
         draggedRow.style.transform = "translateY(0px) scale(1.02)";
         void animate(draggedRow, { y: [distance, 0], scale: [1.02, 1], opacity: [0.96, 1] }, { ...SPRING_CONTROL, velocity: active.velocity });
@@ -208,7 +208,7 @@ export function PhoneQueueList() {
     };
     setDrag({ from: at, target: at });
     const row = root.current?.querySelector<HTMLElement>(`[data-index="${at}"]`);
-    if (row && !reduced) void animate(row, { scale: [1, 1.02], opacity: [1, 0.96] }, { duration: 0.1, ease: EASE_MOVE });
+    if (row && !reduced) void animate(row, { scale: [1, 1.02], opacity: [1, 0.96] }, { duration: DURATION_MS.instant / 1000, ease: EASE_IN_OUT });
     haptic("select");
   };
 
@@ -279,7 +279,7 @@ export function PhoneQueueList() {
               index={at}
               dragging={drag?.from === at}
               dragOffset={reduced ? 0 : drag && drag.from !== at ? slideOffset(at, drag.from, drag.target, PHONE_ROW_DP) : 0}
-              dragTransition={drag ? { duration: 0.18, ease: EASE_MOVE } : SPRING_CONTROL}
+              dragTransition={drag ? { duration: DURATION_MS.pageIn / 1000, ease: EASE_IN_OUT } : SPRING_CONTROL}
               onPress={() => jumpTo(at)}
               onMore={(event) => menuFor(track, event)}
               swipeLeft={{ label: "Remove", icon: Trash, tone: "danger", run: () => removeUpcoming(at, track) }}

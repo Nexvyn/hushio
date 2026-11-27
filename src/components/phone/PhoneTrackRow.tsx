@@ -1,6 +1,5 @@
-import { useState, type MouseEvent, type ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { motion } from "motion/react";
-import { HeartBurst } from "../motion/HeartBurst";
 import { Heart, DotsThree, ListPlus, SpeakerHigh } from "@phosphor-icons/react";
 import { ActionMenu } from "../ActionMenu";
 import { openMenuAtPointer, openMenuFromKey, resolveMenu, type MenuSource } from "../ContextMenu";
@@ -13,7 +12,7 @@ import { SwipeRow } from "./SwipeRow";
 import type { RowAction } from "./useSwipeRow";
 import { thumbArtwork } from "../../lib/artwork";
 import { normalizeCredit } from "../../lib/credits";
-import { EASE_MOVE, gate, reducedMotion, settle } from "../../lib/motion";
+import { DURATION_MS, EASE_IN_OUT, SPRING_CONTROL, gate, reducedMotion } from "../../lib/motion";
 import { LONG_HOLD_MS } from "../../lib/phoneGestures";
 import type { SearchSong } from "../../lib/searchParse";
 import type { Point } from "../../lib/touchGesture";
@@ -60,12 +59,12 @@ export function PhoneTrackRow({
   dragTransition,
 }: PhoneTrackRowProps) {
   const reduced = reducedMotion();
-  const liftTransition = { y: { duration: 0 }, scale: reduced ? { duration: 0 } : { duration: 0.1, ease: EASE_MOVE }, opacity: reduced ? { duration: 0.12 } : { duration: 0.1, ease: EASE_MOVE } };
+  const liftTransition = { y: { duration: 0 }, scale: reduced ? { duration: 0 } : { duration: DURATION_MS.instant / 1000, ease: EASE_IN_OUT }, opacity: reduced ? { duration: DURATION_MS.fade / 1000 } : { duration: DURATION_MS.instant / 1000, ease: EASE_IN_OUT } };
   return (
     <motion.div
       data-index={index}
       animate={{ y: dragOffset, scale: dragging && !reduced ? 1.02 : 1, opacity: dragging && !reduced ? 0.96 : 1 }}
-      transition={dragTransition ?? (dragging ? liftTransition : gate(reduced, settle))}
+      transition={dragTransition ?? (dragging ? liftTransition : gate(reduced, SPRING_CONTROL))}
       className={dragging ? "relative z-10 rounded-[10px] bg-base" : ""}
       style={{ height: PHONE_ROW_DP, boxShadow: dragging ? "var(--shadow-held)" : undefined }}
     >
@@ -132,7 +131,6 @@ export function PhoneSongRow({
   const visible = usePageVisible();
   const animate = current && playing && visible && !reducedMotion();
   const liked = useLibrary((state) => state.liked.some((item) => item.id === song.id));
-  const [burst, setBurst] = useState(0);
   const sortable = rowProps !== undefined;
   const swipeRight: RowAction = {
     label: "Add to queue",
@@ -148,7 +146,6 @@ export function PhoneSongRow({
     tone: "neutral",
     run: () => {
       useLibrary.getState().toggleLike(song);
-      if (!liked) setBurst((count) => count + 1);
       useUI.getState().toast(liked ? "Removed from Liked Songs" : "Added to Liked Songs", "info", undefined, undefined, trackToastOptions(song));
     },
   };
@@ -199,7 +196,6 @@ export function PhoneSongRow({
           {liked && (
             <span role="img" aria-label="Liked" className="relative grid size-6 shrink-0 place-items-center text-accent">
               <PhoneIcon icon={Heart} fill="currentColor" />
-              {burst > 0 && !reducedMotion() && <HeartBurst key={burst} />}
             </span>
           )}
           <span data-no-drag className="flex shrink-0 items-center">

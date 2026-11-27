@@ -8,8 +8,7 @@ import {
   type RefObject,
 } from "react";
 import { animate } from "motion/react";
-import { DURATION_MS, MS_PRESS_OUT, reducedMotion } from "./motion";
-import { EASE_MOVE, SPRING_CONTROL } from "./motion";
+import { DURATION_MS, EASE_IN_OUT, MS_PRESS_OUT, SPRING_CONTROL, reducedMotion } from "./motion";
 import {
   type Box,
   autoScrollStep,
@@ -136,7 +135,7 @@ export function useSortable(options: SortableOptions) {
     const span = spanAt(drag.from, drag.boxes);
     drag.rows.forEach((row, index) => {
       if (index === drag.from) {
-        row.style.transition = reduced ? "none" : `transform ${MS_PRESS_OUT}ms cubic-bezier(${EASE_MOVE.join(",")}), opacity ${MS_PRESS_OUT}ms cubic-bezier(${EASE_MOVE.join(",")})`;
+        row.style.transition = reduced ? "none" : `transform ${MS_PRESS_OUT}ms cubic-bezier(${EASE_IN_OUT.join(",")}), opacity ${MS_PRESS_OUT}ms cubic-bezier(${EASE_IN_OUT.join(",")})`;
         row.style.transform = `translateY(${drag.offset}px) scale(1.02)`;
         row.style.opacity = reduced ? "1" : "0.96";
         row.style.boxShadow = LIFT_SHADOW;
@@ -145,7 +144,7 @@ export function useSortable(options: SortableOptions) {
         row.style.zIndex = "10";
         return;
       }
-      row.style.transition = reduced ? "none" : `transform ${DURATION_MS.picker}ms cubic-bezier(${EASE_MOVE.join(",")})`;
+      row.style.transition = reduced ? "none" : `transform ${DURATION_MS.pageIn}ms cubic-bezier(${EASE_IN_OUT.join(",")})`;
       row.style.transform = `translateY(${shiftFor(index, drag.from, drag.target, span)}px)`;
     });
   }
@@ -276,7 +275,7 @@ export function useSortable(options: SortableOptions) {
     const row = drag.rows[from];
     const reduced = reducedMotion();
     const settle = reduced
-      ? animate(row, { opacity: [0.96, 1] }, { duration: 0.12 })
+      ? animate(row, { opacity: [0.96, 1] }, { duration: DURATION_MS.fade / 1000 })
       : animate(row, { y: drag.boxes[target].top - drag.boxes[from].top, scale: 1, opacity: 1 }, { ...SPRING_CONTROL, velocity: drag.velocity });
     void settle.then(() => {
       clear(drag);
