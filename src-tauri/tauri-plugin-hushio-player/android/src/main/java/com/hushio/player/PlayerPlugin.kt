@@ -75,6 +75,13 @@ class PlayerPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
+    fun setBackGestureEnabled(invoke: Invoke) {
+        val enabled = invoke.getArgs().optBoolean("enabled", true)
+        activity.runOnUiThread { BackGesture.setEnabled(enabled) }
+        invoke.resolve()
+    }
+
+    @Command
     fun playerKeepAwake(invoke: Invoke) {
         val on = invoke.getArgs().optBoolean("on", false)
         activity.runOnUiThread {

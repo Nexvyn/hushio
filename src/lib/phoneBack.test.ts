@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EXIT_WINDOW_MS, nextArmedAt, resolveBack, type BackInput } from "./phoneBack";
+import { EXIT_WINDOW_MS, hasBackTarget, nextArmedAt, resolveBack, type BackInput } from "./phoneBack";
 
 const base: BackInput = { sheetOpen: false, nowPlayingOpen: false, canGoBack: false, atHome: true, armedAt: null, now: 10_000 };
 
@@ -32,3 +32,20 @@ describe("nextArmedAt", () => {
     expect(nextArmedAt("exit", 5)).toBeNull();
   });
 });
+
+describe("hasBackTarget", () => {
+  const rootOnly = { searchFocused: false, sheetOpen: false, nowPlayingOpen: false, canGoBack: false, atHome: true };
+
+  it("is false only at the home root with nothing open", () => {
+    expect(hasBackTarget(rootOnly)).toBe(false);
+  });
+
+  it("is true for each thing back can close or leave", () => {
+    expect(hasBackTarget({ ...rootOnly, searchFocused: true })).toBe(true);
+    expect(hasBackTarget({ ...rootOnly, sheetOpen: true })).toBe(true);
+    expect(hasBackTarget({ ...rootOnly, nowPlayingOpen: true })).toBe(true);
+    expect(hasBackTarget({ ...rootOnly, canGoBack: true })).toBe(true);
+    expect(hasBackTarget({ ...rootOnly, atHome: false })).toBe(true);
+  });
+});
+

@@ -20,6 +20,12 @@ export function resolveBack(input: BackInput): BackAction {
   return "arm-exit";
 }
 
+export type BackTargetInput = Omit<BackInput, "armedAt" | "now"> & { searchFocused: boolean };
+
+export function hasBackTarget(input: BackTargetInput): boolean {
+  return input.searchFocused || input.sheetOpen || input.nowPlayingOpen || input.canGoBack || !input.atHome;
+}
+
 export function nextArmedAt(action: BackAction, now: number): number | null {
   return action === "arm-exit" ? now : null;
 }

@@ -27,6 +27,7 @@ permissions = [
     "allow-player-haptic-tick",
     "allow-player-keep-awake",
     "allow-player-set-system-bars",
+    "allow-set-back-gesture-enabled",
     "allow-player-take-launch",
     "allow-cast-open",
     "allow-cast-load",

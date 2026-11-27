@@ -6,10 +6,11 @@ import androidx.activity.OnBackPressedCallback
 
 object BackGesture {
     private var inFlight = false
+    private var callback: OnBackPressedCallback? = null
 
     fun install(activity: ComponentActivity) {
         val dispatcher = activity.onBackPressedDispatcher
-        val callback = object : OnBackPressedCallback(true) {
+        val gesture = object : OnBackPressedCallback(true) {
             override fun handleOnBackStarted(backEvent: BackEventCompat) {
                 inFlight = true
                 PlayerEvents.emit("back-progress", payload(backEvent))
@@ -36,7 +37,12 @@ object BackGesture {
                 }
             }
         }
-        dispatcher.addCallback(activity, callback)
+        callback = gesture
+        dispatcher.addCallback(activity, gesture)
+    }
+
+    fun setEnabled(enabled: Boolean) {
+        callback?.isEnabled = enabled
     }
 
     private fun payload(event: BackEventCompat): Map<String, Any?> = mapOf(

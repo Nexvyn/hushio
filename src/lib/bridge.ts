@@ -277,6 +277,10 @@ export function playerSetSystemBars(dark: boolean): Promise<void> {
   return playerCall("player_set_system_bars", { dark });
 }
 
+export function setBackGestureEnabled(enabled: boolean): Promise<void> {
+  return playerCall<void>("set_back_gesture_enabled", { enabled });
+}
+
 export type CastStatus = { connected: boolean; playing: boolean; positionMs: number };
 
 export type CastLoad = {

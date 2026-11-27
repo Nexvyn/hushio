@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, renderHook } from "@testing-library/react";
 
-const { listen, exitApp, persistRead, persistWrite } = vi.hoisted(() => ({
+const { listen, exitApp, persistRead, persistWrite, setGesture } = vi.hoisted(() => ({
   listen: vi.fn(),
   exitApp: vi.fn(() => Promise.resolve()),
   persistRead: vi.fn(() => Promise.resolve(null)),
   persistWrite: vi.fn(() => Promise.resolve(true)),
+  setGesture: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock("../../lib/bridge", () => ({
@@ -13,6 +14,7 @@ vi.mock("../../lib/bridge", () => ({
   exitApp,
   persistRead,
   persistWrite,
+  setBackGestureEnabled: setGesture,
 }));
 
 import { usePhoneBack } from "./usePhoneBack";
@@ -32,6 +34,7 @@ beforeEach(() => {
     return Promise.resolve(() => {});
   });
   exitApp.mockClear();
+  setGesture.mockClear();
   useNavigation.setState({ view: { name: "home" }, navPast: [], navFuture: [], pendingScroll: null });
   useUI.setState({ contextMenu: null, dialog: null, playlistPicker: null, phoneQueueOpen: false, phoneLyricsOpen: false, nowPlayingOpen: false, toasts: [], pendingToasts: [] });
   useSongInfo.setState({ song: null });
@@ -116,3 +119,38 @@ describe("usePhoneBack", () => {
     expect(exitApp).not.toHaveBeenCalled();
   });
 });
+
+describe("usePhoneBack back gesture", () => {
+  it("turns the Android back gesture off once at a tab root with nothing open", () => {
+    renderHook(() => usePhoneBack());
+    expect(setGesture).toHaveBeenCalledTimes(1);
+    expect(setGesture).toHaveBeenLastCalledWith(false);
+  });
+
+  it("turns the gesture on while history, a sheet or Now Playing can take back", () => {
+    renderHook(() => usePhoneBack());
+    useNavigation.setState({ navPast: [{ view: { name: "home" }, scroll: 0 }] });
+    expect(setGesture).toHaveBeenLastCalledWith(true);
+    useNavigation.setState({ navPast: [] });
+    expect(setGesture).toHaveBeenLastCalledWith(false);
+    useUI.setState({ nowPlayingOpen: true });
+    expect(setGesture).toHaveBeenLastCalledWith(true);
+    useUI.setState({ nowPlayingOpen: false });
+    useUI.setState({ contextMenu: { items: [], x: 0, y: 0 } });
+    expect(setGesture).toHaveBeenLastCalledWith(true);
+  });
+
+  it("sends only when the value changes", () => {
+    renderHook(() => usePhoneBack());
+    useUI.setState({ nowPlayingOpen: false, toasts: [] });
+    useNavigation.setState({ navPast: [] });
+    expect(setGesture).toHaveBeenCalledTimes(1);
+  });
+
+  it("does nothing when disabled", () => {
+    renderHook(() => usePhoneBack(false));
+    useUI.setState({ nowPlayingOpen: true });
+    expect(setGesture).not.toHaveBeenCalled();
+  });
+});
+
