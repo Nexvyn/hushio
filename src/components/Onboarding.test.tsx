@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const bridge = vi.hoisted(() => ({
@@ -137,7 +137,7 @@ describe("Onboarding", () => {
     expect(resume).toBeTruthy();
     expectNamedControlsAndSizedIcons();
 
-    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+    await user.click(screen.getByRole("button", { name: /Continue with Google/ }));
     await screen.findByRole("heading", { name: /Stream what's new\./ });
     expect(bridge.googleSignIn).toHaveBeenCalledTimes(1);
   });
@@ -145,8 +145,7 @@ describe("Onboarding", () => {
   it("resume continues as guest and keeps the library", async () => {
     const user = userEvent.setup();
     render(<Onboarding initial="resume" />);
-    const card = screen.getByRole("heading", { name: "Your guest library is still here" }).parentElement;
-    await user.click(within(card as HTMLElement).getByRole("button", { name: "Continue as guest" }));
+    await user.click(screen.getByRole("button", { name: "Continue as guest" }));
     expect(bridge.persistWrite).toHaveBeenCalledWith("onboarding", { done: true }, "guest");
   });
 });

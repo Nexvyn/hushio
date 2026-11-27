@@ -7,51 +7,11 @@ body {
 
 .app-logo { display: inline-flex; flex-shrink: 0; vertical-align: middle; line-height: 0; isolation: isolate; }
 .app-logo > svg { width: 100%; height: 100%; overflow: visible; }
-.app-logo :is(.app-logo-face, .app-logo-ear, .app-logo-band, .app-logo-eye) { transform-box: fill-box; transform-origin: center; }
-.app-logo-eye { transform-origin: center 60%; }
-
-@keyframes logo-face-arrive {
-  0% { transform: translateY(12px) scale(.96); }
-  65% { transform: translateY(-3px) scale(1.012); }
-  100% { transform: translateY(0) scale(1); }
-}
-@keyframes logo-ear-left {
-  0%, 100% { transform: rotate(0); }
-  45% { transform: translateY(-2px) rotate(-4deg); }
-  70% { transform: rotate(1deg); }
-}
-@keyframes logo-ear-right {
-  0%, 100% { transform: rotate(0); }
-  45% { transform: translateY(-2px) rotate(4deg); }
-  70% { transform: rotate(-1deg); }
-}
-@keyframes logo-blink {
-  0%, 32%, 58%, 100% { transform: scaleY(1); }
-  43%, 47% { transform: scaleY(.12); }
-}
-@keyframes logo-band-arrive {
-  from { transform: translateY(6px); }
-  to { transform: translateY(0); }
-}
 
 @media (prefers-reduced-motion: no-preference) {
-  :root:not(.reduce-motion) .app-logo:is([data-motion="launch"], [data-motion="tap"]) .app-logo-face { animation: logo-face-arrive var(--dur-settle) var(--ease-out) var(--dur-fade) both; }
-  :root:not(.reduce-motion) .app-logo:is([data-motion="launch"], [data-motion="tap"]) .app-logo-band { animation: logo-band-arrive var(--dur-settle) var(--ease-out) var(--dur-gooDelay) both; }
-  :root:not(.reduce-motion) .app-logo:is([data-motion="launch"], [data-motion="tap"]) .app-logo-ear-left { animation: logo-ear-left var(--dur-settle) var(--ease-out) var(--dur-pageIn) both; }
-  :root:not(.reduce-motion) .app-logo:is([data-motion="launch"], [data-motion="tap"]) .app-logo-ear-right { animation: logo-ear-right var(--dur-settle) var(--ease-out) var(--dur-pageIn) both; }
-  :root:not(.reduce-motion) .app-logo:is([data-motion="launch"], [data-motion="tap"]) .app-logo-eye { animation: logo-blink var(--dur-settle) var(--ease-in-out) var(--dur-settle) both; }
-  :root:not(.reduce-motion) button:focus-visible .app-logo[data-motion="interactive"] .app-logo-eye { animation: logo-blink var(--dur-settle) var(--ease-in-out); }
-  :root:not(.reduce-motion) button:focus-visible .app-logo[data-motion="interactive"] .app-logo-ear-left { animation: logo-ear-left var(--dur-settle) var(--ease-out); }
-  :root:not(.reduce-motion) button:focus-visible .app-logo[data-motion="interactive"] .app-logo-ear-right { animation: logo-ear-right var(--dur-settle) var(--ease-out); }
   :root:not(.reduce-motion) .social-panel { animation: bt-page-in var(--dur-pageIn) var(--ease-out) both; }
   :root:not(.reduce-motion) .social-track { transition: background-color var(--dur-quick) var(--ease-out); }
   :root:not(.reduce-motion) .social-tabs > button { transition: color var(--dur-quick) var(--ease-out); }
-}
-
-@media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  :root:not(.reduce-motion) button:hover .app-logo[data-motion="interactive"] .app-logo-eye { animation: logo-blink var(--dur-settle) var(--ease-in-out); }
-  :root:not(.reduce-motion) button:hover .app-logo[data-motion="interactive"] .app-logo-ear-left { animation: logo-ear-left var(--dur-settle) var(--ease-out); }
-  :root:not(.reduce-motion) button:hover .app-logo[data-motion="interactive"] .app-logo-ear-right { animation: logo-ear-right var(--dur-settle) var(--ease-out); }
 }
 
 @supports (backdrop-filter: blur(16px)) {

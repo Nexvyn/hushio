@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
-import { INTRO_HOLD_MS } from "../lib/motion";
 
 const bridge = vi.hoisted(() => ({
   introDone: vi.fn(),
@@ -36,7 +35,7 @@ describe("LaunchIntro", () => {
 
     view.rerender(<LaunchIntro ready />);
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(INTRO_HOLD_MS + 500);
+      await vi.advanceTimersByTimeAsync(1000);
     });
 
     expect(bridge.introDone).toHaveBeenCalledTimes(1);
