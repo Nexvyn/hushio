@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { animate, useMotionValue, useTransform } from "motion/react";
 import { haptic } from "../../lib/haptics";
-import { phoneSmooth, phoneSnappy, reducedMotion } from "../../lib/motion";
+import { SPRING_GESTURE, phoneSnappy, reducedMotion } from "../../lib/motion";
 import { edgeBackCommits, edgeShadowAlpha, edgeStarts } from "../../lib/phoneGestures";
 import { swipeAxis, type Axis } from "../../lib/trackSwipe";
 import { viewportWidth } from "../../lib/viewport";
@@ -55,7 +55,7 @@ export function useEdgeBack({ enabled, onBack }: { enabled: boolean; onBack: () 
           backRef.current();
           return;
         }
-        animate(x, width, { ...phoneSmooth, velocity }).then(() => {
+        animate(x, width, { ...SPRING_GESTURE, velocity }).then(() => {
           x.set(0);
           backRef.current();
         });

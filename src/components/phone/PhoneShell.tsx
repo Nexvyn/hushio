@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, type CSSProperties } from "react";
 import { AnimatePresence, motion, useTransform } from "motion/react";
+import type { Transition } from "motion/react";
 import { Dialog } from "../Dialog";
 import { EraseDialog } from "../EraseDialog";
 import { ErrorBoundary } from "../ErrorBoundary";
@@ -15,13 +16,44 @@ import { pageCardOf, sheetProgress, watchSheetInterruptions } from "./sheetTrave
 import { TabBar } from "./TabBar";
 import { useEdgeBack } from "./useEdgeBack";
 import { CurrentView } from "../../views/CurrentView";
-import { fade, gate, phoneSnappy, pickerIn, pickerOut, reducedMotion } from "../../lib/motion";
+import { DURATION_MS, EASE_IN, EASE_OUT, PHONE_MS, fade, phoneTween, reducedMotion } from "../../lib/motion";
 import { navDirection, type NavDirection, type NavSnapshot } from "../../lib/navDirection";
 import { useScrimMounted } from "../../lib/useScrimMounted";
 import { INSET_TOP, INSET_BOTTOM, phoneBottomPad, tabOfRoot } from "../../lib/phoneNav";
 import { currentTrack, usePlayer } from "../../stores/player";
 import { useNavigation } from "../../stores/navigation";
 import { useUI } from "../../stores/ui";
+
+const PAGE_PUSH_X = 24;
+const PAGE_DIM_X = -8;
+const PAGE_DIM_OPACITY = 0.6;
+
+const pageIn: Transition = { duration: DURATION_MS.pageIn / 1000, ease: EASE_OUT };
+const pageOut: Transition = { duration: DURATION_MS.swap / 1000, ease: EASE_IN };
+const tabFade: Transition = phoneTween(PHONE_MS.tab);
+
+type PageDirection = "push" | "pop" | "tab" | "none";
+
+function screenVariants(reduced: boolean) {
+  if (reduced) {
+    return {
+      enter: { opacity: 0 },
+      center: { opacity: 1, transition: fade },
+      exit: { opacity: 0, transition: fade },
+    };
+  }
+  return {
+    enter: (d: PageDirection) =>
+      d === "push" ? { x: PAGE_PUSH_X, opacity: 0 } : d === "pop" ? { x: PAGE_DIM_X, opacity: PAGE_DIM_OPACITY } : { x: 0, opacity: 0 },
+    center: (d: PageDirection) => ({ x: 0, opacity: 1, transition: d === "push" || d === "pop" ? pageIn : tabFade }),
+    exit: (d: PageDirection) =>
+      d === "push"
+        ? { x: PAGE_DIM_X, opacity: PAGE_DIM_OPACITY, transition: pageOut }
+        : d === "pop"
+          ? { x: PAGE_PUSH_X, opacity: 0, transition: pageOut }
+          : { opacity: 0, transition: tabFade },
+  };
+}
 
 export function PhoneShell() {
   const view = useNavigation((state) => state.view);
@@ -55,7 +87,6 @@ export function PhoneShell() {
     last.current = { key: historyKey, snap, direction: last.current.key === "" ? "none" : navDirection(last.current.snap, snap) };
   }
   const direction = last.current.direction;
-  const slide = direction === "push" ? 12 : direction === "pop" ? -12 : 0;
 
   useEffect(watchSheetInterruptions, []);
 
@@ -108,13 +139,14 @@ export function PhoneShell() {
             } as CSSProperties}
           >
             <div className="relative">
-              <AnimatePresence mode="popLayout">
+              <AnimatePresence mode="popLayout" custom={direction}>
                 <motion.div
                   key={screenKey}
-                  initial={reduced ? { opacity: 0 } : direction === "tab" ? { opacity: 0 } : { opacity: 0, x: slide }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={reduced ? { opacity: 0, transition: fade } : { opacity: 0, x: -slide, transition: pickerOut }}
-                  transition={pickerIn}
+                  custom={direction}
+                  variants={screenVariants(reduced)}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
                   className="px-4"
                   style={{ paddingTop: `calc(${INSET_TOP} + 12px)` }}
                 >
@@ -129,8 +161,8 @@ export function PhoneShell() {
           data-phone-chrome
           aria-hidden={searchFocused || undefined}
           initial={false}
-          animate={{ y: searchFocused ? "100%" : "0%", opacity: searchFocused ? 0 : 1 }}
-          transition={gate(reduced, phoneSnappy)}
+          animate={{ y: searchFocused && !reduced ? 12 : 0, opacity: searchFocused ? 0 : 1 }}
+          transition={reduced ? fade : phoneTween(PHONE_MS.tab)}
           className={`absolute inset-x-0 bottom-0 z-20 overflow-hidden rounded-t-[24px] bg-surface shadow-[0_-4px_24px_rgb(0_0_0/0.12)] ${searchFocused ? "pointer-events-none" : ""}`}
         >
           <MiniPlayer />
